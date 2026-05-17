@@ -1,0 +1,14 @@
+.container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    // justify-content: space-between;
+    overflow-y: auto;
+}
+
+.language_selector_container {
+    width: 100%;
+    height: 100%;
+}

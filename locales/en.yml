@@ -1,0 +1,379 @@
+# =================================
+# IMPORTANT:
+# Please read 'readme_first.txt' before making any changes.
+# =================================
+
+common:
+    go_back_button_label: "Go Back"
+
+common_error:
+    no_device_mic: "No mic device detected."
+    no_device_speaker: "No speaker device detected."
+    threshold_invalid_value: "You can set it with a value between {{min}} to {{max}}."
+    failed_download_weight_ctranslate2: "CTranslate2 weight download error."
+    failed_download_weight_whisper: "Whisper weight download error."
+    translation_limit: "Translation engine limit reached or temporarily restricted."
+    deepl_auth_key_invalid_length: "DeepL auth key length is not correct."
+    deepl_auth_key_failed_authentication: "Auth key is incorrect or API usage limit reached."
+
+    invalid_value_mic_record_timeout: "It cannot be greater than '{{mic_phrase_timeout_label}}' with a value of 0 or more."
+    invalid_value_mic_phrase_timeout: "It cannot be set lower than '{{mic_record_timeout_label}}' with a value of 0 or more."
+    invalid_value_mic_max_phrase: "You can set a number equal to or greater than 0."
+
+    invalid_value_speaker_record_timeout: "It cannot be greater than '{{speaker_phrase_timeout_label}}' with a value of 0 or more."
+    invalid_value_speaker_phrase_timeout: "It cannot be set lower than '{{speaker_record_timeout_label}}' with a value of 0 or more."
+    invalid_value_speaker_max_phrase: "You can set a number equal to or greater than 0."
+
+common_warning:
+    unable_to_use_osc_query: "The following functions have been automatically disabled due to the OSC IP Address settings preventing OSC data from being received."
+
+main_page:
+    translation: "Translation"
+    transcription_send: "Speaking"
+    transcription_receive: "Listening"
+    foreground: "Always on Top"
+
+    language_settings: "Language Settings"
+    your_language: "Your Language"
+    translate_each_other_label: "Translate Both Languages"
+    swap_button_label: "Switch Languages"
+    target_language: "Target Language"
+    translator: "Translator"
+    translator_label_default: "Default"
+
+    translator_selector:
+        is_selected_same_language: "You are selecting the same language for '{{your_language}}' and '{{target_language}}' so only '{{ctranslate2}}' is available."
+
+    message_log:
+        all: "All"
+        sent: "Sent"
+        received: "Received"
+        system: "System"
+
+        resend_button_on_hover_desc: "Press And Hold To Send"
+
+    state_text_enabled: "Enabled"
+    state_text_disabled: "Disabled"
+
+    language_selector:
+        title_your_language: "Select Your Language"
+        title_target_language: "Select Target Language"
+
+    update_available: "New version is ready!"
+    updating: "Now updating..."
+
+update_modal:
+    cpu_desc: "Use CPU only as the compute device."
+    cuda_desc: "VRCNT includes CUDA support and can still run on CPU when no supported NVIDIA GPU is available."
+    cuda_compare_cpu_desc: "GPUs offer faster processing than CPUs."
+    cuda_disk_space_desc: "Requires approximately {{size}} of disk space."
+    close_modal: "Close"
+    download_latest_and_restart: "The latest version will be downloaded,\nand the app will automatically restart."
+    is_latest_version_already: "Already using the latest version"
+    is_current_compute_device: "The version currently in use"
+
+config_page:
+    common:
+        version: "Version {{version}}"
+        model_download_button_label: "Download"
+        correct_auth_key_required: "Correct Auth Key Required"
+        open_auth_key_webpage: "Open Auth Key Management Webpage"
+        connection_check:
+            button_label: "Connection Check"
+            checking: "Checking..."
+            connected: "Connected"
+            disconnected: "Disconnected"
+        compute_device:
+            desc: "The accuracy and speed of each processing type may vary depending on your machine specs, and the compatibility with calculation methods may differ from the displayed order. Please use this as a general guideline."
+            label_device: "Processing Device"
+            label_type: "Processing Type"
+            type_template_auto: "Automatic"
+            type_template_low: "{{type_name}} (Lower accuracy, faster processing)"
+            type_template_high: "{{type_name}} (Higher accuracy, slower processing)"
+        warning_labels:
+            unable_to_use_osc_query: "Due to the OSC IP Address settings, OSC data cannot be received, so this feature is currently unavailable."
+
+    side_menu_labels:
+        device: "Device"
+        appearance: "Appearance"
+        translation: "Translation"
+        transcription: "Transcription"
+        others: "Other"
+        hotkeys: "Hotkeys"
+        plugins: "Plugins"
+        advanced_settings: "Advanced"
+
+    device:
+        check_volume: "Check Volume"
+        label_auto_select: "Auto Select"
+        label_host: "Host/Driver"
+        label_device: "Device"
+        mic_host_device:
+            label: "Mic Device"
+        mic_dynamic_energy_threshold:
+            label_for_automatic: "Mic Sensitivity Settings (Current Setting: Automatic)"
+            desc_for_automatic: "Automatically control mic input sensitivity."
+            label_for_manual: "Mic Sensitivity Settings (Current Setting: Manual)"
+            desc_for_manual: "Input sensitivity can be manually adjusted using the slider. Click the mic icon to test your voice input and adjust the level while monitoring the volume."
+        speaker_device:
+            label: "Speaker Device"
+        speaker_dynamic_energy_threshold:
+            label_for_automatic: "Speaker Input Sensitivity Adjustment (Current Setting: Automatic)"
+            desc_for_automatic: "Automatically control speaker input sensitivity."
+            label_for_manual: "Speaker Input Sensitivity Adjustment (Current Setting: Manual)"
+            desc_for_manual: "Input sensitivity can be manually adjusted using the slider. Click the headphone icon to listen to the audio and adjust the level while checking the volume."
+
+    appearance:
+        transparency:
+            label: "Transparency"
+            desc: "Change the main window's transparency."
+        ui_size:
+            label: "UI Size"
+        textbox_ui_size:
+            label: "Message Logs Font Size"
+            desc: "You can adjust the log font size by changing the scaling factor relative to the UI size."
+        send_message_button_type:
+            label: "Send Message Button"
+            hide: "Hide (Use Enter key to send)"
+            show: "Show"
+            show_and_disable_enter_key: "Show and disable sending using the Enter key."
+        show_resend_button:
+            label: "Show Resend Button"
+            desc: "When hovering over a sent message log, the resend button appears. Click to edit, long press to resend."
+        font_family:
+            label: "Font Family"
+        ui_language:
+            label: "UI Language"
+
+    translation:
+        ctranslate2_weight_type:
+            label: "{{ctranslate2}} Model"
+            desc: "You can choose the translation model when using the {{ctranslate2}} translation engine."
+            small: "Basic Model ({{capacity}})"
+            large: "High Accuracy Model ({{capacity}})"
+        translation_compute_device:
+            label: "Processing device for AI translation"
+
+        deepl_auth_key:
+            label: "DeepL Auth Key"
+            desc: "When using it, please change {{translator}} on the main screen to DeepL_API. ※Some languages may not be supported."
+            open_auth_key_webpage: "Open DeepL Account Webpage"
+            save: "Save"
+            edit: "Edit"
+            auth_key_success: "Auth key update completed."
+
+        plamo_auth_key:
+            label: "Plamo Auth Key"
+        select_plamo_model:
+            label: "Select Plamo Model"
+
+        gemini_auth_key:
+            label: "Gemini Auth Key"
+        select_gemini_model:
+            label: "Select Gemini Model"
+
+        openai_auth_key:
+            label: "OpenAI Auth Key"
+        select_openai_model:
+            label: "Select OpenAI Model"
+
+        groq_auth_key:
+            label: "Groq Auth Key"
+        select_groq_model:
+            label: "Select Groq Model"
+
+        openrouter_auth_key:
+            label: "OpenRouter Auth Key"
+        select_openrouter_model:
+            label: "Select OpenRouter Model"
+
+        lmstudio_connection_check:
+            label: "Check LM Studio Connection"
+        select_lmstudio_model:
+            label: "Select LMStudio Model"
+            connection_required: "LMStudio Connection Required"
+
+        ollama_connection_check:
+            label: "Check Ollama Connection"
+        select_ollama_model:
+            label: "Select Ollama Model"
+            connection_required: "Ollama Connection Required"
+
+    transcription:
+        section_label_mic: "Mic"
+        section_label_speaker: "Speaker"
+        section_label_transcription_engines: "Transcription Engines"
+        mic_record_timeout:
+            label: "Mic Record Timeout"
+            desc: "Detects silence and, when the specified number of seconds passes, the system considers the voice input to have ended. (Second(s))"
+        mic_phrase_timeout:
+            label: "Mic Phrase Timeout"
+            desc: "Transcription processing is performed at intervals of the specified number of seconds."
+        mic_max_phrase:
+            label: "Mic Max Words"
+            desc: "It is the lower limit for the number of transcribed words, and only when this number is exceeded will the transcription results be displayed logs and send to VRChat."
+        mic_word_filter:
+            label: "Mic Word Filter"
+            desc: "If a registered word is detected, the message will not be sent. To add multiple words at once, separate them with ',' (comma).\n*Duplicate words will not be registered."
+            add_button_label: "Add"
+            count_desc: "Words Currently Registered: {{count}}"
+        speaker_record_timeout:
+            label: "Speaker Record Timeout"
+            desc: "Detects silence and, when the specified number of seconds has passed, considers the speaker input to have ended. (Second(s))"
+        speaker_phrase_timeout:
+            label: "Speaker Phrase Timeout"
+            desc: "Transcription processing is performed at intervals of the specified number of seconds."
+        speaker_max_phrase:
+            label: "Speaker Max Words"
+            desc: "It is the lower limit for the number of transcribed words, and only when this number is exceeded will the transcription results be displayed logs."
+        select_transcription_engine:
+            label: "Transcription Engine Used For Speech Recognition"
+        whisper_weight_type:
+            label: "Whisper Model"
+            desc: "Larger models have higher accuracy, but they also consume more CPU or GPU resources.\nEspecially for models larger than medium, it may be difficult or even impossible to use them depending on the performance of your CPU/GPU."
+            model_template: "{{model_name}} model ({{capacity}})"
+            recommended_model_template: "{{model_name}} model ({{capacity}}) (Recommended)"
+        transcription_compute_device:
+            label: "Processing Device Used For AI transcription"
+
+    vr:
+        single_line: "Single line"
+        multi_lines: "Multiple Lines"
+        overlay_enable: "Enable"
+        restore_default_settings: "Reset to Default Settings"
+        position: "Position"
+        rotation: "Rotation"
+        x_position: "X-axis (left-right)"
+        y_position: "Y-axis (up-down)"
+        z_position: "Z-axis (front-back)"
+        x_rotation: "X-axis rotation"
+        y_rotation: "Y-axis rotation"
+        z_rotation: "Z-axis rotation"
+        sample_text_button:
+            start: "Send Sample Texts\nTo Overlay"
+            stop: "Stop Sending"
+            sample_text: "Sample Text."
+        opacity: "Opacity"
+        ui_scaling: "UI Scaling"
+        display_duration: "Display Duration"
+        fadeout_duration: "Fadeout Duration"
+        common_settings: "Common Settings"
+        tracker: "Tracker"
+        hmd: "HMD"
+        left_hand: "Left Hand"
+        right_hand: "Right Hand"
+        overlay_show_only_translated_messages:
+            label: "Show Only Translated Messages"
+        voice_typing_mode:
+            label: "Voice Typing Mode"
+            desc: "Automatically pastes transcribed text into the active input field.\n*Utilizes standard Windows clipboard functionality."
+
+    others:
+        section_label_sounds: "Sounds"
+        section_label_message_formats: "Message Formats"
+        auto_clear_the_message_box:
+            label: "Auto Clear Message box"
+        send_only_translated_messages:
+            label: "Send Only Translated Messages"
+        auto_export_message_logs:
+            label: "Auto Save Message Logs"
+            desc: "Automatically saves the conversation messages as text files."
+        vrc_mic_mute_sync:
+            label: "VRC Mic Mute Sync"
+            desc: "Messages will not be sent to VRCT while VRChat's mic is muted.\n*There may be a slight delay. Push-To-Talk is not supported."
+        send_message_to_vrc:
+            label: "Send Message To VRChat"
+            desc: "This feature is not supported, but there is a way to use it without sending messages to VRChat. Make sure to enable this feature when you wish to send messages to VRChat."
+        notification_vrc_sfx:
+            label: "Enable Notification Sound When Sending Chat"
+            desc: "When this feature is disabled, messages will be sent silently without playing the chatbox notification sound that others can hear."
+        send_received_message_to_vrc:
+            label: "Send Received Message To VRChat"
+            desc: "Send the message you received from the speaker's voice to VRChat's chatbox."
+        message_format_common:
+            example_view:
+                title: "Preview"
+                original_translated: "Original + Translation"
+                original_translated_multi: "Original + Translation (Multi-language)"
+                translated_only_multi: "Translation Only (Multi-language)"
+                translated_only: "Translation Only"
+                original_only: "Original Only"
+            settings:
+                title: "Settings"
+                original: "Original"
+                translated: "Translation"
+                for_multi_translation: "For Multi-Translation"
+        send_message_format:
+            label: "Message Format (Send)"
+            desc: "This allows you to change the format of the message that others see in VRChat."
+        received_message_format:
+            label: "Message Format (Speaker2Chatbox)"
+            desc: "Currently, it is used in Speaker2Chatbox."
+        common_convert_message_hiragana_romaji:
+            desc_1: "Supported only when Japanese is selected as the translation language."
+            desc_2: "Due to the complexity of Japanese, it has limitations on accuracy."
+        convert_message_to_romaji:
+            label: "Show Romaji"
+            desc:  "When enabled along with '{{convert_message_to_hiragana}}', romaji will be shown on mouse hover."
+        convert_message_to_hiragana:
+            label: "Show Hiragana"
+        telemetry:
+            label: "Support Our Development"
+            desc: "Sends usage data so our developers can grin and say 'Thanks for using it!' while improving the app.\n* No personal info or conversation content is ever sent."
+            aptabase_privacy_policy_label: "Aptabase Privacy Policy"
+
+    hotkeys:
+        toggle_vrct_visibility:
+            label: "Toggle VRCT visibility"
+        toggle_translation:
+            label: "Toggle {{translation}}"
+        toggle_transcription_send:
+            label: "Toggle {{transcription_send}}"
+        toggle_transcription_receive:
+            label: "Toggle {{transcription_receive}}"
+
+    plugins:
+        downloaded_version: "Downloaded version: {{downloaded_version}}"
+        latest_version: "Latest version: {{latest_version}}"
+        available_after_updating: "Available after updating to the latest version"
+        unavailable_downloaded: "Currently Unavailable - Incompatible with the VRCT version in use"
+        no_latest_info: "Unable to retrieve the latest information"
+        using_latest_version: "Using the latest version"
+        available_latest_version: "Latest version available"
+        unavailable_latest_version: "Latest version currently unavailable"
+        available_in_latest_vrct_version: "Available in the latest VRCT version"
+        unavailable_not_downloaded: "Currently unavailable"
+
+    advanced_settings:
+        osc_ip_address:
+            label: "OSC IP Address"
+        osc_port:
+            label: "OSC Port"
+        open_config_filepath:
+            label: "Open Config File"
+        switch_compute_device:
+            label: "Switch VRCT To CPU/GPU Version"
+        enable_websocket:
+            label: "Enable WebSocket Server"
+        websocket_host:
+            label: "WebSocket Host"
+        websocket_port:
+            label: "WebSocket Port"
+
+    notifications:
+        save_success: "Settings have been saved."
+
+plugin_notifications:
+    downloading: "Downloading the plugin."
+    downloaded_success: "Downloaded successfully."
+    downloaded_error: "Download failed."
+
+    updating: "Updating the plugin."
+    updated_success: "Updated successfully."
+    updated_error: "Update failed."
+
+    disabled_out_of_support: "The plugin has been disabled. It's not supported on this VRCT version."
+    disabled_due_to_an_error: "An error was detected while running the plugin. Please report this to the plugin developer."
+
+    is_enabled: "The plugin enabled."
+    is_disabled: "The plugin disabled."

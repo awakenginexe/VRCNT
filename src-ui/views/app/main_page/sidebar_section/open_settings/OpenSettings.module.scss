@@ -1,0 +1,32 @@
+.container {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: linear-gradient(180deg, transparent, #071017 42%);
+}
+
+.open_config_page_button {
+    width: auto;
+    margin: 1rem;
+    padding: 0.8rem 0;
+    display: flex;
+    justify-content: center;
+    border-radius: 0.95rem;
+    border: 0.1rem solid #214756;
+    background:
+        linear-gradient(180deg, #102836, #0a1b25);
+    cursor: pointer;
+    &:hover {
+        background:
+            linear-gradient(180deg, #143140, #0d2230);
+    }
+    &:active {
+        background-color: var(--dark_875_color);
+    }
+}
+
+.configuration_svg {
+    width: 2rem;
+    color: var(--primary_200_color);
+}

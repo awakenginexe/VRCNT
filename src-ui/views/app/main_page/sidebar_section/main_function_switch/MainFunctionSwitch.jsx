@@ -1,0 +1,180 @@
+import { useI18n } from "@useI18n";
+import clsx from "clsx";
+import { useEffect, useState } from "react";
+import styles from "./MainFunctionSwitch.module.scss";
+import TranslationSvg from "@images/translation.svg?react";
+import MicSvg from "@images/mic.svg?react";
+import HeadphonesSvg from "@images/headphones.svg?react";
+import ForegroundSvg from "@images/foreground.svg?react";
+import {
+    useIsMainPageCompactMode,
+    useMainFunction,
+} from "@logics_main";
+import { useIsBackendReady as useCommonIsBackendReady } from "@logics_common";
+
+export const MainFunctionSwitch = () => {
+    const { t } = useI18n();
+    const { currentIsBackendReady } = useCommonIsBackendReady();
+
+    const {
+        toggleTranslation, currentTranslationStatus,
+        toggleTranscriptionSend, currentTranscriptionSendStatus,
+        toggleTranscriptionReceive, currentTranscriptionReceiveStatus,
+        toggleForeground, currentForegroundStatus,
+    } = useMainFunction();
+
+
+    const switch_items = [
+        {
+            switch_id: "translation",
+            label: t("main_page.translation"),
+            SvgComponent: TranslationSvg,
+            currentState: currentTranslationStatus,
+            toggleFunction: toggleTranslation,
+            isDisabled: currentIsBackendReady.data !== true,
+        },
+        {
+            switch_id: "transcription_send",
+            label: t("main_page.transcription_send"),
+            SvgComponent: MicSvg,
+            currentState: currentTranscriptionSendStatus,
+            toggleFunction: toggleTranscriptionSend,
+            isDisabled: currentIsBackendReady.data !== true,
+        },
+        {
+            switch_id: "transcription_receive",
+            label: t("main_page.transcription_receive"),
+            SvgComponent: HeadphonesSvg,
+            currentState: currentTranscriptionReceiveStatus,
+            toggleFunction: toggleTranscriptionReceive,
+            isDisabled: currentIsBackendReady.data !== true,
+        },
+        {
+            switch_id: "foreground",
+            label: t("main_page.foreground"),
+            SvgComponent: ForegroundSvg,
+            currentState: currentForegroundStatus,
+            toggleFunction: toggleForeground,
+            isDisabled: false,
+        },
+    ];
+
+    return (
+        <div className={styles.container}>
+            {switch_items.map(item => (
+                <SwitchContainer
+                    key={item.switch_id}
+                    switch_id={item.switch_id}
+                    switchLabel={item.label}
+                    currentState={item.currentState}
+                    toggleFunction={item.toggleFunction}
+                    SvgComponent={item.SvgComponent}
+                    isDisabled={item.isDisabled}
+                >
+                </SwitchContainer>
+            ))}
+        </div>
+    );
+};
+
+export const SwitchContainer = ({ switchLabel, switch_id, children, currentState, toggleFunction, SvgComponent, isDisabled = false }) => {
+    const [is_hovered, setIsHovered] = useState(false);
+    const [is_mouse_down, setIsMouseDown] = useState(false);
+    const [pending_seconds, setPendingSeconds] = useState(0);
+
+    const { currentIsMainPageCompactMode } = useIsMainPageCompactMode();
+
+    const getClassNames = (baseClass) => clsx(baseClass, {
+        [styles.is_compact_mode]: currentIsMainPageCompactMode.data,
+        [styles.is_active]: (currentState.data === true),
+        [styles.is_pending]: (currentState.state === "pending"),
+        [styles.is_disabled]: isDisabled,
+        [styles.is_hovered]: is_hovered,
+        [styles.is_mouse_down]: is_mouse_down,
+    });
+
+    const onMouseEnter = () => setIsHovered(true);
+    const onMouseLeave = () => setIsHovered(false);
+    const onMouseDown = () => setIsMouseDown(true);
+    const onMouseUp = () => setIsMouseDown(false);
+    const onClick = () => {
+        if (isDisabled || currentState.state === "pending") return;
+        toggleFunction();
+    };
+
+    useEffect(() => {
+        if (currentState.state !== "pending") {
+            setPendingSeconds(0);
+            return;
+        }
+        const startedAt = Date.now();
+        const timer = setInterval(() => {
+            setPendingSeconds(Math.floor((Date.now() - startedAt) / 1000));
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [currentState.state]);
+
+    const pending_messages = {
+        translation: {
+            start: "Starting translator",
+            warm: "Connecting translator",
+            long: "Still loading translator",
+        },
+        transcription_send: {
+            start: "Starting Speaking",
+            warm: "Loading speech model",
+            long: "Still loading Speaking",
+        },
+        transcription_receive: {
+            start: "Starting Listening",
+            warm: "Loading speech model",
+            long: "Still loading Listening",
+        },
+        foreground: {
+            start: "Updating window",
+            warm: "Updating window",
+            long: "Still updating",
+        },
+    };
+
+    const getPendingMessage = () => {
+        const messages = pending_messages[switch_id] ?? pending_messages.foreground;
+        if (pending_seconds >= 30) return messages.long;
+        if (pending_seconds >= 5) return messages.warm;
+        return messages.start;
+    };
+
+    return (
+        <div className={getClassNames(styles.switch_container)}
+            onMouseEnter={onMouseEnter}
+            onMouseLeave={onMouseLeave}
+            onMouseDown={onMouseDown}
+            onMouseUp={onMouseUp}
+            onClick={onClick}
+        >
+            <div className={styles.label_wrapper}>
+                <SvgComponent className={getClassNames(styles.switch_svg)} />
+                <div className={styles.label_text_wrapper}>
+                    <p className={getClassNames(styles.switch_label)}>{switchLabel}</p>
+                    {currentState.state === "pending" && (
+                        <p className={getClassNames(styles.pending_status)}>{getPendingMessage()}</p>
+                    )}
+                    {isDisabled && currentState.state !== "pending" && (
+                        <p className={getClassNames(styles.pending_status)}>Waiting for backend startup</p>
+                    )}
+                </div>
+                {children}
+            </div>
+
+            <div className={getClassNames(styles.toggle_control)}>
+                <span className={getClassNames(styles.control)}></span>
+            </div>
+
+            <div className={getClassNames(styles.switch_indicator)}></div>
+            {(currentState.state === "pending")
+                ? <span className={styles.loader}></span>
+                : null
+            }
+        </div>
+    );
+};

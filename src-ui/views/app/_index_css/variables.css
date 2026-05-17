@@ -1,0 +1,85 @@
+:root {
+    --primary_100_color: #d7fff8;
+    --primary_150_color: #b7fbf1;
+    --primary_200_color: #8ff4e8;
+    --primary_250_color: #69eadf;
+    --primary_300_color: #42ded2;
+    --primary_350_color: #28d2c7;
+    --primary_400_color: #18c4bd;
+    --primary_450_color: #13b4b0;
+    --primary_500_color: #10a3a3;
+    --primary_550_color: #0d9295;
+    --primary_600_color: #0b7f86;
+    --primary_650_color: #0a6f78;
+    --primary_700_color: #085e67;
+    --primary_750_color: #074f58;
+    --primary_800_color: #064148;
+    --primary_900_color: #043038;
+
+    --primary_600_color_44: #0b7f8644;
+
+    /* primary_300_color 61b4a7 as standard */
+    --sent_400_color: #5fc3f2;
+    --received_300_color: #a78bfa;
+
+    --error_bc_color: #bb4448;
+    --error_bc_active_color: #9c3938;
+    --success_bc_color: var(--primary_600_color);
+    --warning_color: #cb944f;
+    --warning_bc_color: #cf7b1b;
+
+    --dark_basic_text_color: #edf8fb;
+    --dark_100_color: #f8fbff;
+    --dark_200_color: #edf8fb;
+    --dark_300_color: #d8e8ee;
+    --dark_350_color: #c8d8df;
+    --dark_400_color: #afc3cc;
+    --dark_450_color: #9db2bc;
+    --dark_500_color: #879da8;
+    --dark_550_color: #738894;
+    --dark_600_color: #61737f;
+    --dark_650_color: #556672;
+    --dark_700_color: #485a65;
+    --dark_725_color: #3f515c;
+    --dark_750_color: #354852;
+    --dark_775_color: #2d3e48;
+    --dark_800_color: #253640;
+    --dark_825_color: #1f303a;
+    --dark_850_color: #192a34;
+    --dark_863_color: #172630;
+    --dark_875_color: #14232c;
+    --dark_888_color: #111f28;
+    --dark_900_color: #0e1b24;
+    --dark_925_color: #0b1720;
+    --dark_950_color: #08131b;
+    --dark_975_color: #060f16;
+    --dark_1000_color: #040a10;
+
+    --dark_550_color_22: #73889422;
+    --dark_825_color_cc: #1f303acc;
+    --dark_1000_color_66: #040a1066;
+    --dark_1000_color_aa: #040a10aa;
+    --dark_1000_color_dd: #040a10dd;
+
+    --surface_1_color: #0a1822;
+    --surface_2_color: #102330;
+    --surface_3_color: #172d3b;
+    --border_subtle_color: #23424f;
+    --focus_ring_color: #42ded266;
+    --shadow_soft: 0 1.8rem 4.8rem #00000045;
+    --transition_ui: 160ms cubic-bezier(.2, .8, .2, 1);
+
+    /*sent_400_color + #000 10% = */
+    --supporters_color_fuwa: #5788a2;
+
+    --supporters_crown_color: #f0cb55;
+
+    --title_bar_height: 2rem;
+    --main_page_topbar_height: 4.8rem;
+    --config_page_sidebar_width: 16.8rem;
+    --config_page_topbar_height: 8rem;
+
+    --font_family: "Yu Gothic UI";
+}
+/* https://m2.material.io/design/color/the-color-system.html#tools-for-picking-colors */
+/* https://meyerweb.com/eric/tools/color-blend/#::1:hex */

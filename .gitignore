@@ -1,0 +1,51 @@
+# Node / frontend
+node_modules/
+dist/
+dist-ssr/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+.venv_cuda/
+
+# Tauri / Rust / packaged output
+src-tauri/target/
+build/
+tmp/
+*.exe
+*.d
+VRCNT.zip
+
+# Runtime data
+logs/
+weights/
+config.json
+runtime-backup-*/
+memo.txt
+error.log
+error.txt
+*.log
+
+# Local editor / OS files
+.vscode/
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Scratch / notebooks
+*.ipynb
+*.local
+.qoder/

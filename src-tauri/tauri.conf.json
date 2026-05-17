@@ -1,0 +1,70 @@
+{
+    "$schema": "https://schema.tauri.app/config/2",
+    "productName": "VRCNT",
+    "version": "1.0.0",
+    "identifier": "com.vrcnt.next",
+    "build": {
+        "beforeDevCommand": "",
+        "devUrl": "http://localhost:1420",
+        "beforeBuildCommand": "",
+        "frontendDist": "../dist"
+    },
+    "app": {
+        "enableGTKAppId": false,
+        "windows": [
+            {
+                "label": "main",
+                "title": "VRCNT",
+                "width": 1450,
+                "height": 900,
+                "minWidth": 1180,
+                "minHeight": 760,
+                "resizable": true,
+                "maximizable": true,
+                "minimizable": true,
+                "closable": true,
+                "visible": true,
+                "decorations": false,
+                "transparent": false,
+                "shadow": true,
+                "center": true
+            }
+        ],
+        "security": {
+            "csp": null,
+            "capabilities": [
+                "default",
+                "vrct-capability"
+            ]
+        }
+    },
+    "bundle": {
+        "active": true,
+        "targets": "nsis",
+        "publisher": "awakenginexe",
+        "copyright": "Copyright 2026 awakenginexe. Portions Copyright 2023 misyaguziya.",
+        "licenseFile": "../LICENSE",
+        "shortDescription": "VRCNT",
+        "icon": [
+            "icons/32x32.png",
+            "icons/128x128.png",
+            "icons/128x128@2x.png",
+            "icons/icon.icns",
+            "icons/icon.ico"
+        ],
+        "externalBin": [
+            "bin/VRCT-sidecar"
+        ],
+        "resources": {
+            "../dist": "frontend",
+            "bin/_internal": "_internal"
+        },
+        "windows": {
+            "nsis": {
+                "template": "nsis/template.nsi",
+                "installMode": "currentUser",
+                "displayLanguageSelector": true
+            }
+        }
+    }
+}

@@ -1,0 +1,58 @@
+.container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    gap: 4rem;
+    position: relative;
+    background:
+        radial-gradient(circle at 50% 42%, #123d4b 0%, transparent 32%),
+        linear-gradient(135deg, var(--dark_1000_color), var(--dark_925_color));
+}
+
+.label {
+    position: absolute;
+    top: 60%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 2rem;
+}
+
+.circular_box {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.chato_box {
+    position: relative;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.chato_img {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 6rem;
+    aspect-ratio: 1;
+    object-fit: contain;
+    filter: drop-shadow(0 0 2rem #13e6ff55);
+    animation: infinite-rotation 20s linear infinite 0.5s;
+}
+@keyframes infinite-rotation {
+    from {
+        transform: translate(-50%, -50%) rotate(0deg);
+    }
+    to {
+        transform: translate(-50%, -50%) rotate(360deg);
+    }
+}

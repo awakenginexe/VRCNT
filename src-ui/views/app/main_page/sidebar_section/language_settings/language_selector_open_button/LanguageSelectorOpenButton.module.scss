@@ -1,0 +1,114 @@
+.container {
+    width: 100%;
+    background: linear-gradient(180deg, #102836, #0a1b25);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 0.95rem;
+    gap: 0.7rem;
+    margin: 0;
+    border: 0.1rem solid #214756;
+    border-radius: 1.1rem;
+    box-shadow: inset 0 0.1rem 0 #ffffff08;
+    transition:
+        background-color var(--transition_ui),
+        border-color var(--transition_ui),
+        transform var(--transition_ui);
+    &:hover {
+        border-color: #2f7285;
+        transform: translateY(-0.1rem);
+        box-shadow:
+            inset 0 0.1rem 0 #ffffff12,
+            0 0.9rem 2.1rem #00000024;
+    }
+}
+
+.title_container {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    text-align: left;
+}
+
+.category_svg {
+    width: 1.4rem;
+    color: var(--dark_400_color);
+    display: none;
+    flex-shrink: 0;
+    &.is_turned_on {
+        display: block;
+        color: var(--primary_250_color);
+    }
+}
+
+.title {
+    font-size: 1.2rem;
+    color: var(--dark_250_color);
+    font-weight: 700;
+}
+
+.dropdown_menu_container {
+    position: relative;
+    background:
+        linear-gradient(180deg, #071720, #061017);
+    width: 100%;
+    min-height: 5rem;
+    padding: 0.6rem 3rem 0.6rem 0.8rem;
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    border: 0.1rem solid #204553;
+    border-radius: 0.9rem;
+    cursor: pointer;
+    transition:
+        background-color var(--transition_ui),
+        border-color var(--transition_ui);
+    &:hover {
+        background:
+            linear-gradient(180deg, #0c202b, #081822);
+        border-color: #2d6c7f;
+    }
+    &:active {
+        background-color: var(--dark_900_color);
+    }
+}
+
+.language_details {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    min-width: 0;
+}
+
+.flag_badge {
+    width: 3.4rem;
+    height: 2.45rem;
+}
+
+.language_copy {
+    min-width: 0;
+}
+
+.selected_language {
+    font-size: 1.25rem;
+    color: var(--dark_150_color);
+    font-weight: 750;
+}
+
+.selected_country {
+    font-size: 1.1rem;
+    color: var(--dark_450_color);
+}
+
+.arrow_left_svg {
+    position: absolute;
+    right: 0.8rem;
+    transform: rotate(180deg);
+    width: 1.6rem;
+    color: var(--primary_250_color);
+    &.reverse {
+        transform: rotate(0deg);
+    }
+}

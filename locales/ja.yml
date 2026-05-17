@@ -1,0 +1,379 @@
+# =================================
+# IMPORTANT:
+# Please read 'readme_first.txt' before making any changes.
+# =================================
+
+common:
+    go_back_button_label: "戻る"
+
+common_error:
+    no_device_mic: "マイクデバイスが検出されませんでした。"
+    no_device_speaker: "スピーカーデバイスが検出されませんでした。"
+    threshold_invalid_value: "{{min}} から {{max}} までの数値で設定できます。"
+    failed_download_weight_ctranslate2: "CTranslate2 モデルのダウンロードに失敗しました。"
+    failed_download_weight_whisper: "Whisper モデルのダウンロードに失敗しました。"
+    translation_limit: "翻訳エンジンの使用制限に達したか、一時的に利用制限がかけられています。"
+    deepl_auth_key_invalid_length: "認証キーの文字数が間違っています。"
+    deepl_auth_key_failed_authentication: "認証キーが間違っているか、API使用制限が上限に達しています。"
+
+    invalid_value_mic_record_timeout: "0 以上で 「{{mic_phrase_timeout_label}}」 より大きくすることはできません。"
+    invalid_value_mic_phrase_timeout: "0 以上で 「{{mic_record_timeout_label}}」 より小さくすることはできません。"
+    invalid_value_mic_max_phrase: "0 以上の数値を設定できます。"
+
+    invalid_value_speaker_record_timeout: "0 以上で 「{{speaker_phrase_timeout_label}}」 より大きくすることはできません。"
+    invalid_value_speaker_phrase_timeout: "0 以上で 「{{speaker_record_timeout_label}}」 より小さくすることはできません。"
+    invalid_value_speaker_max_phrase: "0 以上の数値を設定できます。"
+
+common_warning:
+    unable_to_use_osc_query: "OSC IP Address の設定によりOSCデータの受信ができないため、以下の機能が自動的に無効になっています。"
+
+main_page:
+    translation: "翻訳"
+    transcription_send: "マイク入力"
+    transcription_receive: "聞き取り"
+    foreground: "最前面固定"
+
+    language_settings: "言語設定"
+    your_language: "あなたの言語"
+    translate_each_other_label: "双方向に翻訳"
+    swap_button_label: "言語を入れ替え"
+    target_language: "相手の言語"
+    translator: "翻訳エンジン"
+    translator_label_default: "デフォルト"
+
+    translator_selector:
+        is_selected_same_language: "「{{your_language}}」と「{{target_language}}」に同じ言語が選択がされているため、「{{ctranslate2}}」のみが使用できます。"
+
+    message_log:
+        all: "全て"
+        sent: "送信"
+        received: "受信"
+        system: "システム"
+
+        resend_button_on_hover_desc: "長押しで送信"
+
+    state_text_enabled: "有効"
+    state_text_disabled: "無効"
+
+    language_selector:
+        title_your_language: "あなたの言語"
+        title_target_language: "相手の言語"
+
+    update_available: "新しいバージョンが出ました！"
+    updating: "アップデート中..."
+
+update_modal:
+    cpu_desc: "処理デバイスとしてCPUのみを使用"
+    cuda_desc: "VRCNTにはCUDAサポートが含まれており、対応するNVIDIA GPUがない場合でもCPUで実行できます。"
+    cuda_compare_cpu_desc: "GPU選択時、CPUと比べて処理が高速"
+    cuda_disk_space_desc: "約{{size}}のディスク容量が必要"
+    close_modal: "閉じる"
+    download_latest_and_restart: "最新版がダウンロードされ、\nアプリは自動的に再起動します。"
+    is_latest_version_already: "すでに最新版を使用中"
+    is_current_compute_device: "現在使用中のバージョン"
+
+config_page:
+    common:
+        version: "バージョン {{version}}"
+        model_download_button_label: "ダウンロード"
+        correct_auth_key_required: "正しい認証キーが必要"
+        open_auth_key_webpage: "認証キー管理ページを開く"
+        connection_check:
+            button_label: "接続確認"
+            checking: "確認中..."
+            connected: "接続済み"
+            disconnected: "未接続"
+        compute_device:
+            desc: "各処理タイプの精度・速度は、マシンスペックによって計算方法に相性があり、表示順とは異なる事があるため、大まかな目安としてください。"
+            label_device: "処理デバイス"
+            label_type: "処理タイプ"
+            type_template_auto: "自動"
+            type_template_low: "{{type_name}} （精度が悪く、処理は早い）"
+            type_template_high: "{{type_name}} （精度が良く、処理は遅い）"
+        warning_labels:
+            unable_to_use_osc_query: "OSC IP Address の設定によりOSCデータの受信ができないため、現在この機能は使用できません。"
+
+    side_menu_labels:
+        device: "デバイス"
+        appearance: "デザイン"
+        translation: "翻訳"
+        transcription: "音声認識"
+        others: "その他"
+        hotkeys: "ホットキー"
+        plugins: "プラグイン"
+        advanced_settings: "高度な設定"
+
+    device:
+        check_volume: "音量チェック"
+        label_auto_select: "自動選択"
+        label_host: "ホスト/ドライバー"
+        label_device: "デバイス"
+        mic_host_device:
+            label: "マイク （デバイス）"
+        mic_dynamic_energy_threshold:
+            label_for_automatic: "マイク入力感度の調整 （現在の設定: 自動）"
+            desc_for_automatic: "マイクの入力感度を自動的に調節する。"
+            label_for_manual: "マイク入力感度の調整 （現在の設定: 手動）"
+            desc_for_manual: "スライダーを調整して入力感度を手動で決められます。マイクのアイコンを押すと、実際に声を入力し、音量を確認しながら調節できます。"
+        speaker_device:
+            label: "スピーカー （デバイス）"
+        speaker_dynamic_energy_threshold:
+            label_for_automatic: "スピーカー入力感度の調整 （現在の設定: 自動）"
+            desc_for_automatic: "スピーカーの入力感度を自動的に調節する。"
+            label_for_manual: "スピーカー入力感度の調整 （現在の設定: 手動）"
+            desc_for_manual: "スライダーを調整して入力感度を手動で決められます。ヘッドフォンのアイコンを押すと、実際に音声を聞き取り、音量を確認しながら調節できます。"
+
+    appearance:
+        transparency:
+            label: "透明度"
+            desc: "メイン画面の透明度を変更できます。"
+        ui_size:
+            label: "UIサイズ"
+        textbox_ui_size:
+            label: "ログのフォントサイズ"
+            desc: "ログに表示されるフォントのサイズを、UIサイズを基準にして倍率を変えられます。"
+        send_message_button_type:
+            label: "メッセージ送信ボタン"
+            hide: "非表示 （エンターキーを使って送信）"
+            show: "表示"
+            show_and_disable_enter_key: "表示し、エンターキーでの送信を無効"
+        show_resend_button:
+            label: "再送信ボタンを表示する"
+            desc: "送信済メッセージログにマウスホバーすると、再送信ボタンが表示されます。クリックで編集モード、長押しで再送信します。"
+        font_family:
+            label: "使用フォント"
+        ui_language:
+            label: "UIの言語"
+
+    translation:
+        ctranslate2_weight_type:
+            label: "AI翻訳 {{ctranslate2}} のモデルタイプ"
+            desc: "翻訳エンジン「{{ctranslate2}}」で翻訳する際に、使用する翻訳モデルを選択できます。"
+            small: "通常モデル （{{capacity}}）"
+            large: "高精度モデル （{{capacity}}）"
+        translation_compute_device:
+            label: "AI翻訳の処理デバイス"
+
+        deepl_auth_key:
+            label: "DeepL APIキーの登録"
+            desc: "使用の際は、メイン画面にある {{translator}} をDeepL_APIに変更してください。\n※対応していない言語もあります。"
+            open_auth_key_webpage: "DeepLアカウントページを開く"
+            save: "保存"
+            edit: "編集"
+            auth_key_success: "認証キーの更新が完了しました。"
+
+        plamo_auth_key:
+            label: "Plamo 認証キー"
+        select_plamo_model:
+            label: "Plamo モデルを選択"
+
+        gemini_auth_key:
+            label: "Gemini 認証キー"
+        select_gemini_model:
+            label: "Gemini モデルを選択"
+
+        openai_auth_key:
+            label: "OpenAI 認証キー"
+        select_openai_model:
+            label: "OpenAI モデルを選択"
+
+        groq_auth_key:
+            label: "Groq 認証キー"
+        select_groq_model:
+            label: "Groq モデルを選択"
+
+        openrouter_auth_key:
+            label: "OpenRouter 認証キー"
+        select_openrouter_model:
+            label: "OpenRouter モデルを選択"
+
+        lmstudio_connection_check:
+            label: "LM Studio との接続確認"
+        select_lmstudio_model:
+            label: "LMStudio モデルを選択"
+            connection_required: "LMStudio との接続が必要"
+
+        ollama_connection_check:
+            label: "Ollama との接続確認"
+        select_ollama_model:
+            label: "Ollama モデルを選択"
+            connection_required: "Ollama との接続が必要"
+
+    transcription:
+        section_label_mic: "マイク"
+        section_label_speaker: "スピーカー"
+        section_label_transcription_engines: "音声認識エンジン"
+        mic_record_timeout:
+            label: "入力が終了したとみなす無音時間"
+            desc: "無音を検出し、設定された秒数経過すると、音声入力が終了したとみなします。"
+        mic_phrase_timeout:
+            label: "一度に文字起こしする時間の長さ"
+            desc: "設定された秒数ごとに文字起こし処理が行われます。"
+        mic_max_phrase:
+            label: "送信するまでに保持する単語数"
+            desc: "文字起こしされた単語数の下限値で、この数値を超えた場合のみ結果をVRChatへ送信し、ログに表示します。"
+        mic_word_filter:
+            label: "ワードフィルター"
+            desc: "登録された単語を検出すると、その文章は送信されません。\n「,」カンマで区切ると、まとめて複数の単語を追加できます。\n※重複した単語は登録されません。"
+            add_button_label: "追加"
+            count_desc: "現在登録されている単語数: {{count}}"
+        speaker_record_timeout:
+            label: "入力が終了したとみなす無音時間"
+            desc: "無音を検出し、設定された秒数経過すると、音声入力が終了したとみなします。"
+        speaker_phrase_timeout:
+            label: "一度に文字起こしする時間の長さ"
+            desc: "設定された秒数ごとに文字起こし処理が行われます。"
+        speaker_max_phrase:
+            label: "ログとして表示するまでに保持する単語数"
+            desc: "文字起こしされた単語数の下限値で、この数値を超えた場合のみ結果をログに表示します。"
+        select_transcription_engine:
+            label: "音声認識で使用するエンジン"
+        whisper_weight_type:
+            label: "Whisperモデルのタイプ"
+            desc: "容量が大きいモデルほど精度は高いですが、その分CPUやGPUを占有します。\n※特にmediumより容量の大きいモデルは、CPU/GPUの性能によっては使用すらも困難です。"
+            model_template: "{{model_name}} モデル （{{capacity}}）"
+            recommended_model_template: "{{model_name}} モデル （{{capacity}}） [推奨]"
+        transcription_compute_device:
+            label: "AI音声認識で使用する処理デバイス"
+
+    vr:
+        single_line: "一行"
+        multi_lines: "複数行"
+        overlay_enable: "有効にする"
+        restore_default_settings: "初期値に戻す"
+        position: "位置"
+        rotation: "回転"
+        x_position: "X軸（左右）"
+        y_position: "Y軸（上下）"
+        z_position: "Z軸（前後）"
+        x_rotation: "X軸の回転"
+        y_rotation: "Y軸の回転"
+        z_rotation: "Z軸の回転"
+        sample_text_button:
+            start: "サンプルテキストを\nOverlayに送信する"
+            stop: "送信を停止"
+            sample_text: "サンプルテキスト"
+        opacity: "透明度"
+        ui_scaling: "サイズ"
+        display_duration: "表示時間"
+        fadeout_duration: "フェードアウト時間"
+        common_settings: "共通設定"
+        tracker: "表示するトラッカーの位置"
+        hmd: "HMD"
+        left_hand: "左手"
+        right_hand: "右手"
+        overlay_show_only_translated_messages:
+            label: "翻訳後のメッセージのみ表示する"
+        voice_typing_mode:
+            label: "音声タイピングモード"
+            desc: "文字起こしされたテキストを、アクティブな入力欄へと自動的に貼り付けます。\n※Windows標準のクリップボード機能を利用しています。"
+
+    others:
+        section_label_sounds: "サウンド"
+        section_label_message_formats: "メッセージフォーマット"
+        auto_clear_the_message_box:
+            label: "送信後はメッセージ入力欄を空にする"
+        send_only_translated_messages:
+            label: "翻訳後のメッセージのみ送信する"
+        auto_export_message_logs:
+            label: "会話ログを自動的に保存する"
+            desc: "テキストファイルとしてログがlogsフォルダ内に保存されます。"
+        vrc_mic_mute_sync:
+            label: "VRCマイクミュート同期"
+            desc: "VRChatのマイクがミュートされている間は、メッセージをVRChatに送信しません。\n※若干の遅延はあります。また、Push-To-Talkは非対応です。"
+        send_message_to_vrc:
+            label: "VRChatにメッセージを送信する"
+            desc: "サポート対象外ですが、VRChatにメッセージを送信せずに使う方法があります。送信したい場合、この機能を有効にする事を忘れないでください。"
+        notification_vrc_sfx:
+            label: "チャット送信時にチャットボックスの通知音を鳴らす"
+            desc: "この機能を無効にすると、他の人が聞こえるチャットボックスの通知音を鳴らさず、静かに送信します。"
+        send_received_message_to_vrc:
+            label: "受信したメッセージをVRChatに送信する"
+            desc: "スピーカーから聞き取り、文字起こしされたメッセージをVRChatに送信します。"
+        message_format_common:
+            example_view:
+                title: "プレビュー"
+                original_translated: "原文 + 翻訳"
+                original_translated_multi: "原文 + 翻訳（多言語）"
+                translated_only_multi: "翻訳のみ（多言語）"
+                translated_only: "翻訳のみ"
+                original_only: "原文のみ"
+            settings:
+                title: "設定"
+                original: "原文"
+                translated: "翻訳"
+                for_multi_translation: "多言語翻訳用"
+        send_message_format:
+            label: "メッセージフォーマット（送信）"
+            desc: "VRChatで相手に実際に見えるフォーマットを変更できます。"
+        received_message_format:
+            label: メッセージフォーマット（Speaker2Chatbox）
+            desc: 今のところ、Speaker2Chatboxで送信した時の表示に使われます。
+        common_convert_message_hiragana_romaji:
+            desc_1: "翻訳言語として日本語を選択した時のみサポート。"
+            desc_2: "日本語は特殊なため、精度には限界があります。"
+        convert_message_to_romaji:
+            label: "ローマ字を表示"
+            desc: "「{{convert_message_to_hiragana}}」と同時に有効にした場合は、マウスホバーで表示されます。"
+        convert_message_to_hiragana:
+            label: "ひらがなを表示"
+        telemetry:
+            label: "製品の改善に協力する"
+            desc: "開発者が「みんな使ってくれてるんだな～」ってにやにやしながら機能改善するための使用状況データを送信します。\n※会話内容など個人情報は一切送信しません。"
+            aptabase_privacy_policy_label: "Aptabase プライバシーポリシー"
+
+    hotkeys:
+        toggle_vrct_visibility:
+            label: "VRCTの最小化/アクティブ化の切り替え"
+        toggle_translation:
+            label: "「{{translation}}」 オン/オフの切り替え"
+        toggle_transcription_send:
+            label: "「{{transcription_send}}」 オン/オフの切り替え"
+        toggle_transcription_receive:
+            label: "「{{transcription_receive}}」 オン/オフの切り替え"
+
+    plugins:
+        downloaded_version: "ダウンロード済バージョン: {{downloaded_version}}"
+        latest_version: "最新バージョン: {{latest_version}}"
+        available_after_updating: "最新版にアップデート後 利用可能"
+        unavailable_downloaded: "現在利用不可 使用中VRCTバージョンとの互換性なし"
+        no_latest_info: "最新情報が取得できません"
+        using_latest_version: "最新版を使用中"
+        available_latest_version: "最新版を利用可能"
+        unavailable_latest_version: "最新版は現在利用不可"
+        available_in_latest_vrct_version: "VRCT最新版で利用可能"
+        unavailable_not_downloaded: "現在利用不可"
+
+    advanced_settings:
+        osc_ip_address:
+            label: "OSC IP Address"
+        osc_port:
+            label: "OSC Port"
+        open_config_filepath:
+            label: "設定ファイルを開く"
+        switch_compute_device:
+            label: "VRCT CPU/GPUバージョンの切り替え"
+        enable_websocket:
+            label: "WebSocketサーバーを有効にする"
+        websocket_host:
+            label: "WebSocket Host"
+        websocket_port:
+            label: "WebSocket Port"
+
+    notifications:
+        save_success: "設定を保存しました。"
+
+plugin_notifications:
+    downloading: "プラグインをダウンロード中。"
+    downloaded_success: "プラグインのダウンロードが完了しました。"
+    downloaded_error: "プラグインのダウンロードに失敗しました。"
+
+    updating: "プラグインをアップデート中。"
+    updated_success: "プラグインのアップデートが完了しました。"
+    updated_error: "プラグインのアップデートに失敗しました。"
+
+    disabled_out_of_support: "現在のバージョンとの互換性がありません。プラグインを無効にしました。"
+    disabled_due_to_an_error: "プラグイン実行中にエラーを検知しました。プラグイン開発者に報告してください。"
+
+    is_enabled: "プラグインを有効にしました。"
+    is_disabled: "プラグインを無効にしました。"

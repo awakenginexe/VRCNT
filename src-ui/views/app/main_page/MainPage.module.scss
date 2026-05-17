@@ -1,0 +1,29 @@
+.page {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    overflow: hidden;
+    transition: transform 0.5s ease;
+}
+
+.show_config.main_page {
+    transform: translateY(-100%);
+}
+
+.show_main.main_page {
+    transform: translateY(0%);
+}
+
+
+.container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    background:
+        linear-gradient(135deg, #061018, #0a1720 44%, #081119);
+    position: relative;
+}
