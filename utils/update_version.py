@@ -33,6 +33,30 @@ def update_versions():
     with open(config_path, "w", encoding="utf-8", newline="\n") as f:
         f.write(new_content)
 
+    # Cargo package version
+    cargo_toml_path = os.path.join(root, "src-tauri", "Cargo.toml")
+    with open(cargo_toml_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    pattern = r'(\[package\][\s\S]*?version = ")[^"]+(")'
+    replacement = rf'\g<1>{version}\g<2>'
+    new_content = re.sub(pattern, replacement, content, count=1)
+
+    with open(cargo_toml_path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(new_content)
+
+    cargo_lock_path = os.path.join(root, "src-tauri", "Cargo.lock")
+    if os.path.exists(cargo_lock_path):
+        with open(cargo_lock_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        pattern = r'(\[\[package\]\]\nname = "VRCNT"\nversion = ")[^"]+(")'
+        replacement = rf'\g<1>{version}\g<2>'
+        new_content = re.sub(pattern, replacement, content, count=1)
+
+        with open(cargo_lock_path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(new_content)
+
     print(f"updated to version {version}")
 
 if __name__ == "__main__":

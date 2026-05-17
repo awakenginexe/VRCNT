@@ -611,6 +611,10 @@ Section Install
   dlok:
   DetailPrint "Extracting $file_name ..."
   nsisunz::UnzipToStack "$TEMP\$file_name" $INSTDIR
+  ${IfNot} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe"
+    DetailPrint "Install Failed: $INSTDIR\${MAINBINARYNAME}.exe was not extracted."
+    Abort
+  ${EndIf}
 
   ; Create uninstaller
   WriteUninstaller "$INSTDIR\uninstall.exe"

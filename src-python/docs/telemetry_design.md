@@ -506,7 +506,7 @@ class Telemetry:
         except Exception:
             pass
     
-    def init(self, enabled: bool, app_version: str = "1.0.0"):
+    def init(self, enabled: bool, app_version: str = "1.0.1"):
         """
         テレメトリ初期化（同期インターフェース）
         
@@ -1096,5 +1096,4 @@ UI に以下を表示：
 - [Aptabase Python SDK](https://github.com/aptabase/aptabase-python)
 - [Aptabase Dashboard](https://aptabase.com)
 - [Privacy by Design](https://en.wikipedia.org/wiki/Privacy_by_design)
-
 
