@@ -590,7 +590,7 @@ Section Install
 
   !addplugindir "..\..\..\..\nsis\plugins\x86-unicode"
   ; 指定のURLからファイルをダウンロード
-  !define SOFTWARE_RELEASE_URL "https://huggingface.co/AwakeNgineXE/VRCNT/resolve/main"
+  !define SOFTWARE_RELEASE_URL "https://huggingface.co/AwakeNgineXE/VRCNT/resolve/v${VERSION}"
   !define SOFTWARE_DOWNLOAD_FILENAME "VRCNT.zip"
   Var /GLOBAL i
   Var /GLOBAL cmder_dl

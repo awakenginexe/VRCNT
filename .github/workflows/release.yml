@@ -41,9 +41,6 @@ jobs:
       - name: Install Python script dependencies
         run: pip install tqdm
 
-      - name: Build and package
-        run: npm run release
-
       - name: Get version from tag
         id: get_version
         shell: pwsh
@@ -52,9 +49,37 @@ jobs:
           $VERSION_NUM = $TAG_WITH_V -replace "^v", ""
           echo "VERSION=$VERSION_NUM" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      - name: Validate release version
+        shell: pwsh
+        run: |
+          $packageVersion = (Get-Content -Raw ./package.json | ConvertFrom-Json).version
+          if ($packageVersion -ne $env:VERSION) {
+            throw "Tag $env:GITHUB_REF_NAME does not match package.json version $packageVersion. Use tag v$packageVersion or update package.json intentionally."
+          }
+
+      - name: Build and package
+        run: npm run release
+
+      - name: Locate NSIS installer
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path ./src-tauri/target/release/bundle/nsis -Filter "VRCNT_*_x64-setup.exe" |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+
+          if (-not $installer) {
+            Get-ChildItem -Path ./src-tauri/target/release/bundle -Recurse -ErrorAction SilentlyContinue
+            throw "NSIS installer was not generated."
+          }
+
+          "INSTALLER_PATH=$($installer.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "INSTALLER_NAME=$($installer.Name)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Upload to Hugging Face Hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_REPO_ID: AwakeNgineXE/VRCNT
+          RELEASE_TAG: ${{ github.ref_name }}
         shell: pwsh
         run: |
           pip install huggingface_hub==0.34.4
@@ -63,29 +88,60 @@ jobs:
           New-Item -ItemType Directory -Force -Path $UPLOAD_DIR
           Copy-Item -Path ./VRCNT.zip -Destination "$UPLOAD_DIR/VRCNT.zip"
 
-          hf upload --repo-type model --commit-message "👍️[Update] ${{ env.VERSION }} Release" awakenginexe/VRCNT $UPLOAD_DIR
+          $script = @'
+          import os
+          from huggingface_hub import HfApi
+          from huggingface_hub.errors import RevisionNotFoundError
 
-          hf repo tag create awakenginexe/VRCNT ${{ github.ref_name }} --repo-type model --message "Release ${{ github.ref_name }}"
+          repo_id = os.environ["HF_REPO_ID"]
+          token = os.environ["HF_TOKEN"]
+          release_tag = os.environ["RELEASE_TAG"]
+          version = os.environ["VERSION"]
+
+          api = HfApi(token=token)
+          commit_info = api.upload_folder(
+              repo_id=repo_id,
+              repo_type="model",
+              folder_path="hf_upload_temp",
+              commit_message=f"[Update] {version} Release",
+          )
+
+          try:
+              api.delete_tag(repo_id=repo_id, repo_type="model", tag=release_tag, token=token)
+              print(f"Deleted existing Hugging Face tag {release_tag}")
+          except RevisionNotFoundError:
+              pass
+
+          api.create_tag(
+              repo_id=repo_id,
+              repo_type="model",
+              tag=release_tag,
+              revision=commit_info.oid,
+              tag_message=f"Release {release_tag}",
+              token=token,
+          )
+          print(f"Created Hugging Face tag {release_tag} at {commit_info.oid}")
+          '@
+
+          $script | python -
+
+          $downloadUrl = "https://huggingface.co/$env:HF_REPO_ID/resolve/$env:RELEASE_TAG/VRCNT.zip"
+          Invoke-WebRequest -Uri $downloadUrl -Method Head -MaximumRedirection 5 -UseBasicParsing
 
           Remove-Item -Recurse -Force $UPLOAD_DIR
 
-      - name: Create GitHub Release
-        id: create_release
-        uses: actions/create-release@v1
+      - name: Create or update GitHub Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: ${{ env.VERSION }}
-          draft: false
-          prerelease: false
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME
 
-      - name: Upload Release Asset (NSIS Installer)
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./src-tauri/target/release/bundle/nsis/VRCNT_${{ env.VERSION }}_x64-setup.exe
-          asset_name: VRCNT_${{ env.VERSION }}_x64-setup.exe
-          asset_content_type: application/octet-stream
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $tag --title $env:VERSION --draft=false --prerelease=false
+          } else {
+            gh release create $tag --title $env:VERSION --notes "Release $tag" --verify-tag
+          }
+
+          gh release upload $tag "$env:INSTALLER_PATH" --clobber
