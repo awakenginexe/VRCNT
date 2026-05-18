@@ -1,5 +1,17 @@
 import os
 import json
+import re
+
+
+def replace_in_file(path, replacements):
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    for pattern, replacement, count in replacements:
+        content = re.sub(pattern, replacement, content, count=count)
+
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(content)
 
 def update_versions():
     root = os.path.join(os.path.dirname(os.path.dirname(__file__)))
@@ -20,42 +32,49 @@ def update_versions():
         json.dump(tauri_conf, f, indent=4, ensure_ascii=False)
 
     # config.pyを更新
-    config_path = os.path.join(root, "src-python", "config.py")
-    with open(config_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    # VERSION行を置換
-    import re
-    pattern = r'(self\._VERSION = ")[^"]+(")'
-    replacement = rf'\g<1>{version}\g<2>'
-    new_content = re.sub(pattern, replacement, content)
-
-    with open(config_path, "w", encoding="utf-8", newline="\n") as f:
-        f.write(new_content)
+    replace_in_file(
+        os.path.join(root, "src-python", "config.py"),
+        [(r'(self\._VERSION = ")[^"]+(")', rf'\g<1>{version}\g<2>', 1)]
+    )
 
     # Cargo package version
-    cargo_toml_path = os.path.join(root, "src-tauri", "Cargo.toml")
-    with open(cargo_toml_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    pattern = r'(\[package\][\s\S]*?version = ")[^"]+(")'
-    replacement = rf'\g<1>{version}\g<2>'
-    new_content = re.sub(pattern, replacement, content, count=1)
-
-    with open(cargo_toml_path, "w", encoding="utf-8", newline="\n") as f:
-        f.write(new_content)
+    replace_in_file(
+        os.path.join(root, "src-tauri", "Cargo.toml"),
+        [(r'(\[package\][\s\S]*?version = ")[^"]+(")', rf'\g<1>{version}\g<2>', 1)]
+    )
 
     cargo_lock_path = os.path.join(root, "src-tauri", "Cargo.lock")
     if os.path.exists(cargo_lock_path):
-        with open(cargo_lock_path, "r", encoding="utf-8") as f:
-            content = f.read()
+        replace_in_file(
+            cargo_lock_path,
+            [(r'(\[\[package\]\]\nname = "VRCNT"\nversion = ")[^"]+(")', rf'\g<1>{version}\g<2>', 1)]
+        )
 
-        pattern = r'(\[\[package\]\]\nname = "VRCNT"\nversion = ")[^"]+(")'
-        replacement = rf'\g<1>{version}\g<2>'
-        new_content = re.sub(pattern, replacement, content, count=1)
+    replace_in_file(
+        os.path.join(root, "README.md"),
+        [
+            (r'(badge/version-)[^-]+(-20d6ff)', rf'\g<1>{version}\g<2>', 1),
+            (r'(VRCNT_)[0-9]+\.[0-9]+\.[0-9]+(_x64-setup\.exe)', rf'\g<1>{version}\g<2>', 1),
+        ]
+    )
 
-        with open(cargo_lock_path, "w", encoding="utf-8", newline="\n") as f:
-            f.write(new_content)
+    replace_in_file(
+        os.path.join(root, ".github", "workflows", "release.yml"),
+        [(r'(e\.g\. v)[0-9]+\.[0-9]+\.[0-9]+(\))', rf'\g<1>{version}\g<2>', 1)]
+    )
+
+    telemetry_paths = [
+        os.path.join(root, "src-python", "models", "telemetry", "__init__.py"),
+        os.path.join(root, "src-python", "models", "telemetry", "core.py"),
+        os.path.join(root, "src-python", "models", "telemetry", "client.py"),
+        os.path.join(root, "src-python", "docs", "telemetry_design.md"),
+        os.path.join(root, "src-python", "docs", "mainloop.md"),
+    ]
+    for path in telemetry_paths:
+        replace_in_file(
+            path,
+            [(r'(?<![0-9])1\.0\.[0-9]+(?![0-9])', version, 0)]
+        )
 
     print(f"updated to version {version}")
 
