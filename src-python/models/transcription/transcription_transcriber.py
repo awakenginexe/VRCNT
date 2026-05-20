@@ -55,6 +55,22 @@ def _getSenseVoiceHelpers():
     return module.getSenseVoiceModel, module.checkSenseVoiceWeight
 
 
+def _languageCode(engine: str, language: str, country: str) -> str:
+    try:
+        return transcription_lang[language][country].get(engine, "")
+    except Exception:
+        return ""
+
+
+def _languageForCode(engine: str, code: Optional[str], languages: List[str], countries: List[str]) -> Optional[str]:
+    if not code:
+        return None
+    for language, country in zip(languages, countries):
+        if _languageCode(engine, language, country) == code:
+            return language
+    return None
+
+
 class AudioTranscriber:
     """Convert queued audio buffers into transcripts.
 
@@ -160,6 +176,8 @@ class AudioTranscriber:
 
         confidences: List[Dict[str, Any]] = [{"confidence": 0, "text": "", "language": None}]
         try:
+            if not languages or not countries:
+                return True
             audio_data = self.audio_sources["process_data_func"]()
             match self.transcription_engine:
                 case "Google":
@@ -181,36 +199,37 @@ class AudioTranscriber:
                     if torch is not None and isinstance(audio_data, torch.Tensor):
                         audio_data = audio_data.detach().numpy()
 
-                    for language, country in zip(languages, countries):
-                        text = ""
-                        source_language = (
-                            transcription_lang[language][country][self.transcription_engine]
-                            if len(languages) == 1
-                            else None
-                        )
-                        segments, info = self.whisper_model.transcribe(
-                            audio_data,
-                            beam_size=5,
-                            temperature=0.0,
-                            log_prob_threshold=-0.8,
-                            no_speech_threshold=0.6,
-                            language=source_language,
-                            word_timestamps=False,
-                            without_timestamps=True,
-                            task="transcribe",
-                            no_repeat_ngram_size=no_repeat_ngram_size,
-                            vad_filter=vad_filter,
-                            vad_parameters=vad_parameters,
-                        )
-                        for s in segments:
-                            if s.avg_logprob < avg_logprob or s.no_speech_prob > no_speech_prob:
-                                continue
-                            text += s.text
-                        confidences.append({"confidence": info.language_probability, "text": text, "language": language})
-                        if (len(languages) == 1) or (
-                            transcription_lang[language][country][self.transcription_engine] == info.language
-                        ):
-                            break
+                    source_language = _languageCode("Whisper", languages[0], countries[0]) if len(languages) == 1 else None
+                    segments, info = self.whisper_model.transcribe(
+                        audio_data,
+                        beam_size=5,
+                        temperature=0.0,
+                        log_prob_threshold=-0.8,
+                        no_speech_threshold=0.6,
+                        language=source_language,
+                        word_timestamps=False,
+                        without_timestamps=True,
+                        task="transcribe",
+                        no_repeat_ngram_size=no_repeat_ngram_size,
+                        vad_filter=vad_filter,
+                        vad_parameters=vad_parameters,
+                    )
+                    text = ""
+                    for s in segments:
+                        if s.avg_logprob < avg_logprob or s.no_speech_prob > no_speech_prob:
+                            continue
+                        text += s.text
+
+                    result_language = (
+                        languages[0] if len(languages) == 1
+                        else _languageForCode("Whisper", getattr(info, "language", None), languages, countries)
+                    )
+                    if result_language:
+                        confidences.append({
+                            "confidence": info.language_probability,
+                            "text": text,
+                            "language": result_language,
+                        })
                 case "Vosk":
                     if self.vosk_recognizer is None:
                         pass
@@ -245,12 +264,31 @@ class AudioTranscriber:
                             audio_data.get_raw_data(convert_rate=16000, convert_width=2), np.int16
                         ).flatten().astype(np.float32) / 32768.0
                         try:
-                            result_text = self.sensevoice_model.transcribe(pcm, sample_rate=16000)
+                            source_language = (
+                                _languageCode("SenseVoice", languages[0], countries[0])
+                                if len(languages) == 1
+                                else "auto"
+                            )
+                            recognize = getattr(self.sensevoice_model, "recognize", None)
+                            if callable(recognize):
+                                result = recognize(pcm, sample_rate=16000, language=source_language)
+                                result_text = result.get("text", "")
+                                result_language_code = result.get("language", "")
+                            else:
+                                result_text = self.sensevoice_model.transcribe(
+                                    pcm, sample_rate=16000, language=source_language
+                                )
+                                result_language_code = source_language if source_language != "auto" else ""
                         except Exception:
                             result_text = ""
+                            result_language_code = ""
                         if result_text:
-                            primary = languages[0] if languages else None
-                            confidences.append({"confidence": 1.0, "text": result_text, "language": primary})
+                            primary = (
+                                languages[0] if len(languages) == 1
+                                else _languageForCode("SenseVoice", result_language_code, languages, countries)
+                            )
+                            if primary:
+                                confidences.append({"confidence": 1.0, "text": result_text, "language": primary})
 
         except UnknownValueError:
             pass

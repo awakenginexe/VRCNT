@@ -45,7 +45,10 @@ const HandleLanguageSelector = () => {
     }, [currentSelectedPresetTabNumber.data, currentSelectedYourLanguages.data, currentSelectedYourTranslationLanguages.data, currentSelectedTargetLanguages.data]);
 
     const getTitle = (target_selector_key) => {
-        if (target_selector_key === "your_language") return "Your speaking language";
+        if (target_selector_key === "your_language") {
+            const targetKey = currentIsOpenedLanguageSelector.data.target_key;
+            return targetKey === "1" ? "Your speaking language" : `Your speaking language (${targetKey})`;
+        }
         if (target_selector_key === "your_translation_language") return "Your translation language";
         if (target_selector_key === "target_language") {
             const targetLanguages = getCurrentTargetLanguages();

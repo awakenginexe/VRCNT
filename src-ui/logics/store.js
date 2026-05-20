@@ -27,9 +27,21 @@ const createLanguageSlot = (language = "", country = "", enable = true) => ({
 });
 
 const createYourLanguagePresetMap = () => ({
-    1: { 1: createLanguageSlot() },
-    2: { 1: createLanguageSlot() },
-    3: { 1: createLanguageSlot() },
+    1: {
+        1: createLanguageSlot(),
+        2: createLanguageSlot("English", "United States", false),
+        3: createLanguageSlot("Chinese Simplified", "China", false),
+    },
+    2: {
+        1: createLanguageSlot(),
+        2: createLanguageSlot("English", "United States", false),
+        3: createLanguageSlot("Chinese Simplified", "China", false),
+    },
+    3: {
+        1: createLanguageSlot(),
+        2: createLanguageSlot("English", "United States", false),
+        3: createLanguageSlot("Chinese Simplified", "China", false),
+    },
 });
 
 const createTargetLanguagePresetMap = () => ({
@@ -178,6 +190,7 @@ export const { atomInstance: Atom_OpenedQuickSetting, useHook: useStore_OpenedQu
 export const { atomInstance: Atom_LatestSoftwareVersionInfo, useHook: useStore_LatestSoftwareVersionInfo } = createAtomWithHook({
     is_update_available: false,
     new_version: "0.0.0",
+    release_url: "https://github.com/awakenginexe/VRCNT/releases",
 }, "LatestSoftwareVersionInfo");
 export const { atomInstance: Atom_InitProgress, useHook: useStore_InitProgress } = createAtomWithHook(0, "InitProgress");
 export const { atomInstance: Atom_InitStatus, useHook: useStore_InitStatus } = createAtomWithHook({

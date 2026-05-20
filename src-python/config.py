@@ -808,7 +808,7 @@ class Config:
 
     def init_config(self):
         # Read Only
-        self._VERSION = "1.0.2"
+        self._VERSION = "1.1.0"
         if getattr(sys, 'frozen', False):
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
@@ -816,8 +816,8 @@ class Config:
         self._PATH_CONFIG = os_path.join(self._PATH_LOCAL, "config.json")
         self._PATH_LOGS = os_path.join(self._PATH_LOCAL, "logs")
         os_makedirs(self._PATH_LOGS, exist_ok=True)
-        self._GITHUB_URL = "https://api.github.com/repos/awakenginexe/VRCNT/releases/latest"
-        self._UPDATER_URL = "https://api.github.com/repos/awakenginexe/VRCNT/releases/latest"
+        self._GITHUB_URL = "https://raw.githubusercontent.com/awakenginexe/VRCNT/main/package.json"
+        self._UPDATER_URL = "https://github.com/awakenginexe/VRCNT/releases"
 
         self._MAX_MIC_THRESHOLD = 2000
         self._MAX_SPEAKER_THRESHOLD = 4000
@@ -894,6 +894,16 @@ class Config:
                     "language": "Japanese",
                     "country": "Japan",
                     "enable": True,
+                },
+                "2": {
+                    "language": "English",
+                    "country": "United States",
+                    "enable": False,
+                },
+                "3": {
+                    "language": "Chinese Simplified",
+                    "country": "China",
+                    "enable": False,
                 },
             }
         self._SELECTED_YOUR_TRANSLATION_LANGUAGES = copy.deepcopy(self._SELECTED_YOUR_LANGUAGES)

@@ -17,6 +17,7 @@ export const LanguageSelectorOpenButton = ({ TurnedOnSvgComponent, is_turned_on,
         currentSelectedYourLanguages,
         currentSelectedYourTranslationLanguages,
         currentSelectedTargetLanguages,
+        getCurrentYourLanguages,
         getCurrentTargetLanguages,
     } = useLanguageSettings();
 
@@ -43,14 +44,17 @@ export const LanguageSelectorOpenButton = ({ TurnedOnSvgComponent, is_turned_on,
 
     const getVariable = (target_selector_key) => {
         const presetKey = currentSelectedPresetTabNumber.data ?? "1";
-        if (target_selector_key === "your_language") return currentSelectedYourLanguages.data?.[presetKey] ?? {};
+        if (target_selector_key === "your_language") return {
+            ...getCurrentYourLanguages(),
+            ...(currentSelectedYourLanguages.data?.[presetKey] ?? {}),
+        };
         if (target_selector_key === "your_translation_language") return currentSelectedYourTranslationLanguages.data?.[presetKey] ?? {};
         if (target_selector_key === "target_language") return currentSelectedTargetLanguages.data?.[presetKey] ?? getCurrentTargetLanguages();
         return {};
     };
 
     const getTitle = (target_selector_key) => {
-        if (target_selector_key === "your_language") return "Your speaking language";
+        if (target_selector_key === "your_language") return target_key === "1" ? "Your speaking language" : `Your speaking language ${target_key}`;
         if (target_selector_key === "your_translation_language") return "Your translation language";
         if (target_selector_key === "target_language") {
             const targetLanguages = getCurrentTargetLanguages();

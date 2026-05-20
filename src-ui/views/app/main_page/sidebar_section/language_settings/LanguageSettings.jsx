@@ -6,6 +6,7 @@ import { LanguageSwapButton } from "./language_swap_button/LanguageSwapButton";
 import { TranslatorSelectorOpenButton } from "./translator_selector_open_button/TranslatorSelectorOpenButton";
 import { TranscriptionEngineLabel } from "./transcription_engine_label/TranscriptionEngineLabel";
 import { AddRemoveTargetLanguageButtons } from "./add_remove_target_language_buttons/AddRemoveTargetLanguageButtons";
+import { AddRemoveYourLanguageButtons } from "./add_remove_your_language_buttons/AddRemoveYourLanguageButtons";
 import { useStore_IsOpenedTranslatorSelector, useStore_IsOpenedTranscriptionEngineSelector } from "@store";
 
 export const LanguageSettings = () => {
@@ -29,10 +30,14 @@ export const LanguageSettings = () => {
 import MicSvg from "@images/mic.svg?react";
 import HeadphonesSvg from "@images/headphones.svg?react";
 import { useMainFunction } from "@logics_main";
+import { useTranscription } from "@logics_configs";
 
 const PresetContainer = () => {
     const { t } = useI18n();
     const { currentTranscriptionSendStatus, currentTranscriptionReceiveStatus } = useMainFunction();
+    const { currentSelectedTranscriptionEngine } = useTranscription();
+    const transcriptionEngine = currentSelectedTranscriptionEngine?.data;
+    const supportsMultipleSpeakingLanguages = transcriptionEngine === "Whisper" || transcriptionEngine === "SenseVoice";
 
     const yourLanguageSettings = {
         TurnedOnSvgComponent: MicSvg,
@@ -58,6 +63,13 @@ const PresetContainer = () => {
                 </div>
                 <div className={styles.selector_stack}>
                     <LanguageSelectorOpenButton {...yourLanguageSettings} selector_key="your_language" target_key="1"/>
+                    {supportsMultipleSpeakingLanguages && (
+                        <>
+                            <LanguageSelectorOpenButton {...yourLanguageSettings} selector_key="your_language" target_key="2"/>
+                            <LanguageSelectorOpenButton {...yourLanguageSettings} selector_key="your_language" target_key="3"/>
+                            <AddRemoveYourLanguageButtons />
+                        </>
+                    )}
                     <LanguageSelectorOpenButton {...yourTranslationLanguageSettings} selector_key="your_translation_language" target_key="1"/>
                 </div>
             </div>

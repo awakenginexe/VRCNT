@@ -176,23 +176,40 @@ class Controller:
         return changed
 
     def _normalizeSelectedYourLanguageForTranscription(self) -> bool:
-        if config.SELECTED_TRANSCRIPTION_ENGINE not in {"Vosk", "Parakeet"}:
-            return False
-
         try:
-            current = config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]["1"]
+            selected = config.SELECTED_YOUR_LANGUAGES
+            tab_languages = selected[config.SELECTED_TAB_NO]
         except Exception:
             return False
 
-        if self._isTranscriptionLanguageSupported(current):
+        changed = False
+        engine = config.SELECTED_TRANSCRIPTION_ENGINE
+
+        if engine not in {"Whisper", "SenseVoice"}:
+            for key, language_data in tab_languages.items():
+                if key != "1" and language_data.get("enable") is True:
+                    language_data["enable"] = False
+                    changed = True
+
+        if engine in {"Vosk", "Parakeet", "SenseVoice"}:
+            for key, language_data in tab_languages.items():
+                if language_data.get("enable") is not True:
+                    continue
+                if self._isTranscriptionLanguageSupported(language_data):
+                    continue
+
+                if key == "1":
+                    replacement = self._findFirstSupportedTranscriptionLanguage()
+                    if replacement is not None:
+                        tab_languages[key] = replacement
+                        changed = True
+                else:
+                    language_data["enable"] = False
+                    changed = True
+
+        if changed is False:
             return False
 
-        replacement = self._findFirstSupportedTranscriptionLanguage()
-        if replacement is None:
-            return False
-
-        selected = config.SELECTED_YOUR_LANGUAGES
-        selected[config.SELECTED_TAB_NO]["1"] = replacement
         config.SELECTED_YOUR_LANGUAGES = selected
         self.updateTranslationEngineAndEngineList()
         self.run(200, "/set/data/selected_your_languages", config.SELECTED_YOUR_LANGUAGES)
@@ -1277,6 +1294,7 @@ class Controller:
         if self._selectedTabLanguagesSupported(select) is False:
             return {"status":200, "result":config.SELECTED_YOUR_LANGUAGES}
         config.SELECTED_YOUR_LANGUAGES = select
+        self._normalizeSelectedYourLanguageForTranscription()
         self.updateTranslationEngineAndEngineList()
         return {"status":200, "result":config.SELECTED_YOUR_LANGUAGES}
 

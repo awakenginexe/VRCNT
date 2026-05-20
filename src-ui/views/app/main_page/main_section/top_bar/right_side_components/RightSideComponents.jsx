@@ -5,6 +5,7 @@ import HelpSvg from "@images/help.svg?react";
 import { useStore_OpenedQuickSetting } from "@store";
 import {
     useIsOscAvailable,
+    useSoftwareVersion,
 } from "@logics_common";
 
 import {
@@ -22,6 +23,7 @@ export const RightSideComponents = () => {
     return (
         <div className={styles.container}>
 
+            <OpenUpdateQuickSetting />
             <OpenVrcMicMuteSyncQuickSetting />
             <OpenOverlayQuickSetting />
             <a
@@ -33,6 +35,25 @@ export const RightSideComponents = () => {
                 <HelpSvg className={styles.help_svg} />
             </a>
         </div>
+    );
+};
+
+const OpenUpdateQuickSetting = () => {
+    const { updateOpenedQuickSetting } = useStore_OpenedQuickSetting();
+    const { currentLatestSoftwareVersionInfo } = useSoftwareVersion();
+
+    if (currentLatestSoftwareVersionInfo.data.is_update_available !== true) return null;
+
+    const onClickFunction = () => {
+        updateOpenedQuickSetting("update_software");
+    };
+
+    return (
+        <OpenQuickSettingButton
+            label="Update"
+            variable={true}
+            onClickFunction={onClickFunction}
+        />
     );
 };
 

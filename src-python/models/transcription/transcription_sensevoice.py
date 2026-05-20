@@ -9,6 +9,7 @@ import os
 import sys
 from os import path as os_path, makedirs as os_makedirs
 from json import dump as json_dump
+import json
 from typing import Callable, Optional, Dict, Any, List
 import logging
 
@@ -218,28 +219,59 @@ class SenseVoiceRecognizer:
         self.model_path = model_path
         self.tokens_path = tokens_path
         self.provider = provider
-        self.cpu_recognizer = None
-        self.recognizer = self._createRecognizer(provider)
+        self.recognizers = {}
+        self.cpu_recognizers = {}
+        self.recognizer = self._getRecognizer(provider, "auto")
 
-    def _createRecognizer(self, provider: str):
+    def _createRecognizer(self, provider: str, language: str = "auto"):
         return sherpa_onnx.OfflineRecognizer.from_sense_voice(
             model=self.model_path,
             tokens=self.tokens_path,
             use_itn=True,
             provider=provider,
             num_threads=4,
+            language=language or "auto",
         )
 
-    def _recognize(self, recognizer, waveform: np.ndarray, sample_rate: int) -> str:
+    def _getRecognizer(self, provider: str, language: str = "auto"):
+        language = language or "auto"
+        recognizers = self.cpu_recognizers if provider == "cpu" else self.recognizers
+        key = (provider, language)
+        if key not in recognizers:
+            recognizers[key] = self._createRecognizer(provider, language)
+        return recognizers[key]
+
+    def _normalizeLanguageTag(self, language: str) -> str:
+        language = (language or "").strip()
+        if language.startswith("<|") and language.endswith("|>"):
+            return language[2:-2]
+        return language
+
+    def _recognize(self, recognizer, waveform: np.ndarray, sample_rate: int, requested_language: str) -> Dict[str, str]:
         stream = recognizer.create_stream()
         stream.accept_waveform(sample_rate, waveform)
         if hasattr(stream, "input_finished"):
             stream.input_finished()
         recognizer.decode_stream(stream)
-        return stream.result.text.strip()
+        result = stream.result
+        text = getattr(result, "text", "").strip()
+        detected_language = requested_language if requested_language != "auto" else ""
 
-    def _shouldFallbackToCpu(self, waveform: np.ndarray, text: str) -> bool:
-        if self.provider != "cuda" or text:
+        as_json_string = getattr(result, "as_json_string", None)
+        if callable(as_json_string):
+            try:
+                payload = json.loads(as_json_string())
+                detected_language = self._normalizeLanguageTag(payload.get("lang", detected_language))
+            except Exception:
+                pass
+
+        detected_language = self._normalizeLanguageTag(
+            getattr(result, "lang", detected_language)
+        )
+        return {"text": text, "language": detected_language}
+
+    def _shouldFallbackToCpu(self, waveform: np.ndarray, result: Dict[str, str]) -> bool:
+        if self.provider != "cuda" or result.get("text"):
             return False
         if waveform.size < 1600:
             return False
@@ -248,30 +280,35 @@ class SenseVoiceRecognizer:
         except Exception:
             return False
 
-    def transcribe(self, audio: np.ndarray, sample_rate: int = 16000) -> str:
+    def recognize(self, audio: np.ndarray, sample_rate: int = 16000, language: str = "auto") -> Dict[str, str]:
         """Run inference over a 1-D float32 PCM array."""
         waveform = audio.astype(np.float32, copy=False).flatten()
+        language = language or "auto"
         try:
-            text = self._recognize(self.recognizer, waveform, sample_rate)
+            recognizer = self._getRecognizer(self.provider, language)
+            result = self._recognize(recognizer, waveform, sample_rate, language)
         except Exception:
             errorLogging()
-            text = ""
+            result = {"text": "", "language": language if language != "auto" else ""}
 
-        if self._shouldFallbackToCpu(waveform, text):
+        if self._shouldFallbackToCpu(waveform, result):
             try:
-                if self.cpu_recognizer is None:
-                    self.cpu_recognizer = self._createRecognizer("cpu")
-                cpu_text = self._recognize(self.cpu_recognizer, waveform, sample_rate)
-                if cpu_text:
+                cpu_recognizer = self._getRecognizer("cpu", language)
+                cpu_result = self._recognize(cpu_recognizer, waveform, sample_rate, language)
+                if cpu_result.get("text"):
                     printLog(
                         "SenseVoice CUDA returned empty text; used CPU fallback",
                         {"sample_rate": sample_rate, "samples": int(waveform.size)},
                     )
-                return cpu_text
+                return cpu_result
             except Exception:
                 errorLogging()
 
-        return text
+        return result
+
+    def transcribe(self, audio: np.ndarray, sample_rate: int = 16000, language: str = "auto") -> str:
+        """Run inference and return only text for older callers."""
+        return self.recognize(audio, sample_rate=sample_rate, language=language).get("text", "")
 
 
 def getSenseVoiceModel(

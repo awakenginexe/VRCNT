@@ -4,7 +4,6 @@ import { useI18n } from "@useI18n";
 import { useStore_OpenedQuickSetting } from "@store";
 import {
     useUpdateSoftware,
-    useIsSoftwareUpdating,
     useSoftwareVersion,
 } from "@logics_common";
 
@@ -12,13 +11,11 @@ export const UpdateModal = () => {
     const { t } = useI18n();
     const { updateOpenedQuickSetting } = useStore_OpenedQuickSetting();
     const { updateSoftware } = useUpdateSoftware();
-    const { updateIsSoftwareUpdating } = useIsSoftwareUpdating();
     const { currentLatestSoftwareVersionInfo } = useSoftwareVersion();
 
     const is_latest_version_already = currentLatestSoftwareVersionInfo.data.is_update_available === false;
 
     const onClickUpdateSoftware = () => {
-        updateIsSoftwareUpdating(true);
         updateSoftware();
     }
 
@@ -32,12 +29,15 @@ export const UpdateModal = () => {
                 <div className={styles.update_section_wrapper}>
                     <div className={styles.update_section}>
                         <div className={styles.single_update_section}>
-                            <button className={accept_button_class_name} onClick={onClickUpdateSoftware}>Update VRCNT</button>
+                            <button className={accept_button_class_name} onClick={onClickUpdateSoftware}>Open Releases</button>
                             <CurrentVersionLabel is_latest_version_already={is_latest_version_already} />
+                            {!is_latest_version_already && (
+                                <p className={styles.current_version_label}>New version {currentLatestSoftwareVersionInfo.data.new_version} is available</p>
+                            )}
                             <p className={styles.version_desc}>{t("update_modal.cuda_desc")}</p>
                         </div>
 
-                        <p className={styles.update_desc}>{t("update_modal.download_latest_and_restart")}</p>
+                        <p className={styles.update_desc}>Download the latest installer from GitHub Releases.</p>
                     </div>
                 </div>
 

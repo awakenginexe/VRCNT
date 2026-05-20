@@ -20,6 +20,7 @@ import { ConfigPage } from "./config_page/ConfigPage";
 import {
     WindowTitleBar,
     StartupStatusBanner,
+    UpdateNotificationController,
     UpdatingComponent,
     ModalController,
     SnackbarController,
@@ -60,6 +61,7 @@ const Contents = () => {
 
             <WindowTitleBar />
             <StartupStatusBanner />
+            <UpdateNotificationController />
             {currentIsSoftwareUpdating.data === false
             ?
             <div className={styles.pages_wrapper}>

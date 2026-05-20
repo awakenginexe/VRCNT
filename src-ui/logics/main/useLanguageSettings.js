@@ -43,15 +43,32 @@ export const useLanguageSettings = () => {
 
     const getPresetKey = () => currentSelectedPresetTabNumber.data ?? "1";
 
+    const createFallbackYourLanguages = () => ({
+        1: { language: "", country: "", enable: true },
+        2: { language: "English", country: "United States", enable: false },
+        3: { language: "Chinese Simplified", country: "China", enable: false },
+    });
+
     const createFallbackTargetLanguages = () => ({
         1: { language: "", country: "", enable: true },
         2: { language: "", country: "", enable: false },
         3: { language: "", country: "", enable: false },
     });
 
+    const getCurrentYourLanguages = () => {
+        const presetKey = getPresetKey();
+        return {
+            ...createFallbackYourLanguages(),
+            ...(currentSelectedYourLanguages.data?.[presetKey] ?? {}),
+        };
+    };
+
     const getCurrentTargetLanguages = () => {
         const presetKey = getPresetKey();
-        return currentSelectedTargetLanguages.data?.[presetKey] ?? createFallbackTargetLanguages();
+        return {
+            ...createFallbackTargetLanguages(),
+            ...(currentSelectedTargetLanguages.data?.[presetKey] ?? {}),
+        };
     };
 
 
@@ -74,16 +91,53 @@ export const useLanguageSettings = () => {
 
     const setSelectedYourLanguages = (selected_language_data) => {
         pendingSelectedYourLanguages();
-        const send_obj = {
-            ...currentSelectedYourLanguages.data,
-            [currentSelectedPresetTabNumber.data]: {
-                1: { // Fixed key 1.
-                    language: selected_language_data.language,
-                    country: selected_language_data.country,
-                    enable: true,
-                }
-            }
+        const presetKey = getPresetKey();
+        const send_obj = structuredClone(currentSelectedYourLanguages.data ?? {});
+        send_obj[presetKey] = {
+            ...createFallbackYourLanguages(),
+            ...(send_obj[presetKey] ?? {}),
         };
+        const targetKey = selected_language_data.target_key ?? "1";
+        send_obj[presetKey][targetKey] ??= { language: "", country: "", enable: true };
+        send_obj[presetKey][targetKey].language = selected_language_data.language;
+        send_obj[presetKey][targetKey].country = selected_language_data.country;
+        send_obj[presetKey][targetKey].enable = true;
+        asyncStdoutToPython("/set/data/selected_your_languages", send_obj);
+    };
+
+    const addYourLanguage = () => {
+        pendingSelectedYourLanguages();
+        const presetKey = getPresetKey();
+        const send_obj = structuredClone(currentSelectedYourLanguages.data ?? {});
+        send_obj[presetKey] = {
+            ...createFallbackYourLanguages(),
+            ...(send_obj[presetKey] ?? {}),
+        };
+        let target_key = "2";
+        if (send_obj[presetKey]["2"].enable === true) {
+            target_key = "3";
+        }
+        if (!send_obj[presetKey][target_key].language) {
+            send_obj[presetKey][target_key].language = target_key === "2" ? "English" : "Chinese Simplified";
+            send_obj[presetKey][target_key].country = target_key === "2" ? "United States" : "China";
+        }
+        send_obj[presetKey][target_key].enable = true;
+        asyncStdoutToPython("/set/data/selected_your_languages", send_obj);
+    };
+
+    const removeYourLanguage = () => {
+        pendingSelectedYourLanguages();
+        const presetKey = getPresetKey();
+        const send_obj = structuredClone(currentSelectedYourLanguages.data ?? {});
+        send_obj[presetKey] = {
+            ...createFallbackYourLanguages(),
+            ...(send_obj[presetKey] ?? {}),
+        };
+        let target_key = "3";
+        if (send_obj[presetKey]["3"].enable === false) {
+            target_key = "2";
+        }
+        send_obj[presetKey][target_key].enable = false;
         asyncStdoutToPython("/set/data/selected_your_languages", send_obj);
     };
 
@@ -206,6 +260,9 @@ export const useLanguageSettings = () => {
         getSelectedYourLanguages,
         updateSelectedYourLanguages,
         setSelectedYourLanguages,
+        getCurrentYourLanguages,
+        addYourLanguage,
+        removeYourLanguage,
 
         currentSelectedYourTranslationLanguages,
         getSelectedYourTranslationLanguages,

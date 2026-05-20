@@ -636,14 +636,16 @@ class Model:
 
     @staticmethod
     def checkSoftwareUpdated():
-        # check update
         update_flag = False
         version = ""
+        release_url = config.UPDATER_URL
         try:
             response = requests_get(config.GITHUB_URL, timeout=5)
+            response.raise_for_status()
             json_data = response.json()
-            version = json_data.get("name", None)
+            version = json_data.get("version", "")
             if isinstance(version, str):
+                version = version.strip().lstrip("v")
                 new_version = parse(version)
                 current_version = parse(config.VERSION)
                 if new_version > current_version:
@@ -653,27 +655,12 @@ class Model:
         return {
             "is_update_available": update_flag,
             "new_version": version,
+            "release_url": release_url,
         }
 
     @staticmethod
     def updateSoftware():
-        # try to update at most 5 times
-        for _ in range(5):
-            try:
-                program_name = "update.exe"
-                current_directory = config.PATH_LOCAL
-                res = requests_get(config.UPDATER_URL)
-                assets = res.json()['assets']
-                url = [i["browser_download_url"] for i in assets if i["name"] == program_name][0]
-                res = requests_get(url, stream=True)
-                with open(os_path.join(current_directory, program_name), 'wb') as file:
-                    for chunk in res.iter_content(chunk_size=1024*5):
-                        file.write(chunk)
-                break
-            except Exception:
-                errorLogging()
-        # run updater
-        Popen(program_name, cwd=current_directory)
+        Popen(["cmd", "/c", "start", "", config.UPDATER_URL], shell=False)
 
     def getListMicHost(self):
         self.ensure_initialized()
