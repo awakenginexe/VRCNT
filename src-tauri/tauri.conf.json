@@ -1,7 +1,7 @@
 {
     "$schema": "https://schema.tauri.app/config/2",
     "productName": "VRCNT",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "identifier": "com.vrcnt.next",
     "build": {
         "beforeDevCommand": "",
@@ -41,6 +41,7 @@
     "bundle": {
         "active": true,
         "targets": "nsis",
+        "createUpdaterArtifacts": true,
         "publisher": "awakenginexe",
         "copyright": "Copyright 2026 awakenginexe. Portions Copyright 2023 misyaguziya.",
         "licenseFile": "../LICENSE",
@@ -65,6 +66,14 @@
                 "installMode": "currentUser",
                 "displayLanguageSelector": true
             }
+        }
+    },
+    "plugins": {
+        "updater": {
+            "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU1NDA2QTAwRjEwOUE1OEQKUldTTnBRbnhBR3BBNVJLZlFPSTR6TVBHcmtrcEpjNWNBYXpPWDAyRlVtVlRkc2NtZXRzOWw5bVoK",
+            "endpoints": [
+                "https://huggingface.co/AwakeNgineXE/VRCNT/resolve/main/latest.json"
+            ]
         }
     }
 }

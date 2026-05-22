@@ -73,7 +73,7 @@ def update_versions():
     for path in telemetry_paths:
         replace_in_file(
             path,
-            [(r'(?<![0-9])1\.0\.[0-9]+(?![0-9])', version, 0)]
+            [(r'(?<![0-9])1\.[0-9]+\.[0-9]+(?![0-9])', version, 0)]
         )
 
     print(f"updated to version {version}")

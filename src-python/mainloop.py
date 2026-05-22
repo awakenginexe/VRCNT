@@ -59,6 +59,7 @@ run_mapping = {
 
     "selected_translation_compute_type":"/run/selected_translation_compute_type",
     "selected_transcription_compute_type":"/run/selected_transcription_compute_type",
+    "selected_transcription_compute_device":"/run/selected_transcription_compute_device",
 
     "selectable_plamo_model_list":"/run/selectable_plamo_model_list",
     "selected_plamo_model":"/run/selected_plamo_model",

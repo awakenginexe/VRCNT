@@ -2885,7 +2885,7 @@ class Controller:
 
     @staticmethod
     def openFilepathConfigFile(*args, **kwargs) -> dict:
-        Popen(['explorer', config.PATH_LOCAL.replace('/', '\\')], shell=True)
+        Popen(['explorer', config.PATH_DATA.replace('/', '\\')], shell=True)
         return {"status":200, "result":True}
 
     def setEnableTranscriptionSend(self, *args, **kwargs) -> dict:

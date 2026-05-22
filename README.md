@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.1.0-20d6ff?style=for-the-badge&labelColor=071018" />
+  <img alt="Version" src="https://img.shields.io/badge/version-1.2.0-20d6ff?style=for-the-badge&labelColor=071018" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-7c4dff?style=for-the-badge&labelColor=071018" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-35e0c2?style=for-the-badge&labelColor=071018" />
 </p>
@@ -24,6 +24,7 @@ The goal is practical: make multilingual VRChat sessions easier with local AI mo
 - Transcribe microphone and speaker audio.
 - Use one Windows release package with CUDA support included.
 - Fall back to CPU processing when a supported NVIDIA GPU is not available.
+- Install signed in-app updates without deleting downloaded models.
 - Show clearer country flags and language selectors.
 - Display translation logs in a VR overlay.
 - Keep the UI focused by removing the plugin system.
@@ -33,9 +34,11 @@ The goal is practical: make multilingual VRChat sessions easier with local AI mo
 This repository is prepared for a single VRCNT Windows release package:
 
 - Portable package: `VRCNT.zip`
-- Windows installer: `VRCNT_1.1.0_x64-setup.exe`
+- Windows installer: `VRCNT_1.2.0_x64-setup.exe`
 
 VRCNT ships CUDA support in the main package. Users without a supported NVIDIA GPU can still run the app with CPU processing from the same download.
+
+Downloaded models are stored in `%LOCALAPPDATA%\VRCNT\weights` so app updates and reinstalls do not remove them.
 
 For development builds, the generated app is written to:
 

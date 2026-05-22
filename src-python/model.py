@@ -162,15 +162,15 @@ class Model:
                 errorLogging()
 
     def backwardCompatibleTranslatorCTranslate2ModelRenameWeightsDir(self):
-        return backwardCompatibleRenameWeightsDir(config.PATH_LOCAL)
+        return backwardCompatibleRenameWeightsDir(config.PATH_DATA)
         
     def checkTranslatorCTranslate2ModelWeight(self, weight_type:str):
-        return checkCTranslate2Weight(config.PATH_LOCAL, weight_type)
+        return checkCTranslate2Weight(config.PATH_DATA, weight_type)
 
     def changeTranslatorCTranslate2Model(self):
         self.ensure_initialized()
         self.translator.changeCTranslate2Model(
-            path=config.PATH_LOCAL,
+            path=config.PATH_DATA,
             model_type=config.CTRANSLATE2_WEIGHT_TYPE,
             device=config.SELECTED_TRANSLATION_COMPUTE_DEVICE["device"],
             device_index=config.SELECTED_TRANSLATION_COMPUTE_DEVICE["device_index"],
@@ -178,10 +178,10 @@ class Model:
             )
 
     def downloadCTranslate2ModelWeight(self, weight_type, callback=None, end_callback=None):
-        return downloadCTranslate2Weight(config.PATH_LOCAL, weight_type, callback, end_callback)
+        return downloadCTranslate2Weight(config.PATH_DATA, weight_type, callback, end_callback)
 
     def downloadCTranslate2ModelTokenizer(self, weight_type):
-        return downloadCTranslate2Tokenizer(config.PATH_LOCAL, weight_type)
+        return downloadCTranslate2Tokenizer(config.PATH_DATA, weight_type)
 
     def isLoadedCTranslate2Model(self):
         self.ensure_initialized()
@@ -196,28 +196,28 @@ class Model:
         self.translator.setChangedTranslatorParameters(is_changed)
 
     def checkTranscriptionWhisperModelWeight(self, weight_type:str):
-        return checkWhisperWeight(config.PATH_LOCAL, weight_type)
+        return checkWhisperWeight(config.PATH_DATA, weight_type)
 
     def downloadWhisperModelWeight(self, weight_type, callback=None, end_callback=None):
-        return downloadWhisperWeight(config.PATH_LOCAL, weight_type, callback, end_callback)
+        return downloadWhisperWeight(config.PATH_DATA, weight_type, callback, end_callback)
 
     def checkTranscriptionVoskModelWeight(self, weight_type:str):
-        return checkVoskWeight(config.PATH_LOCAL, weight_type)
+        return checkVoskWeight(config.PATH_DATA, weight_type)
 
     def downloadVoskModelWeight(self, weight_type, callback=None, end_callback=None):
-        return downloadVoskWeight(config.PATH_LOCAL, weight_type, callback, end_callback)
+        return downloadVoskWeight(config.PATH_DATA, weight_type, callback, end_callback)
 
     def checkTranscriptionParakeetModelWeight(self, weight_type:str):
-        return checkParakeetWeight(config.PATH_LOCAL, weight_type)
+        return checkParakeetWeight(config.PATH_DATA, weight_type)
 
     def downloadParakeetModelWeight(self, weight_type, callback=None, end_callback=None):
-        return downloadParakeetWeight(config.PATH_LOCAL, weight_type, callback, end_callback)
+        return downloadParakeetWeight(config.PATH_DATA, weight_type, callback, end_callback)
 
     def checkTranscriptionSenseVoiceModelWeight(self, weight_type:str):
-        return checkSenseVoiceWeight(config.PATH_LOCAL, weight_type)
+        return checkSenseVoiceWeight(config.PATH_DATA, weight_type)
 
     def downloadSenseVoiceModelWeight(self, weight_type, callback=None, end_callback=None):
-        return downloadSenseVoiceWeight(config.PATH_LOCAL, weight_type, callback, end_callback)
+        return downloadSenseVoiceWeight(config.PATH_DATA, weight_type, callback, end_callback)
 
     def resetKeywordProcessor(self):
         self.ensure_initialized()
@@ -736,7 +736,7 @@ class Model:
                 phrase_timeout=phrase_timeout,
                 max_phrases=config.MIC_MAX_PHRASES,
                 transcription_engine=config.SELECTED_TRANSCRIPTION_ENGINE,
-                root=config.PATH_LOCAL,
+                root=config.PATH_DATA,
                 whisper_weight_type=config.WHISPER_WEIGHT_TYPE,
                 vosk_weight_type=config.VOSK_WEIGHT_TYPE,
                 parakeet_weight_type=config.PARAKEET_WEIGHT_TYPE,
@@ -934,7 +934,7 @@ class Model:
                 phrase_timeout=phrase_timeout,
                 max_phrases=config.SPEAKER_MAX_PHRASES,
                 transcription_engine=config.SELECTED_TRANSCRIPTION_ENGINE,
-                root=config.PATH_LOCAL,
+                root=config.PATH_DATA,
                 whisper_weight_type=config.WHISPER_WEIGHT_TYPE,
                 vosk_weight_type=config.VOSK_WEIGHT_TYPE,
                 parakeet_weight_type=config.PARAKEET_WEIGHT_TYPE,

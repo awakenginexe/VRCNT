@@ -10,10 +10,12 @@ import {
 export const UpdateModal = () => {
     const { t } = useI18n();
     const { updateOpenedQuickSetting } = useStore_OpenedQuickSetting();
-    const { updateSoftware } = useUpdateSoftware();
+    const { updateSoftware, updateState } = useUpdateSoftware();
     const { currentLatestSoftwareVersionInfo } = useSoftwareVersion();
 
     const is_latest_version_already = currentLatestSoftwareVersionInfo.data.is_update_available === false;
+    const is_updating = ["checking", "downloading", "installing", "restarting"].includes(updateState.status);
+    const progress_percent = Math.round((updateState.progress ?? 0) * 100);
 
     const onClickUpdateSoftware = () => {
         updateSoftware();
@@ -29,15 +31,32 @@ export const UpdateModal = () => {
                 <div className={styles.update_section_wrapper}>
                     <div className={styles.update_section}>
                         <div className={styles.single_update_section}>
-                            <button className={accept_button_class_name} onClick={onClickUpdateSoftware}>Open Releases</button>
+                            <button
+                                className={accept_button_class_name}
+                                onClick={onClickUpdateSoftware}
+                                disabled={is_latest_version_already || is_updating}
+                            >
+                                {is_updating ? "Updating..." : "Update Now"}
+                            </button>
                             <CurrentVersionLabel is_latest_version_already={is_latest_version_already} />
                             {!is_latest_version_already && (
                                 <p className={styles.current_version_label}>New version {currentLatestSoftwareVersionInfo.data.new_version} is available</p>
                             )}
+                            {is_updating && (
+                                <div className={styles.progress_wrapper}>
+                                    <div className={styles.progress_bar}>
+                                        <div
+                                            className={styles.progress_fill}
+                                            style={{ width: `${progress_percent}%` }}
+                                        />
+                                    </div>
+                                    <p className={styles.current_version_label}>{updateState.message} {progress_percent > 0 ? `${progress_percent}%` : ""}</p>
+                                </div>
+                            )}
                             <p className={styles.version_desc}>{t("update_modal.cuda_desc")}</p>
                         </div>
 
-                        <p className={styles.update_desc}>Download the latest installer from GitHub Releases.</p>
+                        <p className={styles.update_desc}>Download and install the update without removing downloaded models.</p>
                     </div>
                 </div>
 

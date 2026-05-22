@@ -3,7 +3,7 @@ name: Release VRCNT
 on:
   push:
     tags:
-      - 'v*' # Trigger when tag starts with 'v' (e.g. v1.1.0)
+      - 'v*' # Trigger when tag starts with 'v' (e.g. v1.2.0)
 
 jobs:
   release:
@@ -58,6 +58,9 @@ jobs:
           }
 
       - name: Build and package
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run release
 
       - name: Locate NSIS installer
@@ -75,6 +78,14 @@ jobs:
           "INSTALLER_PATH=$($installer.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "INSTALLER_NAME=$($installer.Name)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+          $signaturePath = "$($installer.FullName).sig"
+          if (-not (Test-Path $signaturePath)) {
+            Get-ChildItem -Path ./src-tauri/target/release/bundle/nsis -Recurse -ErrorAction SilentlyContinue
+            throw "Updater signature was not generated for $($installer.Name). Ensure TAURI_SIGNING_PRIVATE_KEY is configured."
+          }
+          "INSTALLER_SIGNATURE_PATH=$signaturePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "INSTALLER_SIGNATURE_NAME=$($installer.Name).sig" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Upload to Hugging Face Hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -87,6 +98,23 @@ jobs:
           $UPLOAD_DIR = "./hf_upload_temp"
           New-Item -ItemType Directory -Force -Path $UPLOAD_DIR
           Copy-Item -Path ./VRCNT.zip -Destination "$UPLOAD_DIR/VRCNT.zip"
+          Copy-Item -Path "$env:INSTALLER_PATH" -Destination "$UPLOAD_DIR/$env:INSTALLER_NAME"
+          Copy-Item -Path "$env:INSTALLER_SIGNATURE_PATH" -Destination "$UPLOAD_DIR/$env:INSTALLER_SIGNATURE_NAME"
+
+          $installerUrl = "https://huggingface.co/$env:HF_REPO_ID/resolve/$env:RELEASE_TAG/$env:INSTALLER_NAME"
+          $signature = (Get-Content -Raw "$env:INSTALLER_SIGNATURE_PATH").Trim()
+          $latest = [ordered]@{
+            version = $env:VERSION
+            notes = "Release $env:RELEASE_TAG"
+            pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            platforms = @{
+              "windows-x86_64" = @{
+                signature = $signature
+                url = $installerUrl
+              }
+            }
+          }
+          $latest | ConvertTo-Json -Depth 5 | Set-Content -Path "$UPLOAD_DIR/latest.json" -Encoding utf8
 
           $script = @'
           import os
@@ -127,12 +155,16 @@ jobs:
 
           $downloadUrl = "https://huggingface.co/$env:HF_REPO_ID/resolve/$env:RELEASE_TAG/VRCNT.zip"
           Invoke-WebRequest -Uri $downloadUrl -Method Head -MaximumRedirection 5 -UseBasicParsing
+          Invoke-WebRequest -Uri $installerUrl -Method Head -MaximumRedirection 5 -UseBasicParsing
+          Invoke-WebRequest -Uri "https://huggingface.co/$env:HF_REPO_ID/resolve/main/latest.json" -Method Head -MaximumRedirection 5 -UseBasicParsing
 
           "VRCNT_ZIP_URL=$downloadUrl" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "VRCNT_INSTALLER_URL=$installerUrl" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "VRCNT_LATEST_JSON_URL=https://huggingface.co/$env:HF_REPO_ID/resolve/main/latest.json" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
           Remove-Item -Recurse -Force $UPLOAD_DIR
 
-      - name: Verify installer payload URL
+      - name: Verify hosted release payloads
         shell: pwsh
         run: |
           $expectedUrl = "https://huggingface.co/AwakeNgineXE/VRCNT/resolve/v$env:VERSION/VRCNT.zip"
@@ -143,6 +175,15 @@ jobs:
           $template = Get-Content -Raw ./src-tauri/nsis/template.nsi
           if ($template -notmatch "https://huggingface\.co/AwakeNgineXE/VRCNT/resolve/v\$\{VERSION\}") {
             throw "NSIS template is not using the tagged Hugging Face release payload URL."
+          }
+
+          $expectedInstallerUrl = "https://huggingface.co/AwakeNgineXE/VRCNT/resolve/v$env:VERSION/$env:INSTALLER_NAME"
+          if ($env:VRCNT_INSTALLER_URL -ne $expectedInstallerUrl) {
+            throw "Updater installer URL mismatch. Expected $expectedInstallerUrl but got $env:VRCNT_INSTALLER_URL"
+          }
+
+          if ($env:VRCNT_LATEST_JSON_URL -ne "https://huggingface.co/AwakeNgineXE/VRCNT/resolve/main/latest.json") {
+            throw "Updater latest.json URL mismatch: $env:VRCNT_LATEST_JSON_URL"
           }
 
       - name: Create or update GitHub Release
@@ -160,3 +201,4 @@ jobs:
           }
 
           gh release upload $tag "$env:INSTALLER_PATH" --clobber
+          gh release upload $tag "$env:INSTALLER_SIGNATURE_PATH" --clobber

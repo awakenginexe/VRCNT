@@ -1,6 +1,8 @@
 import sys
 import copy
 import importlib
+import shutil
+from os import environ as os_environ
 from os import path as os_path, makedirs as os_makedirs
 from json import load as json_load
 from json import dump as json_dump
@@ -60,6 +62,19 @@ def _getTorch():
         return importlib.import_module("torch")
     except Exception:
         return None
+
+def _getUserDataPath(app_name: str = "VRCNT") -> str:
+    base_path = (
+        os_environ.get("LOCALAPPDATA")
+        or os_environ.get("APPDATA")
+        or os_path.expanduser("~")
+    )
+    return os_path.join(base_path, app_name)
+
+def _copytree_merge(src: str, dst: str) -> None:
+    if not os_path.isdir(src):
+        return
+    shutil.copytree(src, dst, dirs_exist_ok=True)
 
 json_serializable_vars = {}
 def json_serializable(var_name):
@@ -633,6 +648,8 @@ class Config:
     # Read Only
     VERSION = ManagedProperty('VERSION', readonly=True, serialize=False)
     PATH_LOCAL = ManagedProperty('PATH_LOCAL', readonly=True, serialize=False)
+    PATH_DATA = ManagedProperty('PATH_DATA', readonly=True, serialize=False)
+    PATH_WEIGHTS = ManagedProperty('PATH_WEIGHTS', readonly=True, serialize=False)
     PATH_CONFIG = ManagedProperty('PATH_CONFIG', readonly=True, serialize=False)
     PATH_LOGS = ManagedProperty('PATH_LOGS', readonly=True, serialize=False)
     GITHUB_URL = ManagedProperty('GITHUB_URL', readonly=True, serialize=False)
@@ -808,13 +825,17 @@ class Config:
 
     def init_config(self):
         # Read Only
-        self._VERSION = "1.1.0"
+        self._VERSION = "1.2.0"
         if getattr(sys, 'frozen', False):
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
             self._PATH_LOCAL = os_path.dirname(os_path.abspath(__file__))
-        self._PATH_CONFIG = os_path.join(self._PATH_LOCAL, "config.json")
-        self._PATH_LOGS = os_path.join(self._PATH_LOCAL, "logs")
+        self._PATH_DATA = _getUserDataPath("VRCNT")
+        self._PATH_WEIGHTS = os_path.join(self._PATH_DATA, "weights")
+        self._PATH_CONFIG = os_path.join(self._PATH_DATA, "config.json")
+        self._PATH_LOGS = os_path.join(self._PATH_DATA, "logs")
+        os_makedirs(self._PATH_DATA, exist_ok=True)
+        self._migrateLegacyUserData()
         os_makedirs(self._PATH_LOGS, exist_ok=True)
         self._GITHUB_URL = "https://raw.githubusercontent.com/awakenginexe/VRCNT/main/package.json"
         self._UPDATER_URL = "https://github.com/awakenginexe/VRCNT/releases"
@@ -1103,6 +1124,30 @@ class Config:
         self._WEBSOCKET_PORT = 2231
         self._ENABLE_CLIPBOARD = False
         self._ENABLE_TELEMETRY = True
+
+    def _migrateLegacyUserData(self) -> None:
+        if getattr(sys, 'frozen', False) is False:
+            return
+
+        legacy_config_path = os_path.join(self._PATH_LOCAL, "config.json")
+        if os_path.isfile(legacy_config_path) and os_path.isfile(self._PATH_CONFIG) is False:
+            try:
+                shutil.copy2(legacy_config_path, self._PATH_CONFIG)
+            except Exception:
+                errorLogging()
+
+        for directory_name in ("weights", "logs"):
+            legacy_path = os_path.join(self._PATH_LOCAL, directory_name)
+            target_path = os_path.join(self._PATH_DATA, directory_name)
+            if os_path.isdir(legacy_path) is False:
+                continue
+            try:
+                if os_path.exists(target_path) is False:
+                    shutil.move(legacy_path, target_path)
+                else:
+                    _copytree_merge(legacy_path, target_path)
+            except Exception:
+                errorLogging()
 
     def load_config(self):
         self._config_data = {}
