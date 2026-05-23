@@ -14,7 +14,7 @@ export const UpdateModal = () => {
     const { currentLatestSoftwareVersionInfo } = useSoftwareVersion();
 
     const is_latest_version_already = currentLatestSoftwareVersionInfo.data.is_update_available === false;
-    const is_updating = ["checking", "downloading", "installing", "restarting"].includes(updateState.status);
+    const is_updating = ["opening"].includes(updateState.status);
     const progress_percent = Math.round((updateState.progress ?? 0) * 100);
 
     const onClickUpdateSoftware = () => {
@@ -36,7 +36,7 @@ export const UpdateModal = () => {
                                 onClick={onClickUpdateSoftware}
                                 disabled={is_latest_version_already || is_updating}
                             >
-                                {is_updating ? "Updating..." : "Update Now"}
+                                {is_updating ? "Opening..." : "Open Releases"}
                             </button>
                             <CurrentVersionLabel is_latest_version_already={is_latest_version_already} />
                             {!is_latest_version_already && (
@@ -56,7 +56,7 @@ export const UpdateModal = () => {
                             <p className={styles.version_desc}>{t("update_modal.cuda_desc")}</p>
                         </div>
 
-                        <p className={styles.update_desc}>Download and install the update without removing downloaded models.</p>
+                        <p className={styles.update_desc}>Open GitHub Releases to download the latest installer.</p>
                     </div>
                 </div>
 

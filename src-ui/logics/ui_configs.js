@@ -33,7 +33,7 @@ export const ui_configs = {
         return { ...this._overlay_log_default_settings_base, tracker: "HMD" };
     },
     get overlay_large_log_default_settings() {
-        return { ...this._overlay_log_default_settings_base, tracker: "LeftHand" };
+        return { ...this._overlay_log_default_settings_base, tracker: "LeftHand", log_order: "oldest_first" };
     },
 
     // Shared message format parts base

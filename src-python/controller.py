@@ -3828,6 +3828,9 @@ class Controller:
             if config.ENABLE_TELEMETRY is True:
                 model.telemetryInit(enabled=config.ENABLE_TELEMETRY, app_version=config.VERSION)
 
+            if connected_network is True:
+                self.checkSoftwareUpdated()
+
             self.updateConfigSettings()
             self.initializationStatus("", "", visible=False, phase="done")
             self.startWatchdog()

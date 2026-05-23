@@ -1127,7 +1127,7 @@ class Model:
         target_language_list = []
         if isinstance(target_language, dict):
             target_language_list = [data["language"] for data in target_language.values() if data.get("enable") is True]
-        newest_first = config.OVERLAY_LARGE_LOG_SETTINGS["y_pos"] < 0
+        newest_first = config.OVERLAY_LARGE_LOG_SETTINGS.get("log_order") == "newest_first"
         return self.overlay_image.createOverlayImageLargeLog(
             message_type,
             message,
@@ -1153,9 +1153,9 @@ class Model:
         overlay_image = OverlayImage(config.PATH_LOCAL)
 
         for _ in range(2):
-            overlay_image.createOverlayImageLargeLog("send", message, language, newest_first=config.OVERLAY_LARGE_LOG_SETTINGS["y_pos"] < 0)
-            overlay_image.createOverlayImageLargeLog("receive", message, language, newest_first=config.OVERLAY_LARGE_LOG_SETTINGS["y_pos"] < 0)
-        return overlay_image.createOverlayImageLargeLog("send", message, language, newest_first=config.OVERLAY_LARGE_LOG_SETTINGS["y_pos"] < 0)
+            overlay_image.createOverlayImageLargeLog("send", message, language, newest_first=config.OVERLAY_LARGE_LOG_SETTINGS.get("log_order") == "newest_first")
+            overlay_image.createOverlayImageLargeLog("receive", message, language, newest_first=config.OVERLAY_LARGE_LOG_SETTINGS.get("log_order") == "newest_first")
+        return overlay_image.createOverlayImageLargeLog("send", message, language, newest_first=config.OVERLAY_LARGE_LOG_SETTINGS.get("log_order") == "newest_first")
 
     def clearOverlayImageLargeLog(self):
         self.ensure_initialized()

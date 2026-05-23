@@ -8,6 +8,7 @@ import time
 import importlib
 from io import BytesIO
 from threading import Event
+from queue import Empty
 import wave
 from typing import Any, Dict, List, Optional, Union
 from speech_recognition import Recognizer, AudioData, AudioFile
@@ -26,6 +27,7 @@ warnings.simplefilter('ignore', RuntimeWarning)
 
 PHRASE_TIMEOUT = 3
 MAX_PHRASES = 10
+MAX_AUDIO_BUFFER_SECONDS = 30
 
 
 def _getTorch():
@@ -117,7 +119,7 @@ class AudioTranscriber:
             "last_sample": bytes(),
             "last_spoken": None,
             "new_phrase": True,
-            "process_data_func": self.processSpeakerData if speaker else self.processSpeakerData,
+            "process_data_func": self.processSpeakerData if speaker else self.processMicData,
         }
 
         if transcription_engine == "Whisper":
@@ -173,6 +175,7 @@ class AudioTranscriber:
             return False
         audio, time_spoken = audio_queue.get()
         self.updateLastSampleAndPhraseStatus(audio, time_spoken)
+        self.drainAudioQueue(audio_queue)
 
         confidences: List[Dict[str, Any]] = [{"confidence": 0, "text": "", "language": None}]
         try:
@@ -302,6 +305,16 @@ class AudioTranscriber:
             self.updateTranscript(result)
         return True
 
+    def drainAudioQueue(self, audio_queue: Any) -> None:
+        while True:
+            try:
+                audio, time_spoken = audio_queue.get_nowait()
+            except Empty:
+                break
+            except Exception:
+                break
+            self.updateLastSampleAndPhraseStatus(audio, time_spoken)
+
     def updateLastSampleAndPhraseStatus(self, data: bytes, time_spoken) -> None:
         source_info = self.audio_sources
         if source_info["last_spoken"] and time_spoken - source_info["last_spoken"] > timedelta(seconds=self.phrase_timeout):
@@ -312,6 +325,18 @@ class AudioTranscriber:
 
         source_info["last_sample"] += data
         source_info["last_spoken"] = time_spoken
+        self.trimLastSampleToMaxDuration()
+
+    def trimLastSampleToMaxDuration(self) -> None:
+        source_info = self.audio_sources
+        try:
+            frame_width = max(1, int(source_info["sample_width"]) * int(source_info["channels"]))
+            max_frames = int(source_info["sample_rate"]) * MAX_AUDIO_BUFFER_SECONDS
+            max_bytes = max(frame_width, max_frames * frame_width)
+            if len(source_info["last_sample"]) > max_bytes:
+                source_info["last_sample"] = source_info["last_sample"][-max_bytes:]
+        except Exception:
+            errorLogging()
 
     def processMicData(self) -> AudioData:
         audio_data = AudioData(

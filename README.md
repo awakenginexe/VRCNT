@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.3.0-20d6ff?style=for-the-badge&labelColor=071018" />
+  <img alt="Version" src="https://img.shields.io/badge/version-1.4.0-20d6ff?style=for-the-badge&labelColor=071018" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-7c4dff?style=for-the-badge&labelColor=071018" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-35e0c2?style=for-the-badge&labelColor=071018" />
 </p>
@@ -34,7 +34,7 @@ The goal is practical: make multilingual VRChat sessions easier with local AI mo
 This repository is prepared for a single VRCNT Windows release package:
 
 - Portable package: `VRCNT.zip`
-- Windows installer: `VRCNT_1.3.0_x64-setup.exe`
+- Windows installer: `VRCNT_1.4.0_x64-setup.exe`
 
 VRCNT ships CUDA support in the main package. Users without a supported NVIDIA GPU can still run the app with CPU processing from the same download.
 

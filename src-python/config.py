@@ -432,12 +432,14 @@ def _overlay_small_validator(val, inst):
     return new
 
 def _overlay_large_validator(val, inst):
-    if not (isinstance(val, dict) and set(val.keys()) == set(inst.OVERLAY_LARGE_LOG_SETTINGS.keys())):
+    if not isinstance(val, dict):
         return None
     base = inst.OVERLAY_LARGE_LOG_SETTINGS
     new = dict(base)
     for key, v in val.items():
         if key == 'tracker' and isinstance(v, str) and v in ['HMD', 'LeftHand', 'RightHand']:
+            new[key] = v
+        elif key == 'log_order' and isinstance(v, str) and v in ['oldest_first', 'newest_first']:
             new[key] = v
         elif key in ['x_pos','y_pos','z_pos','x_rotation','y_rotation','z_rotation'] and isinstance(v,(int,float)):
             new[key] = float(v)
@@ -844,7 +846,7 @@ class Config:
 
     def init_config(self):
         # Read Only
-        self._VERSION = "1.3.0"
+        self._VERSION = "1.4.0"
         if getattr(sys, 'frozen', False):
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
@@ -1105,6 +1107,7 @@ class Config:
             "opacity": 1.0,
             "ui_scaling": 1.0,
             "tracker": "LeftHand",
+            "log_order": "oldest_first",
         }
         self._OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES = False
         self._SEND_MESSAGE_TO_VRC = True
