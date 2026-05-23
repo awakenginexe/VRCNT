@@ -28,10 +28,10 @@ class Controller:
 
     def _startupWhisperWeightType(self) -> str:
         selectable_weights = config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT
-        if DEFAULT_WHISPER_WEIGHT_TYPE in selectable_weights:
-            return DEFAULT_WHISPER_WEIGHT_TYPE
         if config.WHISPER_WEIGHT_TYPE in selectable_weights:
             return config.WHISPER_WEIGHT_TYPE
+        if DEFAULT_WHISPER_WEIGHT_TYPE in selectable_weights:
+            return DEFAULT_WHISPER_WEIGHT_TYPE
         return next(iter(selectable_weights), config.WHISPER_WEIGHT_TYPE)
 
     def _fallbackSelectedWhisperWeight(self, fallback_weight_type: str, fallback_available: bool) -> None:
@@ -423,7 +423,10 @@ class Controller:
             )
 
         def downloaded(self) -> None:
-            if model.checkTranslatorCTranslate2ModelWeight(self.weight_type) is True:
+            if (
+                model.checkTranslatorCTranslate2ModelWeight(self.weight_type) is True
+                and model.checkTranslatorCTranslate2ModelTokenizer(self.weight_type) is True
+            ):
                 config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[self.weight_type] = True
 
                 self.run(
@@ -3028,8 +3031,9 @@ class Controller:
                 download_ctranslate2.downloaded,
                 )
         else:
-            if model.downloadCTranslate2ModelWeight(weight_type, download_ctranslate2.progressBar, download_ctranslate2.downloaded):
+            if model.downloadCTranslate2ModelWeight(weight_type, download_ctranslate2.progressBar, None):
                 model.downloadCTranslate2ModelTokenizer(weight_type)
+            download_ctranslate2.downloaded()
         return {"status":200, "result":True}
 
     def downloadWhisperWeight(self, data:str, asynchronous:bool=True, *args, **kwargs) -> dict:
@@ -3401,8 +3405,10 @@ class Controller:
     @staticmethod
     def startThreadingDownloadCtranslate2Weight(weight_type:str, callback:Callable[[float], None], end_callback:Optional[Callable[..., None]] = None) -> None:
         def run_download():
-            if model.downloadCTranslate2ModelWeight(weight_type, callback, end_callback):
+            if model.downloadCTranslate2ModelWeight(weight_type, callback, None):
                 model.downloadCTranslate2ModelTokenizer(weight_type)
+            if end_callback is not None:
+                end_callback()
 
         th_download = Thread(target=run_download)
         th_download.daemon = True
@@ -3883,7 +3889,10 @@ class Controller:
 
             download_threads = []
             weight_type = config.CTRANSLATE2_WEIGHT_TYPE
-            if model.checkTranslatorCTranslate2ModelWeight(weight_type) is False:
+            if (
+                model.checkTranslatorCTranslate2ModelWeight(weight_type) is False
+                or model.checkTranslatorCTranslate2ModelTokenizer(weight_type) is False
+            ):
                 th_download_ctranslate2 = Thread(target=self.downloadCtranslate2Weight, args=(weight_type, False))
                 th_download_ctranslate2.daemon = True
                 th_download_ctranslate2.start()
@@ -3900,7 +3909,7 @@ class Controller:
             if len(download_threads) > 0:
                 self.initializationStatus(
                     "Downloading required AI models",
-                    "Preparing the local translation model and the minimal Whisper model.",
+                    "Preparing the selected local translation and Whisper models.",
                     visible=True,
                     phase="download",
                 )
@@ -3910,7 +3919,10 @@ class Controller:
         # Check and disable/enable AI models (parallel)
 
         def check_ctranslate2() -> bool:
-            return model.checkTranslatorCTranslate2ModelWeight(config.CTRANSLATE2_WEIGHT_TYPE) is True
+            return (
+                model.checkTranslatorCTranslate2ModelWeight(config.CTRANSLATE2_WEIGHT_TYPE) is True
+                and model.checkTranslatorCTranslate2ModelTokenizer(config.CTRANSLATE2_WEIGHT_TYPE) is True
+            )
 
         def check_whisper() -> bool:
             return model.checkTranscriptionWhisperModelWeight(startup_whisper_weight_type) is True

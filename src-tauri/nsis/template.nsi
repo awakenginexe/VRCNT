@@ -175,6 +175,33 @@ Function PageLeaveChooseLanguage
     ${EndIf}
 FunctionEnd
 
+!macro PreserveLegacyUserDataFunction FUNCTION_NAME
+Function ${FUNCTION_NAME}
+  FileOpen $0 "$TEMP\VRCNT-preserve-user-data.ps1" w
+  FileWrite $0 "$$ErrorActionPreference = 'SilentlyContinue'$\r$\n"
+  FileWrite $0 "$$install = $$args[0]$\r$\n"
+  FileWrite $0 "$$data = Join-Path $$env:LOCALAPPDATA 'VRCNTData'$\r$\n"
+  FileWrite $0 "New-Item -ItemType Directory -Force -Path $$data | Out-Null$\r$\n"
+  FileWrite $0 "$$legacyConfig = Join-Path $$install 'config.json'$\r$\n"
+  FileWrite $0 "$$targetConfig = Join-Path $$data 'config.json'$\r$\n"
+  FileWrite $0 "if ((Test-Path -LiteralPath $$legacyConfig) -and -not (Test-Path -LiteralPath $$targetConfig)) { Copy-Item -LiteralPath $$legacyConfig -Destination $$targetConfig -Force }$\r$\n"
+  FileWrite $0 "foreach ($$name in @('weights', 'logs')) {$\r$\n"
+  FileWrite $0 "  $$src = Join-Path $$install $$name$\r$\n"
+  FileWrite $0 "  $$dst = Join-Path $$data $$name$\r$\n"
+  FileWrite $0 "  if (Test-Path -LiteralPath $$src) {$\r$\n"
+  FileWrite $0 "    New-Item -ItemType Directory -Force -Path $$dst | Out-Null$\r$\n"
+  FileWrite $0 "    Copy-Item -Path (Join-Path $$src '*') -Destination $$dst -Recurse -Force$\r$\n"
+  FileWrite $0 "  }$\r$\n"
+  FileWrite $0 "}$\r$\n"
+  FileClose $0
+  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$TEMP\VRCNT-preserve-user-data.ps1" "$INSTDIR"'
+  Delete "$TEMP\VRCNT-preserve-user-data.ps1"
+FunctionEnd
+!macroend
+
+!insertmacro PreserveLegacyUserDataFunction PreserveLegacyUserData
+!insertmacro PreserveLegacyUserDataFunction un.PreserveLegacyUserData
+
 !insertmacro MUI_PAGE_COMPONENTS
 
 ; 4-4. Custom page to ask user if he wants to reinstall/uninstall
@@ -311,6 +338,7 @@ Function PageLeaveReinstall
   StrCmp $R1 "1" reinst_done ; Same version? skip uninstalling
 
   reinst_uninstall:
+    Call PreserveLegacyUserData
     HideWindow
     ClearErrors
 
@@ -746,6 +774,7 @@ FunctionEnd
 
 Section Uninstall
   !insertmacro CheckIfAppIsRunning
+  Call un.PreserveLegacyUserData
 
   ; Delete the app directory and its content from disk
   ; Copy main executable
@@ -816,6 +845,7 @@ Section Uninstall
   ; Delete app data
   ${If} $DeleteAppDataCheckboxState == 1
     SetShellVarContext current
+    RmDir /r "$LOCALAPPDATA\VRCNTData"
     RmDir /r "$APPDATA\${BUNDLEID}"
     RmDir /r "$LOCALAPPDATA\${BUNDLEID}"
   ${EndIf}

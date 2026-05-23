@@ -5,11 +5,11 @@ from deepl import DeepLClient
 
 try:
     from .translation_languages import translation_lang
-    from .translation_utils import ctranslate2_weights, _prepareCtrTranslate2Runtime
+    from .translation_utils import ctranslate2_weights, _prepareCtrTranslate2Runtime, loadCTranslate2Tokenizer
 except Exception:
     sys.path.append(os_path.dirname(os_path.dirname(os_path.dirname(os_path.abspath(__file__)))))
     from translation_languages import translation_lang
-    from translation_utils import ctranslate2_weights, _prepareCtrTranslate2Runtime
+    from translation_utils import ctranslate2_weights, _prepareCtrTranslate2Runtime, loadCTranslate2Tokenizer
 
 from utils import errorLogging, getBestComputeType
 
@@ -352,9 +352,7 @@ class Translator:
         """
         self.is_loaded_ctranslate2_model = False
         directory_name = ctranslate2_weights[model_type]["directory_name"]
-        tokenizer = ctranslate2_weights[model_type]["tokenizer"]
         weight_path = os_path.join(path, "weights", "ctranslate2", directory_name)
-        tokenizer_path = os_path.join(path, "weights", "ctranslate2", directory_name, "tokenizer")
 
         if compute_type == "auto":
             compute_type = getBestComputeType(device, device_index)
@@ -366,13 +364,11 @@ class Translator:
             inter_threads=1,
             intra_threads=4,
         )
-        transformers = _getTransformers()
         try:
-            self.ctranslate2_tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer, cache_dir=tokenizer_path)
+            self.ctranslate2_tokenizer = loadCTranslate2Tokenizer(path, model_type, local_files_only=True)
         except Exception:
             errorLogging()
-            tokenizer_path = os_path.join("./weights", "ctranslate2", directory_name, "tokenizer")
-            self.ctranslate2_tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer, cache_dir=tokenizer_path)
+            self.ctranslate2_tokenizer = loadCTranslate2Tokenizer(path, model_type, local_files_only=False, repair_cache=True)
         self.is_loaded_ctranslate2_model = True
 
     def isLoadedCTranslate2Model(self) -> bool:

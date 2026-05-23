@@ -626,7 +626,7 @@ class OverlayImage:
 
         return combined_img
 
-    def createOverlayImageLargeLog(self, message_type: str, message: Optional[str] = None, your_language: Optional[str] = None, translation: List[str] = [], target_language: List[str] = [], transliteration_message: List[dict] = [], transliteration_translation: List[List[dict]] = [], ruby_font_scale: float = 0.5, ruby_line_spacing: int = 4) -> Image:
+    def createOverlayImageLargeLog(self, message_type: str, message: Optional[str] = None, your_language: Optional[str] = None, translation: List[str] = [], target_language: List[str] = [], transliteration_message: List[dict] = [], transliteration_translation: List[List[dict]] = [], ruby_font_scale: float = 0.5, ruby_line_spacing: int = 4, newest_first: bool = False) -> Image:
         ui_color = self.getUiColorLargeLog()
         background_color = ui_color["background_color"]
         background_outline_color = ui_color["background_outline_color"]
@@ -650,6 +650,7 @@ class OverlayImage:
         if len(self.message_log) > 3:
             self.message_log = self.message_log[-3:]
 
+        visible_logs = list(reversed(self.message_log)) if newest_first is True else self.message_log
         imgs = [
             self.createTextboxLargeLog(
                 log["message_type"],
@@ -662,7 +663,7 @@ class OverlayImage:
                 transliteration_translation=log.get("transliteration_translation", [{}]),
                 ruby_font_scale=ruby_font_scale,
                 ruby_line_spacing=ruby_line_spacing,
-            ) for log in self.message_log
+            ) for log in visible_logs
             ]
 
         img = imgs[0]

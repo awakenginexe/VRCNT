@@ -9,13 +9,14 @@ This module exposes small utilities used by the transcription subsystem:
 The functions are defensive: failures are caught and reported by the caller.
 """
 
-from os import path as os_path, makedirs as os_makedirs
+from os import path as os_path, makedirs as os_makedirs, remove as os_remove, replace as os_replace
 import importlib
 from requests import get as requests_get
 from typing import Callable, Optional
 import huggingface_hub
 import logging
-from utils import getBestComputeType
+import json
+from utils import errorLogging, getBestComputeType
 
 logger = logging.getLogger('faster_whisper')
 logger.setLevel(logging.CRITICAL)
@@ -49,7 +50,26 @@ _FILENAMES = [
 
 _REQUIRED_WHISPER_FILES = ("config.json", "model.bin", "tokenizer.json")
 
-def downloadFile(url: str, path: str, func: Optional[Callable[[float], None]] = None) -> None:
+def _isValidWhisperFile(file_path: str, filename: str) -> bool:
+    if not os_path.isfile(file_path):
+        return False
+    try:
+        file_size = os_path.getsize(file_path)
+    except Exception:
+        return False
+    if filename == "model.bin":
+        return file_size > 1024 * 1024
+    if file_size <= 0:
+        return False
+    if filename.endswith(".json"):
+        try:
+            with open(file_path, "r", encoding="utf-8") as file:
+                json.load(file)
+        except Exception:
+            return False
+    return True
+
+def downloadFile(url: str, path: str, func: Optional[Callable[[float], None]] = None) -> bool:
     """Download a file from `url` to `path`.
 
     Args:
@@ -57,20 +77,36 @@ def downloadFile(url: str, path: str, func: Optional[Callable[[float], None]] = 
         path: local filepath to write
         func: optional callback(progress: float) called with a 0.0-1.0 progress
     """
+    temp_path = f"{path}.part"
     try:
-        res = requests_get(url, stream=True)
-        res.raise_for_status()
-        file_size = int(res.headers.get('content-length', 0))
-        total_chunk = 0
-        with open(os_path.join(path), 'wb') as file:
-            for chunk in res.iter_content(chunk_size=1024 * 2000):
-                file.write(chunk)
-                if callable(func) and file_size:
+        os_makedirs(os_path.dirname(path), exist_ok=True)
+        with requests_get(url, stream=True, timeout=(10, 120)) as res:
+            res.raise_for_status()
+            file_size = int(res.headers.get('content-length', 0))
+            total_chunk = 0
+            with open(temp_path, 'wb') as file:
+                for chunk in res.iter_content(chunk_size=1024 * 2000):
+                    if not chunk:
+                        continue
+                    file.write(chunk)
                     total_chunk += len(chunk)
-                    func(total_chunk / file_size)
+                    if callable(func) and file_size:
+                        func(total_chunk / file_size)
+            if total_chunk <= 0:
+                raise IOError(f"Empty download for {path}")
+            if file_size and total_chunk < file_size:
+                raise IOError(f"Incomplete download for {path}: {total_chunk}/{file_size}")
+        os_replace(temp_path, path)
+        return True
     except Exception:
-        # Silent failure here; caller may re-check or log
-        pass
+        errorLogging()
+        for broken_path in (temp_path, path):
+            try:
+                if os_path.exists(broken_path):
+                    os_remove(broken_path)
+            except Exception:
+                pass
+        return False
 
 def checkWhisperWeight(root: str, weight_type: str) -> bool:
     """Return True if all expected Whisper files for `weight_type` exist locally.
@@ -83,11 +119,11 @@ def checkWhisperWeight(root: str, weight_type: str) -> bool:
     if not os_path.isdir(path):
         return False
     for filename in _REQUIRED_WHISPER_FILES:
-        if not os_path.isfile(os_path.join(path, filename)):
+        if not _isValidWhisperFile(os_path.join(path, filename), filename):
             return False
     if not (
-        os_path.isfile(os_path.join(path, "vocabulary.txt"))
-        or os_path.isfile(os_path.join(path, "vocabulary.json"))
+        _isValidWhisperFile(os_path.join(path, "vocabulary.txt"), "vocabulary.txt")
+        or _isValidWhisperFile(os_path.join(path, "vocabulary.json"), "vocabulary.json")
     ):
         return False
     return True
@@ -97,7 +133,7 @@ def downloadWhisperWeight(
     weight_type: str,
     callback: Optional[Callable[[float], None]] = None,
     end_callback: Optional[Callable[[], None]] = None,
-) -> None:
+) -> bool:
     """Ensure Whisper weight files are present locally; download them if missing.
 
     Args:
@@ -109,12 +145,26 @@ def downloadWhisperWeight(
     path = os_path.join(root, "weights", "whisper", weight_type)
     os_makedirs(path, exist_ok=True)
     if not checkWhisperWeight(root, weight_type):
-        for filename in _FILENAMES:
+        try:
+            filenames = [filename for filename in huggingface_hub.list_repo_files(_MODELS[weight_type]) if filename in _FILENAMES]
+        except Exception:
+            errorLogging()
+            filenames = _FILENAMES
+
+        for filename in filenames:
             file_path = os_path.join(path, filename)
+            if _isValidWhisperFile(file_path, filename):
+                continue
+            try:
+                if os_path.exists(file_path):
+                    os_remove(file_path)
+            except Exception:
+                pass
             url = huggingface_hub.hf_hub_url(_MODELS[weight_type], filename)
             downloadFile(url, file_path, func=callback if filename == "model.bin" else None)
     if callable(end_callback):
         end_callback()
+    return checkWhisperWeight(root, weight_type)
 
 def getWhisperModel(
     root: str,

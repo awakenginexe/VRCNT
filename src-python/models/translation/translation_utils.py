@@ -1,4 +1,5 @@
 import os
+import shutil
 from os import path as os_path
 from os import makedirs as os_makedirs
 from os import rename as os_rename
@@ -147,6 +148,30 @@ def checkCTranslate2Weight(root: str, weight_type: str = "m2m100_418M-ct2-int8")
     except Exception:
         return False
 
+def _tokenizerCachePath(root: str, weight_type: str) -> str:
+    directory_name = ctranslate2_weights[weight_type]["directory_name"]
+    return os_path.join(root, "weights", "ctranslate2", directory_name, "tokenizer")
+
+def loadCTranslate2Tokenizer(root: str, weight_type: str = "m2m100_418M-ct2-int8", local_files_only: bool = True, repair_cache: bool = False):
+    tokenizer = ctranslate2_weights[weight_type]["tokenizer"]
+    tokenizer_path = _tokenizerCachePath(root, weight_type)
+    transformers = _getTransformers()
+    if repair_cache and os_path.isdir(tokenizer_path):
+        shutil.rmtree(tokenizer_path, ignore_errors=True)
+    os_makedirs(tokenizer_path, exist_ok=True)
+    return transformers.AutoTokenizer.from_pretrained(
+        tokenizer,
+        cache_dir=tokenizer_path,
+        local_files_only=local_files_only,
+    )
+
+def checkCTranslate2Tokenizer(root: str, weight_type: str = "m2m100_418M-ct2-int8") -> bool:
+    try:
+        loadCTranslate2Tokenizer(root, weight_type, local_files_only=True)
+        return True
+    except Exception:
+        return False
+
 def downloadCTranslate2Weight(root: str, weight_type: str = "m2m100_418M-ct2-int8", callback: Callable = None, end_callback: Callable = None):
     hf_repo = ctranslate2_weights[weight_type]["hf_repo"]
     files = list_repo_files(repo_id=hf_repo)
@@ -204,17 +229,14 @@ def downloadCTranslate2Weight(root: str, weight_type: str = "m2m100_418M-ct2-int
     return checkCTranslate2Weight(root, weight_type)
 
 def downloadCTranslate2Tokenizer(path: str, weight_type: str = "m2m100_418M-ct2-int8"):
-    directory_name = ctranslate2_weights[weight_type]["directory_name"]
-    tokenizer = ctranslate2_weights[weight_type]["tokenizer"]
-    tokenizer_path = os_path.join(path, "weights", "ctranslate2", directory_name, "tokenizer")
-    transformers = _getTransformers()
+    if checkCTranslate2Tokenizer(path, weight_type):
+        return True
     try:
-        os_makedirs(tokenizer_path, exist_ok=True)
-        transformers.AutoTokenizer.from_pretrained(tokenizer, cache_dir=tokenizer_path)
+        loadCTranslate2Tokenizer(path, weight_type, local_files_only=False, repair_cache=True)
+        return checkCTranslate2Tokenizer(path, weight_type)
     except Exception:
         errorLogging()
-        tokenizer_path = os_path.join("./weights", "ctranslate2", directory_name, "tokenizer")
-        transformers.AutoTokenizer.from_pretrained(tokenizer, cache_dir=tokenizer_path)
+        return False
 
 def loadTranslatePromptConfig(root_path: str | None = None, prompt_filename: str | None = None) -> dict:
     # PyInstaller 展開後

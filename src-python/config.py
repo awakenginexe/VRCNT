@@ -1,6 +1,7 @@
 import sys
 import copy
 import importlib
+import os
 import shutil
 from os import environ as os_environ
 from os import path as os_path, makedirs as os_makedirs
@@ -69,12 +70,30 @@ def _getUserDataPath(app_name: str = "VRCNT") -> str:
         or os_environ.get("APPDATA")
         or os_path.expanduser("~")
     )
-    return os_path.join(base_path, app_name)
+    return os_path.join(base_path, f"{app_name}Data")
 
 def _copytree_merge(src: str, dst: str) -> None:
     if not os_path.isdir(src):
         return
-    shutil.copytree(src, dst, dirs_exist_ok=True)
+    src_abs = os_path.abspath(src)
+    dst_abs = os_path.abspath(dst)
+    if src_abs == dst_abs:
+        return
+    for current_root, directory_names, filenames in os.walk(src):
+        relative_root = os_path.relpath(current_root, src)
+        target_root = dst if relative_root == "." else os_path.join(dst, relative_root)
+        os_makedirs(target_root, exist_ok=True)
+        for directory_name in directory_names:
+            os_makedirs(os_path.join(target_root, directory_name), exist_ok=True)
+        for filename in filenames:
+            source_file = os_path.join(current_root, filename)
+            target_file = os_path.join(target_root, filename)
+            try:
+                if os_path.exists(target_file) and os_path.samefile(source_file, target_file):
+                    continue
+            except Exception:
+                pass
+            shutil.copy2(source_file, target_file)
 
 json_serializable_vars = {}
 def json_serializable(var_name):
@@ -825,7 +844,7 @@ class Config:
 
     def init_config(self):
         # Read Only
-        self._VERSION = "1.2.0"
+        self._VERSION = "1.3.0"
         if getattr(sys, 'frozen', False):
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
@@ -1127,6 +1146,9 @@ class Config:
 
     def _migrateLegacyUserData(self) -> None:
         if getattr(sys, 'frozen', False) is False:
+            return
+
+        if os_path.abspath(self._PATH_LOCAL) == os_path.abspath(self._PATH_DATA):
             return
 
         legacy_config_path = os_path.join(self._PATH_LOCAL, "config.json")

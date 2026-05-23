@@ -25,7 +25,7 @@ from models.transcription.transcription_recorder import SelectedMicEnergyRecorde
 from models.transcription.transcription_transcriber import AudioTranscriber
 from models.translation.translation_languages import translation_lang
 from models.transcription.transcription_languages import transcription_lang
-from models.translation.translation_utils import checkCTranslate2Weight, downloadCTranslate2Weight, downloadCTranslate2Tokenizer, backwardCompatibleRenameWeightsDir
+from models.translation.translation_utils import checkCTranslate2Weight, checkCTranslate2Tokenizer, downloadCTranslate2Weight, downloadCTranslate2Tokenizer, backwardCompatibleRenameWeightsDir
 from models.transcription.transcription_whisper import checkWhisperWeight, downloadWhisperWeight
 from models.transcription.transcription_vosk import checkVoskWeight, downloadVoskWeight
 from models.transcription.transcription_parakeet import checkParakeetWeight, downloadParakeetWeight
@@ -166,6 +166,9 @@ class Model:
         
     def checkTranslatorCTranslate2ModelWeight(self, weight_type:str):
         return checkCTranslate2Weight(config.PATH_DATA, weight_type)
+
+    def checkTranslatorCTranslate2ModelTokenizer(self, weight_type:str):
+        return checkCTranslate2Tokenizer(config.PATH_DATA, weight_type)
 
     def changeTranslatorCTranslate2Model(self):
         self.ensure_initialized()
@@ -1124,7 +1127,17 @@ class Model:
         target_language_list = []
         if isinstance(target_language, dict):
             target_language_list = [data["language"] for data in target_language.values() if data.get("enable") is True]
-        return self.overlay_image.createOverlayImageLargeLog(message_type, message, your_language, translation, target_language_list, transliteration_message, transliteration_translation)
+        newest_first = config.OVERLAY_LARGE_LOG_SETTINGS["y_pos"] < 0
+        return self.overlay_image.createOverlayImageLargeLog(
+            message_type,
+            message,
+            your_language,
+            translation,
+            target_language_list,
+            transliteration_message,
+            transliteration_translation,
+            newest_first=newest_first,
+        )
 
     def createOverlayImageLargeMessage(self, message):
         self.ensure_initialized()
@@ -1140,9 +1153,9 @@ class Model:
         overlay_image = OverlayImage(config.PATH_LOCAL)
 
         for _ in range(2):
-            overlay_image.createOverlayImageLargeLog("send", message, language)
-            overlay_image.createOverlayImageLargeLog("receive", message, language)
-        return overlay_image.createOverlayImageLargeLog("send", message, language)
+            overlay_image.createOverlayImageLargeLog("send", message, language, newest_first=config.OVERLAY_LARGE_LOG_SETTINGS["y_pos"] < 0)
+            overlay_image.createOverlayImageLargeLog("receive", message, language, newest_first=config.OVERLAY_LARGE_LOG_SETTINGS["y_pos"] < 0)
+        return overlay_image.createOverlayImageLargeLog("send", message, language, newest_first=config.OVERLAY_LARGE_LOG_SETTINGS["y_pos"] < 0)
 
     def clearOverlayImageLargeLog(self):
         self.ensure_initialized()
