@@ -6,6 +6,7 @@ either the Google web recognizer (online) or a local Whisper model (offline).
 
 import time
 import importlib
+import gc
 from io import BytesIO
 from threading import Event
 from queue import Empty
@@ -29,6 +30,8 @@ PHRASE_TIMEOUT = 3
 MAX_PHRASES = 10
 MAX_AUDIO_BUFFER_SECONDS = 30
 MAX_WHISPER_AUDIO_SECONDS = 15
+GOOGLE_RECOGNITION_TIMEOUT_SECONDS = 15
+ENGINE_RECOVERY_FAILURE_THRESHOLD = 3
 
 
 def _getTorch():
@@ -108,11 +111,18 @@ class AudioTranscriber:
         self.transcript_data: List[Dict[str, Any]] = []
         self.transcript_changed_event = Event()
         self.audio_recognizer = Recognizer()
+        self.audio_recognizer.operation_timeout = GOOGLE_RECOGNITION_TIMEOUT_SECONDS
         self.transcription_engine = "Google"
         self.whisper_model = None
         self.vosk_recognizer = None
         self.parakeet_model = None
         self.sensevoice_model = None
+        self.root = root
+        self.whisper_weight_type = whisper_weight_type
+        self.device = device
+        self.device_index = device_index
+        self.compute_type = compute_type
+        self._recognition_failure_count = 0
         self.audio_sources: Dict[str, Any] = {
             "sample_rate": source.SAMPLE_RATE,
             "sample_width": source.SAMPLE_WIDTH,
@@ -160,6 +170,61 @@ class AudioTranscriber:
             except Exception:
                 errorLogging()
 
+    def _resetRecognizer(self) -> None:
+        self.audio_recognizer = Recognizer()
+        self.audio_recognizer.operation_timeout = GOOGLE_RECOGNITION_TIMEOUT_SECONDS
+
+    def _releaseWhisperModel(self) -> None:
+        old_model = self.whisper_model
+        self.whisper_model = None
+        try:
+            del old_model
+        except Exception:
+            pass
+        gc.collect()
+        torch = _getTorch()
+        if torch is not None:
+            try:
+                if hasattr(torch, "cuda") and torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except Exception:
+                pass
+
+    def _reloadWhisperModel(self) -> None:
+        if not self.root or not self.whisper_weight_type:
+            return
+        try:
+            getWhisperModel, checkWhisperWeight = _getWhisperHelpers()
+            if checkWhisperWeight(self.root, self.whisper_weight_type) is not True:
+                return
+            self._releaseWhisperModel()
+            self.whisper_model = getWhisperModel(
+                self.root,
+                self.whisper_weight_type,
+                device=self.device,
+                device_index=self.device_index,
+                compute_type=self.compute_type,
+            )
+        except Exception:
+            errorLogging()
+
+    def _handleRecognitionFailure(self) -> None:
+        self._recognition_failure_count += 1
+        if self._recognition_failure_count < ENGINE_RECOVERY_FAILURE_THRESHOLD:
+            return
+        self._recognition_failure_count = 0
+        self.clearTranscriptData()
+        match self.transcription_engine:
+            case "Google":
+                self._resetRecognizer()
+            case "Whisper":
+                self._reloadWhisperModel()
+            case _:
+                pass
+
+    def _handleRecognitionSuccess(self) -> None:
+        self._recognition_failure_count = 0
+
     def transcribeAudioQueue(
         self,
         audio_queue: Any,
@@ -185,6 +250,7 @@ class AudioTranscriber:
             audio_data = self.audio_sources["process_data_func"]()
             match self.transcription_engine:
                 case "Google":
+                    google_error_count = 0
                     for language, country in zip(languages, countries):
                         try:
                             text, confidence = self.audio_recognizer.recognize_google(
@@ -193,9 +259,18 @@ class AudioTranscriber:
                                 with_confidence=True
                                 )
                             confidences.append({"confidence": confidence, "text": text, "language": language})
-                        except Exception:
+                        except UnknownValueError:
                             pass
+                        except Exception:
+                            google_error_count += 1
+                            errorLogging()
+                            pass
+                    if len(languages) > 0 and google_error_count >= len(languages):
+                        self._handleRecognitionFailure()
                 case "Whisper":
+                    if self.whisper_model is None:
+                        self._handleRecognitionFailure()
+                        return True
                     audio_data = np.frombuffer(
                         audio_data.get_raw_data(convert_rate=16000, convert_width=2), np.int16
                     ).flatten().astype(np.float32) / 32768.0
@@ -224,10 +299,15 @@ class AudioTranscriber:
                         vad_parameters=vad_parameters,
                     )
                     text = ""
-                    for s in segments:
-                        if s.avg_logprob < avg_logprob or s.no_speech_prob > no_speech_prob:
-                            continue
-                        text += s.text
+                    try:
+                        for s in segments:
+                            if s.avg_logprob < avg_logprob or s.no_speech_prob > no_speech_prob:
+                                continue
+                            text += s.text
+                    except Exception:
+                        errorLogging()
+                        self._handleRecognitionFailure()
+                        return True
 
                     result_language = (
                         languages[0] if len(languages) == 1
@@ -303,11 +383,13 @@ class AudioTranscriber:
             pass
         except Exception:
             errorLogging()
+            self._handleRecognitionFailure()
         finally:
             pass
 
         result = max(confidences, key=lambda x: x["confidence"])
         if result["text"] != "":
+            self._handleRecognitionSuccess()
             self.updateTranscript(result)
         return True
 

@@ -44,13 +44,18 @@ class Controller:
             config.WHISPER_WEIGHT_TYPE = fallback_weight_type
 
     def _is_overlay_available(self) -> bool:
-        """Safe check whether overlay is present and initialized.
+        """Safe check whether overlay is present and should receive updates.
 
-        This avoids AttributeError when `model` was not fully initialized.
+        If OpenVR drops the overlay, the next update should be allowed to
+        restart it instead of silently skipping all future overlay messages.
         """
         try:
             overlay = getattr(model, "overlay", None)
-            return overlay is not None and getattr(overlay, "initialized", False)
+            if overlay is None:
+                return False
+            if getattr(overlay, "initialized", False) is False:
+                model.startOverlay()
+            return True
         except Exception:
             errorLogging()
             return False
@@ -2707,9 +2712,8 @@ class Controller:
 
     @staticmethod
     def setEnableOverlaySmallLog(*args, **kwargs) -> dict:
+        model.startOverlay()
         if config.OVERLAY_SMALL_LOG is False:
-            if config.OVERLAY_LARGE_LOG is False:
-                model.startOverlay()
             config.OVERLAY_SMALL_LOG = True
         return {"status":200, "result":config.OVERLAY_SMALL_LOG}
 
@@ -2738,9 +2742,8 @@ class Controller:
 
     @staticmethod
     def setEnableOverlayLargeLog(*args, **kwargs) -> dict:
+        model.startOverlay()
         if config.OVERLAY_LARGE_LOG is False:
-            if config.OVERLAY_SMALL_LOG is False:
-                model.startOverlay()
             config.OVERLAY_LARGE_LOG = True
         return {"status":200, "result":config.OVERLAY_LARGE_LOG}
 
@@ -2934,14 +2937,12 @@ class Controller:
     @staticmethod
     def sendTextOverlay(data, *args, **kwargs) -> dict:
         if config.OVERLAY_SMALL_LOG is True:
-            if model.overlay.initialized is True:
-                overlay_image = model.createOverlayImageSmallMessage(data)
-                model.updateOverlaySmallLog(overlay_image)
+            overlay_image = model.createOverlayImageSmallMessage(data)
+            model.updateOverlaySmallLog(overlay_image)
 
         if config.OVERLAY_LARGE_LOG is True:
-            if model.overlay.initialized is True:
-                overlay_image = model.createOverlayImageLargeMessage(data)
-                model.updateOverlayLargeLog(overlay_image)
+            overlay_image = model.createOverlayImageLargeMessage(data)
+            model.updateOverlayLargeLog(overlay_image)
         return {"status":200, "result":data}
 
     @staticmethod

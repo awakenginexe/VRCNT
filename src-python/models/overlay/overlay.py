@@ -178,22 +178,23 @@ class Overlay:
             if self._waitUntilInitialized() is False:
                 return
         if self.initialized is True:
-            try:
-                self._setOverlayRaw(self.lastImage[size], size)
-            except Exception:
-                self.reStartOverlay()
-                if self._waitUntilInitialized() is True:
-                    try:
-                        self._setOverlayRaw(self.lastImage[size], size)
-                    except Exception:
-                        errorLogging()
-
-            self.updateOpacity(self.settings[size]["opacity"], size)
-            self.lastUpdate[size] = time.monotonic()
+            for attempt in range(2):
+                try:
+                    self._setOverlayRaw(self.lastImage[size], size)
+                    self.updateOpacity(self.settings[size]["opacity"], size)
+                    self.lastUpdate[size] = time.monotonic()
+                    return
+                except Exception:
+                    errorLogging()
+                    if attempt == 0:
+                        self.reStartOverlay()
+                        if self._waitUntilInitialized() is False:
+                            return
 
     def clearImage(self, size: str) -> None:
+        self.lastImage[size] = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
         if self.initialized is True:
-            self.updateImage(Image.new("RGBA", (1, 1), (0, 0, 0, 0)), size)
+            self.updateImage(self.lastImage[size], size)
 
     def updateColor(self, col, size):
         """
@@ -308,21 +309,29 @@ class Overlay:
 
     def main(self) -> None:
         self.loop = True
-        while self.loop is True:
-            while self.loop is True and self.checkSteamvrRunning() is False:
-                time.sleep(5)
-            if self.loop is False:
-                break
-            self.init()
-            if self.initialized is True:
-                self.mainloop()
+        try:
+            while self.loop is True:
+                while self.loop is True and self.checkSteamvrRunning() is False:
+                    time.sleep(5)
+                if self.loop is False:
+                    break
+                self.init()
+                if self.initialized is True:
+                    self.mainloop()
+                self._releaseOpenvrResources()
+                if self.loop is True:
+                    time.sleep(2)
+        except Exception:
+            errorLogging()
+        finally:
             self._releaseOpenvrResources()
-            if self.loop is True:
-                time.sleep(2)
 
     def startOverlay(self) -> None:
         if isinstance(self.thread_overlay, Thread) and self.thread_overlay.is_alive():
             return
+        if isinstance(self.thread_overlay, Thread):
+            self.thread_overlay = None
+            self.init_process = False
         if self.init_process is False:
             self.init_process = True
             self.loop = True
@@ -344,7 +353,11 @@ class Overlay:
     @staticmethod
     def checkSteamvrRunning() -> bool:
         _proc_name = "vrmonitor.exe" if os.name == "nt" else "vrmonitor"
-        return _proc_name in (p.name() for p in process_iter())
+        try:
+            return _proc_name in (p.name() for p in process_iter())
+        except Exception:
+            errorLogging()
+            return False
 
 if __name__ == "__main__":
     from overlay_image import OverlayImage

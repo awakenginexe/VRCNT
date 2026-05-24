@@ -37,10 +37,12 @@ from models.watchdog.watchdog import Watchdog
 from models.websocket.websocket_server import WebSocketServer
 from models.clipboard.clipboard import Clipboard
 from models.telemetry import Telemetry
-from utils import errorLogging, setupLogger
+from utils import errorLogging, setupLogger, printLog
 
 TRANSCRIPT_THREAD_JOIN_TIMEOUT = 2.0
-TRANSCRIPT_IDLE_RECORDER_REFRESH_SECONDS = 300.0
+TRANSCRIPT_IDLE_RECORDER_REFRESH_SECONDS = 45.0
+TRANSCRIPT_STALL_RESTART_SECONDS = 90.0
+TRANSCRIPT_STALL_CHECK_SECONDS = 5.0
 
 class threadFnc(Thread):
     """A tiny Thread wrapper that repeatedly calls a function.
@@ -780,6 +782,12 @@ class Model:
             stop_event = Event()
             self.mic_transcript_stop_event = stop_event
             idle_state = {"last_refresh_at": monotonic()}
+            activity_state = {"busy_since": None}
+            stall_seconds = max(
+                TRANSCRIPT_STALL_RESTART_SECONDS,
+                float(record_timeout) * 4.0,
+                float(phrase_timeout) * 4.0,
+            )
 
             def refreshMicRecorderIfIdle():
                 now = monotonic()
@@ -818,16 +826,20 @@ class Model:
                     languages = [data["language"] for data in selected_your_languages.values() if data["enable"] is True]
                     countries = [data["country"] for data in selected_your_languages.values() if data["enable"] is True]
                     if isinstance(transcriber, AudioTranscriber) is True:
-                        res = transcriber.transcribeAudioQueue(
-                            audio_queue,
-                            languages,
-                            countries,
-                            config.MIC_AVG_LOGPROB,
-                            config.MIC_NO_SPEECH_PROB,
-                            config.MIC_NO_REPEAT_NGRAM_SIZE,
-                            config.MIC_VAD_FILTER,
-                            config.MIC_VAD_PARAMETERS,
-                        )
+                        activity_state["busy_since"] = monotonic()
+                        try:
+                            res = transcriber.transcribeAudioQueue(
+                                audio_queue,
+                                languages,
+                                countries,
+                                config.MIC_AVG_LOGPROB,
+                                config.MIC_NO_SPEECH_PROB,
+                                config.MIC_NO_REPEAT_NGRAM_SIZE,
+                                config.MIC_VAD_FILTER,
+                                config.MIC_VAD_PARAMETERS,
+                            )
+                        finally:
+                            activity_state["busy_since"] = None
                         if res and not stop_event.is_set():
                             result = transcriber.getTranscript()
                             fnc(result)
@@ -861,6 +873,21 @@ class Model:
             self.mic_print_transcript = threadFnc(sendMicTranscript, end_fnc=endMicTranscript)
             self.mic_print_transcript.daemon = True
             self.mic_print_transcript.start()
+
+            def restartMicTranscriptAfterStall():
+                self._requestRecorderStop(self.mic_audio_recorder, resume_first=True)
+                if config.ENABLE_TRANSCRIPTION_SEND is True:
+                    restart_thread = Thread(target=lambda: self.startMicTranscript(fnc))
+                    restart_thread.daemon = True
+                    restart_thread.start()
+
+            self._startTranscriptStallWatchdog(
+                "Mic",
+                stop_event,
+                activity_state,
+                stall_seconds,
+                restartMicTranscriptAfterStall,
+            )
 
             # self.mic_get_energy = threadFnc(sendMicEnergy)
             # self.mic_get_energy.daemon = True
@@ -932,6 +959,39 @@ class Model:
         except Exception:
             errorLogging()
             return False
+
+    def _startTranscriptStallWatchdog(
+        self,
+        label: str,
+        stop_event: Event,
+        activity_state: dict,
+        stall_seconds: float,
+        restart_callback: Callable[[], None],
+    ) -> None:
+        def watchTranscriptStall():
+            while stop_event.wait(TRANSCRIPT_STALL_CHECK_SECONDS) is False:
+                busy_since = activity_state.get("busy_since")
+                if busy_since is None:
+                    continue
+                if monotonic() - busy_since <= stall_seconds:
+                    continue
+                try:
+                    printLog(
+                        f"{label} transcription stalled; restarting",
+                        {"stall_seconds": round(monotonic() - busy_since, 2)},
+                    )
+                except Exception:
+                    errorLogging()
+                stop_event.set()
+                try:
+                    restart_callback()
+                except Exception:
+                    errorLogging()
+                break
+
+        watchdog_thread = Thread(target=watchTranscriptStall)
+        watchdog_thread.daemon = True
+        watchdog_thread.start()
 
     def changeMicTranscriptStatus(self):
         if config.VRC_MIC_MUTE_SYNC is True:
@@ -1081,6 +1141,12 @@ class Model:
             stop_event = Event()
             self.speaker_transcript_stop_event = stop_event
             idle_state = {"last_refresh_at": monotonic()}
+            activity_state = {"busy_since": None}
+            stall_seconds = max(
+                TRANSCRIPT_STALL_RESTART_SECONDS,
+                float(record_timeout) * 4.0,
+                float(phrase_timeout) * 4.0,
+            )
 
             def refreshSpeakerRecorderIfIdle():
                 now = monotonic()
@@ -1119,16 +1185,20 @@ class Model:
                     languages = [data["language"] for data in selected_target_languages.values() if data["enable"] is True]
                     countries = [data["country"] for data in selected_target_languages.values() if data["enable"] is True]
                     if isinstance(transcriber, AudioTranscriber) is True:
-                        res = transcriber.transcribeAudioQueue(
-                            speaker_audio_queue,
-                            languages,
-                            countries,
-                            config.SPEAKER_AVG_LOGPROB,
-                            config.SPEAKER_NO_SPEECH_PROB,
-                            config.SPEAKER_NO_REPEAT_NGRAM_SIZE,
-                            config.SPEAKER_VAD_FILTER,
-                            config.SPEAKER_VAD_PARAMETERS,
-                        )
+                        activity_state["busy_since"] = monotonic()
+                        try:
+                            res = transcriber.transcribeAudioQueue(
+                                speaker_audio_queue,
+                                languages,
+                                countries,
+                                config.SPEAKER_AVG_LOGPROB,
+                                config.SPEAKER_NO_SPEECH_PROB,
+                                config.SPEAKER_NO_REPEAT_NGRAM_SIZE,
+                                config.SPEAKER_VAD_FILTER,
+                                config.SPEAKER_VAD_PARAMETERS,
+                            )
+                        finally:
+                            activity_state["busy_since"] = None
                         if res and not stop_event.is_set():
                             result = transcriber.getTranscript()
                             if callable(fnc):
@@ -1163,6 +1233,21 @@ class Model:
             self.speaker_print_transcript = threadFnc(sendSpeakerTranscript, end_fnc=endSpeakerTranscript)
             self.speaker_print_transcript.daemon = True
             self.speaker_print_transcript.start()
+
+            def restartSpeakerTranscriptAfterStall():
+                self._requestRecorderStop(self.speaker_audio_recorder, resume_first=True)
+                if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
+                    restart_thread = Thread(target=lambda: self.startSpeakerTranscript(fnc))
+                    restart_thread.daemon = True
+                    restart_thread.start()
+
+            self._startTranscriptStallWatchdog(
+                "Speaker",
+                stop_event,
+                activity_state,
+                stall_seconds,
+                restartSpeakerTranscriptAfterStall,
+            )
 
             # self.speaker_get_energy = threadFnc(sendSpeakerEnergy)
             # self.speaker_get_energy.daemon = True
