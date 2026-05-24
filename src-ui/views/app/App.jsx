@@ -10,6 +10,7 @@ import {
     FontFamilyController,
     TransparencyController,
     CornerRadiusController,
+    PerformanceModeController,
 } from "./_app_controllers";
 
 import styles from "./App.module.scss";
@@ -44,6 +45,7 @@ export const App = () => {
                 <FontFamilyController />
                 <TransparencyController />
                 <CornerRadiusController />
+                <PerformanceModeController />
                 <Contents key={i18n.language} />
 
                 <SnackbarController />

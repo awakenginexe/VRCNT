@@ -2893,26 +2893,26 @@ class Controller:
 
     def setEnableTranscriptionSend(self, *args, **kwargs) -> dict:
         if config.ENABLE_TRANSCRIPTION_SEND is False:
-            self.startThreadingTranscriptionSendMessage()
             config.ENABLE_TRANSCRIPTION_SEND = True
+            self.startThreadingTranscriptionSendMessage()
         return {"status":200, "result":config.ENABLE_TRANSCRIPTION_SEND}
 
     def setDisableTranscriptionSend(self, *args, **kwargs) -> dict:
         if config.ENABLE_TRANSCRIPTION_SEND is True:
-            self.stopThreadingTranscriptionSendMessage()
             config.ENABLE_TRANSCRIPTION_SEND = False
+            self.stopThreadingTranscriptionSendMessage()
         return {"status":200, "result":config.ENABLE_TRANSCRIPTION_SEND}
 
     def setEnableTranscriptionReceive(self, *args, **kwargs) -> dict:
         if config.ENABLE_TRANSCRIPTION_RECEIVE is False:
-            self.startThreadingTranscriptionReceiveMessage()
             config.ENABLE_TRANSCRIPTION_RECEIVE = True
+            self.startThreadingTranscriptionReceiveMessage()
         return {"status":200, "result":config.ENABLE_TRANSCRIPTION_RECEIVE}
 
     def setDisableTranscriptionReceive(self, *args, **kwargs) -> dict:
         if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
-            self.stopThreadingTranscriptionReceiveMessage()
             config.ENABLE_TRANSCRIPTION_RECEIVE = False
+            self.stopThreadingTranscriptionReceiveMessage()
         return {"status":200, "result":config.ENABLE_TRANSCRIPTION_RECEIVE}
 
     def sendMessageBox(self, data, *args, **kwargs) -> dict:
@@ -3139,6 +3139,7 @@ class Controller:
                 )
                 # ここでマイクの音声認識を停止
                 self.stopTranscriptionSendMessage()
+                config.ENABLE_TRANSCRIPTION_SEND = False
                 disable_response = VRCTError.create_error_response(
                     ErrorCode.TRANSCRIPTION_SEND_DISABLED_VRAM,
                     data=False
@@ -3151,6 +3152,8 @@ class Controller:
             else:
                 # その他のエラーは通常通り処理
                 errorLogging()
+                config.ENABLE_TRANSCRIPTION_SEND = False
+                self.run(200, self.run_mapping["enable_transcription_send"], False)
         finally:
             self.device_access_status = True
 
@@ -3190,6 +3193,7 @@ class Controller:
                 )
                 # ここでスピーカーの音声認識を停止
                 self.stopTranscriptionReceiveMessage()
+                config.ENABLE_TRANSCRIPTION_RECEIVE = False
                 disable_response = VRCTError.create_error_response(
                     ErrorCode.TRANSCRIPTION_RECEIVE_DISABLED_VRAM,
                     data=False
@@ -3202,6 +3206,8 @@ class Controller:
             else:
                 # その他のエラーは通常通り処理
                 errorLogging()
+                config.ENABLE_TRANSCRIPTION_RECEIVE = False
+                self.run(200, self.run_mapping["enable_transcription_receive"], False)
         finally:
             self.device_access_status = True
 

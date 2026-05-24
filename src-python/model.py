@@ -6,9 +6,9 @@ from subprocess import Popen
 from os import makedirs as os_makedirs
 from os import path as os_path
 from datetime import datetime
-from time import sleep
+from time import monotonic, sleep
 from queue import Queue
-from threading import Thread
+from threading import Event, Thread
 from requests import get as requests_get
 from typing import Callable, Optional, cast
 from packaging.version import parse
@@ -38,6 +38,9 @@ from models.websocket.websocket_server import WebSocketServer
 from models.clipboard.clipboard import Clipboard
 from models.telemetry import Telemetry
 from utils import errorLogging, setupLogger
+
+TRANSCRIPT_THREAD_JOIN_TIMEOUT = 2.0
+TRANSCRIPT_IDLE_RECORDER_REFRESH_SECONDS = 300.0
 
 class threadFnc(Thread):
     """A tiny Thread wrapper that repeatedly calls a function.
@@ -110,11 +113,14 @@ class Model:
         self.mic_print_transcript = None
         self.mic_audio_recorder = None
         self.mic_transcriber = None
+        self.mic_transcript_stop_event = None
         self.mic_energy_recorder = None
         self.mic_energy_plot_progressbar = None
         self.speaker_print_transcript = None
+        self.speaker_audio_queue = None
         self.speaker_audio_recorder = None
         self.speaker_transcriber = None
+        self.speaker_transcript_stop_event = None
         self.speaker_energy_recorder = None
         self.speaker_energy_plot_progressbar = None
 
@@ -707,6 +713,8 @@ class Model:
 
     def startMicTranscript(self, fnc):
         self.ensure_initialized()
+        if config.ENABLE_TRANSCRIPTION_SEND is False:
+            return
         mic_host_name = config.SELECTED_MIC_HOST
         mic_device_name = config.SELECTED_MIC_DEVICE
 
@@ -716,6 +724,9 @@ class Model:
         if len(selected_mic_device) == 0 or mic_device_name == "NoDevice":
             fnc({"text": False, "language": None})
         else:
+            if isinstance(self.mic_print_transcript, threadFnc) or isinstance(self.mic_audio_recorder, SelectedMicEnergyAndAudioRecorder):
+                self.stopMicTranscript()
+
             self.mic_audio_queue = Queue()
             # self.mic_energy_queue = Queue()
 
@@ -730,32 +741,85 @@ class Model:
                 energy_threshold=config.MIC_THRESHOLD,
                 dynamic_energy_threshold=config.MIC_AUTOMATIC_THRESHOLD,
                 phrase_time_limit=record_timeout,
+                phrase_timeout=phrase_timeout,
+                record_timeout=record_timeout,
             )
             # self.mic_audio_recorder.recordIntoQueue(self.mic_audio_queue, mic_energy_queue)
             self.mic_audio_recorder.recordIntoQueue(self.mic_audio_queue, None)
-            self.mic_transcriber = AudioTranscriber(
-                speaker=False,
-                source=self.mic_audio_recorder.source,
-                phrase_timeout=phrase_timeout,
-                max_phrases=config.MIC_MAX_PHRASES,
-                transcription_engine=config.SELECTED_TRANSCRIPTION_ENGINE,
-                root=config.PATH_DATA,
-                whisper_weight_type=config.WHISPER_WEIGHT_TYPE,
-                vosk_weight_type=config.VOSK_WEIGHT_TYPE,
-                parakeet_weight_type=config.PARAKEET_WEIGHT_TYPE,
-                sensevoice_weight_type=config.SENSEVOICE_WEIGHT_TYPE,
-                device=config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE["device"],
-                device_index=config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE["device_index"],
-                compute_type=config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE,
-            )
-            def sendMicTranscript():
+            try:
+                self.mic_transcriber = AudioTranscriber(
+                    speaker=False,
+                    source=self.mic_audio_recorder.source,
+                    phrase_timeout=phrase_timeout,
+                    max_phrases=config.MIC_MAX_PHRASES,
+                    transcription_engine=config.SELECTED_TRANSCRIPTION_ENGINE,
+                    root=config.PATH_DATA,
+                    whisper_weight_type=config.WHISPER_WEIGHT_TYPE,
+                    vosk_weight_type=config.VOSK_WEIGHT_TYPE,
+                    parakeet_weight_type=config.PARAKEET_WEIGHT_TYPE,
+                    sensevoice_weight_type=config.SENSEVOICE_WEIGHT_TYPE,
+                    device=config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE["device"],
+                    device_index=config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE["device_index"],
+                    compute_type=config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE,
+                )
+            except Exception:
+                self._requestRecorderStop(self.mic_audio_recorder, resume_first=True)
+                self.mic_audio_recorder = None
+                self.mic_audio_queue = None
+                raise
+
+            if config.ENABLE_TRANSCRIPTION_SEND is False:
+                self._requestRecorderStop(self.mic_audio_recorder, resume_first=True)
+                self.mic_audio_recorder = None
+                self.mic_transcriber = None
+                self.mic_audio_queue = None
+                return
+
+            audio_queue = self.mic_audio_queue
+            transcriber = self.mic_transcriber
+            stop_event = Event()
+            self.mic_transcript_stop_event = stop_event
+            idle_state = {"last_refresh_at": monotonic()}
+
+            def refreshMicRecorderIfIdle():
+                now = monotonic()
+                if not audio_queue.empty():
+                    idle_state["last_refresh_at"] = now
+                    return
+                if now - idle_state["last_refresh_at"] < TRANSCRIPT_IDLE_RECORDER_REFRESH_SECONDS:
+                    return
+                idle_state["last_refresh_at"] = now
                 try:
+                    old_recorder = self.mic_audio_recorder
+                    self._requestRecorderStop(old_recorder, resume_first=True)
+                    if stop_event.is_set() or config.ENABLE_TRANSCRIPTION_SEND is False:
+                        return
+                    new_recorder = SelectedMicEnergyAndAudioRecorder(
+                        device=mic_device,
+                        energy_threshold=config.MIC_THRESHOLD,
+                        dynamic_energy_threshold=config.MIC_AUTOMATIC_THRESHOLD,
+                        phrase_time_limit=record_timeout,
+                        phrase_timeout=phrase_timeout,
+                        record_timeout=record_timeout,
+                    )
+                    new_recorder.recordIntoQueue(audio_queue, None)
+                    self.mic_audio_recorder = new_recorder
+                    if isinstance(transcriber, AudioTranscriber):
+                        transcriber.resetAudioSource(new_recorder.source)
+                except Exception:
+                    errorLogging()
+
+            def sendMicTranscript():
+                if stop_event.is_set():
+                    return
+                try:
+                    refreshMicRecorderIfIdle()
                     selected_your_languages = config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]
                     languages = [data["language"] for data in selected_your_languages.values() if data["enable"] is True]
                     countries = [data["country"] for data in selected_your_languages.values() if data["enable"] is True]
-                    if isinstance(self.mic_transcriber, AudioTranscriber) is True:
-                        res = self.mic_transcriber.transcribeAudioQueue(
-                            self.mic_audio_queue,
+                    if isinstance(transcriber, AudioTranscriber) is True:
+                        res = transcriber.transcribeAudioQueue(
+                            audio_queue,
                             languages,
                             countries,
                             config.MIC_AVG_LOGPROB,
@@ -764,18 +828,24 @@ class Model:
                             config.MIC_VAD_FILTER,
                             config.MIC_VAD_PARAMETERS,
                         )
-                        if res:
-                            result = self.mic_transcriber.getTranscript()
+                        if res and not stop_event.is_set():
+                            result = transcriber.getTranscript()
                             fnc(result)
                 except Exception:
                     errorLogging()
 
             def endMicTranscript():
-                while not self.mic_audio_queue.empty():
-                    self.mic_audio_queue.get()
+                stop_event.set()
+                while not audio_queue.empty():
+                    audio_queue.get()
                 # while not self.mic_energy_queue.empty():
                 #     self.mic_energy_queue.get()
-                self.mic_transcriber = None
+                if self.mic_audio_queue is audio_queue:
+                    self.mic_audio_queue = None
+                if self.mic_transcriber is transcriber:
+                    self.mic_transcriber = None
+                if self.mic_transcript_stop_event is stop_event:
+                    self.mic_transcript_stop_event = None
                 gc.collect()
 
             # def sendMicEnergy():
@@ -832,6 +902,37 @@ class Model:
             return True, error_str
         return False, None
 
+    @staticmethod
+    def _requestRecorderStop(recorder, resume_first: bool = False) -> None:
+        if recorder is None:
+            return
+        try:
+            if resume_first:
+                resume = getattr(recorder, "resume", None)
+                if callable(resume):
+                    resume()
+
+            stop = getattr(recorder, "stop", None)
+            if callable(stop):
+                try:
+                    stop(False)
+                except TypeError:
+                    stop()
+        except Exception:
+            errorLogging()
+
+    @staticmethod
+    def _requestTranscriptThreadStop(thread) -> bool:
+        if not isinstance(thread, threadFnc):
+            return True
+        try:
+            thread.stop()
+            thread.join(timeout=TRANSCRIPT_THREAD_JOIN_TIMEOUT)
+            return not thread.is_alive()
+        except Exception:
+            errorLogging()
+            return False
+
     def changeMicTranscriptStatus(self):
         if config.VRC_MIC_MUTE_SYNC is True:
             match self.mic_mute_status:
@@ -849,14 +950,22 @@ class Model:
 
     def stopMicTranscript(self):
         self.ensure_initialized()
-        if isinstance(self.mic_print_transcript, threadFnc):
-            self.mic_print_transcript.stop()
-            self.mic_print_transcript.join()
+        stop_event = self.mic_transcript_stop_event
+        if hasattr(stop_event, "set"):
+            stop_event.set()
+
+        recorder = self.mic_audio_recorder
+        self.mic_audio_recorder = None
+        self._requestRecorderStop(recorder, resume_first=True)
+
+        thread = self.mic_print_transcript
+        self._requestTranscriptThreadStop(thread)
+        if self.mic_print_transcript is thread:
             self.mic_print_transcript = None
-        if isinstance(self.mic_audio_recorder, SelectedMicEnergyAndAudioRecorder):
-            self.mic_audio_recorder.resume()
-            self.mic_audio_recorder.stop()
-            self.mic_audio_recorder = None
+
+        self.mic_transcriber = None
+        self.mic_audio_queue = None
+        self.mic_transcript_stop_event = None
         # if isinstance(self.mic_get_energy, threadFnc):
         #     self.mic_get_energy.stop()
         #     self.mic_get_energy = None
@@ -906,6 +1015,8 @@ class Model:
 
     def startSpeakerTranscript(self, fnc:Optional[Callable[[dict], None]]=None) -> None:
         self.ensure_initialized()
+        if config.ENABLE_TRANSCRIPTION_RECEIVE is False:
+            return
         speaker_device_name = config.SELECTED_SPEAKER_DEVICE
 
         speaker_device_list = device_manager.getSpeakerDevices()
@@ -916,7 +1027,11 @@ class Model:
             if callable(fnc):
                 fnc({"text": False, "language": None})
         else:
+            if isinstance(self.speaker_print_transcript, threadFnc) or isinstance(self.speaker_audio_recorder, SelectedSpeakerEnergyAndAudioRecorder):
+                self.stopSpeakerTranscript()
+
             speaker_audio_queue: Queue = Queue()
+            self.speaker_audio_queue = speaker_audio_queue
             speaker_device = selected_speaker_device[0]
             record_timeout = config.SPEAKER_RECORD_TIMEOUT
             phrase_timeout = config.SPEAKER_PHRASE_TIMEOUT
@@ -928,31 +1043,83 @@ class Model:
                 energy_threshold=config.SPEAKER_THRESHOLD,
                 dynamic_energy_threshold=config.SPEAKER_AUTOMATIC_THRESHOLD,
                 phrase_time_limit=record_timeout,
+                phrase_timeout=phrase_timeout,
+                record_timeout=record_timeout,
             )
             # self.speaker_audio_recorder.recordIntoQueue(speaker_audio_queue, speaker_energy_queue)
             self.speaker_audio_recorder.recordIntoQueue(speaker_audio_queue, None)
-            self.speaker_transcriber = AudioTranscriber(
-                speaker=True,
-                source=self.speaker_audio_recorder.source,
-                phrase_timeout=phrase_timeout,
-                max_phrases=config.SPEAKER_MAX_PHRASES,
-                transcription_engine=config.SELECTED_TRANSCRIPTION_ENGINE,
-                root=config.PATH_DATA,
-                whisper_weight_type=config.WHISPER_WEIGHT_TYPE,
-                vosk_weight_type=config.VOSK_WEIGHT_TYPE,
-                parakeet_weight_type=config.PARAKEET_WEIGHT_TYPE,
-                sensevoice_weight_type=config.SENSEVOICE_WEIGHT_TYPE,
-                device=config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE["device"],
-                device_index=config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE["device_index"],
-                compute_type=config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE,
-            )
-            def sendSpeakerTranscript():
+            try:
+                self.speaker_transcriber = AudioTranscriber(
+                    speaker=True,
+                    source=self.speaker_audio_recorder.source,
+                    phrase_timeout=phrase_timeout,
+                    max_phrases=config.SPEAKER_MAX_PHRASES,
+                    transcription_engine=config.SELECTED_TRANSCRIPTION_ENGINE,
+                    root=config.PATH_DATA,
+                    whisper_weight_type=config.WHISPER_WEIGHT_TYPE,
+                    vosk_weight_type=config.VOSK_WEIGHT_TYPE,
+                    parakeet_weight_type=config.PARAKEET_WEIGHT_TYPE,
+                    sensevoice_weight_type=config.SENSEVOICE_WEIGHT_TYPE,
+                    device=config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE["device"],
+                    device_index=config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE["device_index"],
+                    compute_type=config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE,
+                )
+            except Exception:
+                self._requestRecorderStop(self.speaker_audio_recorder, resume_first=True)
+                self.speaker_audio_recorder = None
+                self.speaker_audio_queue = None
+                raise
+
+            if config.ENABLE_TRANSCRIPTION_RECEIVE is False:
+                self._requestRecorderStop(self.speaker_audio_recorder, resume_first=True)
+                self.speaker_audio_recorder = None
+                self.speaker_transcriber = None
+                self.speaker_audio_queue = None
+                return
+
+            transcriber = self.speaker_transcriber
+            stop_event = Event()
+            self.speaker_transcript_stop_event = stop_event
+            idle_state = {"last_refresh_at": monotonic()}
+
+            def refreshSpeakerRecorderIfIdle():
+                now = monotonic()
+                if not speaker_audio_queue.empty():
+                    idle_state["last_refresh_at"] = now
+                    return
+                if now - idle_state["last_refresh_at"] < TRANSCRIPT_IDLE_RECORDER_REFRESH_SECONDS:
+                    return
+                idle_state["last_refresh_at"] = now
                 try:
+                    old_recorder = self.speaker_audio_recorder
+                    self._requestRecorderStop(old_recorder, resume_first=True)
+                    if stop_event.is_set() or config.ENABLE_TRANSCRIPTION_RECEIVE is False:
+                        return
+                    new_recorder = SelectedSpeakerEnergyAndAudioRecorder(
+                        device=speaker_device,
+                        energy_threshold=config.SPEAKER_THRESHOLD,
+                        dynamic_energy_threshold=config.SPEAKER_AUTOMATIC_THRESHOLD,
+                        phrase_time_limit=record_timeout,
+                        phrase_timeout=phrase_timeout,
+                        record_timeout=record_timeout,
+                    )
+                    new_recorder.recordIntoQueue(speaker_audio_queue, None)
+                    self.speaker_audio_recorder = new_recorder
+                    if isinstance(transcriber, AudioTranscriber):
+                        transcriber.resetAudioSource(new_recorder.source)
+                except Exception:
+                    errorLogging()
+
+            def sendSpeakerTranscript():
+                if stop_event.is_set():
+                    return
+                try:
+                    refreshSpeakerRecorderIfIdle()
                     selected_target_languages = config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]
                     languages = [data["language"] for data in selected_target_languages.values() if data["enable"] is True]
                     countries = [data["country"] for data in selected_target_languages.values() if data["enable"] is True]
-                    if isinstance(self.speaker_transcriber, AudioTranscriber) is True:
-                        res = self.speaker_transcriber.transcribeAudioQueue(
+                    if isinstance(transcriber, AudioTranscriber) is True:
+                        res = transcriber.transcribeAudioQueue(
                             speaker_audio_queue,
                             languages,
                             countries,
@@ -962,18 +1129,25 @@ class Model:
                             config.SPEAKER_VAD_FILTER,
                             config.SPEAKER_VAD_PARAMETERS,
                         )
-                        if res:
-                            result = self.speaker_transcriber.getTranscript()
-                            fnc(result)
+                        if res and not stop_event.is_set():
+                            result = transcriber.getTranscript()
+                            if callable(fnc):
+                                fnc(result)
                 except Exception:
                     errorLogging()
 
             def endSpeakerTranscript():
+                stop_event.set()
                 while not speaker_audio_queue.empty():
                     speaker_audio_queue.get()
                 # while not speaker_energy_queue.empty():
                 #     speaker_energy_queue.get()
-                self.speaker_transcriber = None
+                if self.speaker_audio_queue is speaker_audio_queue:
+                    self.speaker_audio_queue = None
+                if self.speaker_transcriber is transcriber:
+                    self.speaker_transcriber = None
+                if self.speaker_transcript_stop_event is stop_event:
+                    self.speaker_transcript_stop_event = None
                 gc.collect()
 
             # def sendSpeakerEnergy():
@@ -996,13 +1170,22 @@ class Model:
 
     def stopSpeakerTranscript(self):
         self.ensure_initialized()
-        if isinstance(self.speaker_print_transcript, threadFnc):
-            self.speaker_print_transcript.stop()
-            self.speaker_print_transcript.join()
+        stop_event = self.speaker_transcript_stop_event
+        if hasattr(stop_event, "set"):
+            stop_event.set()
+
+        recorder = self.speaker_audio_recorder
+        self.speaker_audio_recorder = None
+        self._requestRecorderStop(recorder, resume_first=True)
+
+        thread = self.speaker_print_transcript
+        self._requestTranscriptThreadStop(thread)
+        if self.speaker_print_transcript is thread:
             self.speaker_print_transcript = None
-        if isinstance(self.speaker_audio_recorder, SelectedSpeakerEnergyAndAudioRecorder):
-            self.speaker_audio_recorder.stop()
-            self.speaker_audio_recorder = None
+
+        self.speaker_transcriber = None
+        self.speaker_audio_queue = None
+        self.speaker_transcript_stop_event = None
         # if isinstance(self.speaker_get_energy, threadFnc):
         #     self.speaker_get_energy.stop()
         #     self.speaker_get_energy = None

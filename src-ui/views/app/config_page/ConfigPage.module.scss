@@ -12,9 +12,8 @@
     height: 100%;
     display: flex;
     flex-direction: row;
-    background:
-        radial-gradient(circle at 88% 4%, #123d4b 0%, transparent 28%),
-        linear-gradient(135deg, var(--dark_1000_color), var(--dark_925_color));
+    background: var(--bg_radial_gradient);
+    background-color: #060913; /* solid dark background fallback */
     overflow: hidden;
     position: relative;
 }

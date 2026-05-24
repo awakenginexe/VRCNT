@@ -144,6 +144,9 @@ config_page:
             label: "字体"
         ui_language:
             label: "界面语言"
+        performance_mode:
+            label: "性能模式"
+            desc: "禁用背景模糊（毛玻璃效果）和发光特效以减少 CPU 和 GPU 占用。"
 
     translation:
         ctranslate2_weight_type:

@@ -28,6 +28,7 @@ warnings.simplefilter('ignore', RuntimeWarning)
 PHRASE_TIMEOUT = 3
 MAX_PHRASES = 10
 MAX_AUDIO_BUFFER_SECONDS = 30
+MAX_WHISPER_AUDIO_SECONDS = 15
 
 
 def _getTorch():
@@ -201,14 +202,19 @@ class AudioTranscriber:
                     torch = _getTorch()
                     if torch is not None and isinstance(audio_data, torch.Tensor):
                         audio_data = audio_data.detach().numpy()
+                    if audio_data.size == 0 or not np.any(audio_data):
+                        return True
+                    max_samples = 16000 * MAX_WHISPER_AUDIO_SECONDS
+                    if audio_data.size > max_samples:
+                        audio_data = audio_data[-max_samples:]
 
                     source_language = _languageCode("Whisper", languages[0], countries[0]) if len(languages) == 1 else None
                     segments, info = self.whisper_model.transcribe(
                         audio_data,
                         beam_size=5,
                         temperature=0.0,
-                        log_prob_threshold=-0.8,
-                        no_speech_threshold=0.6,
+                        log_prob_threshold=avg_logprob,
+                        no_speech_threshold=no_speech_prob,
                         language=source_language,
                         word_timestamps=False,
                         without_timestamps=True,
@@ -304,6 +310,14 @@ class AudioTranscriber:
         if result["text"] != "":
             self.updateTranscript(result)
         return True
+
+    def resetAudioSource(self, source: Any) -> None:
+        self.audio_sources["sample_rate"] = source.SAMPLE_RATE
+        self.audio_sources["sample_width"] = source.SAMPLE_WIDTH
+        self.audio_sources["channels"] = source.channels
+        self.audio_sources["last_sample"] = bytes()
+        self.audio_sources["last_spoken"] = None
+        self.audio_sources["new_phrase"] = True
 
     def drainAudioQueue(self, audio_queue: Any) -> None:
         while True:

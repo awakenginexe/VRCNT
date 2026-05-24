@@ -3,13 +3,24 @@
     width: 100%;
     justify-content: space-between;
     align-items: center;
-    padding: 2rem;
+    padding: 1.6rem 2.2rem;
     gap: 2rem;
+    background: var(--surface_2_color);
+    border: var(--panel_border_subtle);
+    border-radius: 1.2rem;
+    margin-bottom: 1.2rem;
+    box-shadow: var(--shadow_soft);
+    transition: var(--transition_ui);
+    box-sizing: border-box;
+
+    &:hover {
+        background: var(--surface_3_color);
+        border-color: rgba(0, 229, 255, 0.25);
+        box-shadow: var(--glow_shadow);
+    }
+
     &.flex_column {
         flex-direction: column;
-    }
-    &:not(.remove_border_bottom) {
-        border-bottom: solid 0.1rem var(--dark_800_color);
     }
 
     &.is_break_point {

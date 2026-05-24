@@ -20,8 +20,9 @@
     justify-content: space-between;
     height: 100%;
     width: 100%;
-    background: linear-gradient(180deg, var(--surface_1_color), var(--dark_950_color));
-    border-right: 0.1rem solid var(--border_subtle_color);
+    background: var(--surface_1_color);
+    backdrop-filter: var(--panel_blur);
+    border-right: var(--panel_border_subtle);
     padding-bottom: 0.8rem;
     overflow: hidden;
 }
@@ -40,43 +41,47 @@
     width: 100%;
     display: flex;
     flex-direction: column;
-    gap: 0.1rem;
+    gap: 0.4rem;
+    padding: 0 0.6rem;
+    box-sizing: border-box;
 }
 
 .tab_container {
     position: relative;
-    width: 100%;
+    width: auto;
     display: flex;
     justify-content: left;
     align-items: center;
-    margin: 0.15rem 0.6rem;
-    padding: 0.7rem 0.8rem;
+    margin: 0.15rem 0;
+    padding: 0.8rem 1rem;
     cursor: pointer;
-    gap: 0.4rem;
+    gap: 0.6rem;
     overflow: hidden;
-    border-radius: 0.8rem;
-    transition:
-        background-color var(--transition_ui),
-        color var(--transition_ui),
-        transform var(--transition_ui);
+    border-radius: 0.95rem;
+    border: 0.1rem solid transparent;
+    transition: var(--transition_ui);
 
     &:hover {
         background-color: var(--surface_3_color);
-        transform: translateX(0.1rem);
+        border-color: rgba(255, 255, 255, 0.04);
+        transform: translateX(0.15rem);
     }
     &:active {
-        background-color: var(--dark_900_color);
+        background-color: var(--surface_1_color);
+        transform: scale(0.97);
     }
     &.is_selected {
-        background-color: #102b36;
-        color: var(--primary_200_color);
+        background: linear-gradient(135deg, rgba(0, 242, 254, 0.12), rgba(124, 77, 255, 0.12));
+        border: 0.1rem solid rgba(0, 242, 254, 0.22);
+        color: var(--primary_300_color);
         cursor: default;
         pointer-events: none;
+        box-shadow: var(--glow_shadow);
         .tab_icon {
-            fill: var(--primary_200_color);
+            fill: var(--primary_300_color);
         }
         .tab_text {
-            color: var(--primary_200_color);
+            color: var(--primary_300_color);
         }
     }
 }

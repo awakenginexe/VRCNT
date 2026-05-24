@@ -144,6 +144,9 @@ config_page:
             label: "Font Family"
         ui_language:
             label: "UI Language"
+        performance_mode:
+            label: "Performance Mode"
+            desc: "Disable backdrop blur (glassmorphism) and glow effects to reduce CPU and GPU usage."
 
     translation:
         ctranslate2_weight_type:

@@ -144,6 +144,9 @@ config_page:
             label: "使用フォント"
         ui_language:
             label: "UIの言語"
+        performance_mode:
+            label: "パフォーマンスモード"
+            desc: "背景のぼかし効果（グラスモーフィズム）と発光エフェクトを無効化し、CPUおよびGPUの負荷を軽減します。"
 
     translation:
         ctranslate2_weight_type:

@@ -33,12 +33,10 @@
     display: flex;
     flex-direction: column;
     gap: 0.8rem;
-    border: 0.1rem solid #214756;
+    border: var(--panel_border_subtle);
     border-radius: 1.2rem;
-    background: linear-gradient(180deg, #0c1d27, #08151d);
-    box-shadow:
-        0 1rem 2.8rem #0000001b,
-        inset 0 0.1rem 0 #ffffff0f;
+    background: var(--surface_2_color);
+    box-shadow: var(--shadow_soft);
 }
 
 .section_header {

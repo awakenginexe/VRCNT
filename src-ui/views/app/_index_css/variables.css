@@ -1,73 +1,83 @@
 :root {
-    --primary_100_color: #d7fff8;
-    --primary_150_color: #b7fbf1;
-    --primary_200_color: #8ff4e8;
-    --primary_250_color: #69eadf;
-    --primary_300_color: #42ded2;
-    --primary_350_color: #28d2c7;
-    --primary_400_color: #18c4bd;
-    --primary_450_color: #13b4b0;
-    --primary_500_color: #10a3a3;
-    --primary_550_color: #0d9295;
-    --primary_600_color: #0b7f86;
-    --primary_650_color: #0a6f78;
-    --primary_700_color: #085e67;
-    --primary_750_color: #074f58;
-    --primary_800_color: #064148;
-    --primary_900_color: #043038;
+    --primary_100_color: #e0fbfb;
+    --primary_150_color: #b3f7f6;
+    --primary_200_color: #80f2f0;
+    --primary_250_color: #4df0ec;
+    --primary_300_color: #00e5ff; /* neon cyan */
+    --primary_350_color: #00cadf;
+    --primary_400_color: #00b0c4;
+    --primary_450_color: #0098a8;
+    --primary_500_color: #00808c;
+    --primary_550_color: #006b75;
+    --primary_600_color: #00565e;
+    --primary_650_color: #00454b;
+    --primary_700_color: #00363a;
+    --primary_750_color: #00292c;
+    --primary_800_color: #001d20;
+    --primary_900_color: #001012;
 
-    --primary_600_color_44: #0b7f8644;
+    --primary_600_color_44: rgba(0, 86, 94, 0.44);
 
     /* primary_300_color 61b4a7 as standard */
-    --sent_400_color: #5fc3f2;
+    --sent_400_color: #00f2fe;
     --received_300_color: #a78bfa;
 
-    --error_bc_color: #bb4448;
-    --error_bc_active_color: #9c3938;
-    --success_bc_color: var(--primary_600_color);
-    --warning_color: #cb944f;
-    --warning_bc_color: #cf7b1b;
+    --error_bc_color: #ff4a5a;
+    --error_bc_active_color: #d63847;
+    --success_bc_color: #00c896;
+    --warning_color: #ffb03a;
+    --warning_bc_color: #d6871c;
 
-    --dark_basic_text_color: #edf8fb;
-    --dark_100_color: #f8fbff;
-    --dark_200_color: #edf8fb;
-    --dark_300_color: #d8e8ee;
-    --dark_350_color: #c8d8df;
-    --dark_400_color: #afc3cc;
-    --dark_450_color: #9db2bc;
-    --dark_500_color: #879da8;
-    --dark_550_color: #738894;
-    --dark_600_color: #61737f;
-    --dark_650_color: #556672;
-    --dark_700_color: #485a65;
-    --dark_725_color: #3f515c;
-    --dark_750_color: #354852;
-    --dark_775_color: #2d3e48;
-    --dark_800_color: #253640;
-    --dark_825_color: #1f303a;
-    --dark_850_color: #192a34;
-    --dark_863_color: #172630;
-    --dark_875_color: #14232c;
-    --dark_888_color: #111f28;
-    --dark_900_color: #0e1b24;
-    --dark_925_color: #0b1720;
-    --dark_950_color: #08131b;
-    --dark_975_color: #060f16;
-    --dark_1000_color: #040a10;
+    --dark_basic_text_color: #f1f5f9;
+    --dark_100_color: #ffffff;
+    --dark_200_color: #f8fafc;
+    --dark_300_color: #e2e8f0;
+    --dark_350_color: #cbd5e1;
+    --dark_400_color: #94a3b8;
+    --dark_450_color: #64748b;
+    --dark_500_color: #475569;
+    --dark_550_color: #334155;
+    --dark_600_color: #1e293b;
+    --dark_650_color: #1a2333;
+    --dark_700_color: #131b26;
+    --dark_725_color: #0f1520;
+    --dark_750_color: #0d121c;
+    --dark_775_color: #0b0f17;
+    --dark_800_color: #090c13;
+    --dark_825_color: #07090f;
+    --dark_850_color: #05060a;
+    --dark_863_color: #040508;
+    --dark_875_color: #030406;
+    --dark_888_color: #020304;
+    --dark_900_color: #010203;
+    --dark_925_color: #000102;
+    --dark_950_color: #000001;
+    --dark_975_color: #000000;
+    --dark_1000_color: #000000;
 
-    --dark_550_color_22: #73889422;
-    --dark_825_color_cc: #1f303acc;
-    --dark_1000_color_66: #040a1066;
-    --dark_1000_color_aa: #040a10aa;
-    --dark_1000_color_dd: #040a10dd;
+    --dark_550_color_22: rgba(51, 65, 85, 0.22);
+    --dark_825_color_cc: rgba(7, 9, 15, 0.8);
+    --dark_1000_color_66: rgba(0, 0, 0, 0.4);
+    --dark_1000_color_aa: rgba(0, 0, 0, 0.66);
+    --dark_1000_color_dd: rgba(0, 0, 0, 0.85);
 
-    --surface_1_color: #0a1822;
-    --surface_2_color: #102330;
-    --surface_3_color: #172d3b;
-    --border_subtle_color: #23424f;
-    --focus_ring_color: #42ded266;
-    --shadow_soft: 0 1.8rem 4.8rem #00000045;
-    --transition_ui: 160ms cubic-bezier(.2, .8, .2, 1);
+    /* Performance Mode reactive variables */
+    --panel_blur: blur(16px);
+    --panel_bg_opacity: 0.72;
+    --panel_border: 0.1rem solid rgba(0, 229, 255, 0.15);
+    --panel_border_subtle: 0.1rem solid rgba(255, 255, 255, 0.08);
+    --glow_shadow: 0 0 1.2rem rgba(0, 229, 255, 0.22);
+    --glow_shadow_hover: 0 0 1.8rem rgba(0, 229, 255, 0.35);
+    --glow_shadow_purple: 0 0 1.2rem rgba(167, 139, 250, 0.2);
+    --transition_ui: 200ms cubic-bezier(.2, .8, .2, 1);
+    --bg_radial_gradient: radial-gradient(circle at 12% 0%, #0d2836 0%, transparent 40%), radial-gradient(circle at 88% 100%, #1e1035 0%, transparent 45%);
+
+    --surface_1_color: rgba(9, 15, 24, var(--panel_bg_opacity));
+    --surface_2_color: rgba(14, 23, 36, var(--panel_bg_opacity));
+    --surface_3_color: rgba(20, 32, 50, var(--panel_bg_opacity));
+    --border_subtle_color: rgba(0, 229, 255, 0.12);
+    --focus_ring_color: rgba(0, 229, 255, 0.3);
+    --shadow_soft: 0 1.8rem 4.8rem rgba(0, 0, 0, 0.6);
 
     /*sent_400_color + #000 10% = */
     --supporters_color_fuwa: #5788a2;
@@ -79,7 +89,25 @@
     --config_page_sidebar_width: 16.8rem;
     --config_page_topbar_height: 8rem;
 
-    --font_family: "Yu Gothic UI";
+    --font_family: "Segoe UI Variable Text", "Inter", "Yu Gothic UI", system-ui, sans-serif;
+}
+
+:global(.performance_mode) {
+    --panel_blur: none;
+    --panel_bg_opacity: 0.98;
+    --panel_border: 0.1rem solid #1e293b;
+    --panel_border_subtle: 0.1rem solid #1e293b;
+    --glow_shadow: none;
+    --glow_shadow_hover: none;
+    --glow_shadow_purple: none;
+    --transition_ui: 0ms;
+    --bg_radial_gradient: none;
+    --surface_1_color: #090f18;
+    --surface_2_color: #0e1724;
+    --surface_3_color: #142032;
+    --border_subtle_color: #1e293b;
+    --focus_ring_color: #00e5ff;
+    --shadow_soft: none;
 }
 /* https://m2.material.io/design/color/the-color-system.html#tools-for-picking-colors */
 /* https://meyerweb.com/eric/tools/color-blend/#::1:hex */

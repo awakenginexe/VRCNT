@@ -26,9 +26,8 @@ html, body {
     font-family: var(--font_family); /* If not found the font family where 'root:' that is selected by user*/
     border-radius: 10px; /* fixed by px */
     overflow: hidden;
-    background:
-        radial-gradient(circle at 12% 0%, #123847 0%, transparent 34%),
-        linear-gradient(135deg, var(--dark_1000_color), var(--dark_925_color));
+    background: var(--bg_radial_gradient);
+    background-color: #060913; /* solid dark background fallback */
 }
 
 

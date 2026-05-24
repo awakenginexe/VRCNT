@@ -17,15 +17,16 @@
 
 
 .wrapper {
-    background-color: #0a1720ee;
+    background: var(--surface_1_color);
+    backdrop-filter: var(--panel_blur);
     cursor: pointer;
     height: 6.2rem;
     width: 100%;
     position: relative;
     display: flex;
     align-items: center;
-    border-bottom: 0.1rem solid var(--border_subtle_color);
-    box-shadow: 0 1.2rem 3.2rem #00000022;
+    border-bottom: var(--panel_border_subtle);
+    box-shadow: 0 1.2rem 3.2rem rgba(0, 0, 0, 0.4);
     transition: all 0.3s ease;
 
     &:hover {
@@ -33,12 +34,14 @@
         .go_back_button {
             background-color: var(--surface_3_color);
             transform: translateX(-0.1rem);
+            box-shadow: var(--glow_shadow);
+            border-color: var(--primary_300_color);
         }
         .arrow_left_svg {
-            color: var(--dark_400_color);
+            color: var(--primary_300_color);
         }
         .go_back_text {
-            color: var(--dark_400_color);
+            color: var(--primary_200_color);
         }
         .go_back_text_wrapper {
             padding-right: 1.4rem;

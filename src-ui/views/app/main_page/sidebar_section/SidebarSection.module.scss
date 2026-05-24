@@ -8,10 +8,11 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    background:
-        linear-gradient(180deg, #0d202b, #08151d 68%, #071017);
-    border-right: 0.1rem solid #1c3b49;
-    box-shadow: 1rem 0 3.4rem #0000002d;
+    background: var(--surface_1_color);
+    backdrop-filter: var(--panel_blur);
+    border-right: var(--panel_border_subtle);
+    box-shadow: 1rem 0 3.4rem rgba(0, 0, 0, 0.4);
+    transition: var(--transition_ui);
     &.is_compact_mode {
         width: auto;
         min-width: auto;

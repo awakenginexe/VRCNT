@@ -209,6 +209,7 @@ export const { atomInstance: Atom_NotificationStatus, useHook: useStore_Notifica
 }, "NotificationStatus");
 export const { atomInstance: Atom_IsLMStudioConnected, useHook: useStore_IsLMStudioConnected } = createAtomWithHook(false, "IsLMStudioConnected");
 export const { atomInstance: Atom_IsOllamaConnected, useHook: useStore_IsOllamaConnected } = createAtomWithHook(false, "IsOllamaConnected");
+export const { atomInstance: Atom_EnablePerformanceMode, useHook: useStore_EnablePerformanceMode } = createAtomWithHook(localStorage.getItem("enable_performance_mode") === "true", "EnablePerformanceMode", {is_state_ok: true});
 
 // Main Page
 // Common

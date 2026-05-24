@@ -14,13 +14,11 @@
     align-items: center;
     gap: 0.8rem;
     padding: 0 1.3rem;
-    border: 0.1rem solid #214552;
-    border-radius: 0.95rem;
-    background:
-        linear-gradient(180deg, #0e212cdd, #0a1922dd);
-    box-shadow:
-        inset 0 0.1rem 0 #ffffff12,
-        0 0.8rem 2rem #0000001f;
+    border: var(--panel_border_subtle);
+    border-radius: 1.2rem;
+    background: var(--surface_2_color);
+    box-shadow: var(--shadow_soft);
+    transition: var(--transition_ui);
 }
 
 .product_name {

@@ -144,6 +144,9 @@ config_page:
             label: "폰트"
         ui_language:
             label: "UI 언어"
+        performance_mode:
+            label: "성능 모드"
+            desc: "CPU 및 GPU 사용량을 줄이기 위해 배경 흐림(글래스모피즘) 및 발광 효과를 비활성화합니다."
 
     translation:
         ctranslate2_weight_type:
