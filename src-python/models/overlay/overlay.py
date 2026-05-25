@@ -97,11 +97,13 @@ class Overlay:
         self.lastUpdate: Dict[str, float] = {}
         self.fadeRatio: Dict[str, float] = {}
         self.lastImage: Dict[str, Image.Image] = {}
+        self.positionApplied: Dict[str, bool] = {}
         for key, value in settings_dict.items():
             self.settings[key] = value
             self.lastUpdate[key] = time.monotonic()
             self.fadeRatio[key] = 1.0
             self.lastImage[key] = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
+            self.positionApplied[key] = False
 
     def init(self) -> None:
         try:
@@ -112,6 +114,7 @@ class Overlay:
             for i, size in enumerate(self.settings.keys()):
                 self.handle[size] = self.overlay.createOverlay(f"VRCT{i}", f"VRCT{i}")
                 self.overlay.showOverlay(self.handle[size])
+                self.positionApplied[size] = False
             self.initialized = True
 
             for size in self.settings.keys():
@@ -170,6 +173,8 @@ class Overlay:
             self.system = None
             self.initialized = False
             self.init_process = False
+            for size in self.positionApplied.keys():
+                self.positionApplied[size] = False
 
     def updateImage(self, img: Image.Image, size: str) -> None:
         self.lastImage[size] = img.copy()
@@ -234,7 +239,15 @@ class Overlay:
         self.settings[size]["z_rotation"] = z_rotation
         self.settings[size]["tracker"] = tracker
 
+        self.positionApplied[size] = False
         if self.initialized is True:
+            self.positionApplied[size] = self._applyPosition(size)
+
+    def _applyPosition(self, size: str) -> bool:
+        if self.initialized is not True or self.overlay is None or self.overlay_system is None:
+            return False
+        tracker = self.settings[size]["tracker"]
+        try:
             match tracker:
                 case "HMD":
                     base_matrix = getHMDBaseMatrix()
@@ -254,12 +267,17 @@ class Overlay:
             transform = utils.transform_matrix(base_matrix, translation, rotation)
             transform = mat34Id(transform)
 
-            if bool(self.overlay_system.isTrackedDeviceConnected(trackerIndex)) is True:
-                self.overlay.setOverlayTransformTrackedDeviceRelative(
-                    self.handle[size],
-                    trackerIndex,
-                    transform
-                )
+            if bool(self.overlay_system.isTrackedDeviceConnected(trackerIndex)) is not True:
+                return False
+            self.overlay.setOverlayTransformTrackedDeviceRelative(
+                self.handle[size],
+                trackerIndex,
+                transform
+            )
+            return True
+        except Exception:
+            errorLogging()
+            return False
 
     def updateDisplayDuration(self, display_duration: float, size: str) -> None:
         self.settings[size]["display_duration"] = display_duration
@@ -289,6 +307,8 @@ class Overlay:
             self.overlay.setOverlayAlpha(self.handle[size], self.fadeRatio[size] * self.settings[size]["opacity"])
 
     def update(self, size: str) -> None:
+        if self.positionApplied.get(size) is not True:
+            self.positionApplied[size] = self._applyPosition(size)
         if self.settings[size]["fadeout_duration"] != 0:
             self.evaluateOpacityFade(size)
         else:
