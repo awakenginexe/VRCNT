@@ -1,8 +1,11 @@
 from os import path as os_path
 import importlib
 import sys
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from threading import Condition, Lock, RLock
-from time import perf_counter
+from math import ceil
+from time import monotonic, perf_counter, sleep, time
 
 from deepl import DeepLClient
 import requests
@@ -19,13 +22,21 @@ from utils import errorLogging, getBestComputeType
 from models.pipeline.pipeline_types import TranslationAttempt, TranslationStatus
 
 import warnings
-from typing import Any, Optional, Tuple
+from typing import Any, Callable, Iterable, Optional, Tuple
 
 warnings.filterwarnings("ignore")
 
 
 PROVIDER_TIMEOUT_EXCEPTIONS = (TimeoutError, requests.exceptions.Timeout)
 DEFAULT_PROVIDER_TIMEOUT_SECONDS = 5.0
+DEFAULT_RATE_LIMIT_PROBE_SECONDS = 60
+MAX_RATE_LIMIT_BACKOFF_SECONDS = 15 * 60
+MAX_RETRY_AFTER_SECONDS = 24 * 60 * 60
+TIMEOUT_PROBE_SECONDS = 15
+UNAUTHENTICATED_WEB_PROVIDERS = frozenset(
+    ("DeepL", "Google", "Bing", "Papago")
+)
+MIN_UNAUTHENTICATED_PROVIDER_INTERVAL_SECONDS = 1.5
 
 
 def _getCtrTranslate2():
@@ -84,6 +95,15 @@ class Translator:
         self._ctranslate2_transitioning = False
         self._web_translator = None
         self.is_enable_translators: bool = True
+        self._provider_cooldown_lock = Lock()
+        self._provider_cooldowns: dict[str, float] = {}
+        self._provider_cooldown_reasons: dict[str, str] = {}
+        self._provider_rate_limit_counts: dict[str, int] = {}
+        self._provider_cooldown_callback: Optional[
+            Callable[[dict[str, dict[str, object]]], None]
+        ] = None
+        self._provider_pacing_lock = Lock()
+        self._provider_next_request_at: dict[str, float] = {}
         self._context_provider_locks = {
             provider: Lock()
             for provider in (
@@ -96,6 +116,193 @@ class Translator:
                 "Ollama",
             )
         }
+
+    @staticmethod
+    def _rateLimitRetryAfterSeconds(error: Exception) -> Optional[int]:
+        candidates = [
+            getattr(error, "retry_after", None),
+            getattr(error, "retry_after_seconds", None),
+        ]
+        response = getattr(error, "response", None)
+        if response is not None:
+            headers = getattr(response, "headers", None)
+            if headers is not None:
+                try:
+                    candidates.append(headers.get("Retry-After"))
+                except Exception:
+                    pass
+
+        for candidate in candidates:
+            try:
+                seconds = ceil(float(candidate))
+            except (TypeError, ValueError):
+                try:
+                    retry_at = parsedate_to_datetime(str(candidate))
+                    if retry_at.tzinfo is None:
+                        retry_at = retry_at.replace(tzinfo=timezone.utc)
+                    seconds = ceil(
+                        (retry_at - datetime.now(timezone.utc)).total_seconds()
+                    )
+                except (TypeError, ValueError, OverflowError, IndexError):
+                    continue
+            if seconds > 0:
+                return min(seconds, MAX_RETRY_AFTER_SECONDS)
+        return None
+
+    @classmethod
+    def _classifyProviderError(
+        cls,
+        error: Exception,
+    ) -> tuple[str, Optional[int]]:
+        response = getattr(error, "response", None)
+        status_code = getattr(error, "status_code", None)
+        if status_code is None and response is not None:
+            status_code = getattr(response, "status_code", None)
+        message = str(error).lower()
+        is_rate_limited = (
+            status_code == 429
+            or "429" in message
+            or "too many requests" in message
+            or "rate limit" in message
+            or "ratelimit" in message
+        )
+        if not is_rate_limited:
+            return "provider_error", None
+        return "provider_rate_limited", cls._rateLimitRetryAfterSeconds(error)
+
+    def _remainingProviderCooldown(self, provider: str) -> Optional[int]:
+        expired = False
+        with self._provider_cooldown_lock:
+            deadline = self._provider_cooldowns.get(provider)
+            if deadline is None:
+                return None
+            remaining = ceil(deadline - monotonic())
+            if remaining <= 0:
+                self._provider_cooldowns.pop(provider, None)
+                self._provider_cooldown_reasons.pop(provider, None)
+                self._provider_rate_limit_counts.pop(provider, None)
+                expired = True
+            else:
+                return remaining
+        if expired:
+            self._notifyProviderCooldowns()
+        return None
+
+    def _rememberProviderCooldown(
+        self,
+        provider: str,
+        retry_after_seconds: Optional[int],
+        *,
+        reason: str = "rate_limited",
+    ) -> int:
+        with self._provider_cooldown_lock:
+            if reason == "rate_limited":
+                count = self._provider_rate_limit_counts.get(provider, 0) + 1
+                self._provider_rate_limit_counts[provider] = count
+            else:
+                count = 1
+            if retry_after_seconds is None and reason == "rate_limited":
+                probe_seconds = min(
+                    DEFAULT_RATE_LIMIT_PROBE_SECONDS * (2 ** (count - 1)),
+                    MAX_RATE_LIMIT_BACKOFF_SECONDS,
+                )
+            else:
+                probe_seconds = retry_after_seconds or TIMEOUT_PROBE_SECONDS
+            probe_seconds = max(1, min(probe_seconds, MAX_RETRY_AFTER_SECONDS))
+            self._provider_cooldowns[provider] = monotonic() + probe_seconds
+            self._provider_cooldown_reasons[provider] = reason
+        self._notifyProviderCooldowns()
+        return probe_seconds
+
+    def _clearProviderCooldown(self, provider: str) -> None:
+        changed = False
+        with self._provider_cooldown_lock:
+            changed = self._provider_cooldowns.pop(provider, None) is not None
+            self._provider_cooldown_reasons.pop(provider, None)
+            self._provider_rate_limit_counts.pop(provider, None)
+        if changed:
+            self._notifyProviderCooldowns()
+
+    def setProviderCooldownCallback(
+        self,
+        callback: Optional[Callable[[dict[str, dict[str, object]]], None]],
+    ) -> None:
+        self._provider_cooldown_callback = callback
+
+    def getProviderCooldownSnapshot(
+        self,
+        providers: Optional[Iterable[str]] = None,
+    ) -> dict[str, dict[str, object]]:
+        provider_filter = set(providers) if providers is not None else None
+        now_monotonic = monotonic()
+        now_wall = time()
+        snapshot: dict[str, dict[str, object]] = {}
+        expired: list[str] = []
+        with self._provider_cooldown_lock:
+            for provider, deadline in self._provider_cooldowns.items():
+                remaining = ceil(deadline - now_monotonic)
+                if remaining <= 0:
+                    expired.append(provider)
+                    continue
+                if provider_filter is not None and provider not in provider_filter:
+                    continue
+                snapshot[provider] = {
+                    "reason": self._provider_cooldown_reasons.get(
+                        provider,
+                        "rate_limited",
+                    ),
+                    "retry_after_seconds": remaining,
+                    "retry_at_ms": round((now_wall + remaining) * 1000),
+                }
+            for provider in expired:
+                self._provider_cooldowns.pop(provider, None)
+                self._provider_cooldown_reasons.pop(provider, None)
+                self._provider_rate_limit_counts.pop(provider, None)
+        return snapshot
+
+    def _notifyProviderCooldowns(self) -> None:
+        callback = self._provider_cooldown_callback
+        if callback is None:
+            return
+        try:
+            callback(self.getProviderCooldownSnapshot())
+        except Exception:
+            errorLogging()
+
+    def rememberProviderTimeout(self, provider: str) -> int:
+        return self._rememberProviderCooldown(
+            provider,
+            TIMEOUT_PROBE_SECONDS,
+            reason="timeout",
+        )
+
+    def getRateLimitedProviderCooldowns(
+        self,
+        providers,
+    ) -> dict[str, int]:
+        cooldowns = {}
+        for provider in providers:
+            remaining = self._remainingProviderCooldown(provider)
+            if remaining is not None:
+                cooldowns[provider] = remaining
+        return cooldowns
+
+    def _paceUnauthenticatedProvider(self, provider: str) -> None:
+        """Reserve one spaced request slot for unofficial/free web providers."""
+        if provider not in UNAUTHENTICATED_WEB_PROVIDERS:
+            return
+        with self._provider_pacing_lock:
+            now = monotonic()
+            request_at = max(
+                now,
+                self._provider_next_request_at.get(provider, now),
+            )
+            self._provider_next_request_at[provider] = (
+                request_at + MIN_UNAUTHENTICATED_PROVIDER_INTERVAL_SECONDS
+            )
+        delay = request_at - now
+        if delay > 0:
+            sleep(delay)
 
     def authenticationDeepLAuthKey(self, auth_key: str) -> bool:
         """Authenticate DeepL API with the provided key.
@@ -555,6 +762,7 @@ class Translator:
         match name:
             case "DeepL":
                 if self.is_enable_translators is True and self._web_translator is not None:
+                    self._paceUnauthenticatedProvider(name)
                     result = self._web_translator(
                         query_text=message,
                         translator="deepl",
@@ -608,6 +816,7 @@ class Translator:
                     )
             case "Google":
                 if self.is_enable_translators is True and self._web_translator is not None:
+                    self._paceUnauthenticatedProvider(name)
                     result = self._web_translator(
                         query_text=message,
                         translator="google",
@@ -617,6 +826,7 @@ class Translator:
                     )
             case "Bing":
                 if self.is_enable_translators is True and self._web_translator is not None:
+                    self._paceUnauthenticatedProvider(name)
                     result = self._web_translator(
                         query_text=message,
                         translator="bing",
@@ -626,6 +836,7 @@ class Translator:
                     )
             case "Papago":
                 if self.is_enable_translators is True and self._web_translator is not None:
+                    self._paceUnauthenticatedProvider(name)
                     result = self._web_translator(
                         query_text=message,
                         translator="papago",
@@ -681,6 +892,17 @@ class Translator:
                 error_code=None,
             )
 
+        cooldown_seconds = self._remainingProviderCooldown(translator_name)
+        if cooldown_seconds is not None:
+            return TranslationAttempt(
+                status=TranslationStatus.ERROR,
+                engine=translator_name,
+                message=None,
+                duration_ms=0,
+                error_code="provider_rate_limited",
+                retry_after_seconds=cooldown_seconds,
+            )
+
         try:
             result = self._translate_once(
                 translator_name,
@@ -693,25 +915,36 @@ class Translator:
                 timeout_seconds,
             )
         except PROVIDER_TIMEOUT_EXCEPTIONS:
+            retry_after_seconds = self.rememberProviderTimeout(translator_name)
             return TranslationAttempt(
                 status=TranslationStatus.TIMEOUT,
                 engine=translator_name,
                 message=None,
                 duration_ms=max(0, round((perf_counter() - started_at) * 1000)),
                 error_code="provider_timeout",
+                retry_after_seconds=retry_after_seconds,
             )
-        except Exception:
-            errorLogging()
+        except Exception as error:
+            error_code, retry_after_seconds = self._classifyProviderError(error)
+            if error_code == "provider_rate_limited":
+                retry_after_seconds = self._rememberProviderCooldown(
+                    translator_name,
+                    retry_after_seconds,
+                )
+            else:
+                errorLogging()
             return TranslationAttempt(
                 status=TranslationStatus.ERROR,
                 engine=translator_name,
                 message=None,
                 duration_ms=max(0, round((perf_counter() - started_at) * 1000)),
-                error_code="provider_error",
+                error_code=error_code,
+                retry_after_seconds=retry_after_seconds,
             )
 
         duration_ms = max(0, round((perf_counter() - started_at) * 1000))
         if result:
+            self._clearProviderCooldown(translator_name)
             return TranslationAttempt(
                 status=TranslationStatus.SUCCESS,
                 engine=translator_name,

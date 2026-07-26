@@ -44,6 +44,13 @@
     animation-name: fadeInRight;
 }
 
+.placement-bottom-end {
+    top: 100%;
+    right: 0;
+    margin-top: 0.8rem;
+    transform: translateY(-0.3rem);
+}
+
 .tooltipContent {
     display: flex;
     flex-direction: column;

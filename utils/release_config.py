@@ -24,9 +24,9 @@ class ReleaseConfig:
             github_owner=PLACEHOLDER_OWNER,
             github_repo=PLACEHOLDER_REPO,
             hf_repo_id=PLACEHOLDER_HF_REPO_ID,
-            release_asset_zip_name="VRCNT-Next.zip",
+            release_asset_zip_name="VRCNT.zip",
             latest_json_asset_name="latest.json",
-            installer_name_pattern="VRCNT-Next_${version}_x64-setup.exe",
+            installer_name_pattern="VRCNT_${version}_x64-setup.exe",
         )
 
     @property

@@ -1,14 +1,12 @@
 export const sidebarTabOrder = [
     "device",
     "appearance",
-    "translation",
-    "transcription",
+    "model_and_provider",
     "vr",
     "others",
     "hotkeys",
     "advanced_settings",
-    "supporters",
-    "about_vrct",
+    "about",
 ];
 
 const sidebarTabMeta = {
@@ -32,6 +30,11 @@ const sidebarTabMeta = {
         tooltipTitle: "Transcription",
         tooltipDetail: "Tune speech recognition settings.",
     },
+    model_and_provider: {
+        label: "Model & Provider",
+        tooltipTitle: "Model & Provider",
+        tooltipDetail: "Configure translation providers and speech models.",
+    },
     vr: {
         label: "VR",
         tooltipTitle: "VR overlay",
@@ -52,15 +55,10 @@ const sidebarTabMeta = {
         tooltipTitle: "Advanced",
         tooltipDetail: "Change expert-level options.",
     },
-    supporters: {
-        label: "Credit",
-        tooltipTitle: "Credit",
-        tooltipDetail: "View original VRCT project credit.",
-    },
-    about_vrct: {
-        label: "About VRCNT-Next",
+    about: {
+        label: "About",
         tooltipTitle: "About",
-        tooltipDetail: "See project details and links.",
+        tooltipDetail: "See version, project lineage, and repository links.",
     },
 };
 
@@ -71,14 +69,21 @@ export const getSidebarTabMeta = (tabId, translate) => {
         tooltipDetail: "Open this settings section.",
     };
 
-    if (tabId === "vr" || tabId === "supporters" || tabId === "about_vrct") {
-        return meta;
-    }
+    const translateWithFallback = (key, fallback) => {
+        if (typeof translate !== "function") return fallback;
+        const translated = translate(key);
+        return translated && translated !== key ? translated : fallback;
+    };
 
     return {
         ...meta,
-        label: typeof translate === "function"
-            ? translate(`config_page.side_menu_labels.${tabId}`)
-            : meta.label,
+        label: translateWithFallback(
+            `config_page.focus_settings.section_labels.${tabId}`,
+            translateWithFallback(`config_page.side_menu_labels.${tabId}`, meta.label),
+        ),
+        tooltipDetail: translateWithFallback(
+            `config_page.focus_settings.section_descriptions.${tabId}`,
+            meta.tooltipDetail,
+        ),
     };
 };

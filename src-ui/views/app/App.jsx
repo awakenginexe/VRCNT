@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { useI18n } from "@useI18n";
 
 import {
@@ -39,24 +38,9 @@ import {
 import { getMainFunctionPendingCopyKey } from "@logics_common/blockingOperationState.js";
 import { isTauriRuntime } from "@logics_common/tauriRuntime.js";
 
-const THEME_ACCENT_CLASSES = [
-    "theme-neon-cyan",
-    "theme-midnight-purple",
-    "theme-emerald-green",
-    "theme-sakura-pink",
-];
-
 export const App = () => {
     const { i18n } = useI18n();
     const isTauri = isTauriRuntime();
-
-    useEffect(() => {
-        const savedTheme = localStorage.getItem("theme_accent") || "theme-neon-cyan";
-        document.documentElement.classList.remove(...THEME_ACCENT_CLASSES);
-        document.documentElement.classList.add(
-            THEME_ACCENT_CLASSES.includes(savedTheme) ? savedTheme : "theme-neon-cyan"
-        );
-    }, []);
 
     return (
         <div className={styles.container}>

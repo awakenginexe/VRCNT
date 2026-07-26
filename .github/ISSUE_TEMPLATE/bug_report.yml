@@ -57,7 +57,7 @@ body:
     id: logs
     attributes:
       label: Relevant log output
-      description: Please copy and paste the relevant log output. Error logs are generated in the folder where VRCT.exe is stored.
+      description: Please copy and paste the relevant log output. Error logs are generated in the VRCNT application data folder.
       render: sh
     validations:
       required: false

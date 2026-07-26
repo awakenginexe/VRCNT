@@ -18,10 +18,12 @@ const translationStatusCopy = {
         success_meta: "{{engine}} · {{duration}}",
         timeout: "Translation unavailable · {{engine}} timed out",
         error: "Translation unavailable · {{engine}} failed",
+        rate_limited: "Translation unavailable · {{engines}} rate limited · automatic test in {{seconds}}s",
         skipped_overload: "Translation skipped · queue overloaded",
         no_provider: "Translation unavailable · no provider selected",
         unavailable: "Translation unavailable",
         queue_position: "Queue {{position}}",
+        retry: "Translate",
     },
     "th.yml": {
         queued: "กำลังรอ {{engine}} · {{elapsed}}",
@@ -30,10 +32,12 @@ const translationStatusCopy = {
         success_meta: "{{engine}} · {{duration}}",
         timeout: "ไม่มีคำแปล · {{engine}} หมดเวลา",
         error: "ไม่มีคำแปล · {{engine}} ล้มเหลว",
+        rate_limited: "ไม่มีคำแปล · {{engines}} ถูกจำกัดอัตรา · ทดสอบอัตโนมัติใน {{seconds}} วินาที",
         skipped_overload: "ข้ามการแปล · คิวทำงานหนักเกินไป",
         no_provider: "ไม่มีคำแปล · ยังไม่ได้เลือกผู้ให้บริการ",
         unavailable: "ไม่มีคำแปล",
         queue_position: "คิว {{position}}",
+        retry: "แปลอีกครั้ง",
     },
     "ja.yml": {
         queued: "{{engine}} を待機中 · {{elapsed}}",
@@ -42,10 +46,12 @@ const translationStatusCopy = {
         success_meta: "{{engine}} · {{duration}}",
         timeout: "翻訳を利用できません · {{engine}} がタイムアウトしました",
         error: "翻訳を利用できません · {{engine}} が失敗しました",
+        rate_limited: "翻訳を利用できません · {{engines}} はレート制限中 · {{seconds}}秒後に自動再試行",
         skipped_overload: "翻訳をスキップしました · キューが過負荷です",
         no_provider: "翻訳を利用できません · プロバイダーが未選択です",
         unavailable: "翻訳を利用できません",
         queue_position: "キュー {{position}}",
+        retry: "翻訳",
     },
     "ko.yml": {
         queued: "{{engine}} 대기 중 · {{elapsed}}",
@@ -54,10 +60,12 @@ const translationStatusCopy = {
         success_meta: "{{engine}} · {{duration}}",
         timeout: "번역을 사용할 수 없음 · {{engine}} 시간 초과",
         error: "번역을 사용할 수 없음 · {{engine}} 실패",
+        rate_limited: "번역을 사용할 수 없음 · {{engines}} 사용량 제한 · {{seconds}}초 후 자동 재시도",
         skipped_overload: "번역 건너뜀 · 대기열 과부하",
         no_provider: "번역을 사용할 수 없음 · 제공자 미선택",
         unavailable: "번역을 사용할 수 없음",
         queue_position: "대기열 {{position}}",
+        retry: "번역",
     },
     "zh-Hans.yml": {
         queued: "正在等待 {{engine}} · {{elapsed}}",
@@ -66,10 +74,12 @@ const translationStatusCopy = {
         success_meta: "{{engine}} · {{duration}}",
         timeout: "翻译不可用 · {{engine}} 请求超时",
         error: "翻译不可用 · {{engine}} 失败",
+        rate_limited: "翻译不可用 · {{engines}} 已达到速率限制 · {{seconds}} 秒后自动重试",
         skipped_overload: "已跳过翻译 · 队列过载",
         no_provider: "翻译不可用 · 未选择服务商",
         unavailable: "翻译不可用",
         queue_position: "队列 {{position}}",
+        retry: "翻译",
     },
     "zh-Hant.yml": {
         queued: "正在等待 {{engine}} · {{elapsed}}",
@@ -78,10 +88,12 @@ const translationStatusCopy = {
         success_meta: "{{engine}} · {{duration}}",
         timeout: "翻譯無法使用 · {{engine}} 請求逾時",
         error: "翻譯無法使用 · {{engine}} 失敗",
+        rate_limited: "翻譯無法使用 · {{engines}} 已達速率限制 · {{seconds}} 秒後自動重試",
         skipped_overload: "已略過翻譯 · 佇列過載",
         no_provider: "翻譯無法使用 · 未選擇服務商",
         unavailable: "翻譯無法使用",
         queue_position: "佇列 {{position}}",
+        retry: "翻譯",
     },
 };
 
@@ -161,5 +173,29 @@ test("translation entry contains no visible English status copy", () => {
 
     for (const phrase of forbiddenPhrases) {
         assert.equal(source.includes(phrase), false, phrase);
+    }
+});
+
+test("Live Weave navigation and empty-state copy exists in every locale", () => {
+    const requiredPaths = [
+        ["navigation", "live"],
+        ["navigation", "history"],
+        ["navigation", "models"],
+        ["navigation", "overlay"],
+        ["navigation", "settings"],
+        ["session_live"],
+        ["conversation_title"],
+        ["conversation_detail"],
+        ["empty_title"],
+        ["empty_detail"],
+    ];
+
+    for (const localeFile of ["en.yml", "th.yml", "ja.yml", "ko.yml", "zh-Hans.yml", "zh-Hant.yml"]) {
+        const liveWeave = yaml.load(readSource(`locales/${localeFile}`))?.main_page?.live_weave;
+        for (const pathParts of requiredPaths) {
+            const value = pathParts.reduce((current, key) => current?.[key], liveWeave);
+            assert.equal(typeof value, "string", `${localeFile}: main_page.live_weave.${pathParts.join(".")}`);
+            assert.notEqual(value.trim(), "", `${localeFile}: main_page.live_weave.${pathParts.join(".")}`);
+        }
     }
 });

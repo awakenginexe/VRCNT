@@ -15,7 +15,7 @@ import { useIsBackendReady as useCommonIsBackendReady } from "@logics_common";
 import { getMainFunctionPendingCopyKey } from "@logics_common/blockingOperationState.js";
 import { getMainFunctionTooltipMeta } from "./mainFunctionTooltipMeta.js";
 
-export const MainFunctionSwitch = ({ forceCompact = false }) => {
+export const MainFunctionSwitch = ({ forceCompact = false, layout = "sidebar", includeForeground = true }) => {
     const { t } = useI18n();
     const { currentIsBackendReady } = useCommonIsBackendReady();
 
@@ -61,10 +61,13 @@ export const MainFunctionSwitch = ({ forceCompact = false }) => {
             isDisabled: false,
         },
     ];
+    const visible_switch_items = includeForeground
+        ? switch_items
+        : switch_items.filter((item) => item.switch_id !== "foreground");
 
     return (
-        <div className={styles.container}>
-            {switch_items.map(item => (
+        <div className={clsx(styles.container, styles[`layout_${layout}`])}>
+            {visible_switch_items.map(item => (
                 <SwitchContainer
                     key={item.switch_id}
                     switch_id={item.switch_id}

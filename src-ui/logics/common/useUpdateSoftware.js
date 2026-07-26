@@ -20,7 +20,7 @@ export const useUpdateSoftware = () => {
         try {
             setUpdateState({ status: "opening", progress: 1, message: "Opening releases..." });
             openReleaseFallback();
-            showNotification_Success("Opened VRCNT-Next releases.");
+            showNotification_Success("Opened VRCNT releases.");
             setUpdateState({ status: "idle", progress: 0, message: "" });
         } catch (error) {
             console.error("Update failed:", error);

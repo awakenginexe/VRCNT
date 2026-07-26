@@ -5,17 +5,17 @@
 
 blocking_operation:
     dialog_label: "กำลังดำเนินการ"
-    startup_operation: "กำลังเริ่ม VRCNT-Next"
+    startup_operation: "กำลังเริ่ม VRCNT"
     phase_label: "ขั้นตอนปัจจุบัน"
     progress_label: "ความคืบหน้าในการเริ่มต้น"
     progress_steps: "{{current}} จาก {{total}}"
     progress_indeterminate: "กำลังดำเนินการ…"
     elapsed: "ผ่านไป {{seconds}} วินาที"
     startup_failed: "ไม่สามารถเริ่มต้นให้เสร็จสมบูรณ์"
-    startup_failed_detail: "โปรดเริ่ม VRCNT-Next ใหม่ หากยังเกิดปัญหา ให้ตรวจสอบบันทึกของแอป"
+    startup_failed_detail: "โปรดเริ่ม VRCNT ใหม่ หากยังเกิดปัญหา ให้ตรวจสอบบันทึกของแอป"
     backend_startup_progress: "เริ่มระบบเบื้องหลัง {{current}} / {{total}}"
     backend_unavailable: "ระบบเบื้องหลังไม่พร้อมใช้งาน การเปลี่ยนแปลงของคุณยังไม่ถูกนำไปใช้"
-    backend_disconnected: "ระบบเบื้องหลังหยุดทำงาน โปรดเริ่ม VRCNT-Next ใหม่เพื่อดำเนินการต่อ"
+    backend_disconnected: "ระบบเบื้องหลังหยุดทำงาน โปรดเริ่ม VRCNT ใหม่เพื่อดำเนินการต่อ"
 
 common:
     go_back_button_label: "ย้อนกลับ"
@@ -28,6 +28,7 @@ common_error:
     failed_download_weight_whisper: "เกิดข้อผิดพลาดในการดาวน์โหลดโมเดล Whisper"
     failed_download_weight_sensevoice: "เกิดข้อผิดพลาดในการดาวน์โหลดโมเดล SenseVoice"
     translation_limit: "ถึงขีดจำกัดของเอนจินแปลภาษา หรือบริการถูกจำกัดชั่วคราว"
+    translation_rate_limited: "{{engines}} ถูกจำกัดอัตรา ระบบจะทดสอบอีกครั้งอัตโนมัติกับคำแปลถัดไปใน {{seconds}} วินาที"
     deepl_auth_key_invalid_length: "ความยาวของ DeepL Auth Key ไม่ถูกต้อง"
     deepl_auth_key_failed_authentication: "Auth Key ไม่ถูกต้อง หรือถึงขีดจำกัดการใช้งาน API"
 
@@ -42,7 +43,36 @@ common_error:
 common_warning:
     unable_to_use_osc_query: "ฟังก์ชันต่อไปนี้ถูกปิดอัตโนมัติ เนื่องจากการตั้งค่า OSC IP Address ทำให้ไม่สามารถรับข้อมูล OSC ได้"
 
+about_page:
+    version: "เวอร์ชัน {{version}}"
+    title: "การแปลยุคถัดไปสำหรับ VRChat"
+    description: "VRCNT คือเครื่องมือช่วยแปลและถอดเสียงที่พัฒนาอย่างอิสระสำหรับการสนทนาหลายภาษาแบบสดใน VRChat"
+    repositories_title: "คลังโปรเจกต์"
+    repositories_description: "ติดตามการพัฒนา VRCNT หรือดูโปรเจกต์ VRCT ต้นฉบับที่เป็นจุดเริ่มต้น"
+    vrcnt_repository: "GitHub ของ VRCNT"
+    vrct_repository: "GitHub ของ VRCT ต้นฉบับ"
+    lineage_title: "ที่มาของโปรเจกต์"
+    lineage_description: "VRCNT เริ่มต้นจาก VRCT และยังมีโค้ดบางส่วนที่อ้างอิงจากโปรเจกต์นั้น หลังจากนั้น UI เวิร์กโฟลว์ ระบบแปลภาษา และส่วนใหญ่ของแอปถูกปรับปรุงใหม่อย่างมากสำหรับ VRCNT จึงเป็นโปรเจกต์ของตัวเอง ไม่ใช่รุ่นทางการของ VRCT"
+    origin_label: "เริ่มต้นจาก"
+    origin_value: "VRCT โดย misyaguziya"
+    current_label: "โปรเจกต์ปัจจุบัน"
+    current_value: "VRCNT โดย awakenginexe"
+    independence_title: "ซอฟต์แวร์อิสระ"
+    independence_description: "VRCNT ไม่มีความเกี่ยวข้องหรือได้รับการรับรองจาก VRChat Inc. ชื่อและทรัพย์สินที่เกี่ยวข้องกับ VRChat เป็นเครื่องหมายการค้าของเจ้าของแต่ละราย"
+
 main_page:
+    live_weave:
+        navigation:
+            live: "Live Weave"
+            history: "ประวัติ"
+            models: "โมเดลและผู้ให้บริการ"
+            overlay: "สตูดิโอโอเวอร์เลย์"
+            settings: "การตั้งค่า"
+        session_live: "เซสชันกำลังทำงาน"
+        conversation_title: "การสนทนาสด"
+        conversation_detail: "คำแปลอยู่ตรงกลาง สถานะระบบจะแสดงเมื่อคุณต้องดำเนินการ"
+        empty_title: "Live Weave พร้อมแล้ว"
+        empty_detail: "เปิด Listening หรือ Speaking เพื่อเริ่มการสนทนาที่แปลแล้ว"
     translation: "การแปลภาษา"
     transcription_send: "กำลังพูด"
     transcription_receive: "กำลังฟัง"
@@ -83,7 +113,7 @@ main_page:
         you_title: "คุณ"
         you_desc: "เสียงพูดของคุณและผลแปลส่วนตัว"
         targets_title: "เป้าหมาย"
-        targets_desc: "เลือกผู้รับข้อความแปลจาก VRCNT-Next"
+        targets_desc: "เลือกผู้รับข้อความแปลจาก VRCNT"
         engines_title: "เอนจิน"
         engines_desc: "สลับตัวแปลภาษาและการถอดเสียงแบบรวดเร็ว"
         your_speaking_language: "ภาษาที่คุณพูด"
@@ -125,6 +155,8 @@ main_page:
         is_selected_same_language: "คุณกำลังเลือกภาษาเดียวกันสำหรับ '{{your_language}}' และ '{{target_language}}' จึงใช้ได้เฉพาะ '{{ctranslate2}}'"
         use_parallel_service: "ใช้บริการแบบขนาน"
         second_translator: "ตัวแปลภาษาที่สอง"
+        local_fallback: "สลับไป CTranslate2 อัตโนมัติ"
+        local_fallback_desc: "ปิดไว้เป็นค่าเริ่มต้น เมื่อเปิด โมเดลในเครื่องที่เตรียมไว้จะช่วยจัดการงานค้างของคลาวด์และรับช่วงเมื่อบริการคลาวด์ทั้งหมดถูกจำกัดหรือล้มเหลว ระบบจะเว้นช่วงคำขอคลาวด์และทดสอบใหม่อัตโนมัติหลังเวลาพักที่แสดง"
         primary_badge: "ตัวที่ 1"
         secondary_badge: "ตัวที่ 2"
 
@@ -143,10 +175,15 @@ main_page:
             success_meta: "{{engine}} · {{duration}}"
             timeout: "ไม่มีคำแปล · {{engine}} หมดเวลา"
             error: "ไม่มีคำแปล · {{engine}} ล้มเหลว"
+            rate_limited: "ไม่มีคำแปล · {{engines}} ถูกจำกัดอัตรา · ทดสอบอัตโนมัติใน {{seconds}} วินาที"
             skipped_overload: "ข้ามการแปล · คิวทำงานหนักเกินไป"
             no_provider: "ไม่มีคำแปล · ยังไม่ได้เลือกผู้ให้บริการ"
             unavailable: "ไม่มีคำแปล"
             queue_position: "คิว {{position}}"
+            retry: "แปลอีกครั้ง"
+
+    translation_cooldown:
+        retry_in: "ลอง {{engine}} อีกครั้งใน {{seconds}} วินาที"
 
     state_text_enabled: "เปิดใช้งาน"
     state_text_disabled: "ปิดใช้งาน"
@@ -156,6 +193,15 @@ main_page:
         title_target_language: "เลือกภาษาเป้าหมาย"
         unsupported_by_model: "{{engine}} ไม่รองรับภาษานี้กับโมเดลที่เลือก"
         model_support_hint: "{{engine}} จะแสดงเฉพาะภาษาที่โมเดลที่เลือกใช้งานได้"
+        picker_detail: "ค้นหาด้วยภาษาหรือประเทศ"
+        search_placeholder: "ค้นหาภาษาหรือประเทศ"
+        search_label: "ค้นหาภาษา"
+        open_legacy_layout: "เปิดเลย์เอาต์ VR แบบเดิม"
+        open_compact_layout: "กลับไปยังเลย์เอาต์แบบค้นหา"
+        no_results_title: "ไม่พบภาษา"
+        no_results_detail: "ไม่มีภาษาที่ตรงกับ “{{query}}”"
+        language_list_unavailable: "รายการภาษายังไม่พร้อมใช้งาน"
+        close: "ปิดตัวเลือกภาษา"
 
     main_function_tooltips:
         translation_title: "การแปลภาษา"
@@ -165,7 +211,7 @@ main_page:
         transcription_receive_title: "กำลังฟัง"
         transcription_receive_detail: "ถอดเสียงที่คุณได้ยินจากผู้อื่น"
         foreground_title: "อยู่ด้านบนเสมอ"
-        foreground_detail: "ให้ VRCNT-Next อยู่เหนือหน้าต่างอื่น"
+        foreground_detail: "ให้ VRCNT อยู่เหนือหน้าต่างอื่น"
         settings_title: "ตั้งค่า"
         settings_detail: "เปิดหน้าตั้งค่าแอป"
         control_title: "ตัวควบคุม"
@@ -190,7 +236,7 @@ main_page:
 
 update_modal:
     cpu_desc: "ใช้ CPU เป็นอุปกรณ์ประมวลผลเท่านั้น"
-    cuda_desc: "VRCNT-Next มีการรองรับ CUDA และยังสามารถทำงานบน CPU ได้เมื่อไม่มี GPU NVIDIA ที่รองรับ"
+    cuda_desc: "VRCNT มีการรองรับ CUDA และยังสามารถทำงานบน CPU ได้เมื่อไม่มี GPU NVIDIA ที่รองรับ"
     cuda_compare_cpu_desc: "GPU ให้ความเร็วในการประมวลผลสูงกว่า CPU"
     cuda_disk_space_desc: "ต้องใช้พื้นที่ดิสก์ประมาณ {{size}}"
     close_modal: "ปิด"
@@ -228,6 +274,43 @@ config_page:
         hotkeys: "ปุ่มลัด"
         plugins: "ปลั๊กอิน"
         advanced_settings: "ขั้นสูง"
+
+    focus_settings:
+        settings_title: "การตั้งค่า"
+        search_placeholder: "ค้นหาการตั้งค่าทั้งหมด"
+        search_label: "ค้นหาการตั้งค่า"
+        clear_search: "ล้างการค้นหาการตั้งค่า"
+        navigation_label: "หมวดหมู่การตั้งค่า"
+        current_section: "หมวดปัจจุบัน"
+        search_results: "ผลการค้นหา"
+        search_hint: "ค้นหาจากทุกหมวดการตั้งค่า แล้วเปิดผลลัพธ์เพื่อดำเนินการต่อ"
+        applies_immediately: "การเปลี่ยนแปลงมีผลทันที"
+        no_results: "ไม่พบการตั้งค่า"
+        no_results_detail: "ลองใช้คำอื่นหรือเลือกหมวดหมู่ด้านบน"
+        results_found: "พบ {{count}} รายการ"
+        result_help: "เปิดผลลัพธ์เพื่อไปยังหมวดการตั้งค่านั้น"
+        section_labels:
+            device: "อุปกรณ์"
+            appearance: "รูปลักษณ์"
+            model_and_provider: "โมเดลและผู้ให้บริการ"
+            translation: "การแปลภาษา"
+            transcription: "การถอดเสียง"
+            vr: "VR"
+            others: "อื่นๆ"
+            hotkeys: "ปุ่มลัด"
+            advanced_settings: "ขั้นสูง"
+            about: "เกี่ยวกับ"
+        section_descriptions:
+            device: "เลือกไมโครโฟนและลำโพง พร้อมปรับค่าความไวของอินพุต"
+            appearance: "ปรับภาษา ขนาด แบบอักษร ความโปร่งใส และพฤติกรรมของ UI"
+            model_and_provider: "ตั้งค่าผู้ให้บริการแปลภาษาและโมเดลรู้จำเสียงในหน้าจอเดียว"
+            translation: "ตั้งค่าเอนจินแปลภาษาแบบโลคัลและคลาวด์ รวมถึงข้อมูลรับรอง"
+            transcription: "ปรับการรับเสียง โมเดลรู้จำ อุปกรณ์ประมวลผล และการถอดรหัส"
+            vr: "จัดตำแหน่งและตั้งค่าโอเวอร์เลย์คำแปลใน VRChat"
+            others: "จัดการเสียง รูปแบบข้อความ บันทึก และพฤติกรรมของ VRChat"
+            hotkeys: "ตั้งค่าปุ่มลัดสำหรับควบคุมการสนทนาแบบสด"
+            advanced_settings: "ตั้งค่า OSC, WebSocket และการเข้าถึงไฟล์ตั้งค่าโดยตรง"
+            about: "ดูเวอร์ชัน ที่มาของโปรเจกต์ และลิงก์คลังโค้ด"
 
     device:
         check_volume: "ตรวจสอบระดับเสียง"

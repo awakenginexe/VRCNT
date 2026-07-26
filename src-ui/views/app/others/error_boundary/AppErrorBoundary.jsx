@@ -64,7 +64,7 @@ const ErrorContainer = ({error, errorInfo}) => {
             <div className={styles.drag_able_area} data-tauri-drag-region></div>
             <CloseButton variant="active_error" onClick={asyncCloseApp} />
             <div className={styles.wrapper}>
-                <p className={styles.error_message}>An error occurred. Please restart VRCNT-Next or contact the developers.</p>
+                <p className={styles.error_message}>An error occurred. Please restart VRCNT or contact the developers.</p>
                 <SafeActionButtons />
                 {error ?
                     <div className={styles.error_detail_container}>

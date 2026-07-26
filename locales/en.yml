@@ -5,17 +5,17 @@
 
 blocking_operation:
     dialog_label: "Operation in progress"
-    startup_operation: "Starting VRCNT-Next"
+    startup_operation: "Starting VRCNT"
     phase_label: "Current step"
     progress_label: "Startup progress"
     progress_steps: "{{current}} of {{total}}"
     progress_indeterminate: "Working…"
     elapsed: "Elapsed {{seconds}}s"
     startup_failed: "Startup could not finish"
-    startup_failed_detail: "Restart VRCNT-Next. If this continues, check the application log."
+    startup_failed_detail: "Restart VRCNT. If this continues, check the application log."
     backend_startup_progress: "Backend startup {{current}} / {{total}}"
     backend_unavailable: "The backend is unavailable. Your change was not applied."
-    backend_disconnected: "The backend stopped. Restart VRCNT-Next to continue."
+    backend_disconnected: "The backend stopped. Restart VRCNT to continue."
 
 common:
     go_back_button_label: "Go Back"
@@ -28,6 +28,7 @@ common_error:
     failed_download_weight_whisper: "Whisper weight download error."
     failed_download_weight_sensevoice: "SenseVoice weight download error."
     translation_limit: "Translation engine limit reached or temporarily restricted."
+    translation_rate_limited: "{{engines}} are rate limited. The next translation will test them automatically in {{seconds}}s."
     deepl_auth_key_invalid_length: "DeepL auth key length is not correct."
     deepl_auth_key_failed_authentication: "Auth key is incorrect or API usage limit reached."
 
@@ -42,7 +43,36 @@ common_error:
 common_warning:
     unable_to_use_osc_query: "The following functions have been automatically disabled due to the OSC IP Address settings preventing OSC data from being received."
 
+about_page:
+    version: "Version {{version}}"
+    title: "Next-generation translation for VRChat"
+    description: "VRCNT is an independently developed translation and transcription companion built for live multilingual VRChat conversations."
+    repositories_title: "Project repositories"
+    repositories_description: "Follow VRCNT development or review the original VRCT project that helped start it."
+    vrcnt_repository: "VRCNT GitHub"
+    vrct_repository: "Original VRCT GitHub"
+    lineage_title: "Project lineage"
+    lineage_description: "VRCNT began from VRCT and some code remains based on that project. Since then, the interface, workflows, translation pipeline, and much of the application have been substantially reworked for VRCNT. It is its own project, not an official VRCT release."
+    origin_label: "Started from"
+    origin_value: "VRCT by misyaguziya"
+    current_label: "Current project"
+    current_value: "VRCNT by awakenginexe"
+    independence_title: "Independent software"
+    independence_description: "VRCNT is not affiliated with or endorsed by VRChat Inc. VRChat and related properties are trademarks of their respective owners."
+
 main_page:
+    live_weave:
+        navigation:
+            live: "Live Weave"
+            history: "History"
+            models: "Models & Providers"
+            overlay: "Overlay Studio"
+            settings: "Settings"
+        session_live: "Session live"
+        conversation_title: "Live conversation"
+        conversation_detail: "Translations stay central. System health appears when it needs you."
+        empty_title: "Live Weave is ready"
+        empty_detail: "Enable Listening or Speaking to begin a translated conversation."
     translation: "Translation"
     transcription_send: "Speaking"
     transcription_receive: "Listening"
@@ -83,7 +113,7 @@ main_page:
         you_title: "You"
         you_desc: "Voice input and personal translation output"
         targets_title: "Targets"
-        targets_desc: "Choose who you want VRCNT-Next to translate for"
+        targets_desc: "Choose who you want VRCNT to translate for"
         engines_title: "Engines"
         engines_desc: "Quick switches for translation and transcription"
         your_speaking_language: "Your speaking language"
@@ -125,6 +155,8 @@ main_page:
         is_selected_same_language: "You are selecting the same language for '{{your_language}}' and '{{target_language}}' so only '{{ctranslate2}}' is available."
         use_parallel_service: "Use parallel service"
         second_translator: "Second translator"
+        local_fallback: "Automatic CTranslate2 fallback"
+        local_fallback_desc: "Off by default. When enabled, the prepared local model handles cloud backlog and takes over if every cloud service is limited or fails. Cloud services are paced and tested again automatically after their shown cooldown."
         primary_badge: "1st"
         secondary_badge: "2nd"
 
@@ -143,10 +175,15 @@ main_page:
             success_meta: "{{engine}} · {{duration}}"
             timeout: "Translation unavailable · {{engine}} timed out"
             error: "Translation unavailable · {{engine}} failed"
+            rate_limited: "Translation unavailable · {{engines}} rate limited · automatic test in {{seconds}}s"
             skipped_overload: "Translation skipped · queue overloaded"
             no_provider: "Translation unavailable · no provider selected"
             unavailable: "Translation unavailable"
             queue_position: "Queue {{position}}"
+            retry: "Translate"
+
+    translation_cooldown:
+        retry_in: "Retry {{engine}} in {{seconds}}s"
 
     state_text_enabled: "Enabled"
     state_text_disabled: "Disabled"
@@ -156,6 +193,15 @@ main_page:
         title_target_language: "Select Target Language"
         unsupported_by_model: "{{engine}} does not support this language with the selected model."
         model_support_hint: "{{engine}} only enables languages supported by the selected model."
+        picker_detail: "Search by language or country."
+        search_placeholder: "Search languages or countries"
+        search_label: "Search languages"
+        open_legacy_layout: "Open legacy VR layout"
+        open_compact_layout: "Return to searchable layout"
+        no_results_title: "No languages found"
+        no_results_detail: "No language matches “{{query}}”."
+        language_list_unavailable: "The language list is not available yet."
+        close: "Close language selector"
 
     main_function_tooltips:
         translation_title: "Translation"
@@ -165,7 +211,7 @@ main_page:
         transcription_receive_title: "Listening"
         transcription_receive_detail: "Transcribe audio you hear from others."
         foreground_title: "Always on top"
-        foreground_detail: "Keep VRCNT-Next above other windows."
+        foreground_detail: "Keep VRCNT above other windows."
         settings_title: "Settings"
         settings_detail: "Open app configuration."
         control_title: "Control"
@@ -190,7 +236,7 @@ main_page:
 
 update_modal:
     cpu_desc: "Use CPU only as the compute device."
-    cuda_desc: "VRCNT-Next includes CUDA support and can still run on CPU when no supported NVIDIA GPU is available."
+    cuda_desc: "VRCNT includes CUDA support and can still run on CPU when no supported NVIDIA GPU is available."
     cuda_compare_cpu_desc: "GPUs offer faster processing than CPUs."
     cuda_disk_space_desc: "Requires approximately {{size}} of disk space."
     close_modal: "Close"
@@ -228,6 +274,43 @@ config_page:
         hotkeys: "Hotkeys"
         plugins: "Plugins"
         advanced_settings: "Advanced"
+
+    focus_settings:
+        settings_title: "Settings"
+        search_placeholder: "Search every setting"
+        search_label: "Search settings"
+        clear_search: "Clear settings search"
+        navigation_label: "Settings categories"
+        current_section: "Current section"
+        search_results: "Search results"
+        search_hint: "Search across every settings category, then open a result to continue."
+        applies_immediately: "Changes apply immediately"
+        no_results: "No settings found"
+        no_results_detail: "Try a different word or choose a category above."
+        results_found: "{{count}} results found"
+        result_help: "Open a result to go to its settings category."
+        section_labels:
+            device: "Device"
+            appearance: "Appearance"
+            model_and_provider: "Model & Provider"
+            translation: "Translation"
+            transcription: "Transcription"
+            vr: "VR"
+            others: "Others"
+            hotkeys: "Hotkeys"
+            advanced_settings: "Advanced"
+            about: "About"
+        section_descriptions:
+            device: "Choose microphone and speaker devices and tune their input thresholds."
+            appearance: "Adjust language, scale, type, transparency, and interface behavior."
+            model_and_provider: "Configure translation providers and speech-recognition models in one workspace."
+            translation: "Configure local and cloud translation engines and their credentials."
+            transcription: "Tune speech capture, recognition models, compute, and decoding."
+            vr: "Position and configure the VRChat translation overlay."
+            others: "Manage sounds, message formats, logs, and VRChat behavior."
+            hotkeys: "Set keyboard shortcuts for live conversation controls."
+            advanced_settings: "Configure OSC, WebSocket, and direct configuration access."
+            about: "View version information, project lineage, and repository links."
 
     device:
         check_volume: "Check Volume"

@@ -420,6 +420,7 @@ class MainFunctionActivationTests(unittest.TestCase):
             patch.multiple(
                 controller_module.config,
                 _ENABLE_TRANSLATION=False,
+                _ENABLE_CTRANSLATE2_AUTO_FALLBACK=False,
                 _SELECTED_TAB_NO="1",
                 _SELECTED_TRANSLATION_ENGINES={"1": ["Google", "Bing"]},
             ),
@@ -430,6 +431,122 @@ class MainFunctionActivationTests(unittest.TestCase):
                 {"status": 200, "result": True},
             )
             change_model.assert_not_called()
+
+    def test_cloud_translation_enable_prepares_opted_in_local_fallback(self):
+        controller = _controller_for_activation()
+        with (
+            patch.multiple(
+                controller_module.config,
+                _ENABLE_TRANSLATION=False,
+                _ENABLE_CTRANSLATE2_AUTO_FALLBACK=True,
+                _SELECTED_TAB_NO="1",
+                _SELECTED_TRANSLATION_ENGINES={"1": ["Google", "Bing"]},
+            ),
+            patch.object(
+                model_module.model,
+                "isLoadedCTranslate2Model",
+                return_value=False,
+            ),
+            patch.object(
+                model_module.model,
+                "isChangedTranslatorParameters",
+                return_value=False,
+            ),
+            patch.object(
+                model_module.model,
+                "changeTranslatorCTranslate2Model",
+            ) as change_model,
+            patch.object(
+                model_module.model,
+                "setChangedTranslatorParameters",
+            ) as settle_parameters,
+        ):
+            response = controller.setEnableTranslation()
+
+        self.assertEqual(response, {"status": 200, "result": True})
+        change_model.assert_called_once_with()
+        settle_parameters.assert_called_once_with(False)
+
+    def test_enabling_local_fallback_prepares_it_during_active_cloud_translation(self):
+        controller = _controller_for_activation()
+        with (
+            patch.multiple(
+                controller_module.config,
+                _ENABLE_TRANSLATION=True,
+                _ENABLE_CTRANSLATE2_AUTO_FALLBACK=False,
+                _SELECTED_TAB_NO="1",
+                _SELECTED_TRANSLATION_ENGINES={"1": ["Google", "Bing"]},
+            ),
+            patch.object(
+                model_module.model,
+                "isLoadedCTranslate2Model",
+                return_value=False,
+            ),
+            patch.object(
+                model_module.model,
+                "isChangedTranslatorParameters",
+                return_value=False,
+            ),
+            patch.object(
+                model_module.model,
+                "changeTranslatorCTranslate2Model",
+            ) as change_model,
+            patch.object(
+                model_module.model,
+                "setChangedTranslatorParameters",
+            ),
+        ):
+            response = controller.setCTranslate2AutoFallback(True)
+            fallback_enabled = (
+                controller_module.config.ENABLE_CTRANSLATE2_AUTO_FALLBACK
+            )
+
+        self.assertEqual(response, {"status": 200, "result": True})
+        self.assertIs(fallback_enabled, True)
+        change_model.assert_called_once_with()
+
+    def test_local_fallback_load_failure_restores_the_previous_option(self):
+        controller = _controller_for_activation()
+        with (
+            patch.multiple(
+                controller_module.config,
+                _ENABLE_TRANSLATION=True,
+                _ENABLE_CTRANSLATE2_AUTO_FALLBACK=False,
+                _SELECTED_TAB_NO="1",
+                _SELECTED_TRANSLATION_ENGINES={"1": ["Google", "Bing"]},
+            ),
+            patch.object(
+                model_module.model,
+                "isLoadedCTranslate2Model",
+                return_value=False,
+            ),
+            patch.object(
+                model_module.model,
+                "isChangedTranslatorParameters",
+                return_value=False,
+            ),
+            patch.object(
+                model_module.model,
+                "changeTranslatorCTranslate2Model",
+                side_effect=RuntimeError("load failed"),
+            ),
+            patch.object(
+                model_module.model,
+                "detectVRAMError",
+                return_value=(False, None),
+            ),
+        ):
+            response = controller.setCTranslate2AutoFallback(True)
+            fallback_enabled = (
+                controller_module.config.ENABLE_CTRANSLATE2_AUTO_FALLBACK
+            )
+
+        self.assertEqual(response["status"], 500)
+        self.assertEqual(
+            response["result"]["error_code"],
+            "TRANSLATION_ENABLE_FAILED",
+        )
+        self.assertIs(fallback_enabled, False)
 
     def test_selecting_ctranslate2_while_translation_is_off_defers_loading(self):
         controller = _controller_for_activation()

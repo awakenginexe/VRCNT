@@ -1,45 +1,106 @@
-name: Release VRCNT-Next
+name: Release VRCNT
 
 on:
   push:
     tags:
-      - 'v*' # Trigger when tag starts with 'v' (e.g. v3.0.0)
+      - 'v*' # Trigger when tag starts with 'v' (e.g. v4.0.0)
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Existing release tag to publish (for example, v3.0.0)'
+        description: 'Existing release tag to publish (for example, v4.0.0)'
         required: true
         type: string
 
 jobs:
   release:
-    name: Build and publish VRCNT-Next
+    name: Build and publish VRCNT
     runs-on: windows-latest
+    timeout-minutes: 180
     permissions:
       contents: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22.15.0'
+          package-manager-cache: false
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
       - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Validate release configuration and secrets
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        shell: pwsh
+        run: |
+          $tag = $env:INPUT_RELEASE_TAG
+          if ([string]::IsNullOrWhiteSpace($tag)) {
+            $tag = $env:GITHUB_REF -replace "^refs/tags/", ""
+          }
+          if ($tag -notmatch "^v[0-9]+\.[0-9]+\.[0-9]+$") {
+            throw "Release tag '$tag' must use the vMAJOR.MINOR.PATCH format."
+          }
+          $version = $tag -replace "^v", ""
+          $releaseConfig = Get-Content -Raw ./release.config.json | ConvertFrom-Json
+
+          if (
+            [string]::IsNullOrWhiteSpace($releaseConfig.githubOwner) -or
+            [string]::IsNullOrWhiteSpace($releaseConfig.githubRepo) -or
+            [string]::IsNullOrWhiteSpace($releaseConfig.hfRepoId) -or
+            [string]::IsNullOrWhiteSpace($releaseConfig.releaseAssetZipName) -or
+            [string]::IsNullOrWhiteSpace($releaseConfig.installerNamePattern) -or
+            $releaseConfig.githubOwner -eq "OWNER_TODO" -or
+            $releaseConfig.githubRepo -eq "REPO_TODO" -or
+            $releaseConfig.hfRepoId -eq "HF_REPO_TODO"
+          ) {
+            throw "release.config.json is incomplete or still has placeholder values."
+          }
+
+          $configuredRepository = "$($releaseConfig.githubOwner)/$($releaseConfig.githubRepo)"
+          if (-not $configuredRepository.Equals(
+            $env:GITHUB_REPOSITORY,
+            [System.StringComparison]::OrdinalIgnoreCase
+          )) {
+            throw "release.config.json targets $configuredRepository, but this workflow is running in $env:GITHUB_REPOSITORY."
+          }
+
+          if ([string]::IsNullOrWhiteSpace($env:HF_TOKEN)) {
+            throw "HF_TOKEN secret is required to upload release files to Hugging Face."
+          }
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
+            throw "TAURI_SIGNING_PRIVATE_KEY secret is required to sign updater artifacts."
+          }
+
+          $packageVersion = (Get-Content -Raw ./package.json | ConvertFrom-Json).version
+          if ($packageVersion -ne $version) {
+            throw "Tag $tag does not match package.json version $packageVersion. Use tag v$packageVersion or update package.json intentionally."
+          }
+
+          "RELEASE_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "RELEASE_OWNER=$($releaseConfig.githubOwner)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "RELEASE_REPO=$($releaseConfig.githubRepo)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "HF_REPO_ID=$($releaseConfig.hfRepoId)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "RELEASE_ZIP_NAME=$($releaseConfig.releaseAssetZipName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "LATEST_JSON_NAME=$($releaseConfig.latestJsonAssetName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "INSTALLER_NAME_PATTERN=$($releaseConfig.installerNamePattern)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Prefetch pinned CUDA wheel
         env:
@@ -129,54 +190,6 @@ jobs:
       - name: Install Python script dependencies
         run: pip install tqdm huggingface_hub==0.34.4 hf-xet==1.1.8
 
-      - name: Read release configuration
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
-        shell: pwsh
-        run: |
-          $tag = $env:INPUT_RELEASE_TAG
-          if ([string]::IsNullOrWhiteSpace($tag)) {
-            $tag = $env:GITHUB_REF -replace "^refs/tags/", ""
-          }
-          if ($tag -notmatch "^v[0-9]+\.[0-9]+\.[0-9]+$") {
-            throw "Release tag '$tag' must use the vMAJOR.MINOR.PATCH format."
-          }
-          $version = $tag -replace "^v", ""
-          $releaseConfig = Get-Content -Raw ./release.config.json | ConvertFrom-Json
-
-          if (
-            [string]::IsNullOrWhiteSpace($releaseConfig.githubOwner) -or
-            [string]::IsNullOrWhiteSpace($releaseConfig.githubRepo) -or
-            [string]::IsNullOrWhiteSpace($releaseConfig.hfRepoId) -or
-            $releaseConfig.githubOwner -eq "OWNER_TODO" -or
-            $releaseConfig.githubRepo -eq "REPO_TODO" -or
-            $releaseConfig.hfRepoId -eq "HF_REPO_TODO"
-          ) {
-            throw "release.config.json still has placeholder GitHub or Hugging Face values."
-          }
-
-          if ([string]::IsNullOrWhiteSpace($env:HF_TOKEN)) {
-            throw "HF_TOKEN secret is required to upload release files to Hugging Face."
-          }
-
-          "RELEASE_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "RELEASE_OWNER=$($releaseConfig.githubOwner)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "RELEASE_REPO=$($releaseConfig.githubRepo)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "HF_REPO_ID=$($releaseConfig.hfRepoId)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "RELEASE_ZIP_NAME=$($releaseConfig.releaseAssetZipName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "LATEST_JSON_NAME=$($releaseConfig.latestJsonAssetName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "INSTALLER_NAME_PATTERN=$($releaseConfig.installerNamePattern)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Validate release version
-        shell: pwsh
-        run: |
-          $packageVersion = (Get-Content -Raw ./package.json | ConvertFrom-Json).version
-          if ($packageVersion -ne $env:VERSION) {
-            throw "Tag $env:RELEASE_TAG does not match package.json version $packageVersion. Use tag v$packageVersion or update package.json intentionally."
-          }
-
       - name: Build and package
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -192,20 +205,32 @@ jobs:
             Select-Object -First 1
 
           if (-not $installer) {
-            $installer = Get-ChildItem -Path ./src-tauri/target/release/bundle/nsis -Filter "*_x64-setup.exe" -ErrorAction SilentlyContinue |
-              Sort-Object LastWriteTime -Descending |
-              Select-Object -First 1
-          }
-
-          if (-not $installer) {
             Get-ChildItem -Path ./src-tauri/target/release/bundle -Recurse -ErrorAction SilentlyContinue
-            throw "NSIS installer was not generated."
+            throw "Expected VRCNT installer $installerName was not generated."
           }
 
           $zipPath = Join-Path (Get-Location) $env:RELEASE_ZIP_NAME
           if (-not (Test-Path $zipPath)) {
             Get-ChildItem -Path . -Filter "*.zip" -ErrorAction SilentlyContinue
             throw "Portable release zip $env:RELEASE_ZIP_NAME was not generated."
+          }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+          try {
+            $entries = @($archive.Entries | ForEach-Object { $_.FullName })
+            foreach ($requiredFile in @("vrcnt.exe", "VRCT-sidecar.exe")) {
+              if ($requiredFile -notin $entries) {
+                throw "Portable release zip is missing $requiredFile."
+              }
+            }
+            foreach ($requiredDirectory in @("_internal/", "frontend/")) {
+              if (-not ($entries | Where-Object { $_.StartsWith($requiredDirectory) })) {
+                throw "Portable release zip is missing content under $requiredDirectory."
+              }
+            }
+          } finally {
+            $archive.Dispose()
           }
 
           $signaturePath = "$($installer.FullName).sig"
@@ -227,7 +252,7 @@ jobs:
           $installerUrl = "https://huggingface.co/$env:HF_REPO_ID/resolve/$env:RELEASE_TAG/$env:INSTALLER_NAME"
           $latest = [ordered]@{
             version = $env:VERSION
-            notes = "Release $env:RELEASE_TAG"
+            notes = "VRCNT $env:VERSION. Known issue: Fallback translation cooldown timing may be delayed while translations are queued."
             pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
             platforms = @{
               "windows-x86_64" = @{
@@ -340,22 +365,27 @@ jobs:
         run: |
           $tag = $env:RELEASE_TAG
           $notes = @"
-          Release $tag
+          VRCNT $env:VERSION
 
           Large release files are hosted on Hugging Face:
           - Installer: $env:VRCNT_INSTALLER_URL
           - Portable payload: $env:VRCNT_ZIP_URL
           - Updater manifest: $env:VRCNT_LATEST_JSON_URL
+
+          Known issue:
+          - Fallback translation cooldown timing may be delayed while translations are queued.
           "@
 
-          gh release view $tag *> $null
+          $repository = "$env:RELEASE_OWNER/$env:RELEASE_REPO"
+          gh release view $tag --repo $repository *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release edit $tag --title $env:VERSION --draft=false --prerelease=false --notes "$notes"
+            gh release edit $tag --repo $repository --title "VRCNT $env:VERSION" --draft=false --prerelease=false --notes "$notes"
           } else {
-            gh release create $tag --title $env:VERSION --notes "$notes" --verify-tag
+            gh release create $tag --repo $repository --title "VRCNT $env:VERSION" --notes "$notes" --verify-tag
           }
 
           gh release upload $tag `
+            --repo $repository `
             "$env:INSTALLER_PATH" `
             "$env:INSTALLER_SIGNATURE_PATH" `
             "$env:LATEST_JSON_PATH" `

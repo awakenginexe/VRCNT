@@ -47,6 +47,7 @@ from models.transcription.transcription_sensevoice import getSenseVoiceModelMeta
 from models.pipeline.pipeline_types import (
     FinalOutputTask,
     LanguageSlotSnapshot,
+    ManualTranslationRetryRequest,
     MessageFormatSnapshot,
     OutputConfigSnapshot,
     PipelineSource,
@@ -56,6 +57,7 @@ from models.pipeline.pipeline_types import (
     TranslationTarget,
     TranslationUpdate,
 )
+from models.pipeline.manual_translation_retry import ManualTranslationRetryCoordinator
 from models.pipeline.latest_queue import LatestQueue, QueueClosed
 from resource_usage import collect_resource_usage
 
@@ -85,6 +87,7 @@ class Controller:
             daemon=True,
         )
         self._transcription_metric_callback_registered = False
+        self._manual_translation_retry = None
         register_recovery = getattr(
             model,
             "setTranscriptionRecoveryCallback",
@@ -391,6 +394,7 @@ class Controller:
         engine = trace.providers[0] if trace.providers else None
         payload = {
             "trace_id": trace.trace_id,
+            "source_language": trace.source_language,
             "original": {
                 "message": trace.original_message,
                 "transliteration": list(trace.original_transliteration),
@@ -399,6 +403,7 @@ class Controller:
                 {
                     "target_slot": target.target_slot,
                     "language": target.language,
+                    "country": target.country,
                     "message": None,
                     "transliteration": [],
                     "status": TranslationStatus.QUEUED.value,
@@ -500,6 +505,106 @@ class Controller:
             ),
             update.to_payload(),
         )
+
+    def _emitTranslationProviderCooldowns(self, cooldowns: dict) -> None:
+        selected = set(model._getSelectedTranslationEngineCandidates())
+        visible_cooldowns = {
+            provider: value
+            for provider, value in cooldowns.items()
+            if provider in selected
+        }
+        self.run(
+            200,
+            self.run_mapping.get(
+                "translation_provider_cooldowns",
+                "/run/translation_provider_cooldowns",
+            ),
+            visible_cooldowns,
+        )
+
+    def _getManualTranslationRetry(self) -> ManualTranslationRetryCoordinator:
+        model.ensure_initialized()
+        if self._manual_translation_retry is None:
+            model.translator.setProviderCooldownCallback(
+                self._emitTranslationProviderCooldowns
+            )
+            self._manual_translation_retry = ManualTranslationRetryCoordinator(
+                translator=model.translator,
+                emit_update=self._emitTranslationUpdate,
+                transliterate=lambda message, language: (
+                    model.transliterateTranscriptionMessage(
+                        message,
+                        language,
+                        self._outputConfigSnapshot(),
+                    )
+                ),
+                get_providers=model._getSelectedTranslationEngineCandidates,
+                get_weight_type=lambda: config.CTRANSLATE2_WEIGHT_TYPE,
+                get_context_history=lambda: tuple(
+                    deepcopy(model.getTranslationHistory())
+                ),
+                local_fallback_enabled=lambda: (
+                    config.ENABLE_CTRANSLATE2_AUTO_FALLBACK is True
+                ),
+                prepare_local_fallback=model.prepareCTranslate2AutoFallback,
+            )
+        return self._manual_translation_retry
+
+    def getTranslationProviderCooldowns(self, *args, **kwargs) -> dict:
+        model.ensure_initialized()
+        model.translator.setProviderCooldownCallback(
+            self._emitTranslationProviderCooldowns
+        )
+        providers = model._getSelectedTranslationEngineCandidates()
+        return {
+            "status": 200,
+            "result": model.translator.getProviderCooldownSnapshot(providers),
+        }
+
+    def retryTranslation(self, payload, *args, **kwargs) -> dict:
+        if not isinstance(payload, dict):
+            return {
+                "status": 400,
+                "result": {"accepted": False, "reason": "invalid_request"},
+            }
+        required = (
+            "trace_id",
+            "target_slot",
+            "original_message",
+            "source_language",
+            "target_language",
+            "target_country",
+        )
+        if any(
+            not isinstance(payload.get(name), str) or not payload[name]
+            for name in required
+        ):
+            return {
+                "status": 400,
+                "result": {"accepted": False, "reason": "invalid_request"},
+            }
+        admission = self._getManualTranslationRetry().submit(
+            ManualTranslationRetryRequest(
+                trace_id=payload["trace_id"],
+                target_slot=payload["target_slot"],
+                original_message=payload["original_message"],
+                source_language=payload["source_language"],
+                target=TranslationTarget(
+                    payload["target_slot"],
+                    payload["target_language"],
+                    payload["target_country"],
+                ),
+            )
+        )
+        return {
+            "status": 200,
+            "result": {
+                "accepted": admission.accepted,
+                "retry_generation": admission.retry_generation,
+                "cooldowns": admission.cooldowns,
+                "reason": admission.reason,
+            },
+        }
 
     def _emitPipelineStatus(self, event: PipelineStatusEvent) -> None:
         self.run(
@@ -614,7 +719,43 @@ class Controller:
                 "final output sinks failed: " + ", ".join(failures)
             ) from None
 
+    @staticmethod
+    def _rateLimitFailureData(
+        task: Optional[FinalOutputTask] = None,
+    ) -> Optional[dict]:
+        if task is None:
+            try:
+                status = model.getSelectedTranslationRateLimitStatus()
+                return status if isinstance(status, dict) else None
+            except Exception:
+                return None
+
+        failures = tuple(task.translations)
+        if not failures or any(
+            item.error_code != "providers_rate_limited"
+            for item in failures
+        ):
+            return None
+        engines = []
+        retry_values = []
+        for failure in failures:
+            for engine in failure.failed_engines:
+                if engine not in engines:
+                    engines.append(engine)
+            if failure.retry_after_seconds is not None:
+                retry_values.append(failure.retry_after_seconds)
+        if not engines:
+            return None
+        return {
+            "reason": "rate_limited",
+            "engines": engines,
+            "retry_after_seconds": (
+                min(retry_values) if retry_values else None
+            ),
+        }
+
     def _emitTranslationFailure(self, task: FinalOutputTask) -> None:
+        failure_data = self._rateLimitFailureData(task)
         if task.source is PipelineSource.MIC:
             if not self._generationCurrent(task):
                 return
@@ -624,12 +765,15 @@ class Controller:
                     "error_translation_engine",
                     "/run/error_translation_engine",
                 ),
-                {"message": "Translation engine limit error", "data": None},
+                {
+                    "message": "Translation engine limit error",
+                    "data": failure_data,
+                },
             )
             return
         error_response = VRCTError.create_error_response(
             ErrorCode.TRANSLATION_ENGINE_LIMIT,
-            data=None,
+            data=failure_data,
         )
         if not self._generationCurrent(task):
             return
@@ -1694,7 +1838,7 @@ class Controller:
                     if all(success) is not True:
                         error_response = VRCTError.create_error_response(
                             ErrorCode.TRANSLATION_ENGINE_LIMIT,
-                            data=None
+                            data=self._rateLimitFailureData(),
                         )
                         self.run(
                             error_response["status"],
@@ -2083,8 +2227,20 @@ class Controller:
         providers = boundedTranslationProviderSnapshot(selection)
         return bool(providers and providers[0] == "CTranslate2")
 
-    def _ensureCTranslate2Ready(self, selection) -> None:
-        if not self._isCTranslate2Primary(selection):
+    def _ensureCTranslate2Ready(
+        self,
+        selection,
+        *,
+        include_auto_fallback: bool = False,
+    ) -> None:
+        providers = boundedTranslationProviderSnapshot(selection)
+        should_prepare_fallback = (
+            include_auto_fallback
+            and bool(providers)
+            and providers[0] != "CTranslate2"
+            and config.ENABLE_CTRANSLATE2_AUTO_FALLBACK is True
+        )
+        if not self._isCTranslate2Primary(selection) and not should_prepare_fallback:
             return
         if (
             model.isLoadedCTranslate2Model() is False
@@ -2146,7 +2302,10 @@ class Controller:
                 normalized_selection
             )
             try:
-                self._ensureCTranslate2Ready(normalized_selection)
+                self._ensureCTranslate2Ready(
+                    normalized_selection,
+                    include_auto_fallback=True,
+                )
                 if config.ENABLE_TRANSLATION is True:
                     return {"status": 200, "result": True}
                 config.ENABLE_TRANSLATION = True
@@ -2160,6 +2319,47 @@ class Controller:
             config.ENABLE_TRANSLATION = False
             self._releaseCTranslate2()
             return {"status": 200, "result": config.ENABLE_TRANSLATION}
+
+    @staticmethod
+    def getCTranslate2AutoFallback(*args, **kwargs) -> dict:
+        return {
+            "status": 200,
+            "result": config.ENABLE_CTRANSLATE2_AUTO_FALLBACK,
+        }
+
+    def setCTranslate2AutoFallback(self, enabled, *args, **kwargs) -> dict:
+        with self._translation_activation_lock:
+            if not isinstance(enabled, bool):
+                return {
+                    "status": 400,
+                    "result": config.ENABLE_CTRANSLATE2_AUTO_FALLBACK,
+                }
+            previous_enabled = config.ENABLE_CTRANSLATE2_AUTO_FALLBACK
+            config.ENABLE_CTRANSLATE2_AUTO_FALLBACK = enabled
+            current_selection = config.SELECTED_TRANSLATION_ENGINES.get(
+                config.SELECTED_TAB_NO,
+                "",
+            )
+            if enabled is True and config.ENABLE_TRANSLATION is True:
+                try:
+                    self._ensureCTranslate2Ready(
+                        current_selection,
+                        include_auto_fallback=True,
+                    )
+                except Exception as error:
+                    config.ENABLE_CTRANSLATE2_AUTO_FALLBACK = previous_enabled
+                    return self._translationActivationError(
+                        error,
+                        preserve_enabled=True,
+                    )
+            if enabled is False and not self._isCTranslate2Primary(
+                current_selection
+            ):
+                self._releaseCTranslate2()
+            return {
+                "status": 200,
+                "result": config.ENABLE_CTRANSLATE2_AUTO_FALLBACK,
+            }
 
     @staticmethod
     def setEnableForeground(*args, **kwargs) -> dict:
@@ -2234,6 +2434,7 @@ class Controller:
 
             if config.ENABLE_TRANSLATION is False:
                 config.SELECTED_TRANSLATION_ENGINES = normalized
+                model.resetTranslationProviderRotation()
                 return {
                     "status": 200,
                     "result": config.SELECTED_TRANSLATION_ENGINES,
@@ -2254,6 +2455,7 @@ class Controller:
             else:
                 config.SELECTED_TRANSLATION_ENGINES = normalized
 
+            model.resetTranslationProviderRotation()
             return {
                 "status": 200,
                 "result": config.SELECTED_TRANSLATION_ENGINES,
@@ -4504,6 +4706,7 @@ class Controller:
             selected_engines
         )
         config.SELECTED_TRANSLATION_ENGINES = engines
+        model.resetTranslationProviderRotation()
 
         self.run(200, self.run_mapping["selected_translation_engines"], config.SELECTED_TRANSLATION_ENGINES)
         self.run(200, self.run_mapping["translation_engines"], selectable_engines)
@@ -5115,7 +5318,7 @@ class Controller:
     def init(self, *args, **kwargs) -> None:
         removeLog()
         printLog("Start Initialization")
-        self.initializationStatus("Starting VRCNT-Next", "Preparing the core app and local settings.", visible=True, phase="starting")
+        self.initializationStatus("Starting VRCNT", "Preparing the core app and local settings.", visible=True, phase="starting")
 
         # Network check
         connected_network = isConnectedNetwork()

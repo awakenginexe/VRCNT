@@ -17,16 +17,25 @@ const stylesheetPath = (
     "src-ui/views/app/main_page/main_section/pipeline_status/PipelineStatus.module.scss"
 );
 
-test("pipeline status is placed between resources and messages", () => {
+test("pipeline status is placed above the session dock while resources stay in the conversation header", () => {
     const source = readSource("src-ui/views/app/main_page/main_section/MainSection.jsx");
     assert.match(source, /import \{ PipelineStatus \} from "\.\/pipeline_status\/PipelineStatus";/);
     assert.match(
         source,
-        /<ResourceMonitor\s*\/>[\s\S]*?<PipelineStatus\s*\/>[\s\S]*?<MessageContainer\s*\/>/,
+        /<ResourceMonitor\s*\/>[\s\S]*?<MessageContainer[\s\S]*?pipelineStatus=\{<PipelineStatus\s*\/>\}/,
     );
 
+    const messageContainer = readSource(
+        "src-ui/views/app/main_page/main_section/message_container/MessageContainer.jsx",
+    );
+    assert.match(messageContainer, /pipelineStatus = null/);
+    assert.match(messageContainer, /\{pipelineStatus\}/);
+
     const styles = readSource("src-ui/views/app/main_page/main_section/MainSection.module.scss");
-    assert.match(styles, /grid-template-rows:\s*auto\s+auto\s+minmax\(0,\s*1fr\)/);
+    assert.match(
+        styles,
+        /grid-template-rows:\s*var\(--main_page_topbar_height\)\s+auto\s+minmax\(0,\s*1fr\)/,
+    );
 });
 
 test("the strip uses localized stage/source labels and existing semantic icons", () => {
@@ -85,6 +94,15 @@ test("latency figures use tabular numbers and secondary details wrap responsivel
     assert.match(styles, /font-variant-numeric:\s*tabular-nums/);
     assert.match(styles, /flex-wrap:\s*wrap/);
     assert.match(styles, /@media\s*\(max-width:/);
+});
+
+test("the minimum desktop workspace keeps the health strip to one compact row", () => {
+    const styles = readSource(stylesheetPath);
+
+    assert.match(
+        styles,
+        /@media\s*\(max-width:\s*72rem\)[\s\S]*?\.item\s*\{[\s\S]*?flex:\s*1\s+1\s+20%/,
+    );
 });
 
 test("the atom hook applies immutable schema-v1 events through one backend route", () => {

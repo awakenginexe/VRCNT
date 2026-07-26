@@ -1,27 +1,26 @@
 .container {
     height: 100%;
     display: flex;
-    gap: 1.2rem;
-    padding: 1rem;
-    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.18);
-    border-radius: 2.4rem;
-    background: rgba(20, 28, 46, 0.78);
+    gap: 0.8rem;
+    padding: 0.6rem;
+    border: 0.1rem solid #1D4A68;
+    border-radius: 0.85rem;
+    background: var(--surface_2_color);
     backdrop-filter: var(--panel_blur);
-    box-shadow: 0 2rem 5rem rgba(0, 0, 0, 0.42), 0 0 2.6rem rgba(var(--accent_color_rgb), 0.08);
+    box-shadow: inset 0 0.1rem 0 rgba(255, 255, 255, 0.035);
 }
 
 .message_box_wrapper {
     width: 100%;
     height: 100%;
-    padding: 0.6rem 0.8rem;
+    padding: 0.55rem 0.75rem;
     background: transparent;
     border: 0;
-    border-radius: 1.4rem;
+    border-radius: 0.6rem;
     box-shadow: none;
     transition: var(--transition_ui);
     &:focus-within {
-        border-color: var(--accent_color);
-        box-shadow: var(--shadow_control_hover);
+        box-shadow: inset 0 0 0 0.1rem rgba(var(--accent_color_rgb), 0.42);
     }
 }
 
@@ -39,18 +38,18 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    min-width: 9.6rem;
-    max-width: 16rem;
+    min-width: 5.8rem;
+    max-width: 8rem;
     height: 100%;
-    font-size: 1.2rem;
-    background: linear-gradient(135deg, #7dd3fc, #67c6ef);
-    border-radius: 1.8rem;
-    box-shadow: 0 0 2.5rem rgba(var(--accent_color_rgb), 0.34);
+    font-size: 1.1rem;
+    background: var(--accent_color);
+    border-radius: 0.65rem;
+    box-shadow: none;
     aspect-ratio: 1 / 1;
     transition: var(--transition_ui);
     &:hover {
-        transform: translateY(-0.1rem) scale(1.02);
-        box-shadow: var(--shadow_accent);
+        transform: translateY(-0.1rem);
+        background: #91D8F7;
     }
     &:active {
         transform: translateY(0.05rem) scale(0.98);

@@ -23,7 +23,7 @@ export const WindowTitleBar = () => {
             <div className={styles.wrapper} data-tauri-drag-region>
                 <div className={styles.title_wrapper}>
                     <img className={styles.title_logo} src={logoBadge} alt="" />
-                    <p className={styles.title_text}>VRCNT-Next</p>
+                    <p className={styles.title_text}>VRCNT</p>
                     <p className={styles.title_subtitle}>Next Gen VRChat Translation</p>
                 </div>
 

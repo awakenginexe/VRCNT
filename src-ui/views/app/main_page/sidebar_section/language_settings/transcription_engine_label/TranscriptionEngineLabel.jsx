@@ -11,7 +11,7 @@ import {
     isAutoOnlyTranscriptionEngine,
 } from "../transcriptionRuntimeUtils.js";
 
-export const TranscriptionEngineLabel = () => {
+export const TranscriptionEngineLabel = ({ variant = "settings" }) => {
     const { t } = useI18n();
     const {
         currentSelectedTranscriptionEngine,
@@ -31,7 +31,7 @@ export const TranscriptionEngineLabel = () => {
         updateIsOpenedTranscriptionEngineSelector,
     } = useStore_IsOpenedTranscriptionEngineSelector();
 
-    const engine = currentSelectedTranscriptionEngine?.data ?? t("main_page.language_panels.loading");
+    const engine = currentSelectedTranscriptionEngine?.data || t("main_page.language_panels.loading");
     const deviceMap = currentSelectableTranscriptionComputeDeviceList?.data ?? {};
     const selectedDevice = currentSelectedTranscriptionComputeDevice?.data ?? null;
     const selectedMode = getSelectedDeviceMode(selectedDevice);
@@ -51,6 +51,9 @@ export const TranscriptionEngineLabel = () => {
         engine === "Parakeet" ? currentSelectedParakeetWeightType?.data :
         engine === "SenseVoice" ? currentSelectedSenseVoiceWeightType?.data :
         null;
+    const liveModelLabel = currentModelName
+        ? `${engine} · ${currentModelName}`
+        : engine;
 
     const openSelector = () => {
         updateIsOpenedTranscriptionEngineSelector(!currentIsOpenedTranscriptionEngineSelector.data);
@@ -68,15 +71,25 @@ export const TranscriptionEngineLabel = () => {
     };
 
     return (
-        <div className={styles.container}>
-            <div className={styles.engine_label_button} onClick={openSelector}>
+        <div className={styles.container} data-variant={variant}>
+            <button
+                type="button"
+                className={styles.engine_label_button}
+                onClick={openSelector}
+                aria-expanded={currentIsOpenedTranscriptionEngineSelector.data}
+            >
                 <div className={styles.label_copy}>
                     <p className={styles.label_heading}>{t("main_page.language_panels.engine")}</p>
-                    <p className={styles.label_value}>{engine}</p>
-                    {currentModelName && <p className={styles.model_value}>{currentModelName}</p>}
+                    <p className={styles.label_value}>
+                        {variant === "live_compact" ? liveModelLabel : engine}
+                    </p>
+                    {variant !== "live_compact" && currentModelName &&
+                        <p className={styles.model_value}>{currentModelName}</p>
+                    }
                 </div>
                 <p className={styles.edit_hint}>{t("main_page.language_panels.change")}</p>
-            </div>
+            </button>
+            {variant !== "live_compact" && <>
             <div className={styles.quick_switch_block}>
                 <div className={styles.quick_switch_header}>
                     <p className={styles.quick_switch_title}>{t("main_page.language_panels.device")}</p>
@@ -125,9 +138,11 @@ export const TranscriptionEngineLabel = () => {
                     </div>
                 </div>
             </div>
+            </>}
             {currentIsOpenedTranscriptionEngineSelector.data &&
                 <TranscriptionEngineSelector
                     selected_id={engine}
+                    placement={variant === "live_compact" ? "live" : "settings"}
                 />
             }
         </div>

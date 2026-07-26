@@ -297,7 +297,7 @@ export const { atomInstance: Atom_LatestSoftwareVersionInfo, useHook: useStore_L
 export const { atomInstance: Atom_InitProgress, useHook: useStore_InitProgress } = createAtomWithHook(IS_TAURI_RUNTIME ? 0 : 4, "InitProgress");
 export const { atomInstance: Atom_InitStatus, useHook: useStore_InitStatus } = createAtomWithHook({
     visible: IS_TAURI_RUNTIME,
-    message: "Starting VRCNT-Next",
+    message: "Starting VRCNT",
     detail: "Preparing startup.",
     phase: "starting",
 }, "InitStatus");
@@ -350,6 +350,11 @@ export const { atomInstance: Atom_TranslationEngineSelectionTransition, useHook:
     null,
     "TranslationEngineSelectionTransition",
     {is_state_ok: true}
+);
+export const { atomInstance: Atom_CTranslate2AutoFallback, useHook: useStore_CTranslate2AutoFallback } = createAtomWithHook(
+    false,
+    "CTranslate2AutoFallback",
+    {is_state_ok: !IS_TAURI_RUNTIME}
 );
 export const { atomInstance: Atom_IsOpenedTranslatorSelector, useHook: useStore_IsOpenedTranslatorSelector } = createAtomWithHook(false, "IsOpenedTranslatorSelector");
 export const { atomInstance: Atom_IsOpenedTranscriptionEngineSelector, useHook: useStore_IsOpenedTranscriptionEngineSelector } = createAtomWithHook(false, "IsOpenedTranscriptionEngineSelector");

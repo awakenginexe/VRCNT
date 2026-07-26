@@ -35,21 +35,33 @@ export const Tooltip = ({
         const updatePortalStyle = () => {
             const rect = wrapperRef.current.getBoundingClientRect();
             const offset = 8;
-            const nextStyle = placement === "right"
-                ? {
+            let nextStyle;
+            if (placement === "right") {
+                nextStyle = {
                     position: "fixed",
                     top: `${rect.top + rect.height / 2}px`,
                     left: `${rect.right + offset}px`,
                     "--tooltip-portal-transform": "translate(0.3rem, -50%)",
                     "--tooltip-portal-transform-visible": "translate(0, -50%)",
-                }
-                : {
+                };
+            } else if (placement === "bottom-end") {
+                nextStyle = {
+                    position: "fixed",
+                    top: `${rect.bottom + offset}px`,
+                    left: `${Math.min(rect.right, window.innerWidth - offset)}px`,
+                    right: "auto",
+                    "--tooltip-portal-transform": "translate(-100%, -0.3rem)",
+                    "--tooltip-portal-transform-visible": "translate(-100%, 0)",
+                };
+            } else {
+                nextStyle = {
                     position: "fixed",
                     top: `${rect.top - offset}px`,
                     left: `${rect.left + rect.width / 2}px`,
                     "--tooltip-portal-transform": "translate(-50%, -0.3rem)",
                     "--tooltip-portal-transform-visible": "translate(-50%, -100%)",
                 };
+            }
             setPortalStyle(nextStyle);
         };
 

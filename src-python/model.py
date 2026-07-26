@@ -251,7 +251,8 @@ class Model:
         self.previous_send_message = ""
         self.previous_receive_message = ""
         self.translator = Translator()
-        self._translation_round_robin_indexes: dict[str, int] = {}
+        self._translation_round_robin_indexes: dict[tuple[str, ...], int] = {}
+        self._translation_round_robin_lock = RLock()
         self.keyword_processor = KeywordProcessor()
         self.translation_history: list[dict] = []
         self.translation_history_max_items = 20
@@ -627,6 +628,11 @@ class Model:
                 is_generation_current=lambda candidate: (
                     self.isSourcePipelineGenerationCurrent(source, candidate)
                 ),
+                rotate_providers=self.rotateTranslationProviderCandidates,
+                local_fallback_enabled=lambda: (
+                    config.ENABLE_CTRANSLATE2_AUTO_FALLBACK
+                ),
+                prepare_local_fallback=self.prepareCTranslate2AutoFallback,
             )
             pipeline.start(generation)
             with self._source_session_lock:
@@ -1023,6 +1029,60 @@ class Model:
         selected = config.SELECTED_TRANSLATION_ENGINES.get(config.SELECTED_TAB_NO)
         return boundedTranslationProviderSnapshot(selected)
 
+    def _ensureTranslationRoundRobinState(self) -> None:
+        if not hasattr(self, "_translation_round_robin_lock"):
+            self._translation_round_robin_lock = RLock()
+        if not hasattr(self, "_translation_round_robin_indexes"):
+            self._translation_round_robin_indexes = {}
+
+    def resetTranslationProviderRotation(self) -> None:
+        self._ensureTranslationRoundRobinState()
+        with self._translation_round_robin_lock:
+            self._translation_round_robin_indexes.clear()
+
+    def _ensureTranslationLocalFallbackState(self) -> None:
+        if not hasattr(self, "_translation_local_fallback_lock"):
+            self._translation_local_fallback_lock = RLock()
+
+    def prepareCTranslate2AutoFallback(self) -> None:
+        """Load the local translator only when an enabled fallback is needed."""
+        self._ensureTranslationLocalFallbackState()
+        with self._translation_local_fallback_lock:
+            if (
+                self.isLoadedCTranslate2Model() is False
+                or self.isChangedTranslatorParameters() is True
+            ):
+                self.changeTranslatorCTranslate2Model()
+                self.setChangedTranslatorParameters(False)
+
+    def getSelectedTranslationRateLimitStatus(self) -> Optional[dict]:
+        providers = self._getSelectedTranslationEngineCandidates()
+        if not providers or providers[0] == "CTranslate2":
+            return None
+        cooldowns = self.translator.getRateLimitedProviderCooldowns(providers)
+        if len(cooldowns) != len(providers):
+            return None
+        return {
+            "reason": "rate_limited",
+            "engines": list(providers),
+            "retry_after_seconds": min(cooldowns.values()),
+        }
+
+    def rotateTranslationProviderCandidates(self, selection) -> tuple[str, ...]:
+        """Alternate online primary providers while preserving fallback order."""
+        providers = boundedTranslationProviderSnapshot(selection)
+        if len(providers) < 2 or providers[0] == "CTranslate2":
+            return providers
+
+        self._ensureTranslationRoundRobinState()
+        with self._translation_round_robin_lock:
+            index = self._translation_round_robin_indexes.get(providers, 0)
+            self._translation_round_robin_indexes[providers] = (
+                index + 1
+            ) % len(providers)
+
+        return providers[index:] + providers[:index]
+
     def getTranslate(self, translator_name, source_language, target_language, target_country, message, fallback_to_ctranslate2=True):
         self.ensure_initialized()
         if source_language == target_language:
@@ -1049,7 +1109,8 @@ class Model:
 
     def getTranslateWithTranslatorCandidates(self, translator_names, source_language, target_language, target_country, message):
         last_translation = False
-        for provider in boundedTranslationProviderSnapshot(translator_names):
+        providers = self.rotateTranslationProviderCandidates(translator_names)
+        for provider in providers:
             translation, success_flag = self.getTranslate(
                 provider,
                 source_language,
@@ -1061,6 +1122,23 @@ class Model:
             if success_flag is True:
                 return translation, True
             last_translation = translation
+        if (
+            config.ENABLE_CTRANSLATE2_AUTO_FALLBACK is True
+            and providers
+            and providers[0] != "CTranslate2"
+        ):
+            try:
+                self.prepareCTranslate2AutoFallback()
+                return self.getTranslate(
+                    "CTranslate2",
+                    source_language,
+                    target_language,
+                    target_country,
+                    message,
+                    fallback_to_ctranslate2=False,
+                )
+            except Exception:
+                errorLogging()
         return last_translation, False
 
     def getInputTranslate(self, message, source_language=None):

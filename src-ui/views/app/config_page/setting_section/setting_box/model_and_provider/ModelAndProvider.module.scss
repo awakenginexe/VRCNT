@@ -1,0 +1,67 @@
+.workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 0.1rem minmax(0, 1fr);
+    align-items: start;
+    gap: 1.4rem;
+    width: 100%;
+    padding-top: 0.6rem;
+}
+
+.column {
+    min-width: 0;
+    scroll-margin-top: 5.8rem;
+}
+
+.column_header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    min-height: 5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    margin-bottom: 0.8rem;
+    padding: 1rem 0.4rem;
+    border-bottom: 0.1rem solid rgba(var(--accent_color_rgb), 0.24);
+    background: rgba(8, 21, 33, 0.96);
+    backdrop-filter: var(--panel_blur);
+}
+
+.column_header h2 {
+    margin: 0;
+    color: var(--dark_100_color);
+    font-size: 1.45rem;
+    font-weight: 850;
+    letter-spacing: -0.02em;
+}
+
+.column_content {
+    min-width: 0;
+}
+
+.divider {
+    align-self: stretch;
+    min-height: 100%;
+    background: rgba(var(--accent_color_rgb), 0.15);
+}
+
+/*
+ * The context panel consumes part of the window, so viewport queries switch too
+ * late. Reflow from the width the settings canvas can actually offer both panes.
+ */
+@container model-provider-workspace (max-width: 111.9rem) {
+    .workspace {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0;
+    }
+
+    .divider {
+        width: 100%;
+        min-height: 0.1rem;
+        margin: 2.4rem 0 1.4rem;
+    }
+
+    .column_header {
+        padding-inline: 0.2rem;
+    }
+}

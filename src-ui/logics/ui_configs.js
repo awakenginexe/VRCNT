@@ -152,7 +152,7 @@ export const parakeet_weight_type_status = [
     ...item,
     is_downloaded: false,
     downloadable: item.downloadable ?? false,
-    unavailable_reason: item.unavailable_reason ?? "NVIDIA ships this model as .nemo/safetensors, but this VRCNT-Next backend only supports ONNX Parakeet exports.",
+    unavailable_reason: item.unavailable_reason ?? "NVIDIA ships this model as .nemo/safetensors, but this VRCNT backend only supports ONNX Parakeet exports.",
     progress: null,
 }));
 

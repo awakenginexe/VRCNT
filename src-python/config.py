@@ -851,6 +851,10 @@ class Config:
     SEND_MESSAGE_TO_VRC = ManagedProperty('SEND_MESSAGE_TO_VRC', type_=bool)
     SEND_RECEIVED_MESSAGE_TO_VRC = ManagedProperty('SEND_RECEIVED_MESSAGE_TO_VRC', type_=bool)
     LOGGER_FEATURE = ManagedProperty('LOGGER_FEATURE', type_=bool)
+    ENABLE_CTRANSLATE2_AUTO_FALLBACK = ManagedProperty(
+        'ENABLE_CTRANSLATE2_AUTO_FALLBACK',
+        type_=bool,
+    )
     VRC_MIC_MUTE_SYNC = ManagedProperty('VRC_MIC_MUTE_SYNC', type_=bool)
     NOTIFICATION_VRC_SFX = ManagedProperty('NOTIFICATION_VRC_SFX', type_=bool)
     WEBSOCKET_HOST = ManagedProperty('WEBSOCKET_HOST', type_=str)
@@ -898,7 +902,7 @@ class Config:
 
     def init_config(self):
         # Read Only
-        self._VERSION = "3.0.0"
+        self._VERSION = "4.0.0"
         if getattr(sys, 'frozen', False):
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
@@ -942,6 +946,9 @@ class Config:
 
         # Read Write
         self._ENABLE_TRANSLATION = False
+        # Local fallback is opt-in because loading CTranslate2 can consume
+        # significant VRAM and briefly pause translation.
+        self._ENABLE_CTRANSLATE2_AUTO_FALLBACK = False
         self._ENABLE_TRANSCRIPTION_SEND = False
         self._ENABLE_TRANSCRIPTION_RECEIVE = False
         self._ENABLE_FOREGROUND = False

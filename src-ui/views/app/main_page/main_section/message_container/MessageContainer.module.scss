@@ -9,7 +9,7 @@
 
 .log_box_resize_wrapper {
     flex: 1;
-    overflow: auto;
+    overflow: hidden;
     position: relative;
     min-height: 0;
 }
@@ -41,6 +41,49 @@
 
 .message_box_resize_wrapper {
     height: 11%;
-    min-height: 8.8rem;
-    max-height: 34%;
+    min-height: 15rem;
+    max-height: 40%;
+    display: grid;
+    grid-template-rows: auto minmax(7.8rem, 1fr);
+    gap: 0.7rem;
+    padding: 0.8rem;
+    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.28);
+    border-radius: 1rem;
+    background: rgba(11, 27, 45, 0.96);
+}
+
+.pipeline_status {
+    min-width: 0;
+}
+
+.session_dock {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    align-items: stretch;
+    gap: 0.8rem;
+}
+
+.message_input_wrapper {
+    min-width: 0;
+    flex: 1 1 auto;
+
+    :global(.container) {
+        height: 100%;
+    }
+}
+
+.session_controls {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: stretch;
+}
+
+@media (max-height: 46rem) {
+    .message_box_resize_wrapper {
+        min-height: 10.4rem;
+        grid-template-rows: auto minmax(4.8rem, 1fr);
+        gap: 0.3rem;
+        padding: 0.4rem;
+    }
 }

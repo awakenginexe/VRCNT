@@ -1,4 +1,4 @@
-import { useStore_SelectedPresetTabNumber, useStore_SelectedYourLanguages, useStore_SelectedYourTranslationLanguages, useStore_SelectedTargetLanguages, useStore_TranslationEngines, useStore_SelectedTranslationEngines, useStore_TranslationEngineSelectionTransition, useStore_SelectableLanguageList } from "@store";
+import { useStore_SelectedPresetTabNumber, useStore_SelectedYourLanguages, useStore_SelectedYourTranslationLanguages, useStore_SelectedTargetLanguages, useStore_TranslationEngines, useStore_SelectedTranslationEngines, useStore_TranslationEngineSelectionTransition, useStore_CTranslate2AutoFallback, useStore_SelectableLanguageList } from "@store";
 import { useStdoutToPython } from "@useStdoutToPython";
 import { translator_status } from "@ui_configs";
 import { useI18n } from "@useI18n";
@@ -43,6 +43,11 @@ export const useLanguageSettings = () => {
         currentTranslationEngineSelectionTransition,
         updateTranslationEngineSelectionTransition,
     } = useStore_TranslationEngineSelectionTransition();
+    const {
+        currentCTranslate2AutoFallback,
+        updateCTranslate2AutoFallback,
+        pendingCTranslate2AutoFallback,
+    } = useStore_CTranslate2AutoFallback();
 
     const {
         currentSelectableLanguageList,
@@ -268,6 +273,33 @@ export const useLanguageSettings = () => {
         return transportResult;
     };
 
+    const getCTranslate2AutoFallback = () => {
+        pendingCTranslate2AutoFallback();
+        asyncStdoutToPython("/get/data/ctranslate2_auto_fallback");
+    };
+
+    const setCTranslate2AutoFallback = async (enabled) => {
+        if (currentCTranslate2AutoFallback.state === "pending") return;
+        pendingCTranslate2AutoFallback();
+        const transportResult = await asyncStdoutToPython(
+            "/set/data/ctranslate2_auto_fallback",
+            Boolean(enabled),
+        );
+        if (!transportResult.ok) {
+            updateCTranslate2AutoFallback((current) => current.data);
+            showNotification_Error(
+                t("blocking_operation.backend_unavailable"),
+                { category_id: "backend_unavailable" },
+            );
+        }
+        return transportResult;
+    };
+
+    const refreshCTranslate2AutoFallback = () => {
+        pendingCTranslate2AutoFallback();
+        asyncStdoutToPython("/get/data/ctranslate2_auto_fallback");
+    };
+
     const swapSelectedLanguages = () => {
         pendingSelectedYourLanguages();
         pendingSelectedYourTranslationLanguages();
@@ -326,6 +358,11 @@ export const useLanguageSettings = () => {
         setSelectedTranslationEngines,
         settleSelectedTranslationEngineSelection,
         currentTranslationEngineSelectionTransition,
+        currentCTranslate2AutoFallback,
+        getCTranslate2AutoFallback,
+        updateCTranslate2AutoFallback,
+        setCTranslate2AutoFallback,
+        refreshCTranslate2AutoFallback,
 
         swapSelectedLanguages,
         updateBothSelectedLanguages,

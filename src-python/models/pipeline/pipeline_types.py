@@ -149,6 +149,24 @@ class TranslationAttempt:
     message: Optional[str]
     duration_ms: int
     error_code: Optional[str]
+    retry_after_seconds: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class ManualTranslationRetryRequest:
+    trace_id: str
+    target_slot: str
+    original_message: str
+    source_language: str
+    target: TranslationTarget
+
+
+@dataclass(frozen=True)
+class ManualRetryAdmission:
+    accepted: bool
+    retry_generation: Optional[int]
+    cooldowns: dict[str, int]
+    reason: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -162,9 +180,12 @@ class TranslationUpdate:
     duration_ms: Optional[int]
     queue_position: int
     error_code: Optional[str]
+    failed_engines: tuple[str, ...] = ()
+    retry_after_seconds: Optional[int] = None
+    retry_generation: Optional[int] = None
 
     def to_payload(self) -> dict[str, object]:
-        return {
+        payload = {
             "trace_id": self.trace_id,
             "target_slot": self.target_slot,
             "status": self.status.value,
@@ -175,6 +196,13 @@ class TranslationUpdate:
             "queue_position": self.queue_position,
             "error_code": self.error_code,
         }
+        if self.failed_engines:
+            payload["failed_engines"] = list(self.failed_engines)
+        if self.retry_after_seconds is not None:
+            payload["retry_after_seconds"] = self.retry_after_seconds
+        if self.retry_generation is not None:
+            payload["retry_generation"] = self.retry_generation
+        return payload
 
 
 @dataclass(frozen=True)

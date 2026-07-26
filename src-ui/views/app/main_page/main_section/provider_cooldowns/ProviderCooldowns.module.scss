@@ -1,0 +1,31 @@
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.38rem;
+}
+
+.item {
+    display: flex;
+    align-items: center;
+    gap: 0.48rem;
+    min-height: 2.3rem;
+    padding: 0.48rem 0.72rem;
+    border: var(--panel_border_subtle);
+    border-color: rgba(var(--warning_color_rgb), 0.3);
+    border-radius: 0.65rem;
+    color: var(--dark_200_color);
+    background: var(--surface_2_color);
+    box-shadow: var(--shadow_control);
+    font-size: 0.78rem;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+}
+
+.dot {
+    width: 0.48rem;
+    height: 0.48rem;
+    border-radius: 50%;
+    background: var(--warning_color);
+    box-shadow: 0 0 0 0.22rem rgba(var(--warning_color_rgb), 0.12);
+}

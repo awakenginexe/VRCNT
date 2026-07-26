@@ -19,6 +19,9 @@ const PATCHABLE_TRANSLATION_FIELDS = [
     "duration_ms",
     "queue_position",
     "error_code",
+    "failed_engines",
+    "retry_after_seconds",
+    "retry_generation",
 ];
 
 const hasOwn = (value, property) => Object.hasOwn(value, property);
@@ -39,6 +42,10 @@ const normalizeTranslation = (entry, index, nowMs) => ({
     duration_ms: entry.duration_ms ?? null,
     queue_position: entry.queue_position ?? 0,
     error_code: entry.error_code ?? null,
+    ...(hasOwn(entry, "country") ? { country: entry.country } : {}),
+    ...(hasOwn(entry, "retry_generation")
+        ? { retry_generation: Number(entry.retry_generation) || 0 }
+        : {}),
     status_changed_at_ms: nowMs,
 });
 
@@ -52,6 +59,9 @@ export const createMessageLogEntry = (payload, category, options = {}) => {
         category,
         status: "ok",
         trace_id: data.trace_id ?? null,
+        ...(hasOwn(data, "source_language")
+            ? { source_language: data.source_language }
+            : {}),
         messages: {
             original: data.original ?? { message: null, transliteration: [] },
             translations: Array.isArray(data.translations)
@@ -71,9 +81,13 @@ export const isTranslationTransitionAllowed = (currentStatus, nextStatus) => !(
 );
 
 const patchTranslation = (current, payload, nowMs) => {
+    const currentRetryGeneration = Number(current.retry_generation) || 0;
+    const nextRetryGeneration = Number(payload.retry_generation) || 0;
+    const isNewerRetry = nextRetryGeneration > currentRetryGeneration;
     if (
         hasOwn(payload, "status")
         && !isTranslationTransitionAllowed(current.status, payload.status)
+        && !isNewerRetry
     ) {
         return current;
     }
@@ -173,6 +187,24 @@ export const getTranslationPresentation = (entry, nowMs = Date.now()) => {
             tone: "error",
             textKey: statusKey("no_provider"),
             textValues: {},
+            elapsedMs,
+            showQueuePosition: false,
+        };
+    }
+
+    if (translation.error_code === "providers_rate_limited") {
+        return {
+            tone: "error",
+            textKey: statusKey("rate_limited"),
+            textValues: {
+                engines: Array.isArray(translation.failed_engines)
+                    ? translation.failed_engines.join(" + ")
+                    : "",
+                seconds: Math.max(
+                    1,
+                    Math.ceil(Number(translation.retry_after_seconds) || 60),
+                ),
+            },
             elapsedMs,
             showQueuePosition: false,
         };

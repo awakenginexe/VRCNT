@@ -22,6 +22,7 @@ run_mapping = {
     "transcription_speaker":"/run/transcription_receive_speaker_message",
     "transcription_translation_update":"/run/transcription_translation_update",
     "pipeline_status":"/run/pipeline_status",
+    "translation_provider_cooldowns":"/run/translation_provider_cooldowns",
 
     "check_mic_volume":"/run/check_mic_volume",
     "check_speaker_volume":"/run/check_speaker_volume",
@@ -124,6 +125,10 @@ mapping = {
 
     "/get/data/selected_translation_engines": {"status": False, "variable":controller.getSelectedTranslationEngines},
     "/set/data/selected_translation_engines": {"status": True, "variable":controller.setSelectedTranslationEngines},
+    "/get/data/ctranslate2_auto_fallback": {"status": False, "variable":controller.getCTranslate2AutoFallback},
+    "/set/data/ctranslate2_auto_fallback": {"status": True, "variable":controller.setCTranslate2AutoFallback},
+    "/get/data/translation_provider_cooldowns": {"status": True, "variable":controller.getTranslationProviderCooldowns},
+    "/run/retry_translation": {"status": True, "variable":controller.retryTranslation},
 
     "/get/data/selected_your_languages": {"status": True, "variable":controller.getSelectedYourLanguages},
     "/set/data/selected_your_languages": {"status": True, "variable":controller.setSelectedYourLanguages},

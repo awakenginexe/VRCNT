@@ -162,3 +162,34 @@
         border-color: var(--border_subtle_color);
     }
 }
+
+.container[data-variant="live_compact"] {
+    width: 17rem;
+    gap: 0;
+
+    .engine_label_button {
+        min-height: 4.2rem;
+        padding: 0.6rem 0.9rem;
+        border-radius: 0.9rem;
+        background: rgba(15, 30, 47, 0.9);
+    }
+
+    .label_heading {
+        font-size: 0.8rem;
+    }
+
+    .label_value {
+        max-width: 12.5rem;
+        overflow: hidden;
+        color: var(--dark_150_color);
+        font-size: 1rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .edit_hint {
+        display: none;
+    }
+
+    .model_value { display: none; }
+}

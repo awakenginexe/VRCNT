@@ -13,7 +13,7 @@ export const isDesktopOverlayRoute = (search = globalThis.window?.location?.sear
 
 export const buildDesktopOverlayWindowOptions = () => ({
     url: buildDesktopOverlayRoute(),
-    title: "VRCNT-Next Desktop Overlay",
+    title: "VRCNT Desktop Overlay",
     width: 520,
     height: 240,
     minWidth: 360,

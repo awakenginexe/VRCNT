@@ -1,10 +1,39 @@
 .scroll_container {
     width: 100%;
     height: 100%;
-    overflow-y: scroll;
+    overflow-y: auto;
     overflow-x: hidden;
+    background: rgba(8, 21, 33, 0.72);
+    overscroll-behavior-y: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border_subtle_color) transparent;
 }
 
 .container {
-    margin: 0.4rem 0.2rem 8rem 0;
+    width: min(100%, 96rem);
+    min-height: 100%;
+    margin: 0 auto;
+    padding: 0.4rem 1.8rem 8rem;
+}
+
+.container.is_model_workspace {
+    width: min(100%, 118rem);
+    container: model-provider-workspace / inline-size;
+}
+
+.content_surface {
+    min-height: 100%;
+    animation: settings_content_in var(--motion_enter);
+}
+
+@keyframes settings_content_in {
+    from {
+        opacity: 0;
+        transform: translateY(0.65rem);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }

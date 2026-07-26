@@ -111,9 +111,17 @@ class ScriptedTranslator:
     def __init__(self, attempts=()):
         self.attempts = deque(attempts)
         self.calls = []
+        self.cooldowns = {}
         self.entered = threading.Event()
         self.release = threading.Event()
         self.block_message = None
+
+    def getRateLimitedProviderCooldowns(self, providers):
+        return {
+            provider: self.cooldowns[provider]
+            for provider in providers
+            if provider in self.cooldowns
+        }
 
     def translateAttempt(self, **kwargs):
         self.calls.append(kwargs)
@@ -128,6 +136,74 @@ class ScriptedTranslator:
             kwargs["translator_name"],
             f"translated:{kwargs['message']}",
             1,
+            None,
+        )
+
+
+class BudgetRecordingTranslator:
+    def __init__(self, first_delay=0.0):
+        self.first_delay = first_delay
+        self.calls = []
+        self.timeouts = []
+
+    @staticmethod
+    def getRateLimitedProviderCooldowns(_providers):
+        return {}
+
+    def translateAttempt(self, **kwargs):
+        provider = kwargs["translator_name"]
+        self.calls.append(provider)
+        self.timeouts.append(kwargs["timeout_seconds"])
+        if provider == "Google":
+            if self.first_delay:
+                time.sleep(self.first_delay)
+            return TranslationAttempt(
+                TranslationStatus.ERROR,
+                provider,
+                None,
+                round(self.first_delay * 1000),
+                "provider_error",
+            )
+        return TranslationAttempt(
+            TranslationStatus.SUCCESS,
+            provider,
+            "translated",
+            1,
+            None,
+        )
+
+
+class TimeoutIgnoringTranslator:
+    def __init__(self, delay=0.25):
+        self.delay = delay
+        self.calls = []
+        self.timeout_quarantines = []
+
+    @staticmethod
+    def getRateLimitedProviderCooldowns(_providers):
+        return {}
+
+    def rememberProviderTimeout(self, provider):
+        self.timeout_quarantines.append(provider)
+        return 15
+
+    def translateAttempt(self, **kwargs):
+        provider = kwargs["translator_name"]
+        self.calls.append(provider)
+        if provider == "CTranslate2":
+            return TranslationAttempt(
+                TranslationStatus.SUCCESS,
+                provider,
+                "local translation",
+                1,
+                None,
+            )
+        time.sleep(self.delay)
+        return TranslationAttempt(
+            TranslationStatus.SUCCESS,
+            provider,
+            "late cloud translation",
+            round(self.delay * 1000),
             None,
         )
 
@@ -157,7 +233,15 @@ class ControlledStartThread(threading.Thread):
 
 
 class TranslationSchedulerTests(unittest.TestCase):
-    def make_pipeline(self, translator, recorder, transliterate=lambda *_: ()):
+    def make_pipeline(
+        self,
+        translator,
+        recorder,
+        transliterate=lambda *_: (),
+        rotate_providers=None,
+        local_fallback_enabled=None,
+        prepare_local_fallback=None,
+    ):
         pipeline = SourcePipeline(
             PipelineSource.MIC,
             translator,
@@ -167,6 +251,9 @@ class TranslationSchedulerTests(unittest.TestCase):
             recorder.emit_metric,
             recorder.emit_final,
             lambda generation: generation == 7,
+            rotate_providers=rotate_providers,
+            local_fallback_enabled=local_fallback_enabled,
+            prepare_local_fallback=prepare_local_fallback,
         )
         pipeline.start(7)
         self.addCleanup(lambda: pipeline.stop(7, discard_pending=True))
@@ -224,6 +311,46 @@ class TranslationSchedulerTests(unittest.TestCase):
 
         translator.release.set()
         self.assertTrue(recorder.wait_for(lambda: len(recorder.finals) == 1))
+
+    def test_cloud_provider_rotation_is_applied_per_target_job(self):
+        recorder = Recorder()
+        translator = ScriptedTranslator()
+        rotation_index = 0
+
+        def rotate(providers):
+            nonlocal rotation_index
+            providers = tuple(providers)
+            index = rotation_index % len(providers)
+            rotation_index += 1
+            return providers[index:] + providers[:index]
+
+        pipeline = self.make_pipeline(
+            translator,
+            recorder,
+            rotate_providers=rotate,
+        )
+        pipeline.submit_trace(
+            make_trace(
+                "rotating-providers",
+                targets=(
+                    TranslationTarget("target-1", "French", "France"),
+                    TranslationTarget("target-2", "German", "Germany"),
+                ),
+                providers=("Google", "Bing"),
+            )
+        )
+
+        self.assertTrue(recorder.wait_for(lambda: len(recorder.finals) == 1))
+        self.assertEqual(
+            [call["translator_name"] for call in translator.calls],
+            ["Google", "Bing"],
+        )
+        queued_engines = [
+            update.engine
+            for update in recorder.updates
+            if update.status is TranslationStatus.QUEUED
+        ]
+        self.assertEqual(queued_engines, ["Google", "Bing"])
 
     def test_queue_positions_sending_zero_and_metric_depth_are_authoritative(self):
         recorder = Recorder()
@@ -1380,6 +1507,252 @@ class TranslationSchedulerTests(unittest.TestCase):
         self.assertEqual(terminal_updates[0].engine, "two")
         self.assertEqual(terminal_updates[0].duration_ms, 5)
         self.assertEqual(terminal_updates[0].error_code, "provider_error")
+
+    def test_dual_rate_limit_reports_both_providers_and_next_probe(self):
+        attempts = [
+            TranslationAttempt(
+                TranslationStatus.ERROR,
+                "Google",
+                None,
+                3,
+                "provider_rate_limited",
+                45,
+            ),
+            TranslationAttempt(
+                TranslationStatus.ERROR,
+                "Bing",
+                None,
+                4,
+                "provider_rate_limited",
+                30,
+            ),
+        ]
+        recorder = Recorder()
+        translator = ScriptedTranslator(attempts)
+        pipeline = self.make_pipeline(translator, recorder)
+
+        pipeline.submit_trace(
+            make_trace("rate-limited", providers=("Google", "Bing"))
+        )
+        self.assertTrue(recorder.wait_for(lambda: len(recorder.finals) == 1))
+
+        terminal = recorder.finals[0].translations[0]
+        self.assertEqual(terminal.error_code, "providers_rate_limited")
+        self.assertEqual(terminal.failed_engines, ("Google", "Bing"))
+        self.assertEqual(terminal.retry_after_seconds, 30)
+        self.assertEqual(
+            terminal.to_payload()["failed_engines"],
+            ["Google", "Bing"],
+        )
+        self.assertEqual(
+            [call["translator_name"] for call in translator.calls],
+            ["Google", "Bing"],
+        )
+
+    def test_enabled_local_fallback_loads_only_after_cloud_pair_fails(self):
+        attempts = [
+            TranslationAttempt(
+                TranslationStatus.ERROR,
+                "Google",
+                None,
+                3,
+                "provider_rate_limited",
+                45,
+            ),
+            TranslationAttempt(
+                TranslationStatus.ERROR,
+                "Bing",
+                None,
+                4,
+                "provider_rate_limited",
+                30,
+            ),
+            TranslationAttempt(
+                TranslationStatus.SUCCESS,
+                "CTranslate2",
+                "local result",
+                8,
+                None,
+            ),
+        ]
+        recorder = Recorder()
+        translator = ScriptedTranslator(attempts)
+        prepared = []
+        pipeline = self.make_pipeline(
+            translator,
+            recorder,
+            local_fallback_enabled=lambda: True,
+            prepare_local_fallback=lambda: prepared.append("loaded"),
+        )
+
+        pipeline.submit_trace(
+            make_trace("local-fallback", providers=("Google", "Bing"))
+        )
+        self.assertTrue(recorder.wait_for(lambda: len(recorder.finals) == 1))
+
+        self.assertEqual(
+            [call["translator_name"] for call in translator.calls],
+            ["Google", "Bing", "CTranslate2"],
+        )
+        self.assertEqual(prepared, ["loaded"])
+        terminal = recorder.finals[0].translations[0]
+        self.assertEqual(terminal.status, TranslationStatus.SUCCESS)
+        self.assertEqual(terminal.engine, "CTranslate2")
+        self.assertEqual(terminal.message, "local result")
+
+    def test_ten_message_burst_spills_to_local_without_overload_skips(self):
+        recorder = Recorder()
+        translator = ScriptedTranslator()
+        translator.block_message = "in-flight"
+        pipeline = self.make_pipeline(
+            translator,
+            recorder,
+            local_fallback_enabled=lambda: True,
+        )
+
+        pipeline.submit_trace(
+            make_trace(
+                "in-flight",
+                message="in-flight",
+                providers=("Google", "Bing"),
+            )
+        )
+        self.assertTrue(translator.entered.wait(timeout=1.0))
+        for index in range(10):
+            pipeline.submit_trace(
+                make_trace(
+                    f"burst-{index}",
+                    providers=("Google", "Bing"),
+                )
+            )
+
+        self.assertFalse(
+            any(
+                update.status is TranslationStatus.SKIPPED_OVERLOAD
+                for update in recorder.updates
+            )
+        )
+        translator.release.set()
+        self.assertTrue(recorder.wait_for(lambda: len(recorder.finals) == 11))
+        self.assertIn(
+            "CTranslate2",
+            [call["translator_name"] for call in translator.calls],
+        )
+        self.assertFalse(
+            any(
+                update.status is TranslationStatus.SKIPPED_OVERLOAD
+                for update in recorder.updates
+            )
+        )
+
+    def test_full_cloud_cooldown_goes_directly_to_local_fallback(self):
+        recorder = Recorder()
+        translator = ScriptedTranslator()
+        translator.cooldowns = {"Google": 45, "Bing": 30}
+        prepared = []
+        pipeline = self.make_pipeline(
+            translator,
+            recorder,
+            local_fallback_enabled=lambda: True,
+            prepare_local_fallback=lambda: prepared.append("loaded"),
+        )
+
+        pipeline.submit_trace(
+            make_trace("cooldown-local", providers=("Google", "Bing"))
+        )
+        self.assertTrue(recorder.wait_for(lambda: len(recorder.finals) == 1))
+
+        self.assertEqual(
+            [call["translator_name"] for call in translator.calls],
+            ["CTranslate2"],
+        )
+        self.assertEqual(prepared, ["loaded"])
+        self.assertEqual(
+            [update.status for update in recorder.updates],
+            [
+                TranslationStatus.QUEUED,
+                TranslationStatus.FALLBACK,
+                TranslationStatus.SENDING,
+                TranslationStatus.SUCCESS,
+            ],
+        )
+
+    def test_two_cloud_providers_share_one_wall_clock_budget(self):
+        recorder = Recorder()
+        translator = BudgetRecordingTranslator(first_delay=0.03)
+        pipeline = self.make_pipeline(translator, recorder)
+
+        with patch.object(
+            source_pipeline_module,
+            "PROVIDER_TIMEOUT_SECONDS",
+            0.08,
+        ):
+            pipeline.submit_trace(
+                make_trace("shared-budget", providers=("Google", "Bing"))
+            )
+            self.assertTrue(recorder.wait_for(lambda: len(recorder.finals) == 1))
+
+        self.assertEqual(translator.calls, ["Google", "Bing"])
+        self.assertAlmostEqual(translator.timeouts[0], 0.08, places=3)
+        self.assertGreater(translator.timeouts[1], 0)
+        self.assertLess(translator.timeouts[1], translator.timeouts[0])
+
+    def test_provider_ignoring_timeout_releases_to_local_fallback(self):
+        recorder = Recorder()
+        translator = TimeoutIgnoringTranslator()
+        pipeline = self.make_pipeline(
+            translator,
+            recorder,
+            local_fallback_enabled=lambda: True,
+        )
+        started = time.monotonic()
+
+        with patch.object(
+            source_pipeline_module,
+            "PROVIDER_TIMEOUT_SECONDS",
+            0.05,
+        ):
+            pipeline.submit_trace(
+                make_trace("wall-timeout-local", providers=("Google", "Bing"))
+            )
+            self.assertTrue(
+                recorder.wait_for(lambda: len(recorder.finals) == 1, timeout=0.2)
+            )
+
+        elapsed = time.monotonic() - started
+        terminal = recorder.finals[0].translations[0]
+        self.assertLess(elapsed, 0.2)
+        self.assertEqual(terminal.status, TranslationStatus.SUCCESS)
+        self.assertEqual(terminal.engine, "CTranslate2")
+        self.assertEqual(translator.calls, ["Google", "CTranslate2"])
+        self.assertEqual(translator.timeout_quarantines, ["Google"])
+
+    def test_provider_ignoring_timeout_skips_without_local_fallback(self):
+        recorder = Recorder()
+        translator = TimeoutIgnoringTranslator()
+        pipeline = self.make_pipeline(
+            translator,
+            recorder,
+            local_fallback_enabled=lambda: False,
+        )
+
+        with patch.object(
+            source_pipeline_module,
+            "PROVIDER_TIMEOUT_SECONDS",
+            0.05,
+        ):
+            pipeline.submit_trace(
+                make_trace("wall-timeout-skip", providers=("Google", "Bing"))
+            )
+            self.assertTrue(
+                recorder.wait_for(lambda: len(recorder.finals) == 1, timeout=0.2)
+            )
+
+        terminal = recorder.finals[0].translations[0]
+        self.assertEqual(terminal.status, TranslationStatus.TIMEOUT)
+        self.assertEqual(terminal.engine, "Google")
+        self.assertEqual(translator.calls, ["Google"])
+        self.assertEqual(translator.timeout_quarantines, ["Google"])
 
     def test_empty_provider_snapshot_errors_each_slot_and_finalizes_once(self):
         recorder = Recorder()

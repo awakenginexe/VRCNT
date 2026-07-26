@@ -18,7 +18,11 @@ from models.pipeline.pipeline_types import (
     TranslationStatus,
     TranslationTarget,
 )
-from models.pipeline.source_pipeline import SourcePipeline
+from models.pipeline.source_pipeline import (
+    MAX_ACTIVE_TRACES_PER_SOURCE,
+    MAX_TRANSLATION_JOBS_PER_SOURCE,
+    SourcePipeline,
+)
 
 
 def output_config():
@@ -108,14 +112,15 @@ class ProgressivePipelineTests(unittest.TestCase):
         self.addCleanup(lambda: pipeline.stop(11, discard_pending=True))
         return pipeline
 
-    def test_ninth_waiting_job_displaces_exact_oldest_unstarted_slot(self):
+    def test_capacity_plus_one_displaces_exact_oldest_unstarted_slot(self):
         harness = Harness()
         translator = BlockingTranslator()
         pipeline = self.make_pipeline(translator, harness)
         pipeline.submit_trace(trace("in-flight"))
         self.assertTrue(translator.entered.wait(timeout=1.0))
 
-        for index in range(9):
+        submitted_waiting = MAX_TRANSLATION_JOBS_PER_SOURCE + 1
+        for index in range(submitted_waiting):
             pipeline.submit_trace(trace(f"waiting-{index}"))
 
         skipped = [
@@ -131,10 +136,16 @@ class ProgressivePipelineTests(unittest.TestCase):
         self.assertEqual(overload[-1].dropped_count, 1)
         self.assertEqual(
             [item.trace_id for item in harness.initial],
-            ["in-flight"] + [f"waiting-{i}" for i in range(9)],
+            ["in-flight"] + [
+                f"waiting-{i}" for i in range(submitted_waiting)
+            ],
         )
         translator.release.set()
-        self.assertTrue(harness.wait_for(lambda: len(harness.finals) == 10))
+        self.assertTrue(
+            harness.wait_for(
+                lambda: len(harness.finals) == submitted_waiting + 1
+            )
+        )
 
     def test_partial_multi_target_displacement_only_terminates_exact_slot(self):
         harness = Harness()
@@ -147,7 +158,7 @@ class ProgressivePipelineTests(unittest.TestCase):
             TranslationTarget("surviving-slot", "German", "Germany"),
         )
         pipeline.submit_trace(trace("partial", targets=targets))
-        for index in range(7):
+        for index in range(MAX_TRANSLATION_JOBS_PER_SOURCE - 1):
             pipeline.submit_trace(trace(f"filler-{index}"))
 
         partial_before_release = [
@@ -219,7 +230,7 @@ class ProgressivePipelineTests(unittest.TestCase):
         )
         self.assertEqual(len(harness.finals), 1)
 
-    def test_bounded_admission_rejects_seventeenth_while_output_is_blocked(self):
+    def test_bounded_admission_rejects_capacity_plus_one_while_output_is_blocked(self):
         harness = Harness()
         translator = BlockingTranslator()
         translator.release.set()
@@ -233,45 +244,66 @@ class ProgressivePipelineTests(unittest.TestCase):
             harness.append(harness.finals, item)
 
         pipeline = self.make_pipeline(translator, harness, blocked_finalizer)
-        for index in range(16):
+        for index in range(MAX_ACTIVE_TRACES_PER_SOURCE):
             pipeline.submit_trace(trace(f"active-{index}", targets=()))
         self.assertTrue(finalizer_entered.wait(timeout=1.0))
 
         admission_returned = threading.Event()
 
-        def submit_seventeenth():
-            pipeline.submit_trace(trace("rejected-17"))
+        rejected_trace_id = f"rejected-{MAX_ACTIVE_TRACES_PER_SOURCE + 1}"
+
+        def submit_capacity_plus_one():
+            pipeline.submit_trace(trace(rejected_trace_id))
             admission_returned.set()
 
-        submitter = threading.Thread(target=submit_seventeenth, daemon=True)
+        submitter = threading.Thread(
+            target=submit_capacity_plus_one,
+            daemon=True,
+        )
         submitter.start()
         self.assertTrue(admission_returned.wait(timeout=1.0))
         self.assertFalse(release_finalizer.is_set())
-        self.assertEqual(harness.initial[-1].trace_id, "rejected-17")
-        rejected_updates = [item for item in harness.updates if item.trace_id == "rejected-17"]
+        self.assertEqual(harness.initial[-1].trace_id, rejected_trace_id)
+        rejected_updates = [
+            item for item in harness.updates
+            if item.trace_id == rejected_trace_id
+        ]
         self.assertEqual(
             [item.status for item in rejected_updates],
             [TranslationStatus.SKIPPED_OVERLOAD],
         )
-        rejected_metrics = [item for item in harness.metrics if item.trace_id == "rejected-17"]
+        rejected_metrics = [
+            item for item in harness.metrics
+            if item.trace_id == rejected_trace_id
+        ]
         self.assertEqual([item.outcome for item in rejected_metrics], ["skipped_overload"])
         self.assertEqual(len(translator.calls), 0)
         release_finalizer.set()
         submitter.join(timeout=1.0)
-        self.assertTrue(harness.wait_for(lambda: len(harness.finals) == 16))
+        self.assertTrue(
+            harness.wait_for(
+                lambda: len(harness.finals)
+                == MAX_ACTIVE_TRACES_PER_SOURCE
+            )
+        )
         self.assertEqual(len(translator.calls), 0)
-        self.assertNotIn("rejected-17", [item.trace_id for item in harness.finals])
+        self.assertNotIn(
+            rejected_trace_id,
+            [item.trace_id for item in harness.finals],
+        )
         self.assertEqual(
-            [item.trace_id for item in harness.initial].count("rejected-17"),
+            [item.trace_id for item in harness.initial].count(
+                rejected_trace_id
+            ),
             1,
         )
         rejected_updates_after_release = [
             item for item in harness.updates
-            if item.trace_id == "rejected-17"
+            if item.trace_id == rejected_trace_id
         ]
         rejected_metrics_after_release = [
             item for item in harness.metrics
-            if item.trace_id == "rejected-17"
+            if item.trace_id == rejected_trace_id
         ]
         self.assertEqual(
             [item.status for item in rejected_updates_after_release],
@@ -320,7 +352,7 @@ class ProgressivePipelineTests(unittest.TestCase):
 
         def submit_without_output_capacity():
             pipeline.submit_trace(trace("ready-zero", targets=()))
-            for index in range(9):
+            for index in range(MAX_TRANSLATION_JOBS_PER_SOURCE + 1):
                 pipeline.submit_trace(trace(f"queued-{index}"))
             submissions_returned.set()
 
@@ -338,7 +370,10 @@ class ProgressivePipelineTests(unittest.TestCase):
             [("queued-0", "slot")],
         )
         self.assertIn("ready-zero", [item.trace_id for item in harness.initial])
-        self.assertIn("queued-8", [item.trace_id for item in harness.initial])
+        self.assertIn(
+            f"queued-{MAX_TRANSLATION_JOBS_PER_SOURCE}",
+            [item.trace_id for item in harness.initial],
+        )
         release_finalizer.set()
         submitter.join(timeout=1.0)
 
@@ -380,12 +415,14 @@ class ProgressivePipelineTests(unittest.TestCase):
         self.addCleanup(lambda: pipeline.stop(11, discard_pending=True))
         pipeline.submit_trace(trace("in-flight"))
         self.assertTrue(translator.entered.wait(timeout=1.0))
-        for index in range(8):
+        for index in range(MAX_TRANSLATION_JOBS_PER_SOURCE):
             pipeline.submit_trace(trace(f"waiting-{index}"))
 
         submitter = threading.Thread(
             target=lambda: (
-                pipeline.submit_trace(trace("waiting-8")),
+                pipeline.submit_trace(
+                    trace(f"waiting-{MAX_TRANSLATION_JOBS_PER_SOURCE}")
+                ),
                 overload_submit_returned.set(),
             ),
             daemon=True,

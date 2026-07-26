@@ -4,7 +4,7 @@ import { chunkArray } from "@utils";
 import { useStore_IsOpenedTranscriptionEngineSelector } from "@store";
 import { useTranscription } from "@logics_configs";
 
-export const TranscriptionEngineSelector = ({ selected_id }) => {
+export const TranscriptionEngineSelector = ({ selected_id, placement = "settings" }) => {
     const engines = [
         { id: "Google", label: "Google\n(Cloud)", is_available: true },
         { id: "Whisper", label: "Whisper\n(CPU/GPU)", is_available: true },
@@ -16,7 +16,7 @@ export const TranscriptionEngineSelector = ({ selected_id }) => {
     const columns = chunkArray(engines, 2);
 
     return (
-        <div className={styles.container}>
+        <div className={styles.container} data-placement={placement}>
             <div className={styles.relative_container}>
                 <div className={styles.wrapper}>
                     {columns.map((column, column_index) => (
@@ -56,8 +56,8 @@ const EngineBox = (props) => {
     };
 
     return (
-        <div className={box_class_name} onClick={selectEngine}>
+        <button type="button" className={box_class_name} onClick={selectEngine}>
             <p className={styles.engine_name}>{props.label}</p>
-        </div>
+        </button>
     );
 };

@@ -7,8 +7,12 @@ export const SectionTitleBox = () => {
     const { currentSelectedConfigTabId } = useStore_SelectedConfigTabId();
     const getTitle = () => {
         if (currentSelectedConfigTabId.data === "vr") return "VR";
-        if (currentSelectedConfigTabId.data === "supporters") return "Credit";
-        if (currentSelectedConfigTabId.data === "about_vrct") return "About VRCNT-Next";
+        if (currentSelectedConfigTabId.data === "model_and_provider") {
+            return t("config_page.focus_settings.section_labels.model_and_provider");
+        }
+        if (currentSelectedConfigTabId.data === "about") {
+            return t("config_page.focus_settings.section_labels.about");
+        }
         return t(`config_page.side_menu_labels.${currentSelectedConfigTabId.data}`);
     };
     return (

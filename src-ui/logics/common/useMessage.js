@@ -5,6 +5,7 @@ import {
 } from "@store";
 
 import { useStdoutToPython } from "@useStdoutToPython";
+import { useNotificationStatus } from "./useNotificationStatus";
 import {
     createMessageLogEntry,
     mergeTranslationUpdateByTrace,
@@ -16,6 +17,7 @@ export const useMessage = () => {
     const { currentMessageLogs, addMessageLogs, updateMessageLogs } = useStore_MessageLogs();
     const { currentMessageInputValue, updateMessageInputValue } = useStore_MessageInputValue();
     const { asyncStdoutToPython } = useStdoutToPython();
+    const { showNotification_Error } = useNotificationStatus();
 
     const sendMessage = (message) => {
         const uuid = crypto.randomUUID();
@@ -77,6 +79,22 @@ export const useMessage = () => {
         );
     };
 
+    const retryTranslation = (payload) => {
+        asyncStdoutToPython("/run/retry_translation", payload);
+    };
+
+    const handleManualTranslationRetryAdmission = (payload) => {
+        if (payload?.accepted !== false) return;
+        const providers = Object.keys(payload?.cooldowns ?? {});
+        const providerLabel = providers.length > 0
+            ? providers.join(" + ")
+            : "Selected translation service";
+        const message = payload?.reason === "retry_active"
+            ? "This sentence is already being translated."
+            : `${providerLabel} is still cooling down. Try again when the countdown finishes.`;
+        showNotification_Error(message, { category_id: "manual_translation_retry" });
+    };
+
     const startTyping = () => {
         const now = Date.now();
         if (now - store.last_executed_time_startTyping >= 2000) {
@@ -98,6 +116,8 @@ export const useMessage = () => {
         addSentMessageLog,
         addReceivedMessageLog,
         updateTranscriptionTranslation,
+        retryTranslation,
+        handleManualTranslationRetryAdmission,
 
         currentMessageInputValue,
         updateMessageInputValue,

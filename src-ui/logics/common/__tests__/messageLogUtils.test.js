@@ -33,6 +33,26 @@ const createProgressiveLog = () => createMessageLogEntry(
     { id: "local-id", createdAt: "10:30", nowMs: 1_000 },
 );
 
+test("presents all rate-limited providers and the next probe delay", () => {
+    const presentation = getTranslationPresentation({
+        status: "error",
+        engine: "Bing",
+        error_code: "providers_rate_limited",
+        failed_engines: ["Google", "Bing"],
+        retry_after_seconds: 30,
+        duration_ms: 4,
+    });
+
+    assert.equal(
+        presentation.textKey,
+        "main_page.message_log.translation_status.rate_limited",
+    );
+    assert.deepEqual(presentation.textValues, {
+        engines: "Google + Bing",
+        seconds: 30,
+    });
+});
+
 test("normalizes legacy translations with stable string target slots", () => {
     const entry = createMessageLogEntry(
         {
@@ -330,6 +350,26 @@ test("formats milliseconds below one second and one-decimal seconds at or above 
     assert.equal(formatDurationMs(1_000), "1.0s");
     assert.equal(formatDurationMs(1_449), "1.4s");
     assert.equal(formatDurationMs(1_450), "1.4s");
+});
+
+test("a newer manual retry generation can move a terminal row back to active", () => {
+    const terminal = mergeTranslationUpdateByTrace([createProgressiveLog()], {
+        trace_id: "speaker-test",
+        target_slot: "1",
+        status: "timeout",
+        retry_generation: 1,
+    }, 100);
+    const retried = mergeTranslationUpdateByTrace(terminal, {
+        trace_id: "speaker-test",
+        target_slot: "1",
+        status: "queued",
+        engine: "Bing",
+        retry_generation: 2,
+    }, 200);
+
+    assert.equal(retried[0].messages.translations[0].status, "queued");
+    assert.equal(retried[0].messages.translations[0].engine, "Bing");
+    assert.equal(retried[0].messages.translations[0].retry_generation, 2);
 });
 
 test("maps active, terminal, and provider-error states to localized presentation", () => {

@@ -20,7 +20,7 @@ export const UpdateNotificationController = () => {
 
         hasNotifiedRef.current = true;
         showNotification_Warning(
-            `VRCNT-Next ${currentLatestSoftwareVersionInfo.data.new_version} is available. Open the Update button to visit GitHub Releases.`,
+            `VRCNT ${currentLatestSoftwareVersionInfo.data.new_version} is available. Open the Update button to visit GitHub Releases.`,
             {
                 category_id: "software_update_available",
                 hide_duration: 10000,

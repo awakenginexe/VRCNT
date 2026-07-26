@@ -5,17 +5,17 @@
 
 blocking_operation:
     dialog_label: "処理中"
-    startup_operation: "VRCNT-Next を起動しています"
+    startup_operation: "VRCNT を起動しています"
     phase_label: "現在のステップ"
     progress_label: "起動の進行状況"
     progress_steps: "{{current}} / {{total}}"
     progress_indeterminate: "処理しています…"
     elapsed: "経過 {{seconds}} 秒"
     startup_failed: "起動を完了できませんでした"
-    startup_failed_detail: "VRCNT-Next を再起動してください。続く場合はアプリのログを確認してください。"
+    startup_failed_detail: "VRCNT を再起動してください。続く場合はアプリのログを確認してください。"
     backend_startup_progress: "バックエンド起動 {{current}} / {{total}}"
     backend_unavailable: "バックエンドを利用できないため、変更は適用されませんでした。"
-    backend_disconnected: "バックエンドが停止しました。VRCNT-Next を再起動してください。"
+    backend_disconnected: "バックエンドが停止しました。VRCNT を再起動してください。"
 
 common:
     go_back_button_label: "戻る"
@@ -28,6 +28,7 @@ common_error:
     failed_download_weight_whisper: "Whisper モデルのダウンロードに失敗しました。"
     failed_download_weight_sensevoice: "SenseVoice モデルのダウンロードに失敗しました。"
     translation_limit: "翻訳エンジンの使用制限に達したか、一時的に利用制限がかけられています。"
+    translation_rate_limited: "{{engines}} はレート制限中です。{{seconds}}秒後、次の翻訳で自動的に再試行します。"
     deepl_auth_key_invalid_length: "認証キーの文字数が間違っています。"
     deepl_auth_key_failed_authentication: "認証キーが間違っているか、API使用制限が上限に達しています。"
 
@@ -42,7 +43,36 @@ common_error:
 common_warning:
     unable_to_use_osc_query: "OSC IP Address の設定によりOSCデータの受信ができないため、以下の機能が自動的に無効になっています。"
 
+about_page:
+    version: "バージョン {{version}}"
+    title: "VRChatのための次世代翻訳"
+    description: "VRCNTは、多言語のVRChat会話のために独自開発された翻訳・文字起こし支援アプリです。"
+    repositories_title: "プロジェクトリポジトリ"
+    repositories_description: "VRCNTの開発を確認するか、本プロジェクトの出発点となった元のVRCTを参照できます。"
+    vrcnt_repository: "VRCNT GitHub"
+    vrct_repository: "元のVRCT GitHub"
+    lineage_title: "プロジェクトの経緯"
+    lineage_description: "VRCNTはVRCTから始まり、一部のコードは現在も同プロジェクトを基にしています。その後、UI、ワークフロー、翻訳パイプライン、アプリの大部分をVRCNT向けに大幅に再構築しました。これは独立したプロジェクトであり、VRCTの公式リリースではありません。"
+    origin_label: "出発点"
+    origin_value: "misyaguziyaによるVRCT"
+    current_label: "現在のプロジェクト"
+    current_value: "awakenginexeによるVRCNT"
+    independence_title: "独立したソフトウェア"
+    independence_description: "VRCNTはVRChat Inc.と提携しておらず、同社の承認も受けていません。VRChatおよび関連する名称は各権利者の商標です。"
+
 main_page:
+    live_weave:
+        navigation:
+            live: "Live Weave"
+            history: "履歴"
+            models: "モデルとプロバイダー"
+            overlay: "オーバーレイスタジオ"
+            settings: "設定"
+        session_live: "セッション接続中"
+        conversation_title: "ライブ会話"
+        conversation_detail: "翻訳を中心に表示します。対応が必要なときだけシステム状態を表示します。"
+        empty_title: "Live Weave の準備ができました"
+        empty_detail: "Listening または Speaking を有効にして翻訳会話を開始します。"
     translation: "翻訳"
     transcription_send: "マイク入力"
     transcription_receive: "聞き取り"
@@ -83,7 +113,7 @@ main_page:
         you_title: "あなた"
         you_desc: "音声入力と自分向けの翻訳出力"
         targets_title: "翻訳先"
-        targets_desc: "VRCNT-Next が翻訳を届ける相手を選択"
+        targets_desc: "VRCNT が翻訳を届ける相手を選択"
         engines_title: "エンジン"
         engines_desc: "翻訳と文字起こしをすばやく切り替え"
         your_speaking_language: "話す言語"
@@ -125,6 +155,8 @@ main_page:
         is_selected_same_language: "「{{your_language}}」と「{{target_language}}」に同じ言語が選択がされているため、「{{ctranslate2}}」のみが使用できます。"
         use_parallel_service: "並列サービスを使用"
         second_translator: "2つ目の翻訳エンジン"
+        local_fallback: "CTranslate2へ自動フォールバック"
+        local_fallback_desc: "既定ではオフです。有効にすると準備済みのローカルモデルがクラウドの待機分を処理し、すべてのクラウドサービスが制限中または失敗した場合に引き継ぎます。クラウドへの送信間隔を調整し、表示された待機時間の後に自動再試行します。"
         primary_badge: "1st"
         secondary_badge: "2nd"
 
@@ -143,10 +175,15 @@ main_page:
             success_meta: "{{engine}} · {{duration}}"
             timeout: "翻訳を利用できません · {{engine}} がタイムアウトしました"
             error: "翻訳を利用できません · {{engine}} が失敗しました"
+            rate_limited: "翻訳を利用できません · {{engines}} はレート制限中 · {{seconds}}秒後に自動再試行"
             skipped_overload: "翻訳をスキップしました · キューが過負荷です"
             no_provider: "翻訳を利用できません · プロバイダーが未選択です"
             unavailable: "翻訳を利用できません"
             queue_position: "キュー {{position}}"
+            retry: "翻訳"
+
+    translation_cooldown:
+        retry_in: "{{seconds}}秒後に{{engine}}を再試行"
 
     state_text_enabled: "有効"
     state_text_disabled: "無効"
@@ -156,6 +193,15 @@ main_page:
         title_target_language: "相手の言語"
         unsupported_by_model: "{{engine}} は選択中のモデルでこの言語に対応していません。"
         model_support_hint: "{{engine}} では、選択中のモデルが対応する言語のみ有効になります。"
+        picker_detail: "言語名または国名で検索できます。"
+        search_placeholder: "言語または国を検索"
+        search_label: "言語を検索"
+        open_legacy_layout: "従来の VR レイアウトを開く"
+        open_compact_layout: "検索レイアウトに戻る"
+        no_results_title: "言語が見つかりません"
+        no_results_detail: "「{{query}}」に一致する言語はありません。"
+        language_list_unavailable: "言語リストはまだ利用できません。"
+        close: "言語選択を閉じる"
 
     main_function_tooltips:
         translation_title: "翻訳"
@@ -165,7 +211,7 @@ main_page:
         transcription_receive_title: "聞く"
         transcription_receive_detail: "相手から聞こえる音声を文字起こしします。"
         foreground_title: "最前面固定"
-        foreground_detail: "VRCNT-Next を他のウィンドウの前面に固定します。"
+        foreground_detail: "VRCNT を他のウィンドウの前面に固定します。"
         settings_title: "設定"
         settings_detail: "アプリ設定を開きます。"
         control_title: "操作"
@@ -190,7 +236,7 @@ main_page:
 
 update_modal:
     cpu_desc: "処理デバイスとしてCPUのみを使用"
-    cuda_desc: "VRCNT-NextにはCUDAサポートが含まれており、対応するNVIDIA GPUがない場合でもCPUで実行できます。"
+    cuda_desc: "VRCNTにはCUDAサポートが含まれており、対応するNVIDIA GPUがない場合でもCPUで実行できます。"
     cuda_compare_cpu_desc: "GPU選択時、CPUと比べて処理が高速"
     cuda_disk_space_desc: "約{{size}}のディスク容量が必要"
     close_modal: "閉じる"
@@ -228,6 +274,43 @@ config_page:
         hotkeys: "ホットキー"
         plugins: "プラグイン"
         advanced_settings: "高度な設定"
+
+    focus_settings:
+        settings_title: "設定"
+        search_placeholder: "すべての設定を検索"
+        search_label: "設定を検索"
+        clear_search: "設定の検索をクリア"
+        navigation_label: "設定カテゴリー"
+        current_section: "現在のセクション"
+        search_results: "検索結果"
+        search_hint: "すべての設定カテゴリーを検索し、結果を開いて続行できます。"
+        applies_immediately: "変更はすぐに反映されます"
+        no_results: "設定が見つかりません"
+        no_results_detail: "別の言葉で検索するか、上のカテゴリーを選択してください。"
+        results_found: "{{count}}件の結果"
+        result_help: "結果を開くと、その設定カテゴリーへ移動します。"
+        section_labels:
+            device: "デバイス"
+            appearance: "デザイン"
+            model_and_provider: "モデルとプロバイダー"
+            translation: "翻訳"
+            transcription: "音声認識"
+            vr: "VR"
+            others: "その他"
+            hotkeys: "ホットキー"
+            advanced_settings: "高度な設定"
+            about: "このアプリについて"
+        section_descriptions:
+            device: "マイクとスピーカーを選択し、入力しきい値を調整します。"
+            appearance: "言語、表示倍率、フォント、透明度、UIの動作を調整します。"
+            model_and_provider: "翻訳プロバイダーと音声認識モデルを1つの画面で設定します。"
+            translation: "ローカルおよびクラウド翻訳エンジンと認証情報を設定します。"
+            transcription: "音声取得、認識モデル、処理デバイス、デコードを調整します。"
+            vr: "VRChat翻訳オーバーレイの位置と表示を設定します。"
+            others: "サウンド、メッセージ形式、ログ、VRChatの動作を管理します。"
+            hotkeys: "ライブ会話操作のキーボードショートカットを設定します。"
+            advanced_settings: "OSC、WebSocket、設定ファイルへの直接アクセスを設定します。"
+            about: "バージョン、プロジェクトの経緯、リポジトリへのリンクを表示します。"
 
     device:
         check_volume: "音量チェック"

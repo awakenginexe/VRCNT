@@ -46,8 +46,8 @@ ${StrLoc}
 ; The app payload is downloaded at install time, so Tauri's generated estimate is 0.
 ; Installed size tracks the current release ZIP's uncompressed payload size in KiB.
 ; Required size also includes the temporary ZIP that exists during extraction.
-!define VRCNT_NEXT_EXTERNAL_INSTALLED_SIZE_KB 6823822
-!define VRCNT_NEXT_EXTERNAL_REQUIRED_SIZE_KB 10752577
+!define VRCNT_EXTERNAL_INSTALLED_SIZE_KB 6823822
+!define VRCNT_EXTERNAL_REQUIRED_SIZE_KB 10752577
 
 Name "${PRODUCTNAME}"
 BrandingText "${COPYRIGHT}"
@@ -139,7 +139,7 @@ Var SelectedLangage
 Var DialogChooseLanguage
 Page custom PageChooseLanguage PageLeaveChooseLanguage
 Function PageChooseLanguage
-    !insertmacro MUI_HEADER_TEXT "Initial Settings" "Set the language of the VRCT UI (can be changed later)."
+    !insertmacro MUI_HEADER_TEXT "Initial Settings" "Set the language of the VRCNT UI (can be changed later)."
     nsDialogs::Create 1018
     Pop $DialogChooseLanguage
 
@@ -177,7 +177,7 @@ FunctionEnd
 
 !macro PreserveLegacyUserDataFunction FUNCTION_NAME
 Function ${FUNCTION_NAME}
-  FileOpen $0 "$TEMP\VRCNT-Next-preserve-user-data.ps1" w
+  FileOpen $0 "$TEMP\VRCNT-preserve-user-data.ps1" w
   FileWrite $0 "$$ErrorActionPreference = 'SilentlyContinue'$\r$\n"
   FileWrite $0 "$$install = $$args[0]$\r$\n"
   FileWrite $0 "$$data = Join-Path $$env:LOCALAPPDATA 'VRCNT-NextData'$\r$\n"
@@ -194,8 +194,8 @@ Function ${FUNCTION_NAME}
   FileWrite $0 "  }$\r$\n"
   FileWrite $0 "}$\r$\n"
   FileClose $0
-  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$TEMP\VRCNT-Next-preserve-user-data.ps1" "$INSTDIR"'
-  Delete "$TEMP\VRCNT-Next-preserve-user-data.ps1"
+  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$TEMP\VRCNT-preserve-user-data.ps1" "$INSTDIR"'
+  Delete "$TEMP\VRCNT-preserve-user-data.ps1"
 FunctionEnd
 !macroend
 
@@ -617,7 +617,7 @@ SectionEnd
 !macroend
 
 Section Install
-  AddSize ${VRCNT_NEXT_EXTERNAL_REQUIRED_SIZE_KB}
+  AddSize ${VRCNT_EXTERNAL_REQUIRED_SIZE_KB}
   SetOutPath $INSTDIR
 
   !insertmacro CheckIfAppIsRunning
@@ -625,7 +625,7 @@ Section Install
   !addplugindir "..\..\..\..\nsis\plugins\x86-unicode"
   ; 指定のURLからファイルをダウンロード
   !define SOFTWARE_RELEASE_URL "https://huggingface.co/AwakeNgineXE/VRCNT-Next/resolve/v${VERSION}"
-  !define SOFTWARE_DOWNLOAD_FILENAME "VRCNT-Next.zip"
+  !define SOFTWARE_DOWNLOAD_FILENAME "VRCNT.zip"
   Var /GLOBAL i
   Var /GLOBAL cmder_dl
   Var /GLOBAL cmder_version
@@ -636,7 +636,7 @@ Section Install
   DetailPrint "Got URL : $cmder_dl"
 
   DetailPrint "Downloading and extracting $file_name..."
-  FileOpen $0 "$TEMP\VRCNT-Next-install.ps1" w
+  FileOpen $0 "$TEMP\VRCNT-install.ps1" w
   FileWrite $0 "$$ErrorActionPreference = 'Stop'$\r$\n"
   FileWrite $0 "$$ProgressPreference = 'SilentlyContinue'$\r$\n"
   FileWrite $0 "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12$\r$\n"
@@ -652,9 +652,9 @@ Section Install
   FileWrite $0 "Write-Output 'Extraction complete'$\r$\n"
   FileClose $0
 
-  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$TEMP\VRCNT-Next-install.ps1" "$cmder_dl" "$TEMP\$file_name" "$INSTDIR"'
+  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$TEMP\VRCNT-install.ps1" "$cmder_dl" "$TEMP\$file_name" "$INSTDIR"'
   Pop $0
-  Delete "$TEMP\VRCNT-Next-install.ps1"
+  Delete "$TEMP\VRCNT-install.ps1"
   ${If} $0 != 0
     DetailPrint "Install Failed: download or extraction failed with exit code $0."
     Abort
@@ -690,7 +690,7 @@ Section Install
   WriteRegStr SHCTX "${UNINSTKEY}" "UninstallString" "$\"$INSTDIR\uninstall.exe$\""
   WriteRegDWORD SHCTX "${UNINSTKEY}" "NoModify" "1"
   WriteRegDWORD SHCTX "${UNINSTKEY}" "NoRepair" "1"
-  WriteRegDWORD SHCTX "${UNINSTKEY}" "EstimatedSize" "${VRCNT_NEXT_EXTERNAL_INSTALLED_SIZE_KB}"
+  WriteRegDWORD SHCTX "${UNINSTKEY}" "EstimatedSize" "${VRCNT_EXTERNAL_INSTALLED_SIZE_KB}"
 
   ; Create start menu shortcut (GUI)
   !insertmacro MUI_STARTMENU_WRITE_BEGIN Application

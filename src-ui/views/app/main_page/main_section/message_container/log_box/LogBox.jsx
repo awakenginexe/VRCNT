@@ -4,8 +4,10 @@ import { MessageContainer } from "./message_container/MessageContainer";
 import { useMessage } from "@logics_common";
 import { useMessageLogScroll } from "@logics_main";
 import { store } from "@store";
+import { useI18n } from "@useI18n";
 
 export const LogBox = () => {
+    const { t } = useI18n();
     const { currentMessageLogs } = useMessage();
     const { scrollToBottom, isScrolling } = useMessageLogScroll();
     const logContainerRef = useRef(null);
@@ -20,7 +22,12 @@ export const LogBox = () => {
     return (
         <div id="log_container" className={styles.container} ref={logContainerRef}>
             <MessageLogUiSizeController />
-            {currentMessageLogs.data.map((message_data) => (
+            {currentMessageLogs.data.length === 0 ? (
+                <div className={styles.empty_state} role="status">
+                    <strong>{t("main_page.live_weave.empty_title")}</strong>
+                    <span>{t("main_page.live_weave.empty_detail")}</span>
+                </div>
+            ) : currentMessageLogs.data.map((message_data) => (
                 <MessageContainer key={message_data.id} {...message_data} />
             ))}
         </div>

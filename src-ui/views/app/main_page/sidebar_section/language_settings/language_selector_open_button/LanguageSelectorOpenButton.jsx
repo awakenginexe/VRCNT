@@ -8,7 +8,13 @@ import {
 } from "@logics_main";
 import { LanguageFlag } from "../LanguageFlag.jsx";
 
-export const LanguageSelectorOpenButton = ({ TurnedOnSvgComponent, is_turned_on, selector_key, target_key }) => {
+export const LanguageSelectorOpenButton = ({
+    TurnedOnSvgComponent,
+    is_turned_on,
+    selector_key,
+    target_key,
+    variant = "settings",
+}) => {
     const { t } = useI18n();
     const { updateIsOpenedLanguageSelector, currentIsOpenedLanguageSelector } = useStore_IsOpenedLanguageSelector();
 
@@ -77,12 +83,21 @@ export const LanguageSelectorOpenButton = ({ TurnedOnSvgComponent, is_turned_on,
     const country_text = selectedEntry?.country ?? t("main_page.language_panels.loading");
 
     return (
-        <div className={styles.container}>
+        <div className={clsx(styles.container, styles[`variant_${variant}`])}>
             <div className={styles.title_container}>
                 <TurnedOnSvgComponent className={category_class_names} />
                 <p className={styles.title}>{title}</p>
             </div>
-            <div className={styles.dropdown_menu_container} onClick={toggleSelector}>
+            <button
+                type="button"
+                className={styles.dropdown_menu_container}
+                onClick={toggleSelector}
+                aria-haspopup="dialog"
+                aria-expanded={
+                    currentIsOpenedLanguageSelector.data[selector_key] === true &&
+                    currentIsOpenedLanguageSelector.data.target_key === target_key
+                }
+            >
                 <div className={styles.language_details}>
                     <LanguageFlag country={country_text} className={styles.flag_badge} />
                     <div className={styles.language_copy}>
@@ -91,7 +106,7 @@ export const LanguageSelectorOpenButton = ({ TurnedOnSvgComponent, is_turned_on,
                     </div>
                 </div>
                 <ArrowLeftSvg className={arrow_class_names} />
-            </div>
+            </button>
         </div>
     );
 };

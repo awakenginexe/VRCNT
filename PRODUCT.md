@@ -6,7 +6,7 @@ product
 
 ## Users
 
-VRCNT-Next serves VRChat users who participate in multilingual voice and chat sessions on Windows. They run the app beside a performance-intensive VR client and need microphone, speaker, translation, chatbox, and overlay workflows to remain understandable and responsive without leaving the session.
+VRCNT serves VRChat users who participate in multilingual voice and chat sessions on Windows. They run the app beside a performance-intensive VR client and need microphone, speaker, translation, chatbox, and overlay workflows to remain understandable and responsive without leaving the session.
 
 ## Product Purpose
 

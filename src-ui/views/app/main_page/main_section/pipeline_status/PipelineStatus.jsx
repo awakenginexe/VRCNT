@@ -141,7 +141,7 @@ export const PipelineStatus = () => {
     const queueValue = summary.queue ? String(summary.queue.queue_depth) : unavailable;
 
     return (
-        <div className={styles.container}>
+        <div className={styles.container} data-health={summary.health}>
             <StatusItem
                 label={t("main_page.pipeline_status.source")}
                 value={sourceLabel}

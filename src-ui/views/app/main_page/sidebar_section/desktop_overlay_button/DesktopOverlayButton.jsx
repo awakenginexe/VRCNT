@@ -7,11 +7,11 @@ import { useIsMainPageCompactMode } from "@logics_main";
 import ForegroundSvg from "@images/foreground.svg?react";
 import styles from "./DesktopOverlayButton.module.scss";
 
-export const DesktopOverlayButton = () => {
+export const DesktopOverlayButton = ({ forceCompact = false }) => {
     const { t } = useI18n();
     const { currentIsMainPageCompactMode } = useIsMainPageCompactMode();
     const [isPending, setIsPending] = useState(false);
-    const isCompact = currentIsMainPageCompactMode.data === true;
+    const isCompact = forceCompact || currentIsMainPageCompactMode.data === true;
 
     const openOverlay = async () => {
         if (isPending) return;
@@ -29,7 +29,7 @@ export const DesktopOverlayButton = () => {
         <Tooltip
             title={t("main_page.desktop_overlay.tooltip_title")}
             detail={t("main_page.desktop_overlay.tooltip_detail")}
-            placement="right"
+            placement={forceCompact ? "bottom-end" : "right"}
             className={styles.tooltip}
             contentClassName={styles.tooltip_content}
             usePortal

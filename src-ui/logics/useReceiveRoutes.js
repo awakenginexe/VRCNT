@@ -17,6 +17,9 @@ export const STATIC_ROUTE_META_LIST = [
     { endpoint: "/get/data/compute_mode", ns: common, hook_name: "useComputeMode", method_name: "updateComputeMode" },
     { endpoint: "/get/data/resource_usage", ns: common, hook_name: "useResourceUsage", method_name: "updateResourceUsage" },
     { endpoint: "/run/pipeline_status", ns: common, hook_name: "usePipelineStatus", method_name: "updatePipelineStatus" },
+    { endpoint: "/get/data/translation_provider_cooldowns", ns: common, hook_name: "useTranslationProviderCooldowns", method_name: "updateProviderCooldowns" },
+    { endpoint: "/run/translation_provider_cooldowns", ns: common, hook_name: "useTranslationProviderCooldowns", method_name: "updateProviderCooldowns" },
+    { endpoint: "/run/retry_translation", ns: common, hook_name: "useMessage", method_name: "handleManualTranslationRetryAdmission" },
 
     { endpoint: "/run/update_software", ns: null, hook_name: null, method_name: null },
 
@@ -98,6 +101,8 @@ export const STATIC_ROUTE_META_LIST = [
     { endpoint: "/get/data/selected_translation_engines", ns: main, hook_name: "useLanguageSettings", method_name: "updateSelectedTranslationEngines" },
     { endpoint: "/set/data/selected_translation_engines", ns: main, hook_name: "useLanguageSettings", method_name: "updateSelectedTranslationEngines" },
     { endpoint: "/run/selected_translation_engines", ns: main, hook_name: "useLanguageSettings", method_name: "updateSelectedTranslationEngines" },
+    { endpoint: "/get/data/ctranslate2_auto_fallback", ns: main, hook_name: "useLanguageSettings", method_name: "updateCTranslate2AutoFallback" },
+    { endpoint: "/set/data/ctranslate2_auto_fallback", ns: main, hook_name: "useLanguageSettings", method_name: "updateCTranslate2AutoFallback" },
 
     { endpoint: "/run/swap_your_language_and_target_language", ns: main, hook_name: "useLanguageSettings", method_name: "updateBothSelectedLanguages" },
 
@@ -164,10 +169,24 @@ export const useReceiveRoutes = () => {
     const receiveRoutes = (parsed_data) => {
         const { endpoint, status, result } = parsed_data;
 
+        if (
+            endpoint === "/get/data/translation_provider_cooldowns"
+            || endpoint === "/run/translation_provider_cooldowns"
+        ) {
+            common.updateProviderCooldowns(result);
+            return;
+        }
+
         const settleTranslationEngineSelection = () => {
             if (endpoint === "/set/data/selected_translation_engines") {
                 hook_results.useLanguageSettings
                     ?.settleSelectedTranslationEngineSelection?.();
+            }
+        };
+        const settleCTranslate2AutoFallback = () => {
+            if (endpoint === "/set/data/ctranslate2_auto_fallback") {
+                hook_results.useLanguageSettings
+                    ?.refreshCTranslate2AutoFallback?.();
             }
         };
 
@@ -194,6 +213,7 @@ export const useReceiveRoutes = () => {
 
             case 400:
                 settleTranslationEngineSelection();
+                settleCTranslate2AutoFallback();
                 hook_results.useMainFunction?.clearPendingMainFunctionError?.({
                     endpoint,
                     errorCode: result?.error_code,
@@ -215,6 +235,7 @@ export const useReceiveRoutes = () => {
             case 500:
             case 503: {
                 settleTranslationEngineSelection();
+                settleCTranslate2AutoFallback();
                 hook_results.useMainFunction?.clearPendingMainFunctionError?.({
                     endpoint,
                     errorCode: result?.error_code,
@@ -227,7 +248,7 @@ export const useReceiveRoutes = () => {
                     status,
                     result,
                     showError: () => showNotification_Error(
-                        `An error occurred. Please restart VRCNT-Next or contact the developers. ${JSON.stringify(parsed_data.result)}`,
+                        `An error occurred. Please restart VRCNT or contact the developers. ${JSON.stringify(parsed_data.result)}`,
                         { hide_duration: null },
                     ),
                 });

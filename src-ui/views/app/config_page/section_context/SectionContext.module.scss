@@ -1,0 +1,52 @@
+.container {
+    min-width: 0;
+    padding: 3.2rem 2rem;
+    background: rgba(6, 17, 28, 0.74);
+    border-right: 0.1rem solid var(--border_subtle_color);
+}
+
+.context_label {
+    color: var(--primary_250_color);
+    font-size: 0.9rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.container h1 {
+    margin: 0.7rem 0 0;
+    color: var(--dark_100_color);
+    font-size: 2rem;
+    font-weight: 850;
+    letter-spacing: -0.03em;
+    text-wrap: balance;
+}
+
+.container p {
+    max-width: 30ch;
+    margin: 1rem 0 0;
+    color: var(--dark_350_color, var(--dark_300_color));
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.55;
+    text-wrap: pretty;
+}
+
+.note {
+    margin-top: 2.6rem;
+    padding-top: 1.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    color: var(--dark_500_color);
+    font-size: 0.9rem;
+    border-top: 0.1rem solid var(--border_subtle_color);
+}
+
+.note_dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: #67e8c3;
+}

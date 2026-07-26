@@ -1,35 +1,41 @@
 <p align="center">
-  <img src="logo/VRCNT%20FULL-transparent.png" alt="VRCNT-Next" width="520" />
+  <img src="logo/VRCNT.png" alt="VRCNT" width="420" />
 </p>
 
 <p align="center">
-  <strong>A cleaner VRChat translation and transcription app, based on VRCT.</strong>
+  <strong>Realtime translation and transcription for VRChat.</strong>
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-3.0.0-20d6ff?style=for-the-badge&labelColor=071018" />
-  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-7c4dff?style=for-the-badge&labelColor=071018" />
-  <img alt="License" src="https://img.shields.io/badge/license-MIT-35e0c2?style=for-the-badge&labelColor=071018" />
+  <img alt="Version" src="https://img.shields.io/badge/version-4.0.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>
 
-## What is VRCNT-Next?
+## About VRCNT
 
-VRCNT-Next is an unofficial VRChat translation and transcription tool. It is built from the open-source [VRCT](https://github.com/misyaguziya/VRCT) codebase and shaped into a simpler, cleaner VRCNT-Next experience.
-
-The goal is practical: make multilingual VRChat sessions easier with local AI models, readable language controls, VR overlay support, and a modern interface without extra features that do not belong in the app.
+VRCNT is an unofficial VRChat translation and transcription app based on the
+open-source [VRCT](https://github.com/misyaguziya/VRCT) project. It is designed
+for conversations where latency matters: speech should become readable
+translation quickly, without a slow cloud provider freezing the rest of the
+session.
 
 ## Highlights
 
-- Translate messages for VRChat chatbox workflows.
-- Transcribe microphone and speaker audio.
-- Use one Windows release package with CUDA support included.
-- Fall back to CPU processing when a supported NVIDIA GPU is not available.
-- Install signed in-app updates without deleting downloaded models.
-- Show clearer country flags and language selectors.
-- Display translation logs in a VR overlay.
-- Keep the UI focused by removing the plugin system.
+- Realtime microphone and speaker transcription.
+- Multiple translation providers with automatic failover.
+- A shared five-second cloud translation budget per sentence.
+- Background provider cooldowns instead of blocking the live conversation.
+- Optional local CTranslate2 fallback when cloud services are unavailable.
+- Manual retry for an individual skipped or failed sentence.
+- VR overlay, desktop overlay, clipboard, OSC, and VRChat chatbox output.
+- One CUDA-enabled Windows build that can also use CPU processing.
+- A focused matte-black and violet desktop interface.
 
 ## Preview
+
+The current preview images are retained for now and will be refreshed for the
+new VRCNT interface later.
 
 <table align="center">
   <tr>
@@ -74,57 +80,42 @@ The goal is practical: make multilingual VRChat sessions easier with local AI mo
   </tr>
 </table>
 
-## Download
-
-This repository is prepared for a single VRCNT-Next Windows release package:
-
-- Portable package: `VRCNT-Next.zip`
-- Windows installer: `VRCNT-Next_3.0.0_x64-setup.exe`
-
-VRCNT-Next ships CUDA support in the main package. Users without a supported NVIDIA GPU can still run the app with CPU processing from the same download.
-
-Downloaded models are stored in `%LOCALAPPDATA%\VRCNT-NextData\weights` so app updates and reinstalls do not remove them.
-
-For development builds, the generated app is written to:
-
-```text
-src-tauri/target/release/VRCNT-Next.exe
-```
-
 ## Build
 
-Install dependencies first:
+Install dependencies:
 
 ```powershell
-npm install
+npm ci
 ```
 
-Build the release version:
+Build the CUDA sidecar and Windows app:
 
 ```powershell
 npm run build-cuda
 ```
 
-Create the portable release package:
+The release executable and installer are generated under
+`src-tauri/target/release`.
 
-```powershell
-npm run release
-```
+Downloaded models remain in `%LOCALAPPDATA%\VRCNT-NextData\weights` so the
+rebrand and future upgrades do not discard existing model files.
 
-## Project Lineage
+## Known issue
 
-VRCNT-Next is based on [VRCT](https://github.com/misyaguziya/VRCT) by misyaguziya.
+Fallback translation cooldown timing may be delayed while translations are queued.
+This is tracked for a follow-up fix.
 
-The original VRCT project is MIT licensed. VRCNT-Next keeps the original copyright notice and license text, and adds VRCNT-Next attribution for the modified fork.
+## Project lineage
 
-## Issues
+VRCNT is based on [VRCT](https://github.com/misyaguziya/VRCT) by misyaguziya.
+The original project and this fork are distributed under the MIT License.
 
-Please report VRCNT-Next bugs in [awakenginexe/VRCNT-Next Issues](https://github.com/awakenginexe/VRCNT-Next/issues). Do not report VRCNT-Next-specific crashes to the upstream VRCT issue tracker.
+Report VRCNT-specific problems through the
+[VRCNT issue tracker](https://github.com/awakenginexe/VRCNT-Next/issues),
+not the upstream VRCT tracker.
 
-## License
+## License and disclaimer
 
-This project is released under the MIT License. See [LICENSE](LICENSE) and [NOTICE.md](NOTICE.md).
-
-## Disclaimer
-
-VRCNT-Next is unofficial software. It is not endorsed by VRChat and does not reflect the views or opinions of VRChat or anyone officially involved in producing or managing VRChat properties. VRChat and all associated properties are trademarks or registered trademarks of VRChat Inc.
+See [LICENSE](LICENSE) and [NOTICE.md](NOTICE.md). VRCNT is unofficial software;
+it is not endorsed by VRChat. VRChat and its associated properties are
+trademarks or registered trademarks of VRChat Inc.

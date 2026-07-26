@@ -5,17 +5,17 @@
 
 blocking_operation:
     dialog_label: "操作进行中"
-    startup_operation: "正在启动 VRCNT-Next"
+    startup_operation: "正在启动 VRCNT"
     phase_label: "当前步骤"
     progress_label: "启动进度"
     progress_steps: "{{current}} / {{total}}"
     progress_indeterminate: "正在处理…"
     elapsed: "已用 {{seconds}} 秒"
     startup_failed: "无法完成启动"
-    startup_failed_detail: "请重新启动 VRCNT-Next。如果问题持续，请检查应用日志。"
+    startup_failed_detail: "请重新启动 VRCNT。如果问题持续，请检查应用日志。"
     backend_startup_progress: "后端启动 {{current}} / {{total}}"
     backend_unavailable: "后端不可用，您的更改尚未应用。"
-    backend_disconnected: "后端已停止。请重新启动 VRCNT-Next 后继续。"
+    backend_disconnected: "后端已停止。请重新启动 VRCNT 后继续。"
 
 common:
     go_back_button_label: "返回"
@@ -28,6 +28,7 @@ common_error:
     failed_download_weight_whisper: "Whisper 模型下载失败。"
     failed_download_weight_sensevoice: "SenseVoice 模型下载失败。"
     translation_limit: "已达到翻译引擎使用限制或临时受到使用限制。"
+    translation_rate_limited: "{{engines}} 已达到速率限制。{{seconds}} 秒后，下一次翻译会自动重新测试。"
     deepl_auth_key_invalid_length: "授权密钥字符数错误。"
     deepl_auth_key_failed_authentication: "授权密钥错误或已达API使用上限。"
 
@@ -42,7 +43,36 @@ common_error:
 common_warning:
     unable_to_use_osc_query: "由于 OSC IP Address 的设置无法接收 OSC 数据，以下功能已自动禁用。"
 
+about_page:
+    version: "版本 {{version}}"
+    title: "面向 VRChat 的新一代翻译"
+    description: "VRCNT 是一款独立开发的翻译与语音识别工具，面向 VRChat 中的实时多语言对话。"
+    repositories_title: "项目仓库"
+    repositories_description: "关注 VRCNT 的开发，或查看帮助本项目起步的原始 VRCT 项目。"
+    vrcnt_repository: "VRCNT GitHub"
+    vrct_repository: "原始 VRCT GitHub"
+    lineage_title: "项目沿革"
+    lineage_description: "VRCNT 起步于 VRCT，部分代码仍基于该项目。此后，界面、工作流、翻译管线以及应用的大部分内容都已针对 VRCNT 进行大幅重构。它是一个独立项目，并非 VRCT 的官方版本。"
+    origin_label: "起步于"
+    origin_value: "misyaguziya 的 VRCT"
+    current_label: "当前项目"
+    current_value: "awakenginexe 的 VRCNT"
+    independence_title: "独立软件"
+    independence_description: "VRCNT 与 VRChat Inc. 无关联，也未获得其认可。VRChat 及相关内容是其各自所有者的商标。"
+
 main_page:
+    live_weave:
+        navigation:
+            live: "Live Weave"
+            history: "历史记录"
+            models: "模型与服务商"
+            overlay: "叠加层工作室"
+            settings: "设置"
+        session_live: "会话正常"
+        conversation_title: "实时对话"
+        conversation_detail: "翻译始终居中显示。只有需要处理时才显示系统状态。"
+        empty_title: "Live Weave 已就绪"
+        empty_detail: "启用 Listening 或 Speaking 以开始翻译对话。"
     translation: "翻译"
     transcription_send: "你的语音转文字"
     transcription_receive: "他人语音转文字"
@@ -83,7 +113,7 @@ main_page:
         you_title: "你"
         you_desc: "语音输入和个人翻译输出"
         targets_title: "目标"
-        targets_desc: "选择 VRCNT-Next 要翻译给谁"
+        targets_desc: "选择 VRCNT 要翻译给谁"
         engines_title: "引擎"
         engines_desc: "快速切换翻译和语音识别"
         your_speaking_language: "你的说话语言"
@@ -125,6 +155,8 @@ main_page:
         is_selected_same_language: "「{{your_language}}」和「{{target_language}}」选择了相同的语言，因此只能使用「{{ctranslate2}}」。"
         use_parallel_service: "使用并行服务"
         second_translator: "第二翻译器"
+        local_fallback: "自动回退到 CTranslate2"
+        local_fallback_desc: "默认关闭。启用后，已准备的本地模型会处理云端积压，并在所有云服务受限或失败时接管。系统会限制云端请求频率，并在显示的冷却时间结束后自动重试。"
         primary_badge: "1st"
         secondary_badge: "2nd"
 
@@ -143,10 +175,15 @@ main_page:
             success_meta: "{{engine}} · {{duration}}"
             timeout: "翻译不可用 · {{engine}} 请求超时"
             error: "翻译不可用 · {{engine}} 失败"
+            rate_limited: "翻译不可用 · {{engines}} 已达到速率限制 · {{seconds}} 秒后自动重试"
             skipped_overload: "已跳过翻译 · 队列过载"
             no_provider: "翻译不可用 · 未选择服务商"
             unavailable: "翻译不可用"
             queue_position: "队列 {{position}}"
+            retry: "翻译"
+
+    translation_cooldown:
+        retry_in: "{{seconds}} 秒后重试 {{engine}}"
 
     state_text_enabled: "启用"
     state_text_disabled: "停用"
@@ -156,6 +193,15 @@ main_page:
         title_target_language: "目标语言"
         unsupported_by_model: "{{engine}} 使用所选模型时不支持此语言。"
         model_support_hint: "{{engine}} 只启用所选模型支持的语言。"
+        picker_detail: "按语言或国家搜索。"
+        search_placeholder: "搜索语言或国家"
+        search_label: "搜索语言"
+        open_legacy_layout: "打开旧版 VR 布局"
+        open_compact_layout: "返回搜索布局"
+        no_results_title: "未找到语言"
+        no_results_detail: "没有与“{{query}}”匹配的语言。"
+        language_list_unavailable: "语言列表暂时不可用。"
+        close: "关闭语言选择器"
 
     main_function_tooltips:
         translation_title: "翻译"
@@ -165,7 +211,7 @@ main_page:
         transcription_receive_title: "聆听"
         transcription_receive_detail: "转写你从其他人听到的音频。"
         foreground_title: "置顶"
-        foreground_detail: "让 VRCNT-Next 保持在其他窗口上方。"
+        foreground_detail: "让 VRCNT 保持在其他窗口上方。"
         settings_title: "设置"
         settings_detail: "打开应用设置。"
         control_title: "控制"
@@ -190,7 +236,7 @@ main_page:
 
 update_modal:
     cpu_desc: "仅使用 CPU 作为处理设备"
-    cuda_desc: "VRCNT-Next 已包含 CUDA 支持；没有受支持的 NVIDIA GPU 时仍可使用 CPU 运行。"
+    cuda_desc: "VRCNT 已包含 CUDA 支持；没有受支持的 NVIDIA GPU 时仍可使用 CPU 运行。"
     cuda_compare_cpu_desc: "选择 GPU 时，与 CPU 相比处理更快"
     cuda_disk_space_desc: "需要约 {{size}} 的磁盘空间"
     close_modal: "关闭"
@@ -228,6 +274,43 @@ config_page:
         hotkeys: "快捷键"
         plugins: "插件"
         advanced_settings: "高级设置"
+
+    focus_settings:
+        settings_title: "设置"
+        search_placeholder: "搜索所有设置"
+        search_label: "搜索设置"
+        clear_search: "清除设置搜索"
+        navigation_label: "设置分类"
+        current_section: "当前分类"
+        search_results: "搜索结果"
+        search_hint: "搜索所有设置分类，然后打开结果继续操作。"
+        applies_immediately: "更改会立即生效"
+        no_results: "未找到设置"
+        no_results_detail: "请尝试其他关键词，或选择上方的分类。"
+        results_found: "找到 {{count}} 个结果"
+        result_help: "打开结果即可进入对应的设置分类。"
+        section_labels:
+            device: "设备"
+            appearance: "外观"
+            model_and_provider: "模型与提供商"
+            translation: "翻译"
+            transcription: "语音识别"
+            vr: "VR"
+            others: "其他"
+            hotkeys: "快捷键"
+            advanced_settings: "高级设置"
+            about: "关于"
+        section_descriptions:
+            device: "选择麦克风和扬声器设备，并调整输入阈值。"
+            appearance: "调整语言、缩放、字体、透明度和界面行为。"
+            model_and_provider: "在一个页面中配置翻译提供商和语音识别模型。"
+            translation: "配置本地和云端翻译引擎及其凭据。"
+            transcription: "调整语音采集、识别模型、处理设备和解码。"
+            vr: "定位并配置 VRChat 翻译叠加层。"
+            others: "管理声音、消息格式、日志和 VRChat 行为。"
+            hotkeys: "设置实时对话控制的键盘快捷键。"
+            advanced_settings: "配置 OSC、WebSocket 和直接访问配置文件。"
+            about: "查看版本、项目沿革和仓库链接。"
 
     device:
         check_volume: "音量检查"

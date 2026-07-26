@@ -20,7 +20,7 @@ test("desktop overlay window options create a separate frosted utility window", 
 
     assert.deepEqual(buildDesktopOverlayWindowOptions(), {
         url: "index.html?window=desktop-overlay",
-        title: "VRCNT-Next Desktop Overlay",
+        title: "VRCNT Desktop Overlay",
         width: 520,
         height: 240,
         minWidth: 360,

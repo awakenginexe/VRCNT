@@ -1,14 +1,43 @@
 .container {
     height: 100%;
+    min-height: 0;
     width: 100%;
     flex: 1;
-    background:
-        radial-gradient(circle at 54% 18%, rgba(255, 255, 255, 0.025), transparent 32%),
-        linear-gradient(180deg, rgba(8, 13, 23, 0.24), rgba(8, 13, 23, 0.1));
-    overflow: auto;
+    background: transparent;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
     border: 0;
     border-radius: 0;
-    padding: 3.6rem 2.8rem 4rem;
+    padding: 0.4rem 0.7rem 0;
     box-shadow: none;
     font-size: 1rem; // This is the standard font size for message logs, and is controlled by JavaScript. All child elements this are generally expressed in "em" and are affected by the font size setting here.
+}
+
+.empty_state {
+    width: min(52rem, 78%);
+    min-height: 14rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.75rem;
+    margin: 9vh auto 0;
+    padding: 2.2rem;
+    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.22);
+    border-radius: 1.2rem;
+    background: rgba(11, 27, 45, 0.52);
+    color: var(--dark_400_color);
+    text-align: center;
+
+    strong {
+        color: #eaf5ff;
+        font-size: 1.55rem;
+        font-weight: 900;
+    }
+
+    span {
+        font-size: 1.1rem;
+        font-weight: 650;
+        line-height: 1.45;
+    }
 }

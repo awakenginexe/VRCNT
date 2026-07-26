@@ -4,7 +4,7 @@ import { TranslatorSelector } from "./translator_selector/TranslatorSelector";
 import { useStore_IsOpenedTranslatorSelector } from "@store";
 import { useLanguageSettings } from "@logics_main";
 
-export const TranslatorSelectorOpenButton = () => {
+export const TranslatorSelectorOpenButton = ({ variant = "settings" }) => {
     const { t } = useI18n();
     const {
         currentSelectedPresetTabNumber,
@@ -43,16 +43,22 @@ export const TranslatorSelectorOpenButton = () => {
     };
 
     return (
-        <div className={styles.container}>
-            <div className={styles.translator_selector_button} onClick={openTranslatorSelector}>
+        <div className={styles.container} data-variant={variant}>
+            <button
+                type="button"
+                className={styles.translator_selector_button}
+                onClick={openTranslatorSelector}
+                aria-expanded={currentIsOpenedTranslatorSelector.data}
+            >
                 <p className={styles.label}>{t("main_page.translator")}:</p>
                 <p className={styles.label}>{selected_label}</p>
-            </div>
+            </button>
             {currentIsOpenedTranslatorSelector.data &&
                 <TranslatorSelector
                     selected_ids={selected_engine_ids}
                     translation_engines={translation_engines}
                     is_selected_same_language={is_selected_same_language}
+                    placement={variant === "live_compact" ? "live" : "settings"}
                 />
             }
         </div>

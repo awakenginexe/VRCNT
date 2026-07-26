@@ -2,7 +2,7 @@ import { useI18n } from "@useI18n";
 import styles from "./LanguageSelectorTopBar.module.scss";
 import { useStore_IsOpenedLanguageSelector } from "@store";
 
-export const LanguageSelectorTopBar = (props) => {
+export const LanguageSelectorTopBar = ({ title, titleId }) => {
     const { t } = useI18n();
     const { updateIsOpenedLanguageSelector } = useStore_IsOpenedLanguageSelector();
     const closeLanguageSelector = () => {
@@ -16,10 +16,20 @@ export const LanguageSelectorTopBar = (props) => {
 
     return (
         <div className={styles.container}>
-            <div className={styles.go_back_button_wrapper} onClick={closeLanguageSelector}>
-                <p className={styles.go_back_button_label}>{t("common.go_back_button_label")}</p>
+            <div className={styles.title_copy}>
+                <p className={styles.title} id={titleId}>{title}</p>
+                <p className={styles.subtitle}>{t("main_page.language_selector.picker_detail")}</p>
             </div>
-            <p className={styles.title}>{props.title}</p>
+            <button
+                type="button"
+                className={styles.close_button}
+                onClick={closeLanguageSelector}
+                aria-label={t("main_page.language_selector.close")}
+            >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m6.7 5.3 5.3 5.3 5.3-5.3 1.4 1.4-5.3 5.3 5.3 5.3-1.4 1.4-5.3-5.3-5.3 5.3-1.4-1.4 5.3-5.3-5.3-5.3 1.4-1.4Z" />
+                </svg>
+            </button>
         </div>
     );
 };

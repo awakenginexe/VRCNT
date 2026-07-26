@@ -27,8 +27,8 @@ export const DownloadModelsContainer = () => {
             </div>
             <div className={styles.labels_wrapper}>
                 <div className={styles.logo_box}>
-                    <img className={styles.logo_image} src={logoBadge} alt="VRCNT-Next" />
-                    <p className={styles.logo_title}>VRCNT-Next</p>
+                    <img className={styles.logo_image} src={logoBadge} alt="VRCNT" />
+                    <p className={styles.logo_title}>VRCNT</p>
                     <p className={styles.logo_caption}>Preparing local AI models</p>
                 </div>
             </div>

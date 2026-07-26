@@ -1,21 +1,20 @@
 .container {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 3.2rem;
+    gap: 0.6rem;
     width: 100%;
-    padding-bottom: 3.2rem;
+    padding-bottom: 0;
 }
 
 .card {
     position: relative;
     min-width: 0;
-    min-height: 9.8rem;
-    padding: 2rem;
-    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.14);
-    border-radius: 1.4rem;
-    background: rgba(15, 21, 36, 0.6);
+    min-height: 4.7rem;
+    padding: 0.7rem 0.75rem;
+    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.28);
+    border-radius: 0.75rem;
+    background: var(--surface_2_color);
     backdrop-filter: var(--panel_blur);
-    box-shadow: 0 0 3rem rgba(var(--accent_color_rgb), 0.04);
     transition: var(--transition_ui);
 
     &.is_selectable {
@@ -26,21 +25,22 @@
     &.is_menu_open {
         border-color: rgba(var(--accent_color_rgb), 0.26);
         background: var(--surface_3_color);
+        transform: translateY(-0.1rem);
     }
 }
 
 .card_header {
     display: grid;
-    grid-template-rows: auto 1fr;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: start;
-    gap: 0.8rem;
-    min-height: 5.6rem;
-    margin-bottom: 1rem;
+    gap: 0.35rem;
+    min-height: 2.1rem;
+    margin-bottom: 0.35rem;
 }
 
 .label {
     color: var(--dark_350_color);
-    font-size: 1.05rem;
+    font-size: 0.7rem;
     font-weight: 900;
     letter-spacing: 0.1rem;
     text-transform: uppercase;
@@ -48,15 +48,16 @@
 
 .label_group {
     min-width: 0;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     gap: 0.15rem;
 }
 
 .gpu_selection_label {
-    max-width: 8rem;
+    max-width: 100%;
     color: var(--dark_500_color);
-    font-size: 0.9rem;
+    font-size: 0.75rem;
     font-weight: 800;
     line-height: 1;
     white-space: nowrap;
@@ -66,7 +67,7 @@
 
 .value {
     color: var(--primary_150_color);
-    font-size: 3.2rem;
+    font-size: 1.05rem;
     line-height: 1;
     font-weight: 900;
     white-space: nowrap;
@@ -74,7 +75,7 @@
 
 .meter_track {
     width: 100%;
-    height: 0.5rem;
+    height: 0.35rem;
     border-radius: 99rem;
     overflow: hidden;
     background: rgba(255, 255, 255, 0.08);
@@ -110,6 +111,20 @@
     background: rgba(10, 14, 26, 0.98);
     backdrop-filter: var(--panel_blur);
     box-shadow: 0 1.2rem 4rem rgba(0, 0, 0, 0.42), var(--shadow_accent);
+    transform-origin: top left;
+    animation: resource_menu_in var(--motion_enter);
+}
+
+@keyframes resource_menu_in {
+    from {
+        opacity: 0;
+        transform: translateY(-0.45rem) scale(0.985);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 
 .gpu_menu_item {
@@ -155,12 +170,22 @@
     text-align: right;
 }
 
-@media (max-width: 72rem) {
+@media (max-width: 60rem) {
     .container {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .gpu_menu {
         width: min(24rem, calc(100vw - 3rem));
+    }
+}
+
+@media (max-width: 90rem) {
+    .gpu_selection_label {
+        font-size: 0.68rem;
+    }
+
+    .value {
+        font-size: 0.98rem;
     }
 }

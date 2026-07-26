@@ -1,8 +1,10 @@
 import clsx from "clsx";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@useI18n";
 
 import { useLanguageSettings } from "@logics_main";
 import { useTranscription } from "@logics_configs";
+import { useStore_IsOpenedLanguageSelector } from "@store";
 import styles from "./LanguageSelector.module.scss";
 import {
     getLanguageDisplayLabel,
@@ -152,7 +154,11 @@ const buildSupportGuard = ({ selectorType, engine, voskWeightType, parakeetWeigh
 
 export const LanguageSelector = ({ title, onClickFunction, selectorType }) => {
     const { t } = useI18n();
+    const { updateIsOpenedLanguageSelector } = useStore_IsOpenedLanguageSelector();
     const { currentSelectableLanguageList } = useLanguageSettings();
+    const [query, setQuery] = useState("");
+    const [isLegacyLayout, setIsLegacyLayout] = useState(false);
+    const searchInputRef = useRef(null);
     const {
         currentSelectedTranscriptionEngine,
         currentSelectedVoskWeightType,
@@ -168,6 +174,40 @@ export const LanguageSelector = ({ title, onClickFunction, selectorType }) => {
         sensevoiceWeightType: currentSelectedSenseVoiceWeightType?.data,
     });
 
+    const closeLanguageSelector = () => {
+        updateIsOpenedLanguageSelector({
+            your_language: false,
+            your_translation_language: false,
+            target_language: false,
+            target_key: "1",
+        });
+    };
+
+    useEffect(() => {
+        const handleKeyDown = (event) => {
+            if (event.key === "Escape") closeLanguageSelector();
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+        searchInputRef.current?.focus();
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, []);
+
+    const filteredLanguages = useMemo(() => {
+        const normalizedQuery = query.trim().toLocaleLowerCase();
+        if (normalizedQuery === "") return currentSelectableLanguageList.data;
+
+        return currentSelectableLanguageList.data.filter((languageData) => (
+            [
+                languageData.language,
+                languageData.country,
+                getLanguageDisplayLabel(languageData),
+            ]
+                .filter(Boolean)
+                .some((value) => value.toLocaleLowerCase().includes(normalizedQuery))
+        ));
+    }, [currentSelectableLanguageList.data, query]);
+
     const groupLanguagesByFirstLetter = (languages) => {
         return languages.reduce((acc, { language, country }) => {
             const firstLetter = language[0].toUpperCase();
@@ -179,30 +219,93 @@ export const LanguageSelector = ({ title, onClickFunction, selectorType }) => {
         }, {});
     };
 
-    const groupedLanguages = groupLanguagesByFirstLetter(currentSelectableLanguageList.data);
+    const groupedLanguages = groupLanguagesByFirstLetter(filteredLanguages);
 
     return (
-        <div className={styles.container}>
-            <LanguageSelectorTopBar title={title}/>
-            {supportGuard.isActive && (
-                <p className={styles.language_support_hint}>
-                    {t("main_page.language_selector.model_support_hint", { engine: supportGuard.engine })}
-                </p>
-            )}
-            <div className={styles.language_list_scroll_wrapper}>
-                <div className={styles.language_list}>
-                    {Object.entries(groupedLanguages).map(([letter, languages]) => (
-                        <LanguageGroup
-                            key={letter}
-                            onClickFunction={onClickFunction}
-                            letter={letter}
-                            languages={languages}
-                            supportGuard={supportGuard}
-                            t={t}
+        <div
+            className={styles.backdrop}
+            onMouseDown={(event) => {
+                if (event.target === event.currentTarget) closeLanguageSelector();
+            }}
+        >
+            <section
+                className={clsx(styles.dialog, {
+                    [styles.is_legacy_layout]: isLegacyLayout,
+                })}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="language-selector-title"
+            >
+                <LanguageSelectorTopBar title={title} titleId="language-selector-title" />
+                <div className={styles.toolbar}>
+                    <label className={styles.search_box}>
+                        <svg className={styles.search_icon} viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m21 20-4.7-4.7a7.5 7.5 0 1 0-1 1L20 21l1-1ZM5.5 10.5a5 5 0 1 1 10 0 5 5 0 0 1-10 0Z" />
+                        </svg>
+                        <input
+                            ref={searchInputRef}
+                            type="search"
+                            value={query}
+                            onChange={(event) => setQuery(event.target.value)}
+                            placeholder={t("main_page.language_selector.search_placeholder")}
+                            aria-label={t("main_page.language_selector.search_label")}
                         />
-                    ))}
+                    </label>
+                    <button
+                        type="button"
+                        className={styles.layout_toggle}
+                        onClick={() => setIsLegacyLayout((current) => !current)}
+                    >
+                        {isLegacyLayout
+                            ? t("main_page.language_selector.open_compact_layout")
+                            : t("main_page.language_selector.open_legacy_layout")}
+                    </button>
                 </div>
-            </div>
+                {supportGuard.isActive && (
+                    <p className={styles.language_support_hint}>
+                        {t("main_page.language_selector.model_support_hint", { engine: supportGuard.engine })}
+                    </p>
+                )}
+                <div className={styles.language_list_scroll_wrapper}>
+                    {filteredLanguages.length === 0 ? (
+                        <div className={styles.empty_result} role="status">
+                            <strong>{t("main_page.language_selector.no_results_title")}</strong>
+                            <span>
+                                {query.trim() === ""
+                                    ? t("main_page.language_selector.language_list_unavailable")
+                                    : t("main_page.language_selector.no_results_detail", { query: query.trim() })}
+                            </span>
+                        </div>
+                    ) : isLegacyLayout ? (
+                        <div className={styles.language_list_legacy}>
+                            {Object.entries(groupedLanguages).map(([letter, languages]) => (
+                                <LanguageGroup
+                                    key={letter}
+                                    onClickFunction={onClickFunction}
+                                    letter={letter}
+                                    languages={languages}
+                                    supportGuard={supportGuard}
+                                    t={t}
+                                />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className={styles.language_list_compact}>
+                            {filteredLanguages.map((languageData) => (
+                                <LanguageButton
+                                    key={`${languageData.language}-${languageData.country}`}
+                                    onClickFunction={onClickFunction}
+                                    language_data={languageData}
+                                    isDisabled={supportGuard.isSupported(languageData) === false}
+                                    disabledReason={t("main_page.language_selector.unsupported_by_model", {
+                                        engine: supportGuard.engine,
+                                    })}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </section>
         </div>
     );
 };
@@ -242,10 +345,12 @@ const LanguageButton = ({ onClickFunction, language_data, isDisabled, disabledRe
     });
 
     return (
-        <div
+        <button
+            type="button"
             className={languageButtonClass}
             onClick={adjustedOnClickFunction}
             aria-disabled={isDisabled === true}
+            disabled={isDisabled === true}
             title={isDisabled === true ? disabledReason : undefined}
         >
             <div className={styles.language_identity}>
@@ -256,6 +361,6 @@ const LanguageButton = ({ onClickFunction, language_data, isDisabled, disabledRe
                 </div>
             </div>
             <p className={styles.language_chip}>{getLanguageDisplayLabel(language_data)}</p>
-        </div>
+        </button>
     );
 };

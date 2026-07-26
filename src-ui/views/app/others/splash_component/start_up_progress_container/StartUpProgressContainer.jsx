@@ -31,8 +31,8 @@ export const StartUpProgressContainer = () => {
             </div>
             <div className={styles.labels_wrapper}>
                 <div className={styles.brand_block}>
-                    <img className={styles.vrct_starting_up_img} src={logoBadge} alt="VRCNT-Next" />
-                    <p className={styles.brand_name}>VRCNT-Next</p>
+                    <img className={styles.vrct_starting_up_img} src={logoBadge} alt="VRCNT" />
+                    <p className={styles.brand_name}>VRCNT</p>
                     <p className={styles.vrct_explanation_img}>VRChat Next Translation</p>
                     <p className={styles.status_message}>{currentInitStatus.data.message}</p>
                     <p className={styles.status_detail}>{currentInitStatus.data.detail}</p>

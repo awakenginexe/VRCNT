@@ -29,3 +29,14 @@ test("online primary providers cannot select CTranslate2 as secondary", () => {
         "automatic and explicit secondary choices must share one policy",
     );
 });
+
+test("local fallback is a separate opt-in control", () => {
+    const source = fs.readFileSync(selectorPath, "utf8");
+
+    assert.match(source, /currentCTranslate2AutoFallback/);
+    assert.match(source, /setCTranslate2AutoFallback\(event\.target\.checked\)/);
+    assert.match(
+        source,
+        /main_page\.translator_selector\.local_fallback_desc/,
+    );
+});

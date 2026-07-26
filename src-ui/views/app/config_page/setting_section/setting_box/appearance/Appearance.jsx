@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useI18n } from "@useI18n";
 import styles from "./Appearance.module.scss";
 import { ui_configs } from "@ui_configs";
@@ -24,20 +24,10 @@ import {
     CheckboxContainer,
 } from "../_templates/Templates";
 
-const THEME_ACCENTS = {
-    "theme-neon-cyan": "Neon Cyan",
-    "theme-midnight-purple": "Midnight Purple",
-    "theme-emerald-green": "Emerald Green",
-    "theme-sakura-pink": "Sakura Pink",
-};
-
-const THEME_ACCENT_CLASSES = Object.keys(THEME_ACCENTS);
-
 export const Appearance = () => {
     return (
         <>
             <UiLanguageContainer />
-            <ThemeAccentContainer />
             <UiScalingContainer />
             <MessageLogUiScalingContainer />
             <SendMessageButtonTypeContainer />
@@ -220,38 +210,5 @@ const PerformanceModeContainer = () => {
             variable={currentEnablePerformanceMode}
             toggleFunction={toggleFunction}
         />
-    );
-};
-
-const ThemeAccentContainer = () => {
-    const { t } = useI18n();
-    const [selectedTheme, setSelectedTheme] = useState(() => {
-        const savedTheme = localStorage.getItem("theme_accent");
-        return THEME_ACCENT_CLASSES.includes(savedTheme) ? savedTheme : "theme-neon-cyan";
-    });
-
-    const selectFunction = (selected_data) => {
-        const newTheme = selected_data.selected_id;
-        if (!THEME_ACCENT_CLASSES.includes(newTheme)) return;
-        setSelectedTheme(newTheme);
-        localStorage.setItem("theme_accent", newTheme);
-        document.documentElement.classList.remove(...THEME_ACCENT_CLASSES);
-        document.documentElement.classList.add(newTheme);
-    };
-
-    return (
-            <DropdownMenuContainer
-                dropdown_id="theme_accent"
-                label={t("config_page.appearance.theme_accent_color.label")}
-                selected_id={selectedTheme}
-                list={{
-                    "theme-neon-cyan": t("config_page.appearance.theme_accent_color.neon_cyan"),
-                    "theme-midnight-purple": t("config_page.appearance.theme_accent_color.midnight_purple"),
-                    "theme-emerald-green": t("config_page.appearance.theme_accent_color.emerald_green"),
-                    "theme-sakura-pink": t("config_page.appearance.theme_accent_color.sakura_pink"),
-                }}
-                selectFunction={selectFunction}
-                state="ok"
-            />
     );
 };

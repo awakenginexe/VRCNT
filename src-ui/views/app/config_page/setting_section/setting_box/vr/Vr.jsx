@@ -453,29 +453,12 @@ const AdjustButtonContainer = ({ wrapper_class_name, is_max, is_min, countUp, co
 const StyleControls = ({ settings, selectFunction }) => {
     const { t } = useI18n();
 
-    const selectAccentColor = (selected_data) => {
-        selectFunction("accent_color", selected_data.selected_id);
-    };
-
     const selectBackgroundMode = (selected_data) => {
         selectFunction("background_mode", selected_data.selected_id);
     };
 
     return (
         <div className={styles.style_controls}>
-            <DropdownMenuContainer
-                dropdown_id="overlay_accent_color"
-                label={t("config_page.vr.overlay_accent_color.label")}
-                selected_id={settings.accent_color ?? "theme-neon-cyan"}
-                list={{
-                    "theme-neon-cyan": t("config_page.vr.overlay_accent_color.neon_cyan"),
-                    "theme-midnight-purple": t("config_page.vr.overlay_accent_color.midnight_purple"),
-                    "theme-emerald-green": t("config_page.vr.overlay_accent_color.emerald_green"),
-                    "theme-sakura-pink": t("config_page.vr.overlay_accent_color.sakura_pink"),
-                }}
-                selectFunction={selectAccentColor}
-                state="ok"
-            />
             <DropdownMenuContainer
                 dropdown_id="overlay_background_mode"
                 label={t("config_page.vr.overlay_background.label")}

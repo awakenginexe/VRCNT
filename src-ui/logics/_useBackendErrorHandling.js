@@ -90,6 +90,23 @@ export const _useBackendErrorHandling = () => {
             // 翻訳関連エラー (TRANSLATION_*)
             // ============================================================================
             case "TRANSLATION_ENGINE_LIMIT":
+                if (
+                    data?.reason === "rate_limited"
+                    && Array.isArray(data.engines)
+                    && data.engines.length > 0
+                ) {
+                    showNotification_Error(
+                        t("common_error.translation_rate_limited", {
+                            engines: data.engines.join(" + "),
+                            seconds: Math.max(
+                                1,
+                                Math.ceil(Number(data.retry_after_seconds) || 60),
+                            ),
+                        }),
+                        { category_id: error_code },
+                    );
+                    return;
+                }
                 showNotification_Error(t("common_error.translation_limit"), { category_id: error_code });
                 return;
             case "TRANSLATION_VRAM_CHAT":
@@ -287,12 +304,12 @@ export const _useBackendErrorHandling = () => {
             case "GENERAL_UNKNOWN":
                 console.error(`Error occurred at endpoint: ${endpoint}\nerror_code: ${error_code}\nmessage: ${message}\nresult: ${JSON.stringify(result)}`);
                 showNotification_Error(message, { category_id: error_code });
-                showNotification_Error(`An error occurred. Please contact the developers and restart VRCNT-Next. Error: ${error_code} - ${message || JSON.stringify(result)}`, { hide_duration: null, category_id: error_code });
+                showNotification_Error(`An error occurred. Please contact the developers and restart VRCNT. Error: ${error_code} - ${message || JSON.stringify(result)}`, { hide_duration: null, category_id: error_code });
                 return;
 
             default:
                 console.error(`Invalid error_code or message: ${error_code}\nendpoint: ${endpoint}\nmessage: ${message}\nresult: ${JSON.stringify(result)}`);
-                showNotification_Error(`An error occurred. Please contact the developers and restart VRCNT-Next. Error: ${error_code} - ${message || JSON.stringify(result)}`, { hide_duration: null, category_id: error_code });
+                showNotification_Error(`An error occurred. Please contact the developers and restart VRCNT. Error: ${error_code} - ${message || JSON.stringify(result)}`, { hide_duration: null, category_id: error_code });
                 return;
         }
 

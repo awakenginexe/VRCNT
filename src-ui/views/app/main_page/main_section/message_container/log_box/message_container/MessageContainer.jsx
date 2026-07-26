@@ -8,7 +8,14 @@ import { TranslationEntry } from "./translation_entry/TranslationEntry";
 import { useMessage } from "@logics_common";
 import { useAppearance } from "@logics_configs";
 
-export const MessageContainer = ({ messages, status, category, created_at }) => {
+export const MessageContainer = ({
+    messages,
+    status,
+    category,
+    created_at,
+    trace_id,
+    source_language,
+}) => {
     const { t } = useI18n();
     const {
         sendMessage,
@@ -82,7 +89,18 @@ export const MessageContainer = ({ messages, status, category, created_at }) => 
                                 <MessageText item={messages.original} />
                             </div>
                             {messages.translations.map((entry) => (
-                                <TranslationEntry key={entry.target_slot} entry={entry} />
+                                <TranslationEntry
+                                    key={entry.target_slot}
+                                    entry={entry}
+                                    retryPayload={{
+                                        trace_id,
+                                        target_slot: entry.target_slot,
+                                        original_message: messages.original.message,
+                                        source_language,
+                                        target_language: entry.language,
+                                        target_country: entry.country,
+                                    }}
+                                />
                             ))}
                         </>
                     )}

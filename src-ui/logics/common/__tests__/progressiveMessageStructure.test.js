@@ -17,7 +17,7 @@ test("message rows always render original text and stable translation slots", ()
 
     assert.match(source, /<MessageText\s+item=\{messages\.original\}\s*\/>/);
     assert.match(source, /messages\.translations\.map\(\(entry\)\s*=>/);
-    assert.match(source, /<TranslationEntry\s+key=\{entry\.target_slot\}\s+entry=\{entry\}\s*\/>/);
+    assert.match(source, /<TranslationEntry[\s\S]*?key=\{entry\.target_slot\}[\s\S]*?entry=\{entry\}[\s\S]*?retryPayload=/);
     assert.doesNotMatch(source, /key=\{(?:idx|index)\}/);
 });
 

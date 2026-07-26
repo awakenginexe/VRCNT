@@ -71,16 +71,14 @@ def update_versions():
     if os.path.exists(cargo_lock_path):
         replace_in_file(
             cargo_lock_path,
-            [(r'(\[\[package\]\]\nname = "VRCNT-Next"\nversion = ")[^"]+(")', rf'\g<1>{version}\g<2>', 1)]
+            [(r'(\[\[package\]\]\nname = "vrcnt"\nversion = ")[^"]+(")', rf'\g<1>{version}\g<2>', 1)]
         )
 
     replace_in_file(
         os.path.join(root, "README.md"),
         [
             (r'(badge/version-)[^-]+(-20d6ff)', rf'\g<1>{version}\g<2>', 1),
-            (r'(VRCNT-Next_)[0-9]+\.[0-9]+\.[0-9]+(_x64-setup\.exe)', rf'\g<1>{version}\g<2>', 1),
-            (r'awakenginexe/VRCNT Issues', 'awakenginexe/VRCNT-Next Issues', 0),
-            (r'https://github\.com/awakenginexe/VRCNT/issues', 'https://github.com/awakenginexe/VRCNT-Next/issues', 0),
+            (r'(VRCNT_)[0-9]+\.[0-9]+\.[0-9]+(_x64-setup\.exe)', rf'\g<1>{version}\g<2>', 1),
         ]
     )
 
@@ -105,8 +103,6 @@ def update_versions():
         os.path.join(root, "src-python", "models", "telemetry", "__init__.py"),
         os.path.join(root, "src-python", "models", "telemetry", "core.py"),
         os.path.join(root, "src-python", "models", "telemetry", "client.py"),
-        os.path.join(root, "src-python", "docs", "telemetry_design.md"),
-        os.path.join(root, "src-python", "docs", "mainloop.md"),
     ]
     for path in telemetry_paths:
         replace_in_file(

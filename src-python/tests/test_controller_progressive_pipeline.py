@@ -241,11 +241,13 @@ class ControllerProgressivePipelineTests(unittest.TestCase):
             payload,
             {
                 "trace_id": payload["trace_id"],
+                "source_language": "English",
                 "original": {"message": "recognized", "transliteration": []},
                 "translations": [
                     {
                         "target_slot": "1",
                         "language": "Japanese",
+                        "country": "Japan",
                         "message": None,
                         "transliteration": [],
                         "status": "queued",

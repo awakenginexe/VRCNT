@@ -8,6 +8,50 @@
     padding: 0;
 }
 
+.container.layout_session_dock {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0.6rem;
+
+    .switch_tooltip {
+        width: auto;
+    }
+
+    .switch_container {
+        width: 8.15rem;
+        min-height: 100%;
+        padding: 0.65rem 0.72rem;
+        border-color: rgba(var(--accent_color_rgb), 0.3);
+        border-radius: 0.75rem;
+        background: #15111c;
+        box-shadow: none;
+    }
+
+    .label_wrapper {
+        align-items: flex-start;
+        gap: 0.45rem;
+    }
+
+    .switch_svg {
+        width: 1.35rem;
+        height: 1.35rem;
+    }
+
+    .switch_label {
+        font-size: 0.88rem;
+        line-height: 1.12;
+    }
+
+    .pending_status {
+        font-size: 0.78rem;
+        white-space: normal;
+    }
+
+    .toggle_control {
+        display: none;
+    }
+}
+
 .switch_container {
     appearance: none;
     font: inherit;
@@ -73,9 +117,13 @@
         background: rgba(255, 255, 255, 0.02);
     }
     &.is_active {
-        background: rgba(18, 30, 48, 0.82);
-        border-color: rgba(var(--accent_color_rgb), 0.28);
-        box-shadow: 0 0 2.4rem rgba(var(--accent_color_rgb), 0.08);
+        background:
+            radial-gradient(circle at 84% 18%, rgba(var(--accent_color_rgb), 0.19), transparent 46%),
+            #1b1526;
+        border-color: rgba(var(--accent_color_rgb), 0.62);
+        box-shadow:
+            inset 0 0.1rem 0 rgba(255, 255, 255, 0.045),
+            0 0.8rem 2.2rem rgba(0, 0, 0, 0.3);
     }
 }
 
@@ -126,9 +174,7 @@ $pending_label_color: var(--dark_500_color);
     &.is_pending {
         color: $pending_label_color;
     }
-    &.is_active {
-        color: #f4fdff;
-    }
+    &.is_active { color: var(--dark_100_color); }
 }
 
 .pending_status {
@@ -158,10 +204,7 @@ $pending_label_color: var(--dark_500_color);
         height: 2rem;
         color: var(--dark_200_color);
     }
-    &.is_active:not(.is_pending) {
-        color: var(--accent_color);
-        filter: drop-shadow(0 0 0.6rem rgba(var(--accent_color_rgb), 0.5));
-    }
+    &.is_active:not(.is_pending) { color: var(--primary_200_color); }
 }
 
 .switch_indicator {

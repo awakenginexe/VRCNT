@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useI18n } from "@useI18n";
 import clsx from "clsx";
 
@@ -6,32 +7,65 @@ import { useIsOpenedConfigPage } from "@logics_common";
 import ArrowLeftSvg from "@images/arrow_left.svg?react";
 
 import { TitleBox } from "./title_box/TitleBox";
-import { SectionTitleBox } from "./section_title_box/SectionTitleBox";
-import { CompactSwitchBox } from "./compact_switch_box/CompactSwitchBox";
+import { VersionLabel } from "../version_label/VersionLabel.jsx";
 
-export const Topbar = () => {
+export const Topbar = ({ searchQuery, setSearchQuery }) => {
     const { t } = useI18n();
+    const searchInputRef = useRef(null);
     const { currentIsOpenedConfigPage, setIsOpenedConfigPage } = useIsOpenedConfigPage();
     const closeConfigPage = () => {
         setIsOpenedConfigPage(false);
     };
+
+    useEffect(() => {
+        const focusSearch = (event) => {
+            if (!(event.ctrlKey || event.metaKey) || event.key.toLocaleLowerCase() !== "k") return;
+            event.preventDefault();
+            searchInputRef.current?.focus();
+        };
+        window.addEventListener("keydown", focusSearch);
+        return () => window.removeEventListener("keydown", focusSearch);
+    }, []);
+
     return (
-        <div className={clsx(styles.container, {
+        <header className={clsx(styles.container, {
             [styles.show_config]: currentIsOpenedConfigPage.data,
             [styles.show_main]: !currentIsOpenedConfigPage.data
         })}>
             <div className={styles.wrapper}>
-                <div className={styles.go_back_button} onClick={() => closeConfigPage()}>
+                <button
+                    type="button"
+                    className={styles.go_back_button}
+                    onClick={closeConfigPage}
+                    aria-label={t("common.go_back_button_label")}
+                >
                     <ArrowLeftSvg className={styles.arrow_left_svg} />
-                </div>
-                <div className={styles.go_back_text_wrapper} onClick={() => closeConfigPage()}>
-                    <p className={styles.go_back_text}>{t("common.go_back_button_label")}</p>
-                </div>
-
-
+                </button>
                 <TitleBox />
-                <SectionTitleBox />
+                <label className={styles.search}>
+                    <span className={styles.search_icon} aria-hidden="true">⌕</span>
+                    <input
+                        ref={searchInputRef}
+                        type="search"
+                        value={searchQuery}
+                        onChange={(event) => setSearchQuery(event.target.value)}
+                        placeholder={t("config_page.focus_settings.search_placeholder")}
+                        aria-label={t("config_page.focus_settings.search_label")}
+                    />
+                    {searchQuery && (
+                        <button
+                            type="button"
+                            className={styles.clear_search}
+                            onClick={() => setSearchQuery("")}
+                            aria-label={t("config_page.focus_settings.clear_search")}
+                        >
+                            ×
+                        </button>
+                    )}
+                    <kbd>Ctrl K</kbd>
+                </label>
+                <VersionLabel />
             </div>
-        </div>
+        </header>
     );
 };

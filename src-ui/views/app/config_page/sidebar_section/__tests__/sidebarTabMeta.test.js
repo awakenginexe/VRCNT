@@ -13,10 +13,12 @@ test("all sidebar tabs have short tooltip titles and details", () => {
     }
 });
 
-test("credit tab points users to original VRCT credit", () => {
-    assert.deepEqual(getSidebarTabMeta("supporters"), {
-        label: "Credit",
-        tooltipTitle: "Credit",
-        tooltipDetail: "View original VRCT project credit.",
+test("about is the final destination and includes project lineage", () => {
+    assert.equal(sidebarTabOrder.at(-1), "about");
+    assert.ok(!sidebarTabOrder.includes("supporters"));
+    assert.deepEqual(getSidebarTabMeta("about"), {
+        label: "About",
+        tooltipTitle: "About",
+        tooltipDetail: "See version, project lineage, and repository links.",
     });
 });

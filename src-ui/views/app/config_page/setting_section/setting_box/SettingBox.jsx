@@ -9,9 +9,9 @@ import {
     AdvancedSettings,
     Vr,
     Hotkeys,
-    Supporters,
     AboutVrct,
 } from "@setting_box";
+import { ModelAndProvider } from "./model_and_provider/ModelAndProvider";
 
 export const SettingBox = () => {
     const { currentSelectedConfigTabId } = useStore_SelectedConfigTabId();
@@ -24,6 +24,8 @@ export const SettingBox = () => {
             return <Translation />;
         case "transcription":
             return <Transcription />;
+        case "model_and_provider":
+            return <ModelAndProvider />;
         case "others":
             return <Others />;
         case "vr":
@@ -32,9 +34,7 @@ export const SettingBox = () => {
             return <Hotkeys />;
         case "advanced_settings":
             return <AdvancedSettings />;
-        case "supporters":
-            return <Supporters />;
-        case "about_vrct":
+        case "about":
             return <AboutVrct />;
 
         default:

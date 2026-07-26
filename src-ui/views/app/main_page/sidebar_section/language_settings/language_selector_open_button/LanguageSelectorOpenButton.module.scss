@@ -109,3 +109,55 @@
         transform: rotate(0deg);
     }
 }
+
+.container.variant_live_route {
+    width: min(18rem, 22vw);
+    min-width: 0;
+    gap: 0.35rem;
+
+    .title_container {
+        gap: 0.4rem;
+    }
+
+    .category_svg {
+        display: block;
+        width: 1.1rem;
+    }
+
+    .title {
+        overflow: hidden;
+        color: var(--dark_400_color);
+        font-size: 0.8rem;
+        letter-spacing: 0.08rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .dropdown_menu_container {
+        min-height: 4.2rem;
+        padding: 0.6rem 2.5rem 0.6rem 0.9rem;
+        border-radius: 0.9rem;
+        background: rgba(15, 30, 47, 0.9);
+    }
+
+    .flag_badge {
+        width: 2.2rem;
+        height: 1.6rem;
+    }
+
+    .selected_language {
+        overflow: hidden;
+        font-size: 1.08rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .selected_country {
+        display: none;
+    }
+
+    .arrow_left_svg {
+        right: 0.65rem;
+        width: 1.25rem;
+    }
+}

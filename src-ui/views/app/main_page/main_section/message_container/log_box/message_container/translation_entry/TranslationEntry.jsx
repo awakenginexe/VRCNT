@@ -6,9 +6,11 @@ import {
 } from "@logics_common/messageLogUtils.js";
 import { MessageText } from "../MessageText";
 import styles from "./TranslationEntry.module.scss";
+import { useMessage } from "@logics_common";
 
-export const TranslationEntry = ({ entry }) => {
+export const TranslationEntry = ({ entry, retryPayload }) => {
     const { t } = useI18n();
+    const { retryTranslation } = useMessage();
     const hasStatus = entry?.status != null;
     const isActive = TRANSLATION_ACTIVE_STATUSES.has(entry?.status);
     const [nowMs, setNowMs] = useState(() => Date.now());
@@ -27,6 +29,10 @@ export const TranslationEntry = ({ entry }) => {
     const presentation = hasStatus
         ? getTranslationPresentation(entry, nowMs)
         : null;
+    const canRetry = ["timeout", "error", "skipped_overload"].includes(entry?.status)
+        && Object.values(retryPayload ?? {}).every(
+            (value) => typeof value === "string" && value.length > 0,
+        );
     const announcement = useMemo(() => {
         if (!hasStatus) return "";
         const statusChangedAt = Number(entry?.status_changed_at_ms);
@@ -48,10 +54,12 @@ export const TranslationEntry = ({ entry }) => {
         entry?.duration_ms,
         entry?.engine,
         entry?.error_code,
+        entry?.failed_engines,
         entry?.language,
         entry?.message,
         entry?.previous_engine,
         entry?.queue_position,
+        entry?.retry_after_seconds,
         entry?.status,
         entry?.status_changed_at_ms,
         hasStatus,
@@ -85,6 +93,15 @@ export const TranslationEntry = ({ entry }) => {
                             )}
                         </span>
                     </p>
+                )}
+                {canRetry && (
+                    <button
+                        type="button"
+                        className={styles.retry_button}
+                        onClick={() => retryTranslation(retryPayload)}
+                    >
+                        {t("main_page.message_log.translation_status.retry")}
+                    </button>
                 )}
             </div>
             {hasStatus && (

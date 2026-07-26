@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { useEffect } from "react";
 import styles from "./TranslatorSelector.module.scss";
 import { useI18n } from "@useI18n";
 
@@ -32,7 +33,12 @@ const findFallbackSecondaryId = (translation_engines, primary_id, current_second
     )?.id;
 };
 
-export const TranslatorSelector = ({selected_ids, translation_engines, is_selected_same_language}) => {
+export const TranslatorSelector = ({
+    selected_ids,
+    translation_engines,
+    is_selected_same_language,
+    placement = "settings",
+}) => {
     const { t } = useI18n();
     const columns = chunkArray(translation_engines, 2);
     const selectedIds = normalizeSelectedIds(selected_ids);
@@ -41,7 +47,7 @@ export const TranslatorSelector = ({selected_ids, translation_engines, is_select
     const parallel_enabled = selectedIds.length > 1;
 
     return (
-        <div className={styles.container}>
+        <div className={styles.container} data-placement={placement}>
             <div className={styles.relative_container}>
                 <ParallelTranslationControls
                     primary_id={primary_id}
@@ -87,7 +93,12 @@ export const TranslatorSelector = ({selected_ids, translation_engines, is_select
 
 const ParallelTranslationControls = ({primary_id, secondary_id, selected_ids, translation_engines}) => {
     const { t } = useI18n();
-    const { setSelectedTranslationEngines} = useLanguageSettings();
+    const {
+        setSelectedTranslationEngines,
+        currentCTranslate2AutoFallback,
+        getCTranslate2AutoFallback,
+        setCTranslate2AutoFallback,
+    } = useLanguageSettings();
     const parallel_enabled = selected_ids.length > 1;
     const fallback_secondary_id = findFallbackSecondaryId(translation_engines, primary_id, secondary_id);
     const can_use_parallel = Boolean(fallback_secondary_id);
@@ -95,6 +106,14 @@ const ParallelTranslationControls = ({primary_id, secondary_id, selected_ids, tr
     const secondary_options = translation_engines.filter(
         engine => canBeSecondary(engine, primary_id)
     );
+    const local_fallback_available = translation_engines.some(
+        engine => engine.id === "CTranslate2" && engine.is_available === true
+    );
+    const show_local_fallback = primary_id !== "CTranslate2";
+
+    useEffect(() => {
+        getCTranslate2AutoFallback();
+    }, []);
 
     const toggleParallelService = (event) => {
         if (event.target.checked && fallback_secondary_id) {
@@ -149,6 +168,34 @@ const ParallelTranslationControls = ({primary_id, secondary_id, selected_ids, tr
                     </div>
                 </div>
             ) : null}
+            {show_local_fallback ? (
+                <label className={styles.local_fallback_control}>
+                    <div className={styles.local_fallback_heading}>
+                        <div className={styles.parallel_checkbox_wrapper}>
+                            <input
+                                className={styles.parallel_checkbox}
+                                type="checkbox"
+                                checked={Boolean(currentCTranslate2AutoFallback.data)}
+                                disabled={
+                                    currentCTranslate2AutoFallback.state === "pending"
+                                    || (
+                                        !local_fallback_available
+                                        && !currentCTranslate2AutoFallback.data
+                                    )
+                                }
+                                onChange={(event) => (
+                                    setCTranslate2AutoFallback(event.target.checked)
+                                )}
+                            />
+                            <span className={styles.checkbox_slider} />
+                        </div>
+                        <span>{t("main_page.translator_selector.local_fallback")}</span>
+                    </div>
+                    <span className={styles.local_fallback_description}>
+                        {t("main_page.translator_selector.local_fallback_desc")}
+                    </span>
+                </label>
+            ) : null}
         </div>
     );
 };
@@ -191,7 +238,7 @@ const TranslatorBox = (props) => {
     };
 
     return (
-        <div className={box_class_name} onClick={selectTranslator}>
+        <button type="button" className={box_class_name} onClick={selectTranslator}>
             {parallel_enabled && props.is_primary_selected && (
                 <span className={clsx(styles.badge, styles.primary_badge)}>
                     {t("main_page.translator_selector.primary_badge")}
@@ -204,6 +251,6 @@ const TranslatorBox = (props) => {
             )}
             <p className={styles.translator_name}>{props.label}</p>
             {props.is_default && <p className={label_default_class_name}>{t("main_page.translator_label_default")}</p>}
-        </div>
+        </button>
     );
 };

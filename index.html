@@ -4,7 +4,17 @@
         <meta charset="UTF-8" />
         <link rel="icon" type="image/png" href="/src-ui/views/assets/vrcnt_logo_badge.png" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>VRCNT-Next</title>
+        <script>
+            try {
+                if (localStorage.getItem("enable_performance_mode") === "true") {
+                    document.documentElement.classList.add("performance_mode");
+                    document.documentElement.dataset.performanceMode = "true";
+                }
+            } catch {
+                // Local storage may be unavailable in hardened webviews.
+            }
+        </script>
+        <title>VRCNT</title>
     </head>
 
     <body>

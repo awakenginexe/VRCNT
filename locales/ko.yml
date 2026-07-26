@@ -5,17 +5,17 @@
 
 blocking_operation:
     dialog_label: "작업 진행 중"
-    startup_operation: "VRCNT-Next 시작 중"
+    startup_operation: "VRCNT 시작 중"
     phase_label: "현재 단계"
     progress_label: "시작 진행률"
     progress_steps: "{{current}} / {{total}}"
     progress_indeterminate: "처리 중…"
     elapsed: "경과 {{seconds}}초"
     startup_failed: "시작을 완료하지 못했습니다"
-    startup_failed_detail: "VRCNT-Next를 다시 시작하세요. 문제가 계속되면 앱 로그를 확인하세요."
+    startup_failed_detail: "VRCNT를 다시 시작하세요. 문제가 계속되면 앱 로그를 확인하세요."
     backend_startup_progress: "백엔드 시작 {{current}} / {{total}}"
     backend_unavailable: "백엔드를 사용할 수 없어 변경 사항이 적용되지 않았습니다."
-    backend_disconnected: "백엔드가 중지되었습니다. 계속하려면 VRCNT-Next를 다시 시작하세요."
+    backend_disconnected: "백엔드가 중지되었습니다. 계속하려면 VRCNT를 다시 시작하세요."
 
 common:
     go_back_button_label: "돌아가기"
@@ -28,6 +28,7 @@ common_error:
     failed_download_weight_whisper: "Whisper 모델 다운로드에 실패했습니다."
     failed_download_weight_sensevoice: "SenseVoice 모델 다운로드에 실패했습니다."
     translation_limit: "번역 엔진 사용 제한에 도달했거나 일시적으로 이용 제한이 걸렸습니다."
+    translation_rate_limited: "{{engines}} 사용량이 제한되었습니다. {{seconds}}초 후 다음 번역에서 자동으로 다시 테스트합니다."
     deepl_auth_key_invalid_length: "DeepL 인증 키의 문자 수가 잘못되었습니다."
     deepl_auth_key_failed_authentication: "인증키가 잘못되었거나 API 사용 제한이 상한에 도달했습니다."
 
@@ -42,7 +43,36 @@ common_error:
 common_warning:
     unable_to_use_osc_query: "OSC IP 주소 설정으로 인해 OSC 데이터 수신이 불가능하므로, 아래 기능이 자동으로 비활성화되었습니다."
 
+about_page:
+    version: "버전 {{version}}"
+    title: "VRChat을 위한 차세대 번역"
+    description: "VRCNT는 다국어 VRChat 실시간 대화를 위해 독립적으로 개발된 번역 및 음성 인식 도우미입니다."
+    repositories_title: "프로젝트 저장소"
+    repositories_description: "VRCNT 개발을 확인하거나 이 프로젝트의 출발점이 된 원본 VRCT를 살펴보세요."
+    vrcnt_repository: "VRCNT GitHub"
+    vrct_repository: "원본 VRCT GitHub"
+    lineage_title: "프로젝트 계보"
+    lineage_description: "VRCNT는 VRCT에서 시작했으며 일부 코드는 여전히 해당 프로젝트를 기반으로 합니다. 이후 UI, 워크플로, 번역 파이프라인과 앱의 많은 부분을 VRCNT에 맞게 대폭 재작업했습니다. 독립된 프로젝트이며 공식 VRCT 릴리스가 아닙니다."
+    origin_label: "출발점"
+    origin_value: "misyaguziya의 VRCT"
+    current_label: "현재 프로젝트"
+    current_value: "awakenginexe의 VRCNT"
+    independence_title: "독립 소프트웨어"
+    independence_description: "VRCNT는 VRChat Inc.와 제휴하거나 보증받지 않았습니다. VRChat 및 관련 자산은 각 소유자의 상표입니다."
+
 main_page:
+    live_weave:
+        navigation:
+            live: "Live Weave"
+            history: "기록"
+            models: "모델 및 제공자"
+            overlay: "오버레이 스튜디오"
+            settings: "설정"
+        session_live: "세션 활성"
+        conversation_title: "실시간 대화"
+        conversation_detail: "번역을 중심으로 보여 줍니다. 조치가 필요할 때만 시스템 상태를 표시합니다."
+        empty_title: "Live Weave를 사용할 준비가 되었습니다"
+        empty_detail: "Listening 또는 Speaking을 켜서 번역 대화를 시작하세요."
     translation: "번역"
     transcription_send: "음성인식 (마이크)"
     transcription_receive: "음성인식 (스피커)"
@@ -83,7 +113,7 @@ main_page:
         you_title: "나"
         you_desc: "음성 입력 및 개인 번역 출력"
         targets_title: "대상"
-        targets_desc: "VRCNT-Next가 번역할 대상을 선택"
+        targets_desc: "VRCNT가 번역할 대상을 선택"
         engines_title: "엔진"
         engines_desc: "번역과 음성 인식을 빠르게 전환"
         your_speaking_language: "내가 말하는 언어"
@@ -125,6 +155,8 @@ main_page:
         is_selected_same_language: "'{{your_language}}'와 '{{target_language}}'에 동일한 언어가 선택되어 있으므로, 「{{ctranslate2}}」만 사용할 수 있습니다."
         use_parallel_service: "병렬 서비스 사용"
         second_translator: "두 번째 번역 엔진"
+        local_fallback: "CTranslate2 자동 대체"
+        local_fallback_desc: "기본값은 꺼짐입니다. 활성화하면 준비된 로컬 모델이 클라우드 대기열을 처리하고 모든 클라우드 서비스가 제한되거나 실패하면 전환합니다. 클라우드 요청 간격을 조절하고 표시된 대기 시간이 지나면 자동으로 다시 테스트합니다."
         primary_badge: "1st"
         secondary_badge: "2nd"
 
@@ -143,10 +175,15 @@ main_page:
             success_meta: "{{engine}} · {{duration}}"
             timeout: "번역을 사용할 수 없음 · {{engine}} 시간 초과"
             error: "번역을 사용할 수 없음 · {{engine}} 실패"
+            rate_limited: "번역을 사용할 수 없음 · {{engines}} 사용량 제한 · {{seconds}}초 후 자동 재시도"
             skipped_overload: "번역 건너뜀 · 대기열 과부하"
             no_provider: "번역을 사용할 수 없음 · 제공자 미선택"
             unavailable: "번역을 사용할 수 없음"
             queue_position: "대기열 {{position}}"
+            retry: "번역"
+
+    translation_cooldown:
+        retry_in: "{{seconds}}초 후 {{engine}} 재시도"
 
     state_text_enabled: "Enabled"
     state_text_disabled: "Disabled"
@@ -156,6 +193,15 @@ main_page:
         title_target_language: "상대방의 언어"
         unsupported_by_model: "{{engine}}는 선택한 모델에서 이 언어를 지원하지 않습니다."
         model_support_hint: "{{engine}}는 선택한 모델이 지원하는 언어만 활성화합니다."
+        picker_detail: "언어 또는 국가로 검색하세요."
+        search_placeholder: "언어 또는 국가 검색"
+        search_label: "언어 검색"
+        open_legacy_layout: "기존 VR 레이아웃 열기"
+        open_compact_layout: "검색 레이아웃으로 돌아가기"
+        no_results_title: "언어를 찾을 수 없습니다"
+        no_results_detail: "“{{query}}”와 일치하는 언어가 없습니다."
+        language_list_unavailable: "언어 목록을 아직 사용할 수 없습니다."
+        close: "언어 선택기 닫기"
 
     main_function_tooltips:
         translation_title: "번역"
@@ -165,7 +211,7 @@ main_page:
         transcription_receive_title: "듣기"
         transcription_receive_detail: "다른 사람에게서 들리는 오디오를 전사합니다."
         foreground_title: "항상 위로"
-        foreground_detail: "VRCNT-Next를 다른 창 위에 유지합니다."
+        foreground_detail: "VRCNT를 다른 창 위에 유지합니다."
         settings_title: "설정"
         settings_detail: "앱 설정을 엽니다."
         control_title: "컨트롤"
@@ -190,7 +236,7 @@ main_page:
 
 update_modal:
     cpu_desc: "처리 장치로 CPU만을 사용합니다."
-    cuda_desc: "VRCNT-Next에는 CUDA 지원이 포함되어 있으며, 지원되는 NVIDIA GPU가 없어도 CPU로 실행할 수 있습니다."
+    cuda_desc: "VRCNT에는 CUDA 지원이 포함되어 있으며, 지원되는 NVIDIA GPU가 없어도 CPU로 실행할 수 있습니다."
     cuda_compare_cpu_desc: "GPU 선택 시, CPU에 비해 처리가 빠릅니다."
     cuda_disk_space_desc: "약 {{size}}의 디스크 용량이 필요합니다."
     close_modal: "닫기"
@@ -228,6 +274,43 @@ config_page:
         hotkeys: "단축키"
         plugins: "플러그인"
         advanced_settings: "고급 설정"
+
+    focus_settings:
+        settings_title: "설정"
+        search_placeholder: "모든 설정 검색"
+        search_label: "설정 검색"
+        clear_search: "설정 검색 지우기"
+        navigation_label: "설정 카테고리"
+        current_section: "현재 섹션"
+        search_results: "검색 결과"
+        search_hint: "모든 설정 카테고리를 검색한 뒤 결과를 열어 계속하세요."
+        applies_immediately: "변경 사항이 즉시 적용됩니다"
+        no_results: "설정을 찾을 수 없습니다"
+        no_results_detail: "다른 단어를 입력하거나 위의 카테고리를 선택하세요."
+        results_found: "검색 결과 {{count}}개"
+        result_help: "결과를 열면 해당 설정 카테고리로 이동합니다."
+        section_labels:
+            device: "장치"
+            appearance: "모양"
+            model_and_provider: "모델 및 제공자"
+            translation: "번역"
+            transcription: "음성인식"
+            vr: "VR"
+            others: "기타"
+            hotkeys: "단축키"
+            advanced_settings: "고급 설정"
+            about: "정보"
+        section_descriptions:
+            device: "마이크와 스피커 장치를 선택하고 입력 임계값을 조정합니다."
+            appearance: "언어, 크기, 글꼴, 투명도와 UI 동작을 조정합니다."
+            model_and_provider: "번역 제공자와 음성 인식 모델을 한 화면에서 설정합니다."
+            translation: "로컬 및 클라우드 번역 엔진과 인증 정보를 설정합니다."
+            transcription: "음성 캡처, 인식 모델, 처리 장치와 디코딩을 조정합니다."
+            vr: "VRChat 번역 오버레이의 위치와 표시를 설정합니다."
+            others: "소리, 메시지 형식, 로그와 VRChat 동작을 관리합니다."
+            hotkeys: "실시간 대화 제어를 위한 키보드 단축키를 설정합니다."
+            advanced_settings: "OSC, WebSocket과 설정 파일 직접 접근을 구성합니다."
+            about: "버전, 프로젝트 계보와 저장소 링크를 확인합니다."
 
     device:
         check_volume: "음량 확인"

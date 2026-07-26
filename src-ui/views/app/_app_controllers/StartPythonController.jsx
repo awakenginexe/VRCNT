@@ -108,7 +108,7 @@ const useStartPython = () => {
                 return;
             }
             showNotification_Error(
-                `An error occurred. Please restart VRCNT-Next or contact the developers. The last line:${JSON.stringify(line)}`, { hide_duration: null }
+                `An error occurred. Please restart VRCNT or contact the developers. The last line:${JSON.stringify(line)}`, { hide_duration: null }
             );
             console.error("stderr", line);
         });

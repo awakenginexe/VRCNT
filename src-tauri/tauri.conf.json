@@ -1,7 +1,7 @@
 {
     "$schema": "https://schema.tauri.app/config/2",
-    "productName": "VRCNT-Next",
-    "version": "3.0.0",
+    "productName": "VRCNT",
+    "version": "4.0.0",
     "identifier": "com.vrcnt-next.app",
     "build": {
         "beforeDevCommand": "",
@@ -14,11 +14,11 @@
         "windows": [
             {
                 "label": "main",
-                "title": "VRCNT-Next",
+                "title": "VRCNT",
                 "width": 1450,
                 "height": 900,
-                "minWidth": 1180,
-                "minHeight": 760,
+                "minWidth": 1040,
+                "minHeight": 720,
                 "resizable": true,
                 "maximizable": true,
                 "minimizable": true,
@@ -45,7 +45,7 @@
         "publisher": "awakenginexe",
         "copyright": "Copyright 2026 awakenginexe. Portions Copyright 2023 misyaguziya.",
         "licenseFile": "../LICENSE",
-        "shortDescription": "VRCNT-Next",
+        "shortDescription": "VRCNT",
         "icon": [
             "icons/32x32.png",
             "icons/128x128.png",

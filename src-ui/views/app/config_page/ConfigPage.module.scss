@@ -11,64 +11,76 @@
 
 .container {
     position: absolute;
-    top: 1.4rem;
-    left: 1.4rem;
-    bottom: 1.4rem;
-    width: min(112rem, calc(100% - 4rem));
+    inset: 1.4rem;
     display: grid;
-    grid-template-columns: var(--config_page_sidebar_width) minmax(0, 1fr);
-    gap: 1rem;
-    padding: 1rem;
-    background:
-        var(--bg_radial_gradient),
-        rgba(7, 11, 20, 0.96);
+    grid-template-rows: 6.4rem 5.2rem minmax(0, 1fr);
+    background: rgba(7, 15, 25, 0.985);
     border: var(--panel_border);
-    border-radius: 1.8rem;
+    border-radius: 1.2rem;
     backdrop-filter: var(--panel_blur);
-    box-shadow: 2.4rem 0 8rem rgba(0, 0, 0, 0.52), var(--shadow_accent);
+    box-shadow: 0 0.8rem 0.8rem rgba(0, 0, 0, 0.26);
     overflow: hidden;
-    animation: slide_in 220ms cubic-bezier(.2, .8, .2, 1);
+    transform-origin: top center;
+    animation: open_settings var(--motion_slow) var(--ease_out_expo);
 }
 
 .scrim {
     position: absolute;
     inset: 0;
     background: rgba(0, 0, 0, 0.36);
-    backdrop-filter: blur(0.4rem);
-}
-
-.content_wrapper {
-    min-width: 0;
-    height: 100%;
-    display: grid;
-    grid-template-rows: 6.2rem minmax(0, 1fr);
-    overflow: hidden;
+    backdrop-filter: blur(0.25rem);
+    animation: open_scrim var(--motion_quick) var(--ease_out_quart);
 }
 
 .main_container {
     width: 100%;
     min-height: 0;
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(18rem, 23rem) minmax(0, 1fr);
     overflow: hidden;
+    border-top: 0.1rem solid var(--border_subtle_color);
 }
 
-@keyframes slide_in {
+@keyframes open_settings {
     from {
         opacity: 0;
-        transform: translateX(-3rem) scale(0.99);
+        transform: translateY(1rem) scale(0.992);
     }
 
     to {
         opacity: 1;
-        transform: translateX(0) scale(1);
+        transform: translateY(0) scale(1);
     }
 }
 
-@media (max-width: 76rem) {
+@keyframes open_scrim {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@media (max-width: 78rem) {
     .container {
-        left: 1.2rem;
-        right: 1.2rem;
-        width: auto;
+        inset: 1rem;
+    }
+
+    .main_container {
+        grid-template-columns: 18rem minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 62rem) {
+    .main_container {
         grid-template-columns: minmax(0, 1fr);
+    }
+
+    .main_container > :first-child {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .container,
+    .scrim {
+        animation: none;
     }
 }

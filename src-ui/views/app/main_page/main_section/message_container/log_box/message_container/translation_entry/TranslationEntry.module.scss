@@ -59,6 +59,29 @@
     color: var(--error_bc_color);
 }
 
+.retry_button {
+    padding: 0.28em 0.7em;
+    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.45);
+    border-radius: 0.55rem;
+    color: var(--dark_100_color);
+    background: var(--surface_3_color);
+    font: inherit;
+    font-size: 0.78em;
+    font-weight: 800;
+    cursor: pointer;
+    transition: var(--transition_ui);
+
+    &:hover {
+        border-color: var(--accent_color);
+        background: rgba(var(--accent_color_rgb), 0.14);
+    }
+
+    &:focus-visible {
+        outline: 0.15rem solid var(--accent_color);
+        outline-offset: 0.15rem;
+    }
+}
+
 .sr_only {
     position: absolute;
     width: 0.1rem;

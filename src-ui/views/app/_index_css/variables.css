@@ -1,9 +1,9 @@
 :root {
-    --accent_color: #7dd3fc;
-    --accent_color_rgb: 125, 211, 252;
-    --accent_gradient: linear-gradient(135deg, #7dd3fc, #c8a0f0);
-    --bg_gradient_start: #10243a;
-    --bg_gradient_end: #241c3a;
+    --accent_color: #9B6DFF;
+    --accent_color_rgb: 155, 109, 255;
+    --accent_gradient: linear-gradient(115deg, #8B5CF6, #A87CFF);
+    --bg_gradient_start: #08070B;
+    --bg_gradient_end: #08070B;
 
     --primary_100_color: color-mix(in srgb, var(--accent_color) 15%, #ffffff);
     --primary_150_color: color-mix(in srgb, var(--accent_color) 30%, #ffffff);
@@ -24,38 +24,39 @@
 
     --primary_600_color_44: color-mix(in srgb, var(--primary_600_color) 44%, transparent);
 
-    --sent_400_color: var(--accent_color);
-    --received_300_color: color-mix(in srgb, var(--accent_color) 74%, #ffffff);
+    --sent_400_color: #5BE2B5;
+    --received_300_color: #CBB8FF;
 
-    --error_bc_color: #ff4a5a;
-    --error_bc_active_color: #d63847;
-    --success_bc_color: #00c896;
-    --warning_color: #ffb03a;
-    --warning_bc_color: #d6871c;
+    --error_bc_color: #FF7180;
+    --error_bc_active_color: #D75465;
+    --success_bc_color: #5BE2B5;
+    --warning_color: #F2B84B;
+    --warning_color_rgb: 242, 184, 75;
+    --warning_bc_color: #B87518;
 
-    --dark_basic_text_color: #e0e8f0;
-    --dark_100_color: #f8fbff;
-    --dark_200_color: #eef6ff;
-    --dark_300_color: #d7e3ee;
-    --dark_350_color: #bed0df;
-    --dark_400_color: #98adbf;
-    --dark_450_color: #71879a;
-    --dark_500_color: #526578;
-    --dark_550_color: #38495d;
-    --dark_600_color: #243246;
-    --dark_650_color: #1d293a;
-    --dark_700_color: #172132;
-    --dark_725_color: #121b2a;
-    --dark_750_color: #0f1725;
-    --dark_775_color: #0d1320;
-    --dark_800_color: #0a0f1a;
-    --dark_825_color: #090d17;
-    --dark_850_color: #070b14;
-    --dark_863_color: #060a12;
-    --dark_875_color: #050811;
-    --dark_888_color: #04070d;
-    --dark_900_color: #010203;
-    --dark_925_color: #000102;
+    --dark_basic_text_color: #E7E1EF;
+    --dark_100_color: #F8F5FB;
+    --dark_200_color: #F3EFF8;
+    --dark_300_color: #D8CFDF;
+    --dark_350_color: #B8AFC5;
+    --dark_400_color: #958AA3;
+    --dark_450_color: #746A80;
+    --dark_500_color: #5D5369;
+    --dark_550_color: #463C51;
+    --dark_600_color: #302839;
+    --dark_650_color: #27202F;
+    --dark_700_color: #211A28;
+    --dark_725_color: #1B1526;
+    --dark_750_color: #17121F;
+    --dark_775_color: #130F19;
+    --dark_800_color: #100D15;
+    --dark_825_color: #0D0A11;
+    --dark_850_color: #0A080E;
+    --dark_863_color: #09070C;
+    --dark_875_color: #08070B;
+    --dark_888_color: #060508;
+    --dark_900_color: #040305;
+    --dark_925_color: #020203;
     --dark_950_color: #000001;
     --dark_975_color: #000000;
     --dark_1000_color: #000000;
@@ -66,6 +67,17 @@
     --dark_1000_color_aa: rgba(0, 0, 0, 0.66);
     --dark_1000_color_dd: rgba(0, 0, 0, 0.85);
 
+    /* Motion system: short, ease-out interactions with one shared source of truth. */
+    --ease_out_quart: cubic-bezier(0.25, 1, 0.5, 1);
+    --ease_out_quint: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease_out_expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --motion_instant: 110ms;
+    --motion_quick: 160ms;
+    --motion_standard: 220ms;
+    --motion_slow: 320ms;
+    --motion_feedback: var(--motion_quick) var(--ease_out_quart);
+    --motion_enter: var(--motion_standard) var(--ease_out_quint);
+
     /* Performance Mode reactive variables */
     --panel_blur: blur(16px);
     --panel_bg_opacity: 0.6;
@@ -73,13 +85,13 @@
     --panel_border_subtle: 0.1rem solid rgba(var(--accent_color_rgb), 0.1);
     --glow_shadow: 0 0 3rem rgba(var(--accent_color_rgb), 0.05);
     --glow_shadow_hover: 0 0 2.4rem rgba(var(--accent_color_rgb), 0.24);
-    --glow_shadow_purple: 0 0 2.2rem rgba(200, 160, 240, 0.22);
-    --transition_ui: 200ms cubic-bezier(.2, .8, .2, 1);
-    --bg_radial_gradient: radial-gradient(circle at 14% 0%, rgba(var(--accent_color_rgb), 0.12) 0%, transparent 34%), radial-gradient(circle at 86% 96%, rgba(200, 160, 240, 0.1) 0%, transparent 42%);
+    --glow_shadow_purple: 0 0 2.2rem rgba(155, 109, 255, 0.14);
+    --transition_ui: var(--motion_standard) var(--ease_out_quart);
+    --bg_radial_gradient: radial-gradient(circle at 88% 8%, rgba(var(--accent_color_rgb), 0.1) 0%, transparent 32%), radial-gradient(circle at 12% 92%, rgba(var(--accent_color_rgb), 0.045) 0%, transparent 40%);
 
-    --surface_1_color: color-mix(in srgb, rgba(var(--accent_color_rgb), 0.05), rgba(15, 21, 36, var(--panel_bg_opacity)));
-    --surface_2_color: color-mix(in srgb, rgba(var(--accent_color_rgb), 0.08), rgba(20, 28, 46, 0.75));
-    --surface_3_color: color-mix(in srgb, rgba(var(--accent_color_rgb), 0.12), rgba(26, 36, 56, 0.82));
+    --surface_1_color: color-mix(in srgb, rgba(var(--accent_color_rgb), 0.035), rgba(16, 13, 21, var(--panel_bg_opacity)));
+    --surface_2_color: color-mix(in srgb, rgba(var(--accent_color_rgb), 0.06), rgba(21, 17, 28, 0.88));
+    --surface_3_color: color-mix(in srgb, rgba(var(--accent_color_rgb), 0.09), rgba(27, 21, 38, 0.92));
     --border_subtle_color: rgba(var(--accent_color_rgb), 0.12);
     --focus_ring_color: rgba(var(--accent_color_rgb), 0.3);
     --shadow_soft: 0 1.8rem 4.8rem rgba(0, 0, 0, 0.36);
@@ -105,6 +117,12 @@
 }
 
 .performance_mode {
+    --motion_instant: 0ms;
+    --motion_quick: 0ms;
+    --motion_standard: 0ms;
+    --motion_slow: 0ms;
+    --motion_feedback: 0ms;
+    --motion_enter: 0ms;
     --panel_blur: none;
     --panel_bg_opacity: 0.98;
     --panel_border: 0.1rem solid #1e293b;
@@ -114,10 +132,10 @@
     --glow_shadow_purple: none;
     --transition_ui: 0ms;
     --bg_radial_gradient: none;
-    --surface_1_color: color-mix(in srgb, var(--accent_color) 8%, #090f18);
-    --surface_2_color: color-mix(in srgb, var(--accent_color) 10%, #0e1724);
-    --surface_3_color: color-mix(in srgb, var(--accent_color) 12%, #142032);
-    --border_subtle_color: #1e293b;
+    --surface_1_color: color-mix(in srgb, var(--accent_color) 5%, #100d15);
+    --surface_2_color: color-mix(in srgb, var(--accent_color) 7%, #15111c);
+    --surface_3_color: color-mix(in srgb, var(--accent_color) 9%, #1b1526);
+    --border_subtle_color: #2b2238;
     --focus_ring_color: var(--accent_color);
     --shadow_soft: none;
     --shadow_lateral: none;
@@ -129,36 +147,5 @@
     --filter_accent_glow_strong: none;
 }
 
-.theme-neon-cyan {
-    --accent_color: #7dd3fc;
-    --accent_color_rgb: 125, 211, 252;
-    --accent_gradient: linear-gradient(135deg, #7dd3fc, #c8a0f0);
-    --bg_gradient_start: #10243a;
-    --bg_gradient_end: #241c3a;
-}
-
-.theme-midnight-purple {
-    --accent_color: #a78bfa;
-    --accent_color_rgb: 167, 139, 250;
-    --accent_gradient: linear-gradient(135deg, #8b5cf6, #ec4899);
-    --bg_gradient_start: #0f1026;
-    --bg_gradient_end: #2d0b3d;
-}
-
-.theme-emerald-green {
-    --accent_color: #10b981;
-    --accent_color_rgb: 16, 185, 129;
-    --accent_gradient: linear-gradient(135deg, #10b981, #06b6d4);
-    --bg_gradient_start: #05201a;
-    --bg_gradient_end: #071728;
-}
-
-.theme-sakura-pink {
-    --accent_color: #f472b6;
-    --accent_color_rgb: 244, 114, 182;
-    --accent_gradient: linear-gradient(135deg, #f472b6, #fb7185);
-    --bg_gradient_start: #2a0b1c;
-    --bg_gradient_end: #110e2c;
-}
 /* https://m2.material.io/design/color/the-color-system.html#tools-for-picking-colors */
 /* https://meyerweb.com/eric/tools/color-blend/#::1:hex */

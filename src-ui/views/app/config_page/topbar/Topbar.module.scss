@@ -1,6 +1,6 @@
 .container {
     width: 100%;
-    height: 6.2rem;
+    height: 6.4rem;
     transition: var(--transition_ui);
     position: relative;
     top: 0;
@@ -17,77 +17,122 @@
 
 
 .wrapper {
-    background: var(--surface_1_color);
-    backdrop-filter: var(--panel_blur);
+    background: rgba(7, 16, 27, 0.98);
     cursor: default;
-    height: 6.2rem;
+    height: 6.4rem;
     width: 100%;
-    position: relative;
     display: flex;
     align-items: center;
-    border: var(--panel_border_subtle);
-    border-radius: 1.4rem;
-    box-shadow: var(--shadow_control);
-    transition: all 0.3s ease;
+    gap: 1rem;
+    padding: 0 1.2rem;
 
-    &:hover {
-        height: 6.4rem;
-        .go_back_button {
-            background-color: var(--surface_3_color);
-            transform: translateX(-0.1rem);
-            box-shadow: var(--glow_shadow);
-            border-color: var(--primary_300_color);
-        }
-        .arrow_left_svg {
-            color: var(--primary_300_color);
-        }
-        .go_back_text {
-            color: var(--primary_200_color);
-        }
-        .go_back_text_wrapper {
-            padding-right: 1.4rem;
-        }
+    > :last-child {
+        width: auto;
+        flex: 0 0 auto;
+        padding: 0;
     }
-
 }
 
 .go_back_button {
     height: 3.8rem;
     width: 3.8rem;
-    border-radius: 0.8rem;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    border-radius: 0.6rem;
     background-color: var(--surface_2_color);
     border: 0.1rem solid var(--border_subtle_color);
-    position: relative;
-    top: auto;
-    right: auto;
-    margin-left: 1rem;
-    transform: none;
-    transition: all 0.3s ease;
+    transition: border-color var(--transition_ui), background-color var(--transition_ui);
     cursor: pointer;
+
+    &:hover {
+        background-color: var(--surface_3_color);
+        border-color: var(--primary_300_color);
+    }
+
+    &:focus-visible {
+        outline: 0.2rem solid var(--accent_color);
+        outline-offset: 0.15rem;
+    }
 }
 
 .arrow_left_svg {
-    height: 2.2rem;
-    position: absolute;
-    right: 0.8rem;
-    bottom: 0.8rem;
+    width: 2rem;
+    height: 2rem;
     color: var(--primary_200_color);
-    transform: none;
 }
 
-.go_back_text_wrapper {
-    position: relative;
-    top: auto;
-    right: auto;
-    padding: 0 1.2rem 0 0.8rem;
-    width: auto;
-    transition: all 0.3s ease;
-    cursor: pointer;
+.search {
+    width: min(46rem, 42vw);
+    min-height: 3.8rem;
+    margin-left: auto;
+    padding: 0 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    border: 0.1rem solid var(--border_subtle_color);
+    border-radius: 0.6rem;
+    background: rgba(9, 28, 42, 0.7);
+    transition: border-color var(--transition_ui), box-shadow var(--transition_ui);
+
+    &:focus-within {
+        border-color: var(--primary_300_color);
+        box-shadow: 0 0 0 0.2rem rgba(var(--accent_color_rgb), 0.12);
+    }
 }
 
-.go_back_text {
+.search_icon {
+    color: var(--primary_250_color);
+    font-size: 1.7rem;
+}
+
+.search input {
+    min-width: 0;
+    flex: 1;
+    color: var(--dark_100_color);
+    font-size: 1.15rem;
+    border: 0;
+    outline: 0;
+    background: transparent;
+
+    &::placeholder {
+        color: var(--dark_400_color);
+        opacity: 1;
+    }
+}
+
+.search kbd {
+    padding: 0.2rem 0.5rem;
+    color: var(--dark_500_color);
+    font-size: 0.85rem;
+    border: 0.1rem solid var(--border_subtle_color);
+    border-radius: 0.3rem;
+}
+
+.clear_search {
+    width: 2.4rem;
+    height: 2.4rem;
+    display: grid;
+    place-items: center;
     color: var(--dark_300_color);
-    font-size: 1.2rem;
-    padding-left: 0;
-    transition: all 0.3s ease;
+    font-size: 1.7rem;
+    border: 0;
+    border-radius: 0.4rem;
+    background: transparent;
+    cursor: pointer;
+
+    &:hover {
+        color: var(--dark_100_color);
+        background: var(--surface_3_color);
+    }
+}
+
+@media (max-width: 72rem) {
+    .search {
+        width: min(38rem, 40vw);
+    }
+
+    .search kbd {
+        display: none;
+    }
 }

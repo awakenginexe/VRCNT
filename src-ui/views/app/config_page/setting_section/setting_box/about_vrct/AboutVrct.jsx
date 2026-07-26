@@ -1,52 +1,89 @@
 import styles from "./AboutVrct.module.scss";
 import logoBadge from "@images/vrcnt_logo_badge.png";
+import ExternalLink from "@images/external_link.svg?react";
+import { useI18n } from "@useI18n";
+import { useSoftwareVersion } from "@logics_common";
+import packageInfo from "@root/package.json";
 
 export const AboutVrct = () => {
+    const { t } = useI18n();
+    const { currentSoftwareVersion } = useSoftwareVersion();
+    const runtimeVersion = currentSoftwareVersion.data;
+    const version = runtimeVersion && runtimeVersion !== "-"
+        ? runtimeVersion
+        : packageInfo.version;
+
     return (
         <div className={styles.container}>
             <section className={styles.hero}>
-                <img className={styles.logo_mark} src={logoBadge} alt="VRCNT-Next" />
+                <img className={styles.logo_mark} src={logoBadge} alt="VRCNT" />
                 <div className={styles.hero_text}>
-                    <p className={styles.kicker}>VRCNT-Next</p>
-                    <h1 className={styles.title}>VRChat Next Gen Translation</h1>
+                    <div className={styles.identity_line}>
+                        <span className={styles.product_name}>VRCNT</span>
+                        <span className={styles.version}>
+                            {t("about_page.version", { version })}
+                        </span>
+                    </div>
+                    <h1 className={styles.title}>{t("about_page.title")}</h1>
                     <p className={styles.description}>
-                        VRCNT-Next Unofficial next-generation translation tool for VRChat
+                        {t("about_page.description")}
                     </p>
                 </div>
             </section>
 
-            <section className={styles.notice}>
-                <p className={styles.notice_label}>Project Lineage</p>
-                <p className={styles.notice_text}>
-                    This program is based from VRCT. VRCNT-Next is an unofficial customized continuation focused on a modern workflow, clearer language controls, and practical VRChat translation use.
-                </p>
-                <a className={styles.link_button} href="https://github.com/misyaguziya/VRCT" target="_blank" rel="noreferrer">
-                    Original VRCT GitHub
-                </a>
+            <section className={styles.repositories} aria-labelledby="about-repositories">
+                <div className={styles.section_heading}>
+                    <h2 id="about-repositories">{t("about_page.repositories_title")}</h2>
+                    <p>{t("about_page.repositories_description")}</p>
+                </div>
+                <div className={styles.repository_links}>
+                    <a
+                        className={styles.repository_link}
+                        href="https://github.com/awakenginexe/VRCNT-Next"
+                        target="_blank"
+                        rel="noreferrer"
+                    >
+                        <span>
+                            <strong>{t("about_page.vrcnt_repository")}</strong>
+                            <small>github.com/awakenginexe/VRCNT-Next</small>
+                        </span>
+                        <ExternalLink aria-hidden="true" />
+                    </a>
+                    <a
+                        className={styles.repository_link}
+                        href="https://github.com/misyaguziya/VRCT"
+                        target="_blank"
+                        rel="noreferrer"
+                    >
+                        <span>
+                            <strong>{t("about_page.vrct_repository")}</strong>
+                            <small>github.com/misyaguziya/VRCT</small>
+                        </span>
+                        <ExternalLink aria-hidden="true" />
+                    </a>
+                </div>
             </section>
 
-            <section className={styles.info_grid}>
-                <div className={styles.info_card}>
-                    <p className={styles.card_label}>Identity</p>
-                    <p className={styles.card_title}>VRCNT-Next</p>
-                    <p className={styles.card_text}>A modern customizable interface for translation, transcription, and VRChat message flow.</p>
+            <section className={styles.lineage} aria-labelledby="about-lineage">
+                <div className={styles.section_heading}>
+                    <h2 id="about-lineage">{t("about_page.lineage_title")}</h2>
+                    <p>{t("about_page.lineage_description")}</p>
                 </div>
-                <div className={styles.info_card}>
-                    <p className={styles.card_label}>Status</p>
-                    <p className={styles.card_title}>Unofficial</p>
-                    <p className={styles.card_text}>This build is not an official VRCT release and is not endorsed by VRChat.</p>
-                </div>
-                <div className={styles.info_card}>
-                    <p className={styles.card_label}>Focus</p>
-                    <p className={styles.card_title}>Fast Translation</p>
-                    <p className={styles.card_text}>Designed around practical VRChat sessions, split language roles, and local AI engines.</p>
-                </div>
+                <dl className={styles.lineage_summary}>
+                    <div>
+                        <dt>{t("about_page.origin_label")}</dt>
+                        <dd>{t("about_page.origin_value")}</dd>
+                    </div>
+                    <div>
+                        <dt>{t("about_page.current_label")}</dt>
+                        <dd>{t("about_page.current_value")}</dd>
+                    </div>
+                </dl>
             </section>
 
             <section className={styles.disclaimer}>
-                <p>
-                    VRCNT-Next is not endorsed by VRChat and does not reflect the views or opinions of VRChat or anyone officially involved in producing or managing VRChat properties. VRChat and all associated properties are trademarks or registered trademarks of VRChat Inc.
-                </p>
+                <h2>{t("about_page.independence_title")}</h2>
+                <p>{t("about_page.independence_description")}</p>
             </section>
         </div>
     );

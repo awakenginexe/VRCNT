@@ -29,11 +29,28 @@ from .pipeline_types import (
 )
 
 
-MAX_TRANSLATION_JOBS_PER_SOURCE = 8
+MAX_TRANSLATION_JOBS_PER_SOURCE = 24
 MAX_OUTPUT_TASKS_PER_SOURCE = 4
-MAX_ACTIVE_TRACES_PER_SOURCE = 16
+MAX_ACTIVE_TRACES_PER_SOURCE = 32
 WORKER_POLL_SECONDS = 0.1
 PROVIDER_TIMEOUT_SECONDS = 5.0
+CLOUD_BACKLOG_LOCAL_FALLBACK_THRESHOLD = 3
+CLOUD_TRANSLATION_PROVIDERS = frozenset(
+    (
+        "DeepL",
+        "DeepL_API",
+        "Plamo_API",
+        "Gemini_API",
+        "OpenAI_API",
+        "Groq_API",
+        "OpenRouter_API",
+        "LMStudio",
+        "Ollama",
+        "Google",
+        "Bing",
+        "Papago",
+    )
+)
 logger = logging.getLogger(__name__)
 
 
@@ -69,6 +86,11 @@ class SourcePipeline:
         emit_metric: Callable[[PipelineStatusEvent], None],
         emit_final: Callable[[FinalOutputTask], None],
         is_generation_current: Callable[[int], bool],
+        rotate_providers: Optional[
+            Callable[[tuple[str, ...]], tuple[str, ...]]
+        ] = None,
+        local_fallback_enabled: Optional[Callable[[], bool]] = None,
+        prepare_local_fallback: Optional[Callable[[], None]] = None,
     ) -> None:
         self.source = source
         self._translator = translator
@@ -78,6 +100,9 @@ class SourcePipeline:
         self._emit_metric = emit_metric
         self._emit_final = emit_final
         self._is_generation_current_callback = is_generation_current
+        self._rotate_providers = rotate_providers or (lambda providers: providers)
+        self._local_fallback_enabled = local_fallback_enabled or (lambda: False)
+        self._prepare_local_fallback = prepare_local_fallback or (lambda: None)
 
         self._translation_queue: LatestQueue[TranslationJob] = LatestQueue(
             MAX_TRANSLATION_JOBS_PER_SOURCE
@@ -314,11 +339,14 @@ class SourcePipeline:
             providers = tuple(trace.providers[:2])
             base_position = self._translation_queue.qsize()
             for slot_order, target in enumerate(trace.targets, start=1):
+                job_providers = tuple(self._rotate_providers(providers))[:2]
+                if not job_providers:
+                    job_providers = providers
                 queued = TranslationUpdate(
                     trace_id=trace.trace_id,
                     target_slot=target.target_slot,
                     status=TranslationStatus.QUEUED,
-                    engine=providers[0] if providers else None,
+                    engine=job_providers[0] if job_providers else None,
                     message=None,
                     transliteration=(),
                     duration_ms=None,
@@ -334,7 +362,7 @@ class SourcePipeline:
                         original_message=trace.original_message,
                         source_language=trace.source_language,
                         target=target,
-                        providers=providers,
+                        providers=job_providers,
                         ctranslate2_weight_type=trace.ctranslate2_weight_type,
                         context_history=tuple(deepcopy(trace.context_history)),
                         enqueued_at_monotonic=monotonic(),
@@ -589,9 +617,121 @@ class SourcePipeline:
         # ready records and never puts new output work.
         self._flush_ready_records()
 
+    def _attempt_with_deadline(
+        self,
+        job: TranslationJob,
+        provider: str,
+        timeout_seconds: float,
+    ) -> TranslationAttempt:
+        result: dict[str, TranslationAttempt] = {}
+        completed = Event()
+
+        def run_attempt() -> None:
+            try:
+                result["attempt"] = self._translator.translateAttempt(
+                    translator_name=provider,
+                    weight_type=job.ctranslate2_weight_type,
+                    source_language=job.source_language,
+                    target_language=job.target.language,
+                    target_country=job.target.country,
+                    message=job.original_message,
+                    context_history=list(deepcopy(job.context_history)),
+                    timeout_seconds=timeout_seconds,
+                )
+            except Exception:
+                result["attempt"] = TranslationAttempt(
+                    status=TranslationStatus.ERROR,
+                    engine=provider,
+                    message=None,
+                    duration_ms=0,
+                    error_code="provider_error",
+                )
+            finally:
+                completed.set()
+
+        Thread(
+            target=run_attempt,
+            name=f"{self.source.value}-{provider}-attempt",
+            daemon=True,
+        ).start()
+        if completed.wait(timeout_seconds):
+            return result.get("attempt") or TranslationAttempt(
+                status=TranslationStatus.ERROR,
+                engine=provider,
+                message=None,
+                duration_ms=0,
+                error_code="provider_error",
+            )
+
+        remember_timeout = getattr(
+            self._translator,
+            "rememberProviderTimeout",
+            None,
+        )
+        retry_after_seconds = None
+        if callable(remember_timeout):
+            try:
+                retry_after_seconds = remember_timeout(provider)
+            except Exception:
+                retry_after_seconds = None
+        return TranslationAttempt(
+            status=TranslationStatus.TIMEOUT,
+            engine=provider,
+            message=None,
+            duration_ms=max(0, round(timeout_seconds * 1000)),
+            error_code="provider_timeout",
+            retry_after_seconds=retry_after_seconds,
+        )
+
     def _run_translation_job(self, record: _TraceRecord, job: TranslationJob) -> None:
-        providers = tuple(job.providers[:2])
+        providers = list(job.providers[:2])
+        try:
+            use_local_fallback = self._local_fallback_enabled()
+        except Exception:
+            use_local_fallback = False
+        if (
+            use_local_fallback
+            and providers
+            and providers[0] != "CTranslate2"
+            and "CTranslate2" not in providers
+        ):
+            providers.append("CTranslate2")
+
+        local_first = (
+            use_local_fallback
+            and providers
+            and providers[0] != "CTranslate2"
+            and self._should_prioritize_local_fallback(providers)
+        )
+        if local_first:
+            providers = ["CTranslate2"] + [
+                provider for provider in providers
+                if provider != "CTranslate2"
+            ]
+            fallback = TranslationUpdate(
+                trace_id=job.trace_id,
+                target_slot=job.target.target_slot,
+                status=TranslationStatus.FALLBACK,
+                engine="CTranslate2",
+                message=None,
+                transliteration=(),
+                duration_ms=None,
+                queue_position=0,
+                error_code=None,
+            )
+            self._publish_update(record, fallback)
+            self._emit_translation_metric(
+                job,
+                fallback,
+                queue_depth=self._translation_queue.qsize(),
+            )
+
+        failures: list[TranslationAttempt] = []
+        cloud_deadline: Optional[float] = None
+        cloud_budget_exhausted = False
         for provider_index, provider in enumerate(providers):
+            if cloud_budget_exhausted and provider in CLOUD_TRANSLATION_PROVIDERS:
+                continue
             if not self._job_is_current(record, job):
                 self._remove_record(job.trace_id, record)
                 return
@@ -620,16 +760,47 @@ class SourcePipeline:
                 self._remove_record(job.trace_id, record)
                 return
             try:
-                attempt = self._translator.translateAttempt(
-                    translator_name=provider,
-                    weight_type=job.ctranslate2_weight_type,
-                    source_language=job.source_language,
-                    target_language=job.target.language,
-                    target_country=job.target.country,
-                    message=job.original_message,
-                    context_history=list(deepcopy(job.context_history)),
-                    timeout_seconds=PROVIDER_TIMEOUT_SECONDS,
-                )
+                if provider == "CTranslate2":
+                    self._prepare_local_fallback()
+                    attempt = self._translator.translateAttempt(
+                        translator_name=provider,
+                        weight_type=job.ctranslate2_weight_type,
+                        source_language=job.source_language,
+                        target_language=job.target.language,
+                        target_country=job.target.country,
+                        message=job.original_message,
+                        context_history=list(deepcopy(job.context_history)),
+                        timeout_seconds=PROVIDER_TIMEOUT_SECONDS,
+                    )
+                elif provider in CLOUD_TRANSLATION_PROVIDERS:
+                    if cloud_deadline is None:
+                        cloud_deadline = monotonic() + PROVIDER_TIMEOUT_SECONDS
+                    remaining_seconds = max(0.0, cloud_deadline - monotonic())
+                    if remaining_seconds <= 0:
+                        attempt = TranslationAttempt(
+                            status=TranslationStatus.TIMEOUT,
+                            engine=provider,
+                            message=None,
+                            duration_ms=0,
+                            error_code="provider_timeout",
+                        )
+                    else:
+                        attempt = self._attempt_with_deadline(
+                            job,
+                            provider,
+                            remaining_seconds,
+                        )
+                else:
+                    attempt = self._translator.translateAttempt(
+                        translator_name=provider,
+                        weight_type=job.ctranslate2_weight_type,
+                        source_language=job.source_language,
+                        target_language=job.target.language,
+                        target_country=job.target.country,
+                        message=job.original_message,
+                        context_history=list(deepcopy(job.context_history)),
+                        timeout_seconds=PROVIDER_TIMEOUT_SECONDS,
+                    )
             except Exception:
                 attempt = TranslationAttempt(
                     status=TranslationStatus.ERROR,
@@ -688,8 +859,60 @@ class SourcePipeline:
                 queue_position=0,
                 error_code=attempt.error_code or "provider_error",
             )
-            last_provider = provider_index == len(providers) - 1
+            failures.append(attempt)
+            if (
+                provider in CLOUD_TRANSLATION_PROVIDERS
+                and cloud_deadline is not None
+                and (
+                    monotonic() >= cloud_deadline
+                    or (
+                        attempt.status is TranslationStatus.TIMEOUT
+                        and attempt.error_code == "provider_timeout"
+                    )
+                )
+            ):
+                cloud_budget_exhausted = True
+            next_provider = next(
+                (
+                    candidate
+                    for candidate in providers[provider_index + 1:]
+                    if not (
+                        cloud_budget_exhausted
+                        and candidate in CLOUD_TRANSLATION_PROVIDERS
+                    )
+                ),
+                None,
+            )
+            last_provider = next_provider is None
             if last_provider:
+                rate_limited = [
+                    item
+                    for item in failures
+                    if item.error_code == "provider_rate_limited"
+                ]
+                retry_values = [
+                    item.retry_after_seconds
+                    for item in rate_limited
+                    if item.retry_after_seconds is not None
+                ]
+                if rate_limited and len(rate_limited) == len(failures):
+                    failure = TranslationUpdate(
+                        trace_id=failure.trace_id,
+                        target_slot=failure.target_slot,
+                        status=failure.status,
+                        engine=failure.engine,
+                        message=failure.message,
+                        transliteration=failure.transliteration,
+                        duration_ms=failure.duration_ms,
+                        queue_position=failure.queue_position,
+                        error_code="providers_rate_limited",
+                        failed_engines=tuple(
+                            item.engine for item in rate_limited
+                        ),
+                        retry_after_seconds=(
+                            min(retry_values) if retry_values else None
+                        ),
+                    )
                 if not self._publish_terminal(
                     record,
                     job,
@@ -711,7 +934,7 @@ class SourcePipeline:
                 trace_id=job.trace_id,
                 target_slot=job.target.target_slot,
                 status=TranslationStatus.FALLBACK,
-                engine=providers[provider_index + 1],
+                engine=next_provider,
                 message=None,
                 transliteration=(),
                 duration_ms=None,
@@ -730,6 +953,36 @@ class SourcePipeline:
             if not self._job_is_current(record, job):
                 self._remove_record(job.trace_id, record)
                 return
+
+    def _should_prioritize_local_fallback(
+        self,
+        providers: list[str],
+    ) -> bool:
+        """Spill a cloud backlog or full cooldown set into the opted-in local model."""
+        cloud_providers = [
+            provider for provider in providers
+            if provider != "CTranslate2"
+        ]
+        if not cloud_providers:
+            return False
+        if (
+            self._translation_queue.qsize()
+            >= CLOUD_BACKLOG_LOCAL_FALLBACK_THRESHOLD
+        ):
+            return True
+
+        get_cooldowns = getattr(
+            self._translator,
+            "getRateLimitedProviderCooldowns",
+            None,
+        )
+        if not callable(get_cooldowns):
+            return False
+        try:
+            cooldowns = get_cooldowns(cloud_providers)
+        except Exception:
+            return False
+        return len(cooldowns) == len(cloud_providers)
 
     def _flush_ready_records(self) -> None:
         self._ready_event.clear()

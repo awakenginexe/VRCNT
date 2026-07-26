@@ -276,6 +276,7 @@ class TranslationAttemptTests(unittest.TestCase):
 
         for timeout_exception in (TimeoutError("late"), requests.exceptions.Timeout("late")):
             with self.subTest(exception=type(timeout_exception).__name__):
+                self.translator._clearProviderCooldown("Google")
                 with patch.object(self.translator, "_translate_once", side_effect=timeout_exception), patch.object(
                     translation_translator, "perf_counter", side_effect=[10.0, 10.025]
                 ):
@@ -286,6 +287,43 @@ class TranslationAttemptTests(unittest.TestCase):
                 self.assertIsNone(attempt.message)
                 self.assertEqual(attempt.duration_ms, 25)
                 self.assertEqual(attempt.error_code, "provider_timeout")
+
+    def test_repeated_free_provider_calls_reserve_spaced_request_slots(self):
+        self.translator._web_translator = Mock(return_value="translated")
+        with (
+            patch.object(
+                self.translator,
+                "getLanguageCode",
+                return_value=("ja", "en"),
+            ),
+            patch.object(
+                translation_translator,
+                "monotonic",
+                side_effect=[100.0, 100.2],
+            ),
+            patch.object(translation_translator, "sleep") as paced_sleep,
+        ):
+            for _ in range(2):
+                self.translator._translate_once(
+                    "Google",
+                    "unused",
+                    "Japanese",
+                    "English",
+                    "United States",
+                    "message",
+                    None,
+                    5.0,
+                )
+
+        paced_sleep.assert_called_once()
+        self.assertAlmostEqual(
+            paced_sleep.call_args.args[0],
+            (
+                translation_translator
+                .MIN_UNAUTHENTICATED_PROVIDER_INTERVAL_SECONDS
+                - 0.2
+            ),
+        )
 
     def test_bing_timeout_is_classified_through_provider_dispatch(self):
         timeout_exception = translation_translator.PROVIDER_TIMEOUT_EXCEPTIONS[1]
@@ -417,6 +455,87 @@ class TranslationAttemptTests(unittest.TestCase):
         self.assertIsNone(attempt.message)
         self.assertEqual(attempt.duration_ms, 3)
         self.assertEqual(attempt.error_code, "provider_error")
+
+    def test_rate_limit_uses_retry_after_and_skips_calls_during_cooldown(self):
+        error = requests.exceptions.HTTPError("429 Too Many Requests")
+        error.response = SimpleNamespace(
+            status_code=429,
+            headers={"Retry-After": "12"},
+        )
+        with patch.object(
+            self.translator,
+            "_translate_once",
+            side_effect=error,
+        ):
+            attempt = self._attempt(translator_name="Google")
+
+        self.assertEqual(attempt.status, TranslationStatus.ERROR)
+        self.assertEqual(attempt.error_code, "provider_rate_limited")
+        self.assertEqual(attempt.retry_after_seconds, 12)
+
+        with patch.object(
+            self.translator,
+            "_translate_once",
+            return_value="must not run",
+        ) as translate_once:
+            cooldown_attempt = self._attempt(translator_name="Google")
+
+        translate_once.assert_not_called()
+        self.assertEqual(
+            cooldown_attempt.error_code,
+            "provider_rate_limited",
+        )
+        self.assertGreaterEqual(cooldown_attempt.retry_after_seconds, 1)
+
+    def test_cooldown_callback_reports_independent_absolute_deadlines(self):
+        snapshots = []
+        self.translator.setProviderCooldownCallback(
+            lambda payload: snapshots.append(payload)
+        )
+
+        with (
+            patch.object(translation_translator, "monotonic", return_value=50.0),
+            patch.object(translation_translator, "time", return_value=1_000.0),
+        ):
+            self.translator._rememberProviderCooldown("Google", 30)
+
+        self.assertEqual(
+            snapshots[-1]["Google"],
+            {
+                "reason": "rate_limited",
+                "retry_after_seconds": 30,
+                "retry_at_ms": 1_030_000,
+            },
+        )
+
+    def test_timeout_quarantine_is_visible_and_does_not_sleep(self):
+        with patch.object(translation_translator, "sleep") as sleep_mock:
+            seconds = self.translator.rememberProviderTimeout("Bing")
+
+        self.assertGreaterEqual(seconds, 1)
+        self.assertEqual(
+            self.translator.getProviderCooldownSnapshot(["Bing"])["Bing"][
+                "reason"
+            ],
+            "timeout",
+        )
+        sleep_mock.assert_not_called()
+
+    def test_native_timeout_quarantines_provider_before_next_sentence(self):
+        with patch.object(
+            self.translator,
+            "_translate_once",
+            side_effect=requests.exceptions.Timeout("late"),
+        ):
+            attempt = self._attempt(translator_name="Google")
+
+        self.assertEqual(attempt.status, TranslationStatus.TIMEOUT)
+        self.assertEqual(
+            self.translator.getProviderCooldownSnapshot(["Google"])["Google"][
+                "reason"
+            ],
+            "timeout",
+        )
 
     def test_empty_provider_results_are_errors(self):
         for empty_result in (False, "", None):
@@ -563,6 +682,49 @@ class LegacyTranslationTests(unittest.TestCase):
                 self.assertEqual(translations, [False])
                 self.assertEqual(success, [False])
 
+    def test_online_providers_alternate_primary_for_each_translation_request(self):
+        provider = FakeProvider(["one", "two", "three", "four"])
+        instance, config_patch = self._make_model(["Google", "Bing"], provider)
+
+        with config_patch:
+            results = [
+                instance.getInputTranslate(
+                    f"message-{index}",
+                    source_language="Japanese",
+                )
+                for index in range(4)
+            ]
+
+        self.assertEqual(
+            provider.providers,
+            ["Google", "Bing", "Google", "Bing"],
+        )
+        self.assertEqual(
+            [translations[0] for translations, _success in results],
+            ["one", "two", "three", "four"],
+        )
+
+    def test_online_rotation_keeps_the_other_provider_as_fallback(self):
+        provider = FakeProvider([False, "first", False, "second"])
+        instance, config_patch = self._make_model(["Google", "Bing"], provider)
+
+        with config_patch:
+            first = instance.getInputTranslate(
+                "message-1",
+                source_language="Japanese",
+            )
+            second = instance.getInputTranslate(
+                "message-2",
+                source_language="Japanese",
+            )
+
+        self.assertEqual(
+            provider.providers,
+            ["Google", "Bing", "Bing", "Google"],
+        )
+        self.assertEqual(first, (["first"], [True]))
+        self.assertEqual(second, (["second"], [True]))
+
     def test_empty_selection_terminates_without_calling_a_provider(self):
         for method_name in ("getInputTranslate", "getOutputTranslate"):
             with self.subTest(method=method_name):
@@ -598,17 +760,29 @@ class LegacyTranslationTests(unittest.TestCase):
         self.assertEqual(success, [False])
 
     def test_ctranslate2_primary_may_fall_back_to_online_secondary(self):
-        provider = FakeProvider([False, "online translation"])
+        provider = FakeProvider([
+            False,
+            "online translation 1",
+            False,
+            "online translation 2",
+        ])
         instance, config_patch = self._make_model(["CTranslate2", "Bing"], provider)
         with config_patch:
-            translations, success = instance.getInputTranslate(
+            first = instance.getInputTranslate(
                 "message",
                 source_language="Japanese",
             )
+            second = instance.getInputTranslate(
+                "message 2",
+                source_language="Japanese",
+            )
 
-        self.assertEqual(provider.providers, ["CTranslate2", "Bing"])
-        self.assertEqual(translations, ["online translation"])
-        self.assertEqual(success, [True])
+        self.assertEqual(
+            provider.providers,
+            ["CTranslate2", "Bing", "CTranslate2", "Bing"],
+        )
+        self.assertEqual(first, (["online translation 1"], [True]))
+        self.assertEqual(second, (["online translation 2"], [True]))
 
 
 class TypedChatTranslationTests(unittest.TestCase):

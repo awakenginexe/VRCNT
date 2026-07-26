@@ -1,6 +1,5 @@
-# Superpower and Design Documentation
-docs/superpowers/
-docs/plans/
+# Repository documentation is intentionally kept out of this fork.
+docs/
 .agent/
 .superpowers/
 
@@ -43,7 +42,7 @@ build/
 tmp/
 *.exe
 *.d
-VRCNT-Next.zip
+/VRCNT*.zip
 
 # Runtime data
 logs/
@@ -76,3 +75,4 @@ error.txt
 *.ipynb
 *.local
 .qoder/
+.worktrees/

@@ -27,7 +27,8 @@ html, body {
     border-radius: 10px; /* fixed by px */
     overflow: hidden;
     background: var(--bg_radial_gradient);
-    background-color: #0a0e1a; /* solid dark background fallback */
+    background-color: #08070B;
+    scroll-behavior: smooth;
 }
 
 
@@ -47,16 +48,63 @@ p {
     white-space: pre-wrap;
 }
 
-button, a, input, textarea, select {
+:where(button, a, input, textarea, select, [role="button"]) {
     transition:
         background-color var(--transition_ui),
         border-color var(--transition_ui),
         color var(--transition_ui),
         transform var(--transition_ui),
-        opacity var(--transition_ui);
+        opacity var(--transition_ui),
+        box-shadow var(--transition_ui),
+        filter var(--transition_ui);
 }
+
+:where(button, [role="button"]):not(:disabled):not([aria-disabled="true"]):active {
+    transform: translateY(0.05rem) scale(0.985);
+}
+
+:where(button, [role="button"], a, input, textarea, select):focus-visible {
+    transition-duration: var(--motion_instant);
+}
+
 img {
     user-select: none;
     -webkit-user-drag: none;
     -webkit-user-select: none;
+}
+
+/*
+ * Performance Mode is intentionally a hard stop. It is applied to <html> before
+ * React mounts, so low-powered PCs never pay for a first-frame blur or animation.
+ */
+.performance_mode,
+.performance_mode body {
+    scroll-behavior: auto !important;
+}
+
+.performance_mode *,
+.performance_mode *::before,
+.performance_mode *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+    backdrop-filter: none !important;
+    filter: none !important;
+    box-shadow: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html,
+    body {
+        scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+    }
 }

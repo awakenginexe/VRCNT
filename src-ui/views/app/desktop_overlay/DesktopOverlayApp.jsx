@@ -12,13 +12,6 @@ import ForegroundSvg from "@images/foreground.svg?react";
 import XMarkSvg from "@images/x_mark.svg?react";
 import styles from "./DesktopOverlayApp.module.scss";
 
-const THEME_ACCENT_CLASSES = [
-    "theme-neon-cyan",
-    "theme-midnight-purple",
-    "theme-emerald-green",
-    "theme-sakura-pink",
-];
-
 const DESKTOP_OVERLAY_SETTINGS_KEY = "vrcnt-next-desktop-overlay-settings";
 
 const DEFAULT_OVERLAY_SETTINGS = {
@@ -53,12 +46,6 @@ export const DesktopOverlayApp = () => {
     useEffect(() => {
         document.documentElement.classList.add(styles.desktop_overlay_root);
         document.body.classList.add(styles.desktop_overlay_body);
-
-        const savedTheme = localStorage.getItem("theme_accent") || "theme-neon-cyan";
-        document.documentElement.classList.remove(...THEME_ACCENT_CLASSES);
-        document.documentElement.classList.add(
-            THEME_ACCENT_CLASSES.includes(savedTheme) ? savedTheme : "theme-neon-cyan"
-        );
 
         return () => {
             document.documentElement.classList.remove(styles.desktop_overlay_root);
@@ -133,7 +120,7 @@ export const DesktopOverlayApp = () => {
             <section className={styles.overlay_panel}>
                 <header className={styles.header}>
                     <div className={styles.title_group}>
-                        <p className={styles.eyebrow}>VRCNT-Next</p>
+                        <p className={styles.eyebrow}>VRCNT</p>
                         <h1 className={styles.title}>{t("main_page.desktop_overlay.title")}</h1>
                     </div>
                     <div className={styles.header_controls}>

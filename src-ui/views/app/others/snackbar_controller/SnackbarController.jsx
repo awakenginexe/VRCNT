@@ -77,7 +77,7 @@ export const SnackbarController = () => {
     return (
         <ToastContainer
             // key={containerKey}
-            position="bottom-left"
+            position="top-right"
             transition={CustomTransition}
             hideProgressBar={false}
             newestOnTop={false}
