@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useI18n } from "@useI18n";
 import clsx from "clsx";
 import styles from "./ResourceMonitor.module.scss";
 import { useResourceUsage } from "@logics_common";
 import { formatResourceMetric } from "@logics_common/resourceUsageUtils.js";
+import { GpuMonitorMenu } from "./GpuMonitorMenu.jsx";
 
 const RESOURCE_ITEMS = [
     { key: "cpu", label: "CPU" },
@@ -20,6 +21,7 @@ export const ResourceMonitor = () => {
         setGpuMonitorSelection,
     } = useResourceUsage();
     const [openGpuMenuCardKey, setOpenGpuMenuCardKey] = useState(null);
+    const activeGpuCardRef = useRef(null);
     const resourceUsage = currentResourceUsage.data;
     const gpuDevices = resourceUsage?.gpu_devices ?? [];
     const canSelectGpu = gpuDevices.length > 0;
@@ -50,6 +52,8 @@ export const ResourceMonitor = () => {
                     selectedGpuIndex={resourceUsage?.selected_gpu_index}
                     gpuMonitorSelection={gpuMonitorSelection}
                     onSelectGpuMonitor={selectGpuMonitor}
+                    onCloseGpuMenu={closeGpuMenu}
+                    activeGpuCardRef={activeGpuCardRef}
                     t={t}
                 />
             ))}
@@ -67,6 +71,8 @@ const ResourceCard = ({
     selectedGpuIndex,
     gpuMonitorSelection,
     onSelectGpuMonitor,
+    onCloseGpuMenu,
+    activeGpuCardRef,
     t,
 }) => {
     const isAvailable = metric?.available && metric.percent !== null && metric.percent !== undefined;
@@ -77,7 +83,11 @@ const ResourceCard = ({
     });
 
     return (
-        <div className={cardClassName} onClick={isGpuSelectable ? onToggleGpuMenu : undefined}>
+        <div
+            ref={isGpuMenuOpen ? activeGpuCardRef : undefined}
+            className={cardClassName}
+            onClick={isGpuSelectable ? onToggleGpuMenu : undefined}
+        >
             <div className={styles.card_header}>
                 <div className={styles.label_group}>
                     <p className={styles.label}>{label}</p>
@@ -98,10 +108,12 @@ const ResourceCard = ({
             </div>
             {isGpuMenuOpen && (
                 <GpuMonitorMenu
+                    anchorRef={activeGpuCardRef}
                     gpuDevices={gpuDevices}
                     selectedGpuIndex={selectedGpuIndex}
                     gpuMonitorSelection={gpuMonitorSelection}
                     onSelectGpuMonitor={onSelectGpuMonitor}
+                    onClose={onCloseGpuMenu}
                     t={t}
                 />
             )}
@@ -113,44 +125,4 @@ const getGpuSelectionLabel = (selection, selectedGpuIndex, t) => {
     if (selection?.mode === "manual") return `GPU ${selection.device_index}`;
     if (selectedGpuIndex !== null && selectedGpuIndex !== undefined) return t("main_page.resource_monitor.auto_gpu", { index: selectedGpuIndex });
     return t("main_page.resource_monitor.auto");
-};
-
-const GpuMonitorMenu = ({
-    gpuDevices,
-    selectedGpuIndex,
-    gpuMonitorSelection,
-    onSelectGpuMonitor,
-    t,
-}) => {
-    const isAutoSelected = gpuMonitorSelection?.mode !== "manual";
-
-    return (
-        <div className={styles.gpu_menu} onClick={(event) => event.stopPropagation()}>
-            <button
-                className={clsx(styles.gpu_menu_item, {
-                    [styles.is_selected]: isAutoSelected,
-                })}
-                onClick={() => onSelectGpuMonitor({ mode: "auto", device_index: null })}
-            >
-                <span className={styles.gpu_menu_title}>{t("main_page.resource_monitor.auto")}</span>
-                <span className={styles.gpu_menu_desc}>
-                    AI GPU{selectedGpuIndex !== null && selectedGpuIndex !== undefined ? ` ${selectedGpuIndex}` : ""}
-                </span>
-            </button>
-            {gpuDevices.map((device) => (
-                <button
-                    key={device.device_index}
-                    className={clsx(styles.gpu_menu_item, {
-                        [styles.is_selected]:
-                            gpuMonitorSelection?.mode === "manual" &&
-                            gpuMonitorSelection.device_index === device.device_index,
-                    })}
-                    onClick={() => onSelectGpuMonitor({ mode: "manual", device_index: device.device_index })}
-                >
-                    <span className={styles.gpu_menu_title}>GPU {device.device_index}</span>
-                    <span className={styles.gpu_menu_desc}>{device.device_name}</span>
-                </button>
-            ))}
-        </div>
-    );
 };

@@ -97,11 +97,9 @@
 }
 
 .gpu_menu {
-    position: absolute;
-    top: calc(100% + 0.55rem);
-    left: 0;
+    position: fixed;
     z-index: 30;
-    width: min(24rem, 100vw);
+    width: min(24rem, calc(100vw - 1rem));
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
@@ -176,7 +174,7 @@
     }
 
     .gpu_menu {
-        width: min(24rem, calc(100vw - 3rem));
+        width: min(24rem, calc(100vw - 1rem));
     }
 }
 
