@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { useI18n } from "@useI18n";
 import clsx from "clsx";
 import styles from "./ResourceMonitor.module.scss";
@@ -20,23 +20,24 @@ export const ResourceMonitor = () => {
         gpuMonitorSelection,
         setGpuMonitorSelection,
     } = useResourceUsage();
-    const [openGpuMenuCardKey, setOpenGpuMenuCardKey] = useState(null);
-    const activeGpuCardRef = useRef(null);
+    const [openGpuMenu, setOpenGpuMenu] = useState(null);
     const resourceUsage = currentResourceUsage.data;
     const gpuDevices = resourceUsage?.gpu_devices ?? [];
     const canSelectGpu = gpuDevices.length > 0;
 
-    const closeGpuMenu = () => setOpenGpuMenuCardKey(null);
-    const toggleGpuMenu = (cardKey) => {
+    const closeGpuMenu = useCallback(() => setOpenGpuMenu(null), []);
+    const toggleGpuMenu = useCallback((cardKey, anchorElement) => {
         if (canSelectGpu) {
-            setOpenGpuMenuCardKey((current) => current === cardKey ? null : cardKey);
+            setOpenGpuMenu((current) => (
+                current?.cardKey === cardKey ? null : { cardKey, anchorElement }
+            ));
         }
-    };
+    }, [canSelectGpu]);
 
-    const selectGpuMonitor = (selection) => {
+    const selectGpuMonitor = useCallback((selection) => {
         setGpuMonitorSelection(selection);
         closeGpuMenu();
-    };
+    }, [closeGpuMenu, setGpuMonitorSelection]);
 
     return (
         <div className={styles.container}>
@@ -46,14 +47,14 @@ export const ResourceMonitor = () => {
                     label={item.label}
                     metric={resourceUsage?.[item.key]}
                     isGpuSelectable={["gpu", "vram"].includes(item.key) && canSelectGpu}
-                    isGpuMenuOpen={openGpuMenuCardKey === item.key}
-                    onToggleGpuMenu={() => toggleGpuMenu(item.key)}
+                    isGpuMenuOpen={openGpuMenu?.cardKey === item.key}
+                    onToggleGpuMenu={(event) => toggleGpuMenu(item.key, event.currentTarget)}
                     gpuDevices={gpuDevices}
                     selectedGpuIndex={resourceUsage?.selected_gpu_index}
                     gpuMonitorSelection={gpuMonitorSelection}
                     onSelectGpuMonitor={selectGpuMonitor}
                     onCloseGpuMenu={closeGpuMenu}
-                    activeGpuCardRef={activeGpuCardRef}
+                    anchorElement={openGpuMenu?.anchorElement}
                     t={t}
                 />
             ))}
@@ -72,7 +73,7 @@ const ResourceCard = ({
     gpuMonitorSelection,
     onSelectGpuMonitor,
     onCloseGpuMenu,
-    activeGpuCardRef,
+    anchorElement,
     t,
 }) => {
     const isAvailable = metric?.available && metric.percent !== null && metric.percent !== undefined;
@@ -84,7 +85,6 @@ const ResourceCard = ({
 
     return (
         <div
-            ref={isGpuMenuOpen ? activeGpuCardRef : undefined}
             className={cardClassName}
             onClick={isGpuSelectable ? onToggleGpuMenu : undefined}
         >
@@ -108,7 +108,7 @@ const ResourceCard = ({
             </div>
             {isGpuMenuOpen && (
                 <GpuMonitorMenu
-                    anchorRef={activeGpuCardRef}
+                    anchorElement={anchorElement}
                     gpuDevices={gpuDevices}
                     selectedGpuIndex={selectedGpuIndex}
                     gpuMonitorSelection={gpuMonitorSelection}

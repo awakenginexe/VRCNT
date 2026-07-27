@@ -5,7 +5,7 @@ import styles from "./ResourceMonitor.module.scss";
 import { calculateResourceMenuPosition } from "./resourceMenuPosition.js";
 
 export const GpuMonitorMenu = ({
-    anchorRef,
+    anchorElement,
     gpuDevices,
     selectedGpuIndex,
     gpuMonitorSelection,
@@ -19,9 +19,9 @@ export const GpuMonitorMenu = ({
 
     useLayoutEffect(() => {
         const updatePosition = () => {
-            if (!anchorRef.current || !menuRef.current) return;
+            if (!anchorElement || !menuRef.current) return;
 
-            const anchorRect = anchorRef.current.getBoundingClientRect();
+            const anchorRect = anchorElement.getBoundingClientRect();
             const menuRect = menuRef.current.getBoundingClientRect();
             setPosition(calculateResourceMenuPosition(
                 anchorRect,
@@ -31,7 +31,7 @@ export const GpuMonitorMenu = ({
         };
         const handlePointerDown = (event) => {
             if (menuRef.current?.contains(event.target)) return;
-            if (anchorRef.current?.contains(event.target)) return;
+            if (anchorElement?.contains(event.target)) return;
             onClose();
         };
         const handleKeyDown = (event) => {
@@ -50,7 +50,7 @@ export const GpuMonitorMenu = ({
             window.removeEventListener("resize", updatePosition);
             window.removeEventListener("scroll", updatePosition, true);
         };
-    }, [anchorRef, onClose]);
+    }, [anchorElement, onClose]);
 
     const menuItems = (
         <>

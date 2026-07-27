@@ -59,7 +59,7 @@ test("the GPU selector is body-portalled and closes through every interaction pa
     assert.match(menu, /return\s+createPortal\([\s\S]*document\.body/);
     assert.match(menu, /event\.key\s*===\s*"Escape"[\s\S]*onClose\(\)/);
     assert.match(menu, /menuRef\.current\?\.contains\(event\.target\)/);
-    assert.match(menu, /anchorRef\.current\?\.contains\(event\.target\)/);
+    assert.match(menu, /anchorElement\?\.contains\(event\.target\)/);
     assert.match(menu, /document\.addEventListener\("pointerdown",\s*handlePointerDown\)/);
     assert.match(menu, /document\.removeEventListener\("pointerdown",\s*handlePointerDown\)/);
     assert.match(menu, /document\.addEventListener\("keydown",\s*handleKeyDown\)/);
@@ -69,8 +69,27 @@ test("the GPU selector is body-portalled and closes through every interaction pa
     assert.match(menu, /window\.addEventListener\("scroll",\s*updatePosition,\s*true\)/);
     assert.match(menu, /window\.removeEventListener\("scroll",\s*updatePosition,\s*true\)/);
 
-    assert.match(monitor, /const\s+activeGpuCardRef\s*=\s*useRef\(null\)/);
-    assert.match(monitor, /ref=\{isGpuMenuOpen\s*\?\s*activeGpuCardRef\s*:\s*undefined\}/);
-    assert.match(monitor, /anchorRef=\{activeGpuCardRef\}/);
     assert.match(monitor, /setGpuMonitorSelection\(selection\)[\s\S]*closeGpuMenu\(\)/);
+});
+
+test("the first menu layout uses the DOM card captured by its click event", () => {
+    const menu = readRequiredSource("../resource_monitor/GpuMonitorMenu.jsx");
+    const monitor = readRequiredSource("../resource_monitor/ResourceMonitor.jsx");
+
+    assert.match(monitor, /const\s+\[openGpuMenu,\s*setOpenGpuMenu\]\s*=\s*useState\(null\)/);
+    assert.match(monitor, /const\s+closeGpuMenu\s*=\s*useCallback\(/);
+    assert.match(
+        monitor,
+        /onToggleGpuMenu=\{\(event\)\s*=>\s*toggleGpuMenu\(item\.key,\s*event\.currentTarget\)\}/
+    );
+    assert.match(
+        monitor,
+        /current\?\.cardKey\s*===\s*cardKey\s*\?\s*null\s*:\s*\{\s*cardKey,\s*anchorElement\s*\}/
+    );
+    assert.match(monitor, /anchorElement=\{openGpuMenu\?\.anchorElement\}/);
+    assert.doesNotMatch(monitor, /activeGpuCardRef|anchorRef/);
+
+    assert.match(menu, /anchorElement\.getBoundingClientRect\(\)/);
+    assert.match(menu, /\[anchorElement,\s*onClose\]/);
+    assert.doesNotMatch(menu, /anchorRef/);
 });
