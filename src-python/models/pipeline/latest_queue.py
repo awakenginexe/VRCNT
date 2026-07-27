@@ -44,6 +44,16 @@ class LatestQueue(Generic[T]):
             self._condition.notify()
             return OfferResult(True, dropped, len(self._items))
 
+    def replace_oldest(self, item: T) -> OfferResult[T]:
+        """Replace waiting work without increasing the total admission count."""
+        with self._condition:
+            if self._closed or not self._items:
+                return OfferResult(False, None, len(self._items))
+            dropped = self._items.popleft()
+            self._items.append(item)
+            self._condition.notify()
+            return OfferResult(True, dropped, len(self._items))
+
     def get(self, timeout: Optional[float] = None) -> T:
         with self._condition:
             if self._closed:

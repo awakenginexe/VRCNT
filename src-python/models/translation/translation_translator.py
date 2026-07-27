@@ -99,6 +99,8 @@ class Translator:
         self._provider_cooldowns: dict[str, float] = {}
         self._provider_cooldown_reasons: dict[str, str] = {}
         self._provider_rate_limit_counts: dict[str, int] = {}
+        self._provider_cooldown_versions: dict[str, int] = {}
+        self._provider_recovery_probes: dict[str, int] = {}
         self._provider_cooldown_callback: Optional[
             Callable[[dict[str, dict[str, object]]], None]
         ] = None
@@ -171,22 +173,36 @@ class Translator:
         return "provider_rate_limited", cls._rateLimitRetryAfterSeconds(error)
 
     def _remainingProviderCooldown(self, provider: str) -> Optional[int]:
-        expired = False
         with self._provider_cooldown_lock:
             deadline = self._provider_cooldowns.get(provider)
             if deadline is None:
                 return None
             remaining = ceil(deadline - monotonic())
             if remaining <= 0:
-                self._provider_cooldowns.pop(provider, None)
-                self._provider_cooldown_reasons.pop(provider, None)
-                self._provider_rate_limit_counts.pop(provider, None)
-                expired = True
-            else:
-                return remaining
-        if expired:
-            self._notifyProviderCooldowns()
-        return None
+                return (
+                    1
+                    if provider in self._provider_recovery_probes
+                    else None
+                )
+            return remaining
+
+    def _beginProviderAttempt(
+        self,
+        provider: str,
+    ) -> tuple[Optional[int], int, bool]:
+        """Reserve at most one real-message probe after cooldown expiry."""
+        with self._provider_cooldown_lock:
+            version = self._provider_cooldown_versions.get(provider, 0)
+            deadline = self._provider_cooldowns.get(provider)
+            if deadline is None:
+                return None, version, False
+            remaining = ceil(deadline - monotonic())
+            if remaining > 0:
+                return remaining, version, False
+            if self._provider_recovery_probes.get(provider) == version:
+                return 1, version, False
+            self._provider_recovery_probes[provider] = version
+            return None, version, True
 
     def _rememberProviderCooldown(
         self,
@@ -196,6 +212,10 @@ class Translator:
         reason: str = "rate_limited",
     ) -> int:
         with self._provider_cooldown_lock:
+            self._provider_cooldown_versions[provider] = (
+                self._provider_cooldown_versions.get(provider, 0) + 1
+            )
+            self._provider_recovery_probes.pop(provider, None)
             if reason == "rate_limited":
                 count = self._provider_rate_limit_counts.get(provider, 0) + 1
                 self._provider_rate_limit_counts[provider] = count
@@ -214,14 +234,48 @@ class Translator:
         self._notifyProviderCooldowns()
         return probe_seconds
 
-    def _clearProviderCooldown(self, provider: str) -> None:
+    def _clearProviderCooldown(
+        self,
+        provider: str,
+        *,
+        expected_version: Optional[int] = None,
+        recovery_probe: bool = False,
+    ) -> None:
         changed = False
         with self._provider_cooldown_lock:
+            if expected_version is None:
+                self._provider_recovery_probes.pop(provider, None)
+            elif recovery_probe and (
+                self._provider_recovery_probes.get(provider)
+                == expected_version
+            ):
+                self._provider_recovery_probes.pop(provider, None)
+            if (
+                expected_version is not None
+                and self._provider_cooldown_versions.get(provider, 0)
+                != expected_version
+            ):
+                return
             changed = self._provider_cooldowns.pop(provider, None) is not None
             self._provider_cooldown_reasons.pop(provider, None)
             self._provider_rate_limit_counts.pop(provider, None)
         if changed:
             self._notifyProviderCooldowns()
+
+    def _releaseProviderRecoveryProbe(
+        self,
+        provider: str,
+        expected_version: int,
+        recovery_probe: bool,
+    ) -> None:
+        if not recovery_probe:
+            return
+        with self._provider_cooldown_lock:
+            if (
+                self._provider_recovery_probes.get(provider)
+                == expected_version
+            ):
+                self._provider_recovery_probes.pop(provider, None)
 
     def setProviderCooldownCallback(
         self,
@@ -237,13 +291,14 @@ class Translator:
         now_monotonic = monotonic()
         now_wall = time()
         snapshot: dict[str, dict[str, object]] = {}
-        expired: list[str] = []
         with self._provider_cooldown_lock:
             for provider, deadline in self._provider_cooldowns.items():
                 remaining = ceil(deadline - now_monotonic)
                 if remaining <= 0:
-                    expired.append(provider)
-                    continue
+                    if provider in self._provider_recovery_probes:
+                        remaining = 1
+                    else:
+                        continue
                 if provider_filter is not None and provider not in provider_filter:
                     continue
                 snapshot[provider] = {
@@ -254,10 +309,6 @@ class Translator:
                     "retry_after_seconds": remaining,
                     "retry_at_ms": round((now_wall + remaining) * 1000),
                 }
-            for provider in expired:
-                self._provider_cooldowns.pop(provider, None)
-                self._provider_cooldown_reasons.pop(provider, None)
-                self._provider_rate_limit_counts.pop(provider, None)
         return snapshot
 
     def _notifyProviderCooldowns(self) -> None:
@@ -892,7 +943,11 @@ class Translator:
                 error_code=None,
             )
 
-        cooldown_seconds = self._remainingProviderCooldown(translator_name)
+        (
+            cooldown_seconds,
+            attempt_version,
+            recovery_probe,
+        ) = self._beginProviderAttempt(translator_name)
         if cooldown_seconds is not None:
             return TranslationAttempt(
                 status=TranslationStatus.ERROR,
@@ -932,6 +987,11 @@ class Translator:
                     retry_after_seconds,
                 )
             else:
+                self._releaseProviderRecoveryProbe(
+                    translator_name,
+                    attempt_version,
+                    recovery_probe,
+                )
                 errorLogging()
             return TranslationAttempt(
                 status=TranslationStatus.ERROR,
@@ -944,7 +1004,11 @@ class Translator:
 
         duration_ms = max(0, round((perf_counter() - started_at) * 1000))
         if result:
-            self._clearProviderCooldown(translator_name)
+            self._clearProviderCooldown(
+                translator_name,
+                expected_version=attempt_version,
+                recovery_probe=recovery_probe,
+            )
             return TranslationAttempt(
                 status=TranslationStatus.SUCCESS,
                 engine=translator_name,
@@ -952,6 +1016,11 @@ class Translator:
                 duration_ms=duration_ms,
                 error_code=None,
             )
+        self._releaseProviderRecoveryProbe(
+            translator_name,
+            attempt_version,
+            recovery_probe,
+        )
         return TranslationAttempt(
             status=TranslationStatus.ERROR,
             engine=translator_name,

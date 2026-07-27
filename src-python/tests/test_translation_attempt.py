@@ -554,6 +554,157 @@ class TranslationAttemptTests(unittest.TestCase):
         self.assertNotIn("Google", self.translator._provider_cooldowns)
         self.assertNotIn("Google", self.translator._provider_rate_limit_counts)
 
+    def test_only_one_real_message_probes_an_expired_provider_cooldown(self):
+        with patch.object(
+            translation_translator,
+            "monotonic",
+            return_value=10.0,
+        ):
+            self.translator._rememberProviderCooldown("Google", 1)
+
+        probe_entered = threading.Event()
+        release_probe = threading.Event()
+        provider_calls = []
+        attempts = {}
+
+        def blocked_probe(*_args, **_kwargs):
+            provider_calls.append("Google")
+            probe_entered.set()
+            self.assertTrue(release_probe.wait(WAIT_SECONDS))
+            return "recovered"
+
+        def run_probe(name):
+            attempts[name] = self._attempt(
+                translator_name="Google",
+                message=name,
+            )
+
+        with (
+            patch.object(
+                translation_translator,
+                "monotonic",
+                return_value=12.0,
+            ),
+            patch.object(
+                self.translator,
+                "_translate_once",
+                side_effect=blocked_probe,
+            ),
+        ):
+            first = threading.Thread(target=run_probe, args=("first",))
+            first.start()
+            self.assertTrue(probe_entered.wait(WAIT_SECONDS))
+
+            second = threading.Thread(target=run_probe, args=("second",))
+            second.start()
+            second.join(WAIT_SECONDS)
+            self.assertFalse(second.is_alive())
+            release_probe.set()
+            first.join(WAIT_SECONDS)
+
+        self.assertEqual(provider_calls, ["Google"])
+        self.assertEqual(attempts["first"].status, TranslationStatus.SUCCESS)
+        self.assertEqual(
+            attempts["second"].error_code,
+            "provider_rate_limited",
+        )
+        self.assertNotIn("Google", self.translator._provider_cooldowns)
+
+    def test_late_success_cannot_clear_a_newer_timeout_cooldown(self):
+        provider_entered = threading.Event()
+        release_provider = threading.Event()
+        result = {}
+
+        def late_success(*_args, **_kwargs):
+            provider_entered.set()
+            self.assertTrue(release_provider.wait(WAIT_SECONDS))
+            return "late success"
+
+        with patch.object(
+            self.translator,
+            "_translate_once",
+            side_effect=late_success,
+        ):
+            worker = threading.Thread(
+                target=lambda: result.setdefault("attempt", self._attempt())
+            )
+            worker.start()
+            self.assertTrue(provider_entered.wait(WAIT_SECONDS))
+            self.translator.rememberProviderTimeout("Google")
+            release_provider.set()
+            worker.join(WAIT_SECONDS)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(result["attempt"].status, TranslationStatus.SUCCESS)
+        self.assertEqual(
+            self.translator.getProviderCooldownSnapshot(["Google"])["Google"][
+                "reason"
+            ],
+            "timeout",
+        )
+
+    def test_concurrent_success_cannot_clear_a_newer_rate_limit(self):
+        success_entered = threading.Event()
+        release_success = threading.Event()
+        attempts = {}
+        rate_limit = requests.exceptions.HTTPError("429 Too Many Requests")
+        rate_limit.response = SimpleNamespace(
+            status_code=429,
+            headers={"Retry-After": "12"},
+        )
+
+        def provider_result(
+            _translator_name,
+            _weight_type,
+            _source_language,
+            _target_language,
+            _target_country,
+            message,
+            _context_history,
+            _timeout_seconds,
+        ):
+            if message == "slow-success":
+                success_entered.set()
+                self.assertTrue(release_success.wait(WAIT_SECONDS))
+                return "success"
+            raise rate_limit
+
+        def run_attempt(message):
+            attempts[message] = self._attempt(message=message)
+
+        with patch.object(
+            self.translator,
+            "_translate_once",
+            side_effect=provider_result,
+        ):
+            successful = threading.Thread(
+                target=run_attempt,
+                args=("slow-success",),
+            )
+            successful.start()
+            self.assertTrue(success_entered.wait(WAIT_SECONDS))
+            limited = threading.Thread(
+                target=run_attempt,
+                args=("rate-limited",),
+            )
+            limited.start()
+            limited.join(WAIT_SECONDS)
+            release_success.set()
+            successful.join(WAIT_SECONDS)
+
+        self.assertEqual(
+            attempts["rate-limited"].error_code,
+            "provider_rate_limited",
+        )
+        self.assertEqual(
+            attempts["slow-success"].status,
+            TranslationStatus.SUCCESS,
+        )
+        self.assertIn(
+            "Google",
+            self.translator.getProviderCooldownSnapshot(["Google"]),
+        )
+
     def test_cooldown_callback_reports_independent_absolute_deadlines(self):
         snapshots = []
         self.translator.setProviderCooldownCallback(

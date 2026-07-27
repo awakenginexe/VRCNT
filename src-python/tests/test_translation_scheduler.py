@@ -357,7 +357,7 @@ class TranslationSchedulerTests(unittest.TestCase):
         translator.release.set()
         self.assertTrue(recorder.wait_for(lambda: len(recorder.finals) == 1))
 
-    def test_cloud_provider_rotation_is_applied_per_target_job(self):
+    def test_cloud_provider_rotation_is_applied_once_per_message(self):
         recorder = Recorder()
         translator = ScriptedTranslator()
         rotation_index = 0
@@ -376,7 +376,7 @@ class TranslationSchedulerTests(unittest.TestCase):
         )
         pipeline.submit_trace(
             make_trace(
-                "rotating-providers",
+                "first-message",
                 targets=(
                     TranslationTarget("target-1", "French", "France"),
                     TranslationTarget("target-2", "German", "Germany"),
@@ -384,18 +384,41 @@ class TranslationSchedulerTests(unittest.TestCase):
                 providers=("Google", "Bing"),
             )
         )
-
-        self.assertTrue(recorder.wait_for(lambda: len(recorder.finals) == 1))
-        self.assertEqual(
-            [call["translator_name"] for call in translator.calls],
-            ["Google", "Bing"],
+        pipeline.submit_trace(
+            make_trace(
+                "second-message",
+                providers=("Google", "Bing"),
+            )
         )
-        queued_engines = [
-            update.engine
+
+        self.assertTrue(recorder.wait_for(lambda: len(recorder.finals) == 2))
+        self.assertEqual(
+            sorted(
+                (
+                    call["message"],
+                    call["translator_name"],
+                )
+                for call in translator.calls
+            ),
+            [
+                ("first-message", "Google"),
+                ("first-message", "Google"),
+                ("second-message", "Bing"),
+            ],
+        )
+        queued_engines = sorted(
+            (update.trace_id, update.engine)
             for update in recorder.updates
             if update.status is TranslationStatus.QUEUED
-        ]
-        self.assertEqual(queued_engines, ["Google", "Bing"])
+        )
+        self.assertEqual(
+            queued_engines,
+            [
+                ("first-message", "Google"),
+                ("first-message", "Google"),
+                ("second-message", "Bing"),
+            ],
+        )
 
     def test_five_messages_start_round_robin_cloud_calls_without_head_of_line_waiting(self):
         recorder = Recorder()
@@ -616,26 +639,14 @@ class TranslationSchedulerTests(unittest.TestCase):
     def test_translation_job_is_a_complete_deep_snapshot(self):
         recorder = Recorder()
         translator = ScriptedTranslator()
-        translator.block_message = "gate"
+        translator.block_message = "original text"
         pipeline = self.make_pipeline(translator, recorder)
-        for index in range(
-            source_pipeline_module.MAX_PARALLEL_TRANSLATION_JOBS_PER_SOURCE
-        ):
-            pipeline.submit_trace(
-                make_trace(f"gate-{index}", message="gate")
-            )
-        self.assertTrue(translator.entered.wait(timeout=1.0))
-        deadline = time.monotonic() + 1.0
-        while (
-            len(translator.calls)
-            < source_pipeline_module.MAX_PARALLEL_TRANSLATION_JOBS_PER_SOURCE
-            and time.monotonic() < deadline
-        ):
-            time.sleep(0.005)
-        self.assertEqual(
-            len(translator.calls),
-            source_pipeline_module.MAX_PARALLEL_TRANSLATION_JOBS_PER_SOURCE,
-        )
+        captured_jobs = []
+        original_offer = pipeline._translation_queue.offer
+
+        def capture_offer(job):
+            captured_jobs.append(job)
+            return original_offer(job)
 
         target = TranslationTarget("slot-x", "Thai", "Thailand")
         targets = [target]
@@ -656,17 +667,19 @@ class TranslationSchedulerTests(unittest.TestCase):
             output_config=make_output_config(),
         )
         before_enqueue = time.monotonic()
-        pipeline.submit_trace(snapshot_trace)
+        with patch.object(
+            pipeline._translation_queue,
+            "offer",
+            side_effect=capture_offer,
+        ):
+            pipeline.submit_trace(snapshot_trace)
         after_enqueue = time.monotonic()
+        self.assertTrue(translator.entered.wait(timeout=1.0))
 
         providers[:] = ["mutated"]
         context[0]["content"] = "mutated"
         targets[0] = TranslationTarget("other", "German", "Germany")
-        with pipeline._translation_queue._condition:
-            job = next(
-                item for item in pipeline._translation_queue._items
-                if item.trace_id == "snapshot-job"
-            )
+        job = captured_jobs[0]
 
         self.assertEqual(job.trace_id, "snapshot-job")
         self.assertEqual(job.generation, 7)
@@ -688,11 +701,7 @@ class TranslationSchedulerTests(unittest.TestCase):
 
         translator.release.set()
         self.assertTrue(
-            recorder.wait_for(
-                lambda: len(recorder.finals)
-                == source_pipeline_module.MAX_PARALLEL_TRANSLATION_JOBS_PER_SOURCE
-                + 1
-            )
+            recorder.wait_for(lambda: len(recorder.finals) == 1)
         )
         snapshot_call = next(
             call for call in translator.calls

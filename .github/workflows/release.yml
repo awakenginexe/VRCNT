@@ -368,10 +368,10 @@ jobs:
           VRCNT $env:VERSION
 
           Large release files are hosted on Hugging Face:
-              - Installer: $env:VRCNT_INSTALLER_URL
-              - Portable payload: $env:VRCNT_ZIP_URL
-              - Updater manifest: $env:VRCNT_LATEST_JSON_URL
-              "@
+            - Installer: $env:VRCNT_INSTALLER_URL
+            - Portable payload: $env:VRCNT_ZIP_URL
+            - Updater manifest: $env:VRCNT_LATEST_JSON_URL
+          "@
 
           $repository = "$env:RELEASE_OWNER/$env:RELEASE_REPO"
           gh release view $tag --repo $repository *> $null

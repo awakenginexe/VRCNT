@@ -124,6 +124,7 @@ class SourcePipeline:
         self._generation: Optional[int] = None
         self._accepting = False
         self._dropped_count = 0
+        self._translation_jobs_admitted = 0
 
         self._translation_threads: list[Thread] = []
         # Keep the first-worker alias for lifecycle diagnostics and compatibility
@@ -245,7 +246,12 @@ class SourcePipeline:
         self._translation_queue.close()
         self._ready_event.set()
         if discard_pending:
-            self._translation_queue.drain()
+            drained_jobs = self._translation_queue.drain()
+            with self._submit_lock:
+                self._translation_jobs_admitted = max(
+                    0,
+                    self._translation_jobs_admitted - len(drained_jobs),
+                )
 
         for translation_thread in tuple(self._translation_threads):
             if translation_thread is not current_thread():
@@ -350,11 +356,11 @@ class SourcePipeline:
                 self._remove_record(trace.trace_id, record)
                 return False
             providers = tuple(trace.providers[:2])
+            job_providers = tuple(self._rotate_providers(providers))[:1]
+            if not job_providers:
+                job_providers = providers
             base_position = self._translation_queue.qsize()
             for slot_order, target in enumerate(trace.targets, start=1):
-                job_providers = tuple(self._rotate_providers(providers))[:1]
-                if not job_providers:
-                    job_providers = providers
                 queued = TranslationUpdate(
                     trace_id=trace.trace_id,
                     target_slot=target.target_slot,
@@ -411,7 +417,7 @@ class SourcePipeline:
                     return False
             return True
 
-        dropped_jobs: list[tuple[TranslationJob, int]] = []
+        overloaded_jobs: list[tuple[TranslationJob, int]] = []
         with self._submit_lock:
             if (
                 not self._is_locally_current(trace.generation)
@@ -420,14 +426,26 @@ class SourcePipeline:
                 self._remove_record(trace.trace_id, record)
                 return False
             for job in jobs:
-                result = self._translation_queue.offer(job)
-                if not result.accepted:
-                    self._remove_record(trace.trace_id, record)
-                    return False
+                if (
+                    self._translation_jobs_admitted
+                    < MAX_TRANSLATION_JOBS_PER_SOURCE
+                ):
+                    result = self._translation_queue.offer(job)
+                    if not result.accepted:
+                        self._remove_record(trace.trace_id, record)
+                        return False
+                    self._translation_jobs_admitted += 1
+                else:
+                    result = self._translation_queue.replace_oldest(job)
+                    if not result.accepted:
+                        overloaded_jobs.append(
+                            (job, self._translation_queue.qsize())
+                        )
+                        continue
                 if result.dropped is not None:
-                    dropped_jobs.append((result.dropped, result.depth))
-        for dropped, depth in dropped_jobs:
-            if not self._drop_waiting_job(dropped, depth):
+                    overloaded_jobs.append((result.dropped, result.depth))
+        for overloaded, depth in overloaded_jobs:
+            if not self._drop_waiting_job(overloaded, depth):
                 return False
         self._ready_event.set()
         return True
@@ -614,21 +632,29 @@ class SourcePipeline:
             except QueueClosed:
                 break
 
-            if not self._is_current(job.generation):
-                self._remove_record(job.trace_id)
-                continue
-            record = self._get_record(job.trace_id)
-            if record is None:
-                continue
-            if not self._job_is_current(record, job):
-                continue
+            try:
+                if not self._is_current(job.generation):
+                    self._remove_record(job.trace_id)
+                    continue
+                record = self._get_record(job.trace_id)
+                if record is None:
+                    continue
+                if not self._job_is_current(record, job):
+                    continue
 
-            self._run_translation_job(record, job)
+                self._run_translation_job(record, job)
+            finally:
+                self._release_translation_admission()
             self._flush_ready_records()
 
         # A stop invalidates the generation, so this scan only removes stale
         # ready records and never puts new output work.
         self._flush_ready_records()
+
+    def _release_translation_admission(self) -> None:
+        with self._submit_lock:
+            if self._translation_jobs_admitted > 0:
+                self._translation_jobs_admitted -= 1
 
     def _attempt_with_deadline(
         self,

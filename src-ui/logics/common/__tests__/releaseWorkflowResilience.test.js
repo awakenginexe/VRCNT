@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -45,6 +46,53 @@ test("release workflow derives the renamed repositories without stale issue note
         workflow,
         /Fallback translation cooldown timing may be delayed/,
     );
+});
+
+
+test("every PowerShell release workflow block parses successfully", () => {
+    const lines = workflow.split(/\r?\n/);
+    const scripts = [];
+    for (let index = 0; index < lines.length; index += 1) {
+        if (!/^\s{8}run:\s*\|\s*$/.test(lines[index])) {
+            continue;
+        }
+        const block = [];
+        for (index += 1; index < lines.length; index += 1) {
+            const line = lines[index];
+            if (line.trim() && !line.startsWith("          ")) {
+                index -= 1;
+                break;
+            }
+            block.push(line.startsWith("          ") ? line.slice(10) : "");
+        }
+        scripts.push(block.join("\n"));
+    }
+
+    assert.ok(scripts.length > 0, "expected PowerShell run blocks");
+    const parser = [
+        "$source = [Console]::In.ReadToEnd()",
+        "$tokens = $null",
+        "$errors = $null",
+        "[System.Management.Automation.Language.Parser]::ParseInput(",
+        "  $source, [ref]$tokens, [ref]$errors",
+        ") | Out-Null",
+        "if ($errors.Count -gt 0) {",
+        "  $errors | ForEach-Object { [Console]::Error.WriteLine($_) }",
+        "  exit 1",
+        "}",
+    ].join("\n");
+    for (const [index, script] of scripts.entries()) {
+        const result = spawnSync(
+            "pwsh",
+            ["-NoProfile", "-NonInteractive", "-Command", parser],
+            { input: script, encoding: "utf8" },
+        );
+        assert.equal(
+            result.status,
+            0,
+            `PowerShell block ${index + 1} failed to parse:\n${result.stderr}`,
+        );
+    }
 });
 
 

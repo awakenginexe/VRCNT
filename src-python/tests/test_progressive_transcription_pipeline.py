@@ -135,7 +135,7 @@ class ProgressivePipelineTests(unittest.TestCase):
         self.addCleanup(lambda: pipeline.stop(11, discard_pending=True))
         return pipeline
 
-    def test_capacity_plus_one_displaces_exact_oldest_unstarted_slot(self):
+    def test_twenty_fifth_job_is_skipped_without_exceeding_total_admission(self):
         harness = Harness()
         translator = BlockingTranslator()
         pipeline = self.make_pipeline(translator, harness)
@@ -148,9 +148,7 @@ class ProgressivePipelineTests(unittest.TestCase):
             )
         )
 
-        submitted_waiting = MAX_TRANSLATION_JOBS_PER_SOURCE + 1
-        for index in range(submitted_waiting):
-            pipeline.submit_trace(trace(f"waiting-{index}"))
+        pipeline.submit_trace(trace("overflow"))
 
         skipped = [
             item for item in harness.updates
@@ -158,25 +156,26 @@ class ProgressivePipelineTests(unittest.TestCase):
         ]
         self.assertEqual(
             [(item.trace_id, item.target_slot) for item in skipped],
-            [("waiting-0", "slot")],
+            [("overflow", "slot")],
         )
-        overload = [metric for metric in harness.metrics if metric.outcome == "skipped_overload"]
-        self.assertEqual(overload[-1].trace_id, "waiting-0")
+        overload = [
+            metric for metric in harness.metrics
+            if metric.outcome == "skipped_overload"
+        ]
+        self.assertEqual(overload[-1].trace_id, "overflow")
         self.assertEqual(overload[-1].dropped_count, 1)
         self.assertEqual(
-            [item.trace_id for item in harness.initial],
-            ["in-flight"] + [
-                f"waiting-{i}" for i in range(submitted_waiting)
-            ],
+            len(translator.calls),
+            MAX_TRANSLATION_JOBS_PER_SOURCE,
         )
         translator.release.set()
         self.assertTrue(
             harness.wait_for(
-                lambda: len(harness.finals) == submitted_waiting + 1
+                lambda: len(harness.finals) == 2
             )
         )
 
-    def test_partial_multi_target_displacement_only_terminates_exact_slot(self):
+    def test_overloaded_multi_target_message_terminates_every_rejected_slot(self):
         harness = Harness()
         translator = BlockingTranslator()
         pipeline = self.make_pipeline(translator, harness)
@@ -189,59 +188,45 @@ class ProgressivePipelineTests(unittest.TestCase):
             )
         )
         targets = (
-            TranslationTarget("displaced-slot", "French", "France"),
-            TranslationTarget("surviving-slot", "German", "Germany"),
+            TranslationTarget("first-slot", "French", "France"),
+            TranslationTarget("second-slot", "German", "Germany"),
         )
-        pipeline.submit_trace(trace("partial", targets=targets))
-        for index in range(MAX_TRANSLATION_JOBS_PER_SOURCE - 1):
-            pipeline.submit_trace(trace(f"filler-{index}"))
+        pipeline.submit_trace(trace("overflow-multi", targets=targets))
 
-        partial_before_release = [
+        overflow_updates = [
             item for item in harness.updates
-            if item.trace_id == "partial"
+            if item.trace_id == "overflow-multi"
         ]
         self.assertEqual(
-            [item.status for item in partial_before_release],
+            [item.status for item in overflow_updates],
             [
                 TranslationStatus.QUEUED,
                 TranslationStatus.QUEUED,
                 TranslationStatus.SKIPPED_OVERLOAD,
+                TranslationStatus.SKIPPED_OVERLOAD,
             ],
         )
         self.assertEqual(
-            partial_before_release[-1].target_slot,
-            "displaced-slot",
+            [
+                item.target_slot
+                for item in overflow_updates
+                if item.status is TranslationStatus.SKIPPED_OVERLOAD
+            ],
+            ["first-slot", "second-slot"],
         )
-        self.assertNotIn("partial", [item.trace_id for item in harness.finals])
-
         translator.release.set()
-        self.assertTrue(
-            harness.wait_for(
-                lambda: len(
-                    [item for item in harness.finals if item.trace_id == "partial"]
-                ) == 1
-            )
-        )
-        partial_final = next(
+        self.assertTrue(harness.wait_for(lambda: len(harness.finals) == 2))
+        overflow_final = next(
             item for item in harness.finals
-            if item.trace_id == "partial"
+            if item.trace_id == "overflow-multi"
         )
-        self.assertEqual(partial_final.targets, targets)
+        self.assertEqual(overflow_final.targets, targets)
         self.assertEqual(
-            [item.target_slot for item in partial_final.translations],
-            ["displaced-slot", "surviving-slot"],
-        )
-        self.assertEqual(
-            [item.status for item in partial_final.translations],
-            [TranslationStatus.SKIPPED_OVERLOAD, TranslationStatus.SUCCESS],
-        )
-        partial_calls = [
-            call for call in translator.calls
-            if call["message"] == "partial"
-        ]
-        self.assertEqual(
-            [call["target_language"] for call in partial_calls],
-            ["German"],
+            [item.status for item in overflow_final.translations],
+            [
+                TranslationStatus.SKIPPED_OVERLOAD,
+                TranslationStatus.SKIPPED_OVERLOAD,
+            ],
         )
 
     def test_target_slots_aggregate_independently_and_preserve_target_order(self):
@@ -423,7 +408,7 @@ class ProgressivePipelineTests(unittest.TestCase):
         def blocking_metric(metric):
             if (
                 metric.stage == "translation"
-                and metric.trace_id == "waiting-0"
+                and metric.trace_id == "overflow"
                 and metric.outcome == "skipped_overload"
             ):
                 metric_entered.set()
@@ -433,7 +418,7 @@ class ProgressivePipelineTests(unittest.TestCase):
 
         def observe_final(task):
             harness.append(harness.finals, task)
-            if task.trace_id == "waiting-0":
+            if task.trace_id == "overflow":
                 displaced_final.set()
 
         pipeline = SourcePipeline(
@@ -456,14 +441,9 @@ class ProgressivePipelineTests(unittest.TestCase):
                 MAX_TRANSLATION_JOBS_PER_SOURCE,
             )
         )
-        for index in range(MAX_TRANSLATION_JOBS_PER_SOURCE):
-            pipeline.submit_trace(trace(f"waiting-{index}"))
-
         submitter = threading.Thread(
             target=lambda: (
-                pipeline.submit_trace(
-                    trace(f"waiting-{MAX_TRANSLATION_JOBS_PER_SOURCE}")
-                ),
+                pipeline.submit_trace(trace("overflow")),
                 overload_submit_returned.set(),
             ),
             daemon=True,
