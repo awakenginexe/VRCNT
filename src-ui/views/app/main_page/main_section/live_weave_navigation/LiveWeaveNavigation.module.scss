@@ -20,7 +20,7 @@
     flex: 0 0 auto;
     padding: 0;
     background: transparent;
-    color: #eaf5ff;
+    color: var(--dark_100_color);
     font-size: 1.55rem;
     font-weight: 900;
     letter-spacing: -0.07rem;
@@ -74,10 +74,10 @@
     align-items: center;
     justify-content: center;
     padding: 0 0.9rem;
-    border: 0.1rem solid rgba(91, 226, 181, 0.28);
+    border: 0.1rem solid color-mix(in srgb, var(--success_bc_color) 28%, transparent);
     border-radius: 99rem;
-    background: rgba(24, 93, 75, 0.26);
-    color: #9bf0cf;
+    background: color-mix(in srgb, var(--success_bc_color) 18%, var(--surface_2_color));
+    color: color-mix(in srgb, var(--success_bc_color) 64%, var(--dark_100_color));
     font-size: 0.95rem;
     font-weight: 850;
     white-space: nowrap;

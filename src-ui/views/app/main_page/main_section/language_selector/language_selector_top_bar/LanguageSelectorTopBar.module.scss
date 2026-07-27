@@ -6,7 +6,7 @@
     gap: 1rem;
     padding: 1.2rem 1.4rem;
     border-bottom: 0.1rem solid rgba(var(--accent_color_rgb), 0.16);
-    background: #10263d;
+    background: var(--surface_2_color);
 }
 
 .title_copy {
@@ -38,7 +38,7 @@
     place-items: center;
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.2);
     border-radius: 0.8rem;
-    background: var(--surface_2_color);
+    background: var(--surface_control_color);
     color: var(--dark_300_color);
 
     svg {
@@ -48,7 +48,7 @@
 
     &:hover {
         border-color: rgba(var(--accent_color_rgb), 0.42);
-        background: #14304a;
+        background: var(--surface_3_color);
         color: var(--dark_100_color);
     }
 

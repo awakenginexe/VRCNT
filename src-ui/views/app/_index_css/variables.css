@@ -4,6 +4,17 @@
     --accent_gradient: linear-gradient(115deg, #8B5CF6, #A87CFF);
     --bg_gradient_start: #08070B;
     --bg_gradient_end: #08070B;
+    --canvas_color: #08070B;
+    --surface_overlay_color: color-mix(
+        in srgb,
+        var(--accent_color) 7%,
+        rgba(10, 8, 14, 0.98)
+    );
+    --surface_control_color: color-mix(
+        in srgb,
+        var(--accent_color) 5%,
+        rgba(8, 7, 11, 0.92)
+    );
 
     --primary_100_color: color-mix(in srgb, var(--accent_color) 15%, #ffffff);
     --primary_150_color: color-mix(in srgb, var(--accent_color) 30%, #ffffff);
@@ -125,8 +136,8 @@
     --motion_enter: 0ms;
     --panel_blur: none;
     --panel_bg_opacity: 0.98;
-    --panel_border: 0.1rem solid #1e293b;
-    --panel_border_subtle: 0.1rem solid #1e293b;
+    --panel_border: 0.1rem solid var(--dark_650_color);
+    --panel_border_subtle: 0.1rem solid var(--dark_650_color);
     --glow_shadow: none;
     --glow_shadow_hover: none;
     --glow_shadow_purple: none;

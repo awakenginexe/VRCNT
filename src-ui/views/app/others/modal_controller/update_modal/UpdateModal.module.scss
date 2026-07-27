@@ -36,7 +36,7 @@
     position: relative;
     background:
         linear-gradient(180deg, rgba(var(--accent_color_rgb), 0.12), rgba(var(--accent_color_rgb), 0.04)),
-        rgba(8, 13, 20, 0.9);
+        var(--surface_2_color);
     box-shadow: 0 1.8rem 4.8rem rgba(0, 0, 0, 0.28), inset 0 0.1rem 0 #ffffff10;
 }
 .update_desc {
@@ -44,7 +44,7 @@
     top: 100%;
     transform: translateY(-50%);
     font-size: 1.4rem;
-    background-color: rgba(7, 11, 17, 0.98);
+    background-color: var(--surface_overlay_color);
     padding: 0 2.8rem;
     text-align: center;
     font-weight: 400;
@@ -103,13 +103,13 @@
 }
 
 .deny_button {
-    background-color: rgba(4, 8, 12, 0.58);
+    background-color: var(--surface_control_color);
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.14);
     &:hover {
-        background-color: rgba(var(--accent_color_rgb), 0.08);
+        background-color: var(--surface_3_color);
     }
     &:active {
-        background-color: rgba(2, 5, 8, 0.9);
+        background-color: var(--surface_1_color);
     }
 }
 

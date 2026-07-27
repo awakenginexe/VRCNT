@@ -49,7 +49,7 @@
     padding: 0.8rem;
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.28);
     border-radius: 1rem;
-    background: rgba(11, 27, 45, 0.96);
+    background: var(--surface_2_color);
 }
 
 .pipeline_status {

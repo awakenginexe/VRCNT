@@ -4,7 +4,7 @@
     position: relative;
     background:
         linear-gradient(180deg, rgba(var(--accent_color_rgb), 0.06), transparent 38%),
-        var(--dark_1000_color);
+        var(--canvas_color);
 }
 
 .drag_able_area {
@@ -13,7 +13,7 @@
     left: 0;
     width: 100%;
     height: var(--title_bar_height);
-    background-color: rgba(5, 9, 14, 0.74);
+    background-color: var(--surface_1_color);
 }
 
 .wrapper {
@@ -49,7 +49,7 @@
     width: 100%;
     overflow-y: scroll;
     padding: 1rem;
-    background-color: rgba(3, 6, 10, 0.72);
+    background-color: var(--surface_2_color);
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.14);
     border-radius: 0.7rem;
 }
@@ -67,12 +67,12 @@
     align-items: center;
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.16);
     border-radius: 0.7rem;
-    background-color: rgba(4, 8, 12, 0.54);
+    background-color: var(--surface_control_color);
     &:hover {
-        background-color: rgba(var(--accent_color_rgb), 0.08);
+        background-color: var(--surface_3_color);
     }
     &:active {
-        background-color: rgba(2, 5, 8, 0.9);
+        background-color: var(--surface_1_color);
     }
 }
 
@@ -142,16 +142,16 @@
     align-items: center;
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.14);
     border-radius: 0.8rem;
-    background-color: rgba(4, 8, 12, 0.54);
+    background-color: var(--surface_control_color);
     color: var(--dark_300_color);
     transition: background-color 0.15s, color 0.15s;
 
     &:hover {
-        background-color: rgba(var(--accent_color_rgb), 0.08);
+        background-color: var(--surface_3_color);
         color: var(--dark_100_color);
     }
     &:active {
-        background-color: rgba(2, 5, 8, 0.9);
+        background-color: var(--surface_1_color);
     }
 }
 

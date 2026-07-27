@@ -23,7 +23,7 @@
     margin-bottom: 0.8rem;
     padding: 1rem 0.4rem;
     border-bottom: 0.1rem solid rgba(var(--accent_color_rgb), 0.24);
-    background: rgba(8, 21, 33, 0.96);
+    background: var(--surface_1_color);
     backdrop-filter: var(--panel_blur);
 }
 

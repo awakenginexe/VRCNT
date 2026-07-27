@@ -90,7 +90,7 @@ test("responsive styling keeps reduced-motion and performance fallbacks", () => 
         /z-index:\s*100/,
         /display:\s*grid/,
         /place-items:\s*center/,
-        /background:\s*rgb\(4 8 16 \/ 72%\)/,
+        /background:\s*color-mix\(in srgb,\s*var\(--canvas_color\) 72%,\s*transparent\)/,
         /backdrop-filter:\s*blur\(18px\) saturate\(0\.8\)/,
         /width:\s*min\(42rem, calc\(100% - 3\.2rem\)\)/,
         /max-height:\s*calc\(100% - 3\.2rem\)/,

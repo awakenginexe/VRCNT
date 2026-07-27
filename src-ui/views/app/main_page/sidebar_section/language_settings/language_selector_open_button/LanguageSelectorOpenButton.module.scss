@@ -50,7 +50,7 @@
 
 .dropdown_menu_container {
     position: relative;
-    background: rgba(24, 35, 55, 0.74);
+    background: var(--surface_2_color);
     width: 100%;
     min-height: 4.6rem;
     padding: 0.7rem 3.4rem 0.7rem 1.2rem;
@@ -64,7 +64,7 @@
         background-color var(--transition_ui),
         border-color var(--transition_ui);
     &:hover {
-        background: rgba(30, 44, 68, 0.82);
+        background: var(--surface_3_color);
         border-color: rgba(var(--accent_color_rgb), 0.44);
     }
     &:active {
@@ -137,7 +137,7 @@
         min-height: 4.2rem;
         padding: 0.6rem 2.5rem 0.6rem 0.9rem;
         border-radius: 0.9rem;
-        background: rgba(15, 30, 47, 0.9);
+        background: var(--surface_control_color);
     }
 
     .flag_badge {

@@ -6,7 +6,7 @@
     place-items: center;
     box-sizing: border-box;
     padding: 1.6rem;
-    background: rgb(4 8 16 / 72%);
+    background: color-mix(in srgb, var(--canvas_color) 72%, transparent);
     backdrop-filter: blur(18px) saturate(0.8);
     animation: blocking_overlay_in 160ms ease-out;
 }
@@ -74,7 +74,7 @@
     margin-top: 2.2rem;
     overflow: hidden;
     border-radius: 99rem;
-    background: rgba(3, 8, 16, 0.72);
+    background: var(--surface_control_color);
 }
 
 .progress_fill {
@@ -160,7 +160,7 @@
 }
 
 :global(.performance_mode) .overlay {
-    background: rgb(4 8 16 / 92%);
+    background: color-mix(in srgb, var(--canvas_color) 92%, transparent);
     backdrop-filter: none;
     animation: none;
 }

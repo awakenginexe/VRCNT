@@ -1,8 +1,8 @@
 :root {
     --toastify-color-light: #fff;
     --toastify-color-dark: var(--dark_950_color);
-    --toastify-color-info: var(--sent_400_color);
-    --toastify-color-success: var(--primary_400_color);
+    --toastify-color-info: var(--accent_color);
+    --toastify-color-success: var(--success_bc_color);
     --toastify-color-warning: var(--warning_bc_color);
     --toastify-color-error: var(--error_bc_color);
     --toastify-color-transparent: rgba(255, 255, 255, 0.7);
@@ -19,7 +19,7 @@
     --toastify-toast-right: max(var(--toastify-toast-offset), env(safe-area-inset-right));
     --toastify-toast-left: max(var(--toastify-toast-offset), env(safe-area-inset-left));
     --toastify-toast-bottom: max(var(--toastify-toast-offset), env(safe-area-inset-bottom));
-    --toastify-toast-background: #fff;
+    --toastify-toast-background: var(--surface_overlay_color);
     --toastify-toast-padding: 1.4rem;
     --toastify-toast-min-height: 6.4rem;
     --toastify-toast-max-height: 80rem;
@@ -38,8 +38,8 @@
 
     --toastify-spinner-color: #616161;
     --toastify-spinner-color-empty-area: #e0e0e0;
-    --toastify-color-progress-light: linear-gradient(to right, #4cd964, #5ac8fa, #007aff, #34aadc, #5856d6, #ff2d55);
-    --toastify-color-progress-dark: #bb86fc;
+    --toastify-color-progress-light: var(--accent_gradient);
+    --toastify-color-progress-dark: var(--accent_color);
     --toastify-color-progress-info: var(--toastify-color-info);
     --toastify-color-progress-success: var(--toastify-color-success);
     --toastify-color-progress-warning: var(--toastify-color-warning);
@@ -83,7 +83,7 @@
     width: fit-content;
     max-width: 70vw;
     padding-right: 4rem;
-    background-color: var(--dark_950_color);
+    background-color: var(--surface_overlay_color);
     gap: 0.6rem;
     white-space: pre-wrap;
 }

@@ -6,8 +6,8 @@
     z-index: 40;
     width: min(28rem, calc(100vw - 2rem));
     max-height: min(42rem, calc(100vh - 24rem));
-    background: var(--surface_2_color);
-    border: 0.1rem solid #285775;
+    background: var(--surface_overlay_color);
+    border: 0.1rem solid var(--border_subtle_color);
     border-radius: 1rem;
     overflow-y: auto;
     box-shadow: 0 0.8rem 0.8rem rgba(0, 0, 0, 0.34);
@@ -57,7 +57,7 @@
     cursor: pointer;
     user-select: none;
     padding: 0.6rem 1rem;
-    background-color: #10263d;
+    background-color: var(--surface_2_color);
     border-radius: 0.8rem;
     border: var(--panel_border_subtle);
     transition: background-color var(--transition_ui);
@@ -133,7 +133,7 @@
     gap: 1rem;
     width: 100%;
     padding: 0.8rem;
-    background-color: #10263d;
+    background-color: var(--surface_2_color);
     border-radius: 0.8rem;
     border: var(--panel_border_subtle);
 }
@@ -145,7 +145,7 @@
     width: 100%;
     padding: 0.85rem 1rem;
     color: var(--dark_200_color);
-    background-color: #10263d;
+    background-color: var(--surface_2_color);
     border: var(--panel_border_subtle);
     border-radius: 0.8rem;
     cursor: pointer;
@@ -187,7 +187,7 @@
     height: 3rem;
     border: 0.1rem solid var(--dark_600_color);
     border-radius: 0.6rem;
-    background-color: var(--dark_800_color);
+    background-color: var(--surface_control_color);
     color: var(--dark_100_color);
     font-size: 1.3rem;
     padding: 0 3rem 0 1rem;
@@ -198,7 +198,7 @@
 
     &:hover:not(:disabled) {
         border-color: var(--dark_400_color);
-        background-color: var(--dark_750_color);
+        background-color: var(--surface_3_color);
     }
 
     &:focus {
@@ -251,7 +251,7 @@
     min-width: 0;
     min-height: 5.6rem;
     flex: 1 1 0;
-    background: #10263d;
+    background: var(--surface_2_color);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -266,10 +266,10 @@
 
     &:hover {
         border-color: rgba(var(--accent_color_rgb), 0.36);
-        background-color: #173550;
+        background-color: var(--surface_3_color);
     }
     &:active {
-        background-color: #071522;
+        background-color: var(--surface_control_color);
     }
     &:focus-visible {
         border-color: var(--accent_color);
@@ -282,7 +282,7 @@
     }
     &.is_secondary {
         border-color: var(--received_300_color);
-        background: rgba(159, 215, 241, 0.12);
+        background: color-mix(in srgb, var(--received_300_color) 12%, var(--surface_2_color));
     }
     &:not(.is_available) {
         pointer-events: none;

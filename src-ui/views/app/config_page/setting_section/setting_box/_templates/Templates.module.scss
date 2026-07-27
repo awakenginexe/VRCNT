@@ -5,9 +5,7 @@
     align-items: center;
     padding: 1.45rem 1.8rem;
     gap: 1.8rem;
-    background:
-        linear-gradient(180deg, rgba(var(--accent_color_rgb), 0.055), rgba(var(--accent_color_rgb), 0.018)),
-        rgba(9, 14, 20, 0.72);
+    background: var(--surface_2_color);
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.16);
     border-radius: 0.8rem;
     margin-bottom: 0.8rem;
@@ -16,9 +14,7 @@
     box-sizing: border-box;
 
     &:hover {
-        background:
-            linear-gradient(180deg, rgba(var(--accent_color_rgb), 0.085), rgba(var(--accent_color_rgb), 0.025)),
-            rgba(12, 18, 25, 0.86);
+        background: var(--surface_3_color);
         border-color: rgba(var(--accent_color_rgb), 0.28);
         box-shadow: 0 1.2rem 2.8rem rgba(0, 0, 0, 0.2);
     }

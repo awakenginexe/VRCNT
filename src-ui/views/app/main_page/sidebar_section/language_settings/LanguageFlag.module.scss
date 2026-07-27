@@ -6,8 +6,7 @@
     flex-shrink: 0;
     border-radius: 0.45rem;
     overflow: hidden;
-    background:
-        linear-gradient(180deg, #173644, #0c222d);
+    background: linear-gradient(180deg, var(--surface_3_color), var(--surface_1_color));
     border: 0.1rem solid #ffffff18;
     box-shadow:
         0 0.35rem 1rem #00000030,

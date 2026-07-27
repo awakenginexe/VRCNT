@@ -9,7 +9,7 @@
     max-width: 22rem;
     padding: 0.7rem 0.9rem;
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.18);
-    background: var(--surface_2_color);
+    background: var(--surface_overlay_color);
     box-shadow: var(--shadow_control);
     white-space: normal;
 }
@@ -24,7 +24,7 @@
     padding: 1.2rem 1.4rem;
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.15);
     border-radius: 1.6rem;
-    background: linear-gradient(135deg, rgba(var(--accent_color_rgb), 0.12), rgba(200, 160, 240, 0.08));
+    background: var(--surface_2_color);
     color: var(--dark_200_color);
     cursor: pointer;
     box-shadow: var(--shadow_control);
@@ -41,7 +41,7 @@
 
     &:hover {
         border-color: rgba(var(--accent_color_rgb), 0.4);
-        background: linear-gradient(135deg, rgba(var(--accent_color_rgb), 0.18), rgba(200, 160, 240, 0.12));
+        background: var(--surface_3_color);
         transform: translateY(-0.1rem);
         box-shadow: var(--shadow_control_hover);
 

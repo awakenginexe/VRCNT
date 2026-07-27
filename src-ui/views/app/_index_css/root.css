@@ -27,7 +27,7 @@ html, body {
     border-radius: 10px; /* fixed by px */
     overflow: hidden;
     background: var(--bg_radial_gradient);
-    background-color: #08070B;
+    background-color: var(--canvas_color);
     scroll-behavior: smooth;
 }
 

@@ -96,7 +96,7 @@
 
 .valueLabel {
     position: absolute;
-    background-color: rgba(6, 10, 16, 0.98);
+    background-color: var(--surface_overlay_color);
     width: fit-content;
     min-width: 3.2rem;
     padding: 0.4rem 0.8rem;

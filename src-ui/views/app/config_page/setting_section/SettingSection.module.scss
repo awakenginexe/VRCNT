@@ -3,7 +3,7 @@
     height: 100%;
     overflow-y: auto;
     overflow-x: hidden;
-    background: rgba(8, 21, 33, 0.72);
+    background: var(--surface_1_color);
     overscroll-behavior-y: contain;
     scrollbar-width: thin;
     scrollbar-color: var(--border_subtle_color) transparent;

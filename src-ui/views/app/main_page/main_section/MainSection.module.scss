@@ -6,7 +6,7 @@
     grid-template-rows: var(--main_page_topbar_height) auto minmax(0, 1fr);
     overflow: hidden;
     padding-right: 0;
-    background: #08070b;
+    background: var(--canvas_color);
 }
 
 .language_selector_container {
@@ -22,9 +22,8 @@
     gap: 1.35rem;
     padding: 1.55rem 2.8rem 1.8rem;
     background:
-        radial-gradient(circle at 10% 92%, rgba(91, 226, 181, 0.05), transparent 32%),
         radial-gradient(circle at 75% 14%, rgba(var(--accent_color_rgb), 0.06), transparent 29%),
-        #08070b;
+        var(--canvas_color);
 }
 
 .workspace_header {
@@ -46,7 +45,7 @@
 }
 
 .workspace_title {
-    color: #eaf5ff;
+    color: var(--dark_100_color);
     font-size: 1.75rem;
     font-weight: 900;
     letter-spacing: -0.05rem;

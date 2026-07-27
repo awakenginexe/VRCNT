@@ -96,11 +96,11 @@
     letter-spacing: 0.12em;
     text-transform: uppercase;
     &.sent_message {
-        color: #8df0c9;
+        color: var(--success_bc_color);
     }
     &.received_message {
         align-items: start;
-        color: #a9def5;
+        color: var(--received_300_color);
     }
 }
 
@@ -116,7 +116,7 @@
         align-items: flex-end;
         text-align: right;
         background: color-mix(in srgb, var(--success_bc_color) 12%, var(--surface_2_color));
-        border: 0.1rem solid rgba(91, 226, 181, 0.54);
+        border: 0.1rem solid color-mix(in srgb, var(--success_bc_color) 54%, transparent);
         box-shadow: none;
     }
     &.received_message {

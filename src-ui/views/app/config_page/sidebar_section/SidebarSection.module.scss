@@ -3,7 +3,7 @@
     display: flex;
     align-items: stretch;
     padding: 0 1.2rem;
-    background: rgba(8, 20, 32, 0.98);
+    background: var(--surface_1_color);
     overflow-x: auto;
     overflow-y: hidden;
     scrollbar-width: thin;

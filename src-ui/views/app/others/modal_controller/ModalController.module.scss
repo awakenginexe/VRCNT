@@ -21,9 +21,7 @@
     left: 50%;
     transform: translate(-50%, -50%);
     overflow-y: auto;
-    background:
-        linear-gradient(180deg, rgba(var(--accent_color_rgb), 0.08), rgba(var(--accent_color_rgb), 0.018)),
-        rgba(7, 11, 17, 0.96);
+    background: var(--surface_overlay_color);
     width: min(92rem, calc(100% - 4rem));
     max-height: calc(100% - 4rem);
     min-height: min(52rem, calc(100% - 4rem));

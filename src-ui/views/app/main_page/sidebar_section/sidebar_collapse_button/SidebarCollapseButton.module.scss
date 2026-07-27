@@ -16,7 +16,7 @@
     max-width: 22rem;
     padding: 0.7rem 0.9rem;
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.18);
-    background: var(--surface_2_color);
+    background: var(--surface_overlay_color);
     box-shadow: var(--shadow_control);
     white-space: normal;
 }
@@ -29,7 +29,7 @@
     justify-content: center;
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.16);
     border-radius: 1rem;
-    background: rgba(9, 14, 25, 0.74);
+    background: var(--surface_2_color);
     color: var(--dark_300_color);
     cursor: pointer;
     box-shadow: var(--shadow_control);
@@ -48,7 +48,7 @@
     &.is_compact_mode {
         width: 4.2rem;
         height: 3.8rem;
-        background: rgba(17, 24, 40, 0.72);
+        background: var(--surface_2_color);
     }
 }
 

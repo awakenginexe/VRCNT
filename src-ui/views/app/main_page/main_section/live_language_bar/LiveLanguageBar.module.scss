@@ -8,7 +8,7 @@
     gap: 1.8rem;
     padding: 1.1rem 2.4rem;
     border-bottom: 0.1rem solid rgba(var(--accent_color_rgb), 0.12);
-    background: rgba(8, 17, 29, 0.72);
+    background: var(--surface_1_color);
     backdrop-filter: var(--panel_blur);
     animation: language_route_in var(--motion_enter);
 }

@@ -36,7 +36,7 @@
     height: 1.3rem;
     border: 0.2rem solid rgba(var(--accent_color_rgb), 0.18);
     border-radius: 99rem;
-    background: rgba(3, 8, 16, 0.68);
+    background: var(--surface_control_color);
 
     &::after {
         content: "";

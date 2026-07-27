@@ -25,12 +25,12 @@
     padding: 2.2rem;
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.22);
     border-radius: 1.2rem;
-    background: rgba(11, 27, 45, 0.52);
+    background: var(--surface_1_color);
     color: var(--dark_400_color);
     text-align: center;
 
     strong {
-        color: #eaf5ff;
+        color: var(--dark_100_color);
         font-size: 1.55rem;
         font-weight: 900;
     }

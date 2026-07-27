@@ -10,7 +10,7 @@ $progress_ease: cubic-bezier(0, 1, 0.75, 1);
     overflow: hidden;
     background:
         linear-gradient(180deg, rgba(var(--accent_color_rgb), 0.08), transparent 34%),
-        linear-gradient(135deg, #03070b, var(--dark_950_color));
+        var(--canvas_color);
 }
 
 .progress_bar_wrapper {

@@ -6,7 +6,7 @@
     align-items: center;
     justify-content: center;
     padding: 2rem;
-    background-color: rgba(2, 3, 8, 0.74);
+    background-color: color-mix(in srgb, var(--canvas_color) 74%, transparent);
     backdrop-filter: blur(0.5rem);
 }
 
@@ -18,13 +18,7 @@
     padding: 2.4rem;
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.34);
     border-radius: 1.1rem;
-    background:
-        linear-gradient(
-            150deg,
-            rgba(var(--accent_color_rgb), 0.14),
-            rgba(var(--accent_color_rgb), 0.04)
-        ),
-        rgba(8, 10, 18, 0.98);
+    background: var(--surface_overlay_color);
     box-shadow: 0 2.4rem 6rem rgba(0, 0, 0, 0.48);
 }
 

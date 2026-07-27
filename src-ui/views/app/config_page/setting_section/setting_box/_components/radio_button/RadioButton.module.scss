@@ -36,14 +36,14 @@
     padding: 0.7rem 0.9rem;
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.12);
     border-radius: 0.6rem;
-    background-color: rgba(4, 8, 12, 0.38);
+    background-color: var(--surface_control_color);
     transition: var(--transition_ui);
     &:hover {
-        background-color: rgba(var(--accent_color_rgb), 0.08);
+        background-color: var(--surface_3_color);
         border-color: rgba(var(--accent_color_rgb), 0.26);
     }
     &:active {
-        background-color: rgba(2, 5, 8, 0.9);
+        background-color: var(--surface_1_color);
     }
     &.is_selected {
         pointer-events: none;

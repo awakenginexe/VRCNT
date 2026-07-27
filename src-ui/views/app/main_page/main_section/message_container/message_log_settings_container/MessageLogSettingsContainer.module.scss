@@ -6,7 +6,7 @@ $toggle_config_size: 3rem;
     left: 0;
     height: $container_height;
     width: 100%;
-    background: rgba(10, 14, 26, 0.92);
+    background: var(--surface_overlay_color);
     transition: top 0.3s ease;
     padding: 0.6rem;
     display: flex;
@@ -25,7 +25,7 @@ $toggle_config_size: 3rem;
     }
     &.is_opened {
         top: 0;
-        background: rgba(10, 14, 26, 0.88);
+        background: var(--surface_overlay_color);
         backdrop-filter: var(--panel_blur);
         border-bottom: 0.1rem solid rgba(var(--accent_color_rgb), 0.14);
         & .config_svg_wrapper {
@@ -49,7 +49,7 @@ $toggle_config_size: 3rem;
     left: 50%;
     bottom: -#{$toggle_config_size};
     transform: translate(-50%, -50%) rotate(0deg);
-    background: rgba(20, 28, 46, 0.9);
+    background: var(--surface_control_color);
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.14);
     width: $toggle_config_size;
     border-radius: 50%;

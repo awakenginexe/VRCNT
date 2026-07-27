@@ -3,7 +3,7 @@
     bottom: 0;
     left: 0;
     width: 100%;
-    background: linear-gradient(180deg, transparent, rgba(8, 13, 23, 0.96) 42%);
+    background: linear-gradient(180deg, transparent, var(--canvas_color) 42%);
 }
 
 .open_config_page_button {
@@ -38,7 +38,7 @@
     max-width: 22rem;
     padding: 0.7rem 0.9rem;
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.18);
-    background: var(--surface_2_color);
+    background: var(--surface_overlay_color);
     box-shadow: var(--shadow_control);
     white-space: normal;
 }

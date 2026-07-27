@@ -18,11 +18,11 @@
     padding: 1rem 1.2rem;
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.14);
     border-radius: 1.4rem;
-    background: rgba(24, 35, 55, 0.62);
+    background: var(--surface_2_color);
     cursor: pointer;
     &:hover {
         border-color: rgba(var(--accent_color_rgb), 0.32);
-        background-color: rgba(30, 44, 68, 0.78);
+        background-color: var(--surface_3_color);
     }
     &:active {
         background-color: var(--dark_900_color);
@@ -62,7 +62,7 @@
         min-height: 4.2rem;
         padding: 0.6rem 0.9rem;
         border-radius: 0.9rem;
-        background: rgba(15, 30, 47, 0.9);
+        background: var(--surface_control_color);
     }
 
     .label {

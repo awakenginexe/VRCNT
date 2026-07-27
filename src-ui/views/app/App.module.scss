@@ -7,7 +7,7 @@
     justify-content: center;
     background:
         var(--bg_radial_gradient),
-        linear-gradient(135deg, #08070b, var(--dark_800_color) 48%, #0b0810);
+        var(--canvas_color);
     align-items: center;
 }
 

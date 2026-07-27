@@ -1,6 +1,6 @@
 .container {
     width: 100%;
-    background: rgba(7, 10, 18, 0.88);
+    background: var(--surface_1_color);
     backdrop-filter: var(--panel_blur);
     flex-shrink: 0;
     display: flex;

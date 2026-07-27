@@ -9,7 +9,7 @@
     position: relative;
     background:
         linear-gradient(180deg, rgba(var(--accent_color_rgb), 0.08), transparent 34%),
-        linear-gradient(135deg, #03070b, var(--dark_950_color));
+        var(--canvas_color);
 }
 
 .label {

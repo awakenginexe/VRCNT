@@ -24,6 +24,6 @@
     min-height: 0;
     background:
         var(--bg_radial_gradient),
-        linear-gradient(135deg, #0d0912, #08070b 54%, #100b16);
+        var(--canvas_color);
     position: relative;
 }

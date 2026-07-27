@@ -14,7 +14,7 @@
     inset: 1.4rem;
     display: grid;
     grid-template-rows: 6.4rem 5.2rem minmax(0, 1fr);
-    background: rgba(7, 15, 25, 0.985);
+    background: var(--canvas_color);
     border: var(--panel_border);
     border-radius: 1.2rem;
     backdrop-filter: var(--panel_blur);

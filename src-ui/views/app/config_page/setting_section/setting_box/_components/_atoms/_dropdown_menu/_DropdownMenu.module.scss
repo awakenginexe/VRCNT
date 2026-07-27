@@ -6,7 +6,7 @@
 
 .dropdown_toggle_button {
     position: relative;
-    background-color: rgba(4, 8, 12, 0.74);
+    background-color: var(--surface_control_color);
     min-width: 20rem;
     padding: 0.9rem 1.3rem;
     cursor: pointer;
@@ -14,11 +14,11 @@
     border-radius: 0.6rem;
     transition: var(--transition_ui);
     &:hover {
-        background-color: rgba(var(--accent_color_rgb), 0.08);
+        background-color: var(--surface_3_color);
         border-color: rgba(var(--accent_color_rgb), 0.34);
     }
     &:active {
-        background-color: rgba(3, 6, 10, 0.9);
+        background-color: var(--surface_1_color);
     }
     &.is_pending {
         pointer-events: none;
@@ -58,7 +58,7 @@
 }
 
 .dropdown_content {
-    background-color: rgba(6, 10, 16, 0.98);
+    background-color: var(--surface_overlay_color);
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.24);
     border-radius: 0.6rem;
     box-shadow: 0 1.2rem 3.2rem rgba(0, 0, 0, 0.34);

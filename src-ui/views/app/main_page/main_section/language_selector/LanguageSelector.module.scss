@@ -6,7 +6,7 @@
     align-items: center;
     justify-content: center;
     padding: 1.6rem;
-    background: rgba(1, 6, 12, 0.76);
+    background: color-mix(in srgb, var(--canvas_color) 76%, transparent);
     animation: language_backdrop_in var(--motion_quick) var(--ease_out_quart);
 }
 
@@ -17,9 +17,9 @@
     display: grid;
     grid-template-rows: auto auto auto minmax(0, 1fr);
     overflow: hidden;
-    border: 0.1rem solid #285775;
+    border: 0.1rem solid var(--border_subtle_color);
     border-radius: 1.2rem;
-    background: var(--surface_2_color);
+    background: var(--surface_overlay_color);
     color: var(--dark_basic_text_color);
     box-shadow: 0 0.8rem 0.8rem rgba(0, 0, 0, 0.34);
     transition:
@@ -41,7 +41,7 @@
     gap: 1rem;
     padding: 1.2rem 1.4rem;
     border-bottom: 0.1rem solid rgba(var(--accent_color_rgb), 0.12);
-    background: #0d2034;
+    background: var(--surface_2_color);
 }
 
 .search_box {
@@ -52,9 +52,9 @@
     align-items: center;
     gap: 0.85rem;
     padding: 0 1.15rem;
-    border: 0.1rem solid #285775;
+    border: 0.1rem solid var(--border_subtle_color);
     border-radius: 0.9rem;
-    background: #071522;
+    background: var(--surface_control_color);
     color: var(--dark_200_color);
 
     &:focus-within {
@@ -146,7 +146,7 @@
     break-inside: avoid;
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.22);
     border-radius: 1rem;
-    background: #0d2034;
+    background: var(--surface_1_color);
 }
 
 .language_letter_header {
@@ -178,7 +178,7 @@
     padding: 0.75rem 0.9rem;
     border: 0.1rem solid transparent;
     border-radius: 0.85rem;
-    background: #0d2034;
+    background: var(--surface_2_color);
     color: inherit;
     cursor: pointer;
     text-align: left;
@@ -190,7 +190,7 @@
 
     &:hover:not(:disabled) {
         border-color: rgba(var(--accent_color_rgb), 0.38);
-        background: #14304a;
+        background: var(--surface_3_color);
         box-shadow: var(--shadow_control);
         transform: translateY(-0.12rem);
     }
@@ -202,7 +202,7 @@
     }
 
     &:active:not(:disabled) {
-        background: #071522;
+        background: var(--surface_control_color);
         transform: translateY(0) scale(0.985);
     }
 }

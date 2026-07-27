@@ -23,7 +23,7 @@
         padding: 0.65rem 0.72rem;
         border-color: rgba(var(--accent_color_rgb), 0.3);
         border-radius: 0.75rem;
-        background: #15111c;
+        background: var(--surface_2_color);
         box-shadow: none;
     }
 
@@ -65,14 +65,14 @@
     min-height: 6.6rem;
     margin: 0;
     padding: 1.45rem 1.6rem;
-    background: rgba(17, 24, 40, 0.72);
+    background: var(--surface_2_color);
     border: var(--panel_border_subtle);
     border-radius: 2rem;
     box-shadow: var(--shadow_control);
     cursor: pointer;
     transition: var(--transition_ui);
     &:hover {
-        background: rgba(23, 34, 54, 0.78);
+        background: var(--surface_3_color);
         border-color: rgba(var(--accent_color_rgb), 0.34);
         transform: translateY(-0.1rem);
         box-shadow: var(--shadow_control_hover);
@@ -108,7 +108,7 @@
     }
     &.is_disabled:hover {
         transform: none;
-        background: rgba(17, 24, 40, 0.56);
+        background: var(--surface_1_color);
         border-color: rgba(var(--accent_color_rgb), 0.08);
         box-shadow: none;
     }
@@ -119,7 +119,7 @@
     &.is_active {
         background:
             radial-gradient(circle at 84% 18%, rgba(var(--accent_color_rgb), 0.19), transparent 46%),
-            #1b1526;
+            var(--surface_3_color);
         border-color: rgba(var(--accent_color_rgb), 0.62);
         box-shadow:
             inset 0 0.1rem 0 rgba(255, 255, 255, 0.045),
@@ -138,7 +138,7 @@
     max-width: 22rem;
     padding: 0.7rem 0.9rem;
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.18);
-    background: var(--surface_2_color);
+    background: var(--surface_overlay_color);
     box-shadow: var(--shadow_control);
     white-space: normal;
 }
@@ -237,7 +237,7 @@ $pending_label_color: var(--dark_500_color);
     padding: 0.25rem;
     border-radius: 99rem;
     border: 0.2rem solid rgba(var(--accent_color_rgb), 0.18);
-    background: rgba(3, 8, 16, 0.68);
+    background: var(--surface_control_color);
     flex-shrink: 0;
     transition: var(--transition_ui);
     &.is_compact_mode {
