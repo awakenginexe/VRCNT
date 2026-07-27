@@ -161,8 +161,8 @@
 
     &.sent {
         margin-left: auto;
-        border-color: color-mix(in srgb, var(--success_bc_color) 58%, transparent);
-        background: color-mix(in srgb, var(--success_bc_color) 12%, var(--surface_2_color));
+        border-color: rgba(var(--accent_color_rgb), 0.42);
+        background: color-mix(in srgb, var(--accent_color) 10%, var(--surface_2_color));
     }
 
     &.received {

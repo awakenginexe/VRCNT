@@ -96,7 +96,7 @@
     letter-spacing: 0.12em;
     text-transform: uppercase;
     &.sent_message {
-        color: var(--success_bc_color);
+        color: var(--primary_200_color);
     }
     &.received_message {
         align-items: start;
@@ -115,8 +115,8 @@
     &.sent_message {
         align-items: flex-end;
         text-align: right;
-        background: color-mix(in srgb, var(--success_bc_color) 12%, var(--surface_2_color));
-        border: 0.1rem solid color-mix(in srgb, var(--success_bc_color) 54%, transparent);
+        background: color-mix(in srgb, var(--accent_color) 10%, var(--surface_2_color));
+        border: 0.1rem solid rgba(var(--accent_color_rgb), 0.42);
         box-shadow: none;
     }
     &.received_message {

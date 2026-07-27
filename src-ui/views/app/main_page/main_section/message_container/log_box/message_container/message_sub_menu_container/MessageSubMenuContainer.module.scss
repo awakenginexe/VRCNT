@@ -24,7 +24,7 @@
     left: 42%;
     transform: translate(-50%, -50%);
     width: 1.8em;
-    color: var(--sent_400_color);
+    color: var(--accent_color);
     filter: drop-shadow(0.2em 0.2em 0 var(--dark_825_color));
 }
 
@@ -40,6 +40,6 @@
     transform: translate(-50%, -50%);
     width: 0%;
     height: 0.4em;
-    background-color: var(--sent_400_color);
+    background-color: var(--accent_color);
     transition: none;
 }

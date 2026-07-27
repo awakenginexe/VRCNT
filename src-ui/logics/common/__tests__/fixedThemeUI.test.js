@@ -15,6 +15,8 @@ test("the app and desktop overlay use one fixed visual system", () => {
     const configPage = readSource("src-ui/views/app/config_page/ConfigPage.module.scss");
     const languageSelector = readSource("src-ui/views/app/main_page/main_section/language_selector/LanguageSelector.module.scss");
     const messageContainer = readSource("src-ui/views/app/main_page/main_section/message_container/MessageContainer.module.scss");
+    const messageLog = readSource("src-ui/views/app/main_page/main_section/message_container/log_box/message_container/MessageContainer.module.scss");
+    const messageSubMenu = readSource("src-ui/views/app/main_page/main_section/message_container/log_box/message_container/message_sub_menu_container/MessageSubMenuContainer.module.scss");
     const overlayStyles = readSource("src-ui/views/app/desktop_overlay/DesktopOverlayApp.module.scss");
 
     assert.doesNotMatch(app, /THEME_ACCENT_CLASSES|theme_accent/);
@@ -30,7 +32,14 @@ test("the app and desktop overlay use one fixed visual system", () => {
     assert.match(configPage, /var\(--canvas_color\)/);
     assert.match(languageSelector, /var\(--surface_overlay_color\)/);
     assert.match(messageContainer, /var\(--surface_2_color\)/);
+    assert.doesNotMatch(messageLog, /color:\s*var\(--success_bc_color\)/);
+    assert.doesNotMatch(messageLog, /color-mix\(in srgb,\s*var\(--success_bc_color\)/);
+    assert.match(messageLog, /&\.sent_message\s*\{\s*color:\s*var\(--primary_200_color\)/);
+    assert.doesNotMatch(messageSubMenu, /var\(--sent_400_color\)/);
+    assert.match(messageSubMenu, /color:\s*var\(--accent_color\)/);
+    assert.match(messageSubMenu, /background-color:\s*var\(--accent_color\)/);
     assert.match(overlayStyles, /&\.sent\s*\{[\s\S]*?margin-left:\s*auto/);
+    assert.match(overlayStyles, /&\.sent\s*\{\s*margin-left:\s*auto;\s*border-color:\s*rgba\(var\(--accent_color_rgb\),\s*0\.42\);\s*background:\s*color-mix\(in srgb,\s*var\(--accent_color\) 10%,\s*var\(--surface_2_color\)\)/);
     assert.match(overlayStyles, /&\.received\s*\{[\s\S]*?margin-right:\s*auto/);
     assert.match(overlayStyles, /var\(--surface_2_color\)/);
     assert.match(overlayStyles, /var\(--accent_color_rgb\)/);
