@@ -2,6 +2,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 sys.path.insert(
@@ -9,7 +10,10 @@ sys.path.insert(
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..")),
 )
 
-from config import _migrateRenamedUserData
+from config import (
+    _migrateRenamedUserData,
+    _resolveRenamedUserDataPath,
+)
 
 
 class VrcntDataMigrationTests(unittest.TestCase):
@@ -122,6 +126,27 @@ class VrcntDataMigrationTests(unittest.TestCase):
             )
 
             self.assertFalse(migrated)
+            self.assertFalse(os.path.exists(target_path))
+
+    def test_failed_move_uses_legacy_directory_without_creating_target(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            legacy_path = os.path.join(
+                temporary_directory,
+                "VRCNT-NextData",
+            )
+            target_path = os.path.join(temporary_directory, "VRCNTData")
+            os.makedirs(legacy_path)
+            with patch(
+                "config.shutil.move",
+                side_effect=PermissionError("directory is in use"),
+            ):
+                selected_path = _resolveRenamedUserDataPath(
+                    legacy_path,
+                    target_path,
+                )
+
+            self.assertEqual(selected_path, legacy_path)
+            self.assertTrue(os.path.isdir(legacy_path))
             self.assertFalse(os.path.exists(target_path))
 
 

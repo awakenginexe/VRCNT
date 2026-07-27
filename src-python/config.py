@@ -85,6 +85,18 @@ def _migrateRenamedUserData(legacy_path: str, target_path: str) -> bool:
         return False
 
 
+def _resolveRenamedUserDataPath(
+    legacy_path: str,
+    target_path: str,
+) -> str:
+    """Keep using legacy data when a transient move failure needs a retry."""
+    if os_path.exists(target_path) or not os_path.isdir(legacy_path):
+        return target_path
+    if _migrateRenamedUserData(legacy_path, target_path):
+        return target_path
+    return legacy_path
+
+
 def _copytree_merge(src: str, dst: str) -> None:
     if not os_path.isdir(src):
         return
@@ -923,7 +935,10 @@ class Config:
         new_data_path = _getUserDataPath("VRCNT")
         legacy_data_path = _getUserDataPath("VRCNT-Next")
         if getattr(sys, "frozen", False):
-            _migrateRenamedUserData(legacy_data_path, new_data_path)
+            new_data_path = _resolveRenamedUserDataPath(
+                legacy_data_path,
+                new_data_path,
+            )
         self._PATH_DATA = new_data_path
         self._PATH_WEIGHTS = os_path.join(self._PATH_DATA, "weights")
         self._PATH_CONFIG = os_path.join(self._PATH_DATA, "config.json")

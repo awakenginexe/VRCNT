@@ -5,10 +5,19 @@ use std::io;
 use std::path::Path;
 
 fn migrate_directory_if_target_absent(legacy_path: &Path, target_path: &Path) -> io::Result<bool> {
+    migrate_directory_with(legacy_path, target_path, |legacy, target| {
+        fs::rename(legacy, target)
+    })
+}
+
+fn migrate_directory_with<F>(legacy_path: &Path, target_path: &Path, rename: F) -> io::Result<bool>
+where
+    F: FnOnce(&Path, &Path) -> io::Result<()>,
+{
     if !legacy_path.is_dir() || target_path.exists() {
         return Ok(false);
     }
-    fs::rename(legacy_path, target_path)?;
+    rename(legacy_path, target_path)?;
     Ok(true)
 }
 
@@ -27,9 +36,7 @@ fn migrate_renamed_webview_data() -> io::Result<bool> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "windows")]
-    if let Err(error) = migrate_renamed_webview_data() {
-        eprintln!("Could not migrate the legacy VRCNT WebView data: {error}");
-    }
+    migrate_renamed_webview_data().expect("Could not migrate the legacy VRCNT WebView data");
 
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
@@ -86,8 +93,9 @@ async fn download_zip_asset(url: String) -> Result<String, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::migrate_directory_if_target_absent;
+    use super::{migrate_directory_if_target_absent, migrate_directory_with};
     use std::fs;
+    use std::io;
     use tempfile::tempdir;
 
     #[test]
@@ -128,6 +136,25 @@ mod tests {
         let target = temporary.path().join("com.vrcnt.app");
 
         assert!(!migrate_directory_if_target_absent(&legacy, &target).unwrap());
+        assert!(!target.exists());
+    }
+
+    #[test]
+    fn failed_webview_rename_leaves_target_absent_for_next_launch() {
+        let temporary = tempdir().unwrap();
+        let legacy = temporary.path().join("com.vrcnt-next.app");
+        let target = temporary.path().join("com.vrcnt.app");
+        fs::create_dir(&legacy).unwrap();
+
+        let result = migrate_directory_with(&legacy, &target, |_legacy, _target| {
+            Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "directory is in use",
+            ))
+        });
+
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::PermissionDenied,);
+        assert!(legacy.exists());
         assert!(!target.exists());
     }
 }
