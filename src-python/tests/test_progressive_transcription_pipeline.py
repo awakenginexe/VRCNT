@@ -43,6 +43,17 @@ def trace(trace_id, targets=None, providers=("provider",)):
     )
 
 
+def saturating_targets():
+    return tuple(
+        TranslationTarget(
+            f"in-flight-slot-{index}",
+            "French",
+            "France",
+        )
+        for index in range(MAX_TRANSLATION_JOBS_PER_SOURCE)
+    )
+
+
 class Harness:
     def __init__(self):
         self.condition = threading.Condition()
@@ -69,20 +80,32 @@ class Harness:
 
 class BlockingTranslator:
     def __init__(self):
+        self.condition = threading.Condition()
         self.entered = threading.Event()
         self.release = threading.Event()
         self.calls = []
 
     def translateAttempt(self, **kwargs):
-        self.calls.append(kwargs)
-        if len(self.calls) == 1:
+        with self.condition:
+            self.calls.append(kwargs)
             self.entered.set()
-            if not self.release.wait(timeout=3.0):
-                raise AssertionError("test did not release provider")
+            self.condition.notify_all()
+        if not self.release.wait(timeout=3.0):
+            raise AssertionError("test did not release provider")
         return TranslationAttempt(
             TranslationStatus.SUCCESS, kwargs["translator_name"],
             "translated:" + kwargs["message"], 1, None,
         )
+
+    def wait_for_call_count(self, expected, timeout=1.0):
+        deadline = time.monotonic() + timeout
+        with self.condition:
+            while len(self.calls) < expected:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return False
+                self.condition.wait(remaining)
+        return True
 
 
 class ObservedOutputQueue(Queue):
@@ -116,8 +139,14 @@ class ProgressivePipelineTests(unittest.TestCase):
         harness = Harness()
         translator = BlockingTranslator()
         pipeline = self.make_pipeline(translator, harness)
-        pipeline.submit_trace(trace("in-flight"))
-        self.assertTrue(translator.entered.wait(timeout=1.0))
+        pipeline.submit_trace(
+            trace("in-flight", targets=saturating_targets())
+        )
+        self.assertTrue(
+            translator.wait_for_call_count(
+                MAX_TRANSLATION_JOBS_PER_SOURCE,
+            )
+        )
 
         submitted_waiting = MAX_TRANSLATION_JOBS_PER_SOURCE + 1
         for index in range(submitted_waiting):
@@ -151,8 +180,14 @@ class ProgressivePipelineTests(unittest.TestCase):
         harness = Harness()
         translator = BlockingTranslator()
         pipeline = self.make_pipeline(translator, harness)
-        pipeline.submit_trace(trace("in-flight"))
-        self.assertTrue(translator.entered.wait(timeout=1.0))
+        pipeline.submit_trace(
+            trace("in-flight", targets=saturating_targets())
+        )
+        self.assertTrue(
+            translator.wait_for_call_count(
+                MAX_TRANSLATION_JOBS_PER_SOURCE,
+            )
+        )
         targets = (
             TranslationTarget("displaced-slot", "French", "France"),
             TranslationTarget("surviving-slot", "German", "Germany"),
@@ -413,8 +448,14 @@ class ProgressivePipelineTests(unittest.TestCase):
         )
         pipeline.start(11)
         self.addCleanup(lambda: pipeline.stop(11, discard_pending=True))
-        pipeline.submit_trace(trace("in-flight"))
-        self.assertTrue(translator.entered.wait(timeout=1.0))
+        pipeline.submit_trace(
+            trace("in-flight", targets=saturating_targets())
+        )
+        self.assertTrue(
+            translator.wait_for_call_count(
+                MAX_TRANSLATION_JOBS_PER_SOURCE,
+            )
+        )
         for index in range(MAX_TRANSLATION_JOBS_PER_SOURCE):
             pipeline.submit_trace(trace(f"waiting-{index}"))
 
