@@ -208,6 +208,51 @@ class TimeoutIgnoringTranslator:
         )
 
 
+class ConcurrentRoundRobinTranslator:
+    def __init__(self, expected_cloud_calls=5):
+        self.expected_cloud_calls = expected_cloud_calls
+        self.condition = threading.Condition()
+        self.cloud_calls = []
+        self.release_cloud = threading.Event()
+
+    @staticmethod
+    def getRateLimitedProviderCooldowns(_providers):
+        return {}
+
+    def translateAttempt(self, **kwargs):
+        provider = kwargs["translator_name"]
+        if provider == "CTranslate2":
+            return TranslationAttempt(
+                TranslationStatus.SUCCESS,
+                provider,
+                f"local:{kwargs['message']}",
+                1,
+                None,
+            )
+        with self.condition:
+            self.cloud_calls.append((kwargs["message"], provider))
+            self.condition.notify_all()
+        if not self.release_cloud.wait(timeout=2.0):
+            raise AssertionError("cloud calls were not released")
+        return TranslationAttempt(
+            TranslationStatus.SUCCESS,
+            provider,
+            f"cloud:{kwargs['message']}",
+            1,
+            None,
+        )
+
+    def wait_for_all_cloud_calls(self, timeout=1.0):
+        deadline = time.monotonic() + timeout
+        with self.condition:
+            while len(self.cloud_calls) < self.expected_cloud_calls:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return False
+                self.condition.wait(remaining)
+            return True
+
+
 class ControlledStartThread(threading.Thread):
     start_lock = threading.Lock()
     start_count = 0
@@ -352,7 +397,91 @@ class TranslationSchedulerTests(unittest.TestCase):
         ]
         self.assertEqual(queued_engines, ["Google", "Bing"])
 
-    def test_queue_positions_sending_zero_and_metric_depth_are_authoritative(self):
+    def test_five_messages_start_round_robin_cloud_calls_without_head_of_line_waiting(self):
+        recorder = Recorder()
+        translator = ConcurrentRoundRobinTranslator()
+        rotation_lock = threading.Lock()
+        rotation_index = 0
+
+        def rotate(providers):
+            nonlocal rotation_index
+            with rotation_lock:
+                index = rotation_index % len(providers)
+                rotation_index += 1
+            return providers[index:] + providers[:index]
+
+        pipeline = self.make_pipeline(
+            translator,
+            recorder,
+            rotate_providers=rotate,
+        )
+        self.addCleanup(translator.release_cloud.set)
+
+        for index in range(5):
+            self.assertTrue(
+                pipeline.submit_trace(
+                    make_trace(
+                        f"concurrent-{index + 1}",
+                        providers=("Google", "Bing"),
+                    )
+                )
+            )
+
+        self.assertTrue(
+            translator.wait_for_all_cloud_calls(timeout=1.0),
+            "all accepted messages must start before an older cloud call returns",
+        )
+        provider_by_message = dict(translator.cloud_calls)
+        self.assertEqual(
+            [
+                provider_by_message[f"concurrent-{index}"]
+                for index in range(1, 6)
+            ],
+            ["Google", "Bing", "Google", "Bing", "Google"],
+        )
+
+        translator.release_cloud.set()
+        self.assertTrue(recorder.wait_for(lambda: len(recorder.finals) == 5))
+
+    def test_failed_assigned_cloud_provider_uses_local_without_trying_other_cloud(self):
+        attempts = [
+            TranslationAttempt(
+                TranslationStatus.ERROR,
+                "Google",
+                None,
+                3,
+                "provider_error",
+            ),
+            TranslationAttempt(
+                TranslationStatus.SUCCESS,
+                "CTranslate2",
+                "local result",
+                8,
+                None,
+            ),
+        ]
+        recorder = Recorder()
+        translator = ScriptedTranslator(attempts)
+        pipeline = self.make_pipeline(
+            translator,
+            recorder,
+            local_fallback_enabled=lambda: True,
+        )
+
+        pipeline.submit_trace(
+            make_trace("single-cloud-fallback", providers=("Google", "Bing"))
+        )
+        self.assertTrue(recorder.wait_for(lambda: len(recorder.finals) == 1))
+
+        self.assertEqual(
+            [call["translator_name"] for call in translator.calls],
+            ["Google", "CTranslate2"],
+        )
+        terminal = recorder.finals[0].translations[0]
+        self.assertEqual(terminal.status, TranslationStatus.SUCCESS)
+        self.assertEqual(terminal.engine, "CTranslate2")
+
+    def test_parallel_jobs_report_zero_sending_position_and_bounded_metric_depth(self):
         recorder = Recorder()
         translator = ScriptedTranslator()
         translator.block_message = "blocked"
@@ -376,9 +505,7 @@ class TranslationSchedulerTests(unittest.TestCase):
             for item in recorder.updates
             if item.status is TranslationStatus.QUEUED
         }
-        self.assertEqual(queued[("one-waiting", "target-1")], 1)
-        self.assertEqual(queued[("two-slots", "slot-1")], 2)
-        self.assertEqual(queued[("two-slots", "slot-2")], 3)
+        self.assertTrue(all(position >= 1 for position in queued.values()))
 
         translator.release.set()
         self.assertTrue(recorder.wait_for(lambda: len(recorder.finals) == 3))
@@ -392,7 +519,13 @@ class TranslationSchedulerTests(unittest.TestCase):
             item for item in recorder.metrics
             if item.stage == "translation" and item.outcome == "success"
         ]
-        self.assertEqual([item.queue_depth for item in success_metrics], [3, 2, 1, 0])
+        self.assertEqual(len(success_metrics), 4)
+        self.assertTrue(
+            all(
+                0 <= item.queue_depth <= source_pipeline_module.MAX_TRANSLATION_JOBS_PER_SOURCE
+                for item in success_metrics
+            )
+        )
 
     def test_translation_disabled_finalizes_original_only_once(self):
         recorder = Recorder()
@@ -420,7 +553,7 @@ class TranslationSchedulerTests(unittest.TestCase):
         self.assertEqual(final.original_message, "disabled")
         self.assertEqual(final.translations, ())
 
-    def test_start_owns_exactly_two_daemons_and_stop_waits_for_provider(self):
+    def test_start_owns_bounded_daemon_pool_and_stop_waits_for_provider(self):
         recorder = Recorder()
         translator = ScriptedTranslator()
         translator.block_message = "in-flight"
@@ -438,6 +571,14 @@ class TranslationSchedulerTests(unittest.TestCase):
         pipeline.start(7)
         translation_thread = pipeline._translation_thread
         output_thread = pipeline._output_thread
+        self.assertEqual(
+            len(pipeline._translation_threads),
+            source_pipeline_module.MAX_PARALLEL_TRANSLATION_JOBS_PER_SOURCE,
+        )
+        self.assertTrue(all(thread.daemon for thread in pipeline._translation_threads))
+        self.assertTrue(
+            all(thread.is_alive() for thread in pipeline._translation_threads)
+        )
         self.assertTrue(translation_thread.daemon)
         self.assertTrue(output_thread.daemon)
         self.assertTrue(translation_thread.is_alive())
@@ -477,8 +618,24 @@ class TranslationSchedulerTests(unittest.TestCase):
         translator = ScriptedTranslator()
         translator.block_message = "gate"
         pipeline = self.make_pipeline(translator, recorder)
-        pipeline.submit_trace(make_trace("gate", message="gate"))
+        for index in range(
+            source_pipeline_module.MAX_PARALLEL_TRANSLATION_JOBS_PER_SOURCE
+        ):
+            pipeline.submit_trace(
+                make_trace(f"gate-{index}", message="gate")
+            )
         self.assertTrue(translator.entered.wait(timeout=1.0))
+        deadline = time.monotonic() + 1.0
+        while (
+            len(translator.calls)
+            < source_pipeline_module.MAX_PARALLEL_TRANSLATION_JOBS_PER_SOURCE
+            and time.monotonic() < deadline
+        ):
+            time.sleep(0.005)
+        self.assertEqual(
+            len(translator.calls),
+            source_pipeline_module.MAX_PARALLEL_TRANSLATION_JOBS_PER_SOURCE,
+        )
 
         target = TranslationTarget("slot-x", "Thai", "Thailand")
         targets = [target]
@@ -520,7 +677,7 @@ class TranslationSchedulerTests(unittest.TestCase):
         self.assertEqual(job.target.target_slot, "slot-x")
         self.assertEqual(job.target.language, "Thai")
         self.assertEqual(job.target.country, "Thailand")
-        self.assertEqual(job.providers, ("one", "two"))
+        self.assertEqual(job.providers, ("one",))
         self.assertEqual(job.ctranslate2_weight_type, "Large")
         self.assertEqual(
             job.context_history,
@@ -530,7 +687,13 @@ class TranslationSchedulerTests(unittest.TestCase):
         self.assertLessEqual(job.enqueued_at_monotonic, after_enqueue)
 
         translator.release.set()
-        self.assertTrue(recorder.wait_for(lambda: len(recorder.finals) == 2))
+        self.assertTrue(
+            recorder.wait_for(
+                lambda: len(recorder.finals)
+                == source_pipeline_module.MAX_PARALLEL_TRANSLATION_JOBS_PER_SOURCE
+                + 1
+            )
+        )
         snapshot_call = next(
             call for call in translator.calls
             if call["message"] == "original text"
@@ -1081,7 +1244,7 @@ class TranslationSchedulerTests(unittest.TestCase):
         self.assertEqual(translator.calls, [])
         self.assertEqual(recorder.finals, [])
 
-    def test_stop_from_fallback_update_prevents_alternate_provider(self):
+    def test_stop_from_fallback_update_prevents_local_provider(self):
         recorder = Recorder()
         translator = ScriptedTranslator(
             [
@@ -1112,6 +1275,7 @@ class TranslationSchedulerTests(unittest.TestCase):
             recorder.emit_metric,
             recorder.emit_final,
             lambda generation: generation == 7,
+            local_fallback_enabled=lambda: True,
         )
         pipeline_holder["pipeline"] = pipeline
         pipeline.start(7)
@@ -1128,7 +1292,7 @@ class TranslationSchedulerTests(unittest.TestCase):
             ["one"],
         )
 
-    def test_stop_from_fallback_metric_prevents_alternate_provider(self):
+    def test_stop_from_fallback_metric_prevents_local_provider(self):
         recorder = Recorder()
         translator = ScriptedTranslator(
             [
@@ -1159,6 +1323,7 @@ class TranslationSchedulerTests(unittest.TestCase):
             stopping_metric,
             recorder.emit_final,
             lambda generation: generation == 7,
+            local_fallback_enabled=lambda: True,
         )
         pipeline_holder["pipeline"] = pipeline
         pipeline.start(7)
@@ -1346,11 +1511,15 @@ class TranslationSchedulerTests(unittest.TestCase):
     def test_success_and_fallback_state_order_and_attempt_metrics(self):
         attempts = [
             TranslationAttempt(TranslationStatus.TIMEOUT, "primary", None, 9, "provider_timeout"),
-            TranslationAttempt(TranslationStatus.SUCCESS, "alternate", "bonjour", 4, None),
+            TranslationAttempt(TranslationStatus.SUCCESS, "CTranslate2", "bonjour", 4, None),
         ]
         recorder = Recorder()
         translator = ScriptedTranslator(attempts)
-        pipeline = self.make_pipeline(translator, recorder)
+        pipeline = self.make_pipeline(
+            translator,
+            recorder,
+            local_fallback_enabled=lambda: True,
+        )
 
         pipeline.submit_trace(make_trace("trace-1", providers=("primary", "alternate", "third")))
         self.assertTrue(recorder.wait_for(lambda: len(recorder.finals) == 1))
@@ -1367,9 +1536,8 @@ class TranslationSchedulerTests(unittest.TestCase):
         )
         self.assertEqual(
             [call["translator_name"] for call in translator.calls],
-            ["primary", "alternate"],
+            ["primary", "CTranslate2"],
         )
-        self.assertNotIn("CTranslate2", [call["translator_name"] for call in translator.calls])
         primary_failure_metrics = [
             item for item in recorder.metrics
             if item.stage == "translation"
@@ -1392,7 +1560,13 @@ class TranslationSchedulerTests(unittest.TestCase):
         )
         self.assertEqual(
             [item.engine for item in translation_metrics],
-            ["primary", "primary", "alternate", "alternate", "alternate"],
+            [
+                "primary",
+                "primary",
+                "CTranslate2",
+                "CTranslate2",
+                "CTranslate2",
+            ],
         )
         active_metrics = [
             item for item in translation_metrics
@@ -1418,10 +1592,9 @@ class TranslationSchedulerTests(unittest.TestCase):
         )
         self.assertLess(timeout_metric_index, fallback_update_index)
 
-    def test_last_provider_failure_is_the_only_terminal_and_context_is_snapshotted(self):
+    def test_assigned_provider_failure_is_terminal_and_context_is_snapshotted(self):
         attempts = [
             TranslationAttempt(TranslationStatus.ERROR, "one", None, 1, "first_error"),
-            TranslationAttempt(TranslationStatus.TIMEOUT, "two", None, 2, "provider_timeout"),
         ]
         recorder = Recorder()
         translator = ScriptedTranslator(attempts)
@@ -1435,7 +1608,7 @@ class TranslationSchedulerTests(unittest.TestCase):
         translator.release.set()
         self.assertTrue(recorder.wait_for(lambda: len(recorder.finals) == 1))
 
-        self.assertEqual([call["translator_name"] for call in translator.calls], ["one", "two"])
+        self.assertEqual([call["translator_name"] for call in translator.calls], ["one"])
         self.assertEqual(translator.calls[0]["context_history"], [{"trace": "trace-fail"}])
         statuses = [item.status for item in recorder.updates]
         self.assertEqual(
@@ -1443,9 +1616,7 @@ class TranslationSchedulerTests(unittest.TestCase):
             [
                 TranslationStatus.QUEUED,
                 TranslationStatus.SENDING,
-                TranslationStatus.FALLBACK,
-                TranslationStatus.SENDING,
-                TranslationStatus.TIMEOUT,
+                TranslationStatus.ERROR,
             ],
         )
         terminal_updates = [
@@ -1453,20 +1624,23 @@ class TranslationSchedulerTests(unittest.TestCase):
             if item.status in (TranslationStatus.TIMEOUT, TranslationStatus.ERROR)
         ]
         self.assertEqual(len(terminal_updates), 1)
-        self.assertEqual(terminal_updates[0].engine, "two")
-        primary_failure_metrics = [
+        self.assertEqual(terminal_updates[0].engine, "one")
+        failure_metrics = [
             item for item in recorder.metrics
             if item.stage == "translation"
             and item.engine == "one"
             and item.outcome == "error"
         ]
-        self.assertEqual(len(primary_failure_metrics), 1)
-        self.assertEqual(primary_failure_metrics[0].duration_ms, 1)
-        self.assertEqual(primary_failure_metrics[0].error_code, "first_error")
+        self.assertEqual(len(failure_metrics), 1)
+        self.assertEqual(failure_metrics[0].duration_ms, 1)
+        self.assertEqual(failure_metrics[0].error_code, "first_error")
         self.assertEqual(len(recorder.finals[0].translations), 1)
-        self.assertEqual(recorder.finals[0].translations[0].status, TranslationStatus.TIMEOUT)
+        self.assertEqual(
+            recorder.finals[0].translations[0].status,
+            TranslationStatus.ERROR,
+        )
 
-    def test_last_provider_error_is_the_only_terminal_translation_update(self):
+    def test_assigned_provider_timeout_is_the_only_terminal_translation_update(self):
         attempts = [
             TranslationAttempt(
                 TranslationStatus.TIMEOUT,
@@ -1474,13 +1648,6 @@ class TranslationSchedulerTests(unittest.TestCase):
                 None,
                 3,
                 "provider_timeout",
-            ),
-            TranslationAttempt(
-                TranslationStatus.ERROR,
-                "two",
-                None,
-                5,
-                "provider_error",
             ),
         ]
         recorder = Recorder()
@@ -1494,9 +1661,7 @@ class TranslationSchedulerTests(unittest.TestCase):
             [
                 TranslationStatus.QUEUED,
                 TranslationStatus.SENDING,
-                TranslationStatus.FALLBACK,
-                TranslationStatus.SENDING,
-                TranslationStatus.ERROR,
+                TranslationStatus.TIMEOUT,
             ],
         )
         terminal_updates = [
@@ -1504,11 +1669,11 @@ class TranslationSchedulerTests(unittest.TestCase):
             if item.status in (TranslationStatus.TIMEOUT, TranslationStatus.ERROR)
         ]
         self.assertEqual(len(terminal_updates), 1)
-        self.assertEqual(terminal_updates[0].engine, "two")
-        self.assertEqual(terminal_updates[0].duration_ms, 5)
-        self.assertEqual(terminal_updates[0].error_code, "provider_error")
+        self.assertEqual(terminal_updates[0].engine, "one")
+        self.assertEqual(terminal_updates[0].duration_ms, 3)
+        self.assertEqual(terminal_updates[0].error_code, "provider_timeout")
 
-    def test_dual_rate_limit_reports_both_providers_and_next_probe(self):
+    def test_assigned_rate_limit_reports_only_that_provider(self):
         attempts = [
             TranslationAttempt(
                 TranslationStatus.ERROR,
@@ -1517,14 +1682,6 @@ class TranslationSchedulerTests(unittest.TestCase):
                 3,
                 "provider_rate_limited",
                 45,
-            ),
-            TranslationAttempt(
-                TranslationStatus.ERROR,
-                "Bing",
-                None,
-                4,
-                "provider_rate_limited",
-                30,
             ),
         ]
         recorder = Recorder()
@@ -1538,18 +1695,18 @@ class TranslationSchedulerTests(unittest.TestCase):
 
         terminal = recorder.finals[0].translations[0]
         self.assertEqual(terminal.error_code, "providers_rate_limited")
-        self.assertEqual(terminal.failed_engines, ("Google", "Bing"))
-        self.assertEqual(terminal.retry_after_seconds, 30)
+        self.assertEqual(terminal.failed_engines, ("Google",))
+        self.assertEqual(terminal.retry_after_seconds, 45)
         self.assertEqual(
             terminal.to_payload()["failed_engines"],
-            ["Google", "Bing"],
+            ["Google"],
         )
         self.assertEqual(
             [call["translator_name"] for call in translator.calls],
-            ["Google", "Bing"],
+            ["Google"],
         )
 
-    def test_enabled_local_fallback_loads_only_after_cloud_pair_fails(self):
+    def test_enabled_local_fallback_loads_after_assigned_cloud_fails(self):
         attempts = [
             TranslationAttempt(
                 TranslationStatus.ERROR,
@@ -1558,14 +1715,6 @@ class TranslationSchedulerTests(unittest.TestCase):
                 3,
                 "provider_rate_limited",
                 45,
-            ),
-            TranslationAttempt(
-                TranslationStatus.ERROR,
-                "Bing",
-                None,
-                4,
-                "provider_rate_limited",
-                30,
             ),
             TranslationAttempt(
                 TranslationStatus.SUCCESS,
@@ -1592,7 +1741,7 @@ class TranslationSchedulerTests(unittest.TestCase):
 
         self.assertEqual(
             [call["translator_name"] for call in translator.calls],
-            ["Google", "Bing", "CTranslate2"],
+            ["Google", "CTranslate2"],
         )
         self.assertEqual(prepared, ["loaded"])
         terminal = recorder.finals[0].translations[0]
@@ -1600,7 +1749,7 @@ class TranslationSchedulerTests(unittest.TestCase):
         self.assertEqual(terminal.engine, "CTranslate2")
         self.assertEqual(terminal.message, "local result")
 
-    def test_ten_message_burst_spills_to_local_without_overload_skips(self):
+    def test_ten_message_burst_does_not_spill_to_local_without_cloud_failure(self):
         recorder = Recorder()
         translator = ScriptedTranslator()
         translator.block_message = "in-flight"
@@ -1634,7 +1783,7 @@ class TranslationSchedulerTests(unittest.TestCase):
         )
         translator.release.set()
         self.assertTrue(recorder.wait_for(lambda: len(recorder.finals) == 11))
-        self.assertIn(
+        self.assertNotIn(
             "CTranslate2",
             [call["translator_name"] for call in translator.calls],
         )
@@ -1677,7 +1826,7 @@ class TranslationSchedulerTests(unittest.TestCase):
             ],
         )
 
-    def test_two_cloud_providers_share_one_wall_clock_budget(self):
+    def test_assigned_cloud_provider_receives_one_wall_clock_budget(self):
         recorder = Recorder()
         translator = BudgetRecordingTranslator(first_delay=0.03)
         pipeline = self.make_pipeline(translator, recorder)
@@ -1692,10 +1841,8 @@ class TranslationSchedulerTests(unittest.TestCase):
             )
             self.assertTrue(recorder.wait_for(lambda: len(recorder.finals) == 1))
 
-        self.assertEqual(translator.calls, ["Google", "Bing"])
+        self.assertEqual(translator.calls, ["Google"])
         self.assertAlmostEqual(translator.timeouts[0], 0.08, places=3)
-        self.assertGreater(translator.timeouts[1], 0)
-        self.assertLess(translator.timeouts[1], translator.timeouts[0])
 
     def test_provider_ignoring_timeout_releases_to_local_fallback(self):
         recorder = Recorder()

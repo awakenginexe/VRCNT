@@ -34,7 +34,7 @@ MAX_OUTPUT_TASKS_PER_SOURCE = 4
 MAX_ACTIVE_TRACES_PER_SOURCE = 32
 WORKER_POLL_SECONDS = 0.1
 PROVIDER_TIMEOUT_SECONDS = 5.0
-CLOUD_BACKLOG_LOCAL_FALLBACK_THRESHOLD = 3
+MAX_PARALLEL_TRANSLATION_JOBS_PER_SOURCE = MAX_TRANSLATION_JOBS_PER_SOURCE
 CLOUD_TRANSLATION_PROVIDERS = frozenset(
     (
         "DeepL",
@@ -74,7 +74,7 @@ class _TraceRecord:
 
 
 class SourcePipeline:
-    """Own one translation worker and one output worker for a pipeline source."""
+    """Own bounded translation workers and one output worker for a source."""
 
     def __init__(
         self,
@@ -115,7 +115,7 @@ class SourcePipeline:
         self._lifecycle_condition = Condition(RLock())
         self._lifecycle_state = _LifecycleState.NEW
         self._stopping_generation: Optional[int] = None
-        self._translation_exited = False
+        self._translation_exited_count = 0
         self._output_exited = False
         self._shutdown_cleanup_complete = False
         self._submit_lock = Lock()
@@ -125,31 +125,43 @@ class SourcePipeline:
         self._accepting = False
         self._dropped_count = 0
 
+        self._translation_threads: list[Thread] = []
+        # Keep the first-worker alias for lifecycle diagnostics and compatibility
+        # with callers that already inspect this internal attribute.
         self._translation_thread: Optional[Thread] = None
         self._output_thread: Optional[Thread] = None
 
     def start(self, generation: int) -> None:
-        """Start the source's two daemon workers for one generation."""
+        """Start bounded translation workers and one output worker."""
         with self._lifecycle_condition:
             if self._lifecycle_state is not _LifecycleState.NEW:
                 raise RuntimeError("source pipeline has already been started")
             self._lifecycle_state = _LifecycleState.STARTING
             self._generation = generation
             self._accepting = False
-            self._translation_exited = False
+            self._translation_exited_count = 0
             self._output_exited = False
             self._shutdown_cleanup_complete = False
-            self._translation_thread = Thread(
-                target=self._translation_worker,
-                name=f"{self.source.value}-translation-{generation}",
-                daemon=True,
-            )
+            self._translation_threads = [
+                Thread(
+                    target=self._translation_worker,
+                    name=(
+                        f"{self.source.value}-translation-{generation}-"
+                        f"{worker_index + 1}"
+                    ),
+                    daemon=True,
+                )
+                for worker_index in range(
+                    MAX_PARALLEL_TRANSLATION_JOBS_PER_SOURCE
+                )
+            ]
+            self._translation_thread = self._translation_threads[0]
             self._output_thread = Thread(
                 target=self._output_worker,
                 name=f"{self.source.value}-output-{generation}",
                 daemon=True,
             )
-            translation_thread = self._translation_thread
+            translation_threads = tuple(self._translation_threads)
             output_thread = self._output_thread
             self._lifecycle_condition.notify_all()
 
@@ -157,8 +169,9 @@ class SourcePipeline:
         try:
             output_thread.start()
             started_threads.append(output_thread)
-            translation_thread.start()
-            started_threads.append(translation_thread)
+            for translation_thread in translation_threads:
+                translation_thread.start()
+                started_threads.append(translation_thread)
         except Exception:
             with self._lifecycle_condition:
                 self._accepting = False
@@ -200,10 +213,7 @@ class SourcePipeline:
                 if self._lifecycle_state is _LifecycleState.STOPPING:
                     if self._stopping_generation != generation:
                         return
-                    if current_thread() in (
-                        self._translation_thread,
-                        self._output_thread,
-                    ):
+                    if self._is_worker_thread(current_thread()):
                         return
                     while self._lifecycle_state is not _LifecycleState.STOPPED:
                         self._lifecycle_condition.wait()
@@ -237,12 +247,9 @@ class SourcePipeline:
         if discard_pending:
             self._translation_queue.drain()
 
-        translation_thread = self._translation_thread
-        if (
-            translation_thread is not None
-            and translation_thread is not current_thread()
-        ):
-            translation_thread.join()
+        for translation_thread in tuple(self._translation_threads):
+            if translation_thread is not current_thread():
+                translation_thread.join()
 
         # No translation producer remains after this point, so draining and
         # adding the wake sentinel cannot race with a stale final-task put.
@@ -268,16 +275,22 @@ class SourcePipeline:
     def _worker_exited(self, worker: str) -> None:
         with self._lifecycle_condition:
             if worker == "translation":
-                self._translation_exited = True
+                self._translation_exited_count += 1
             else:
                 self._output_exited = True
             self._finish_stop_if_workers_exited_locked()
+
+    def _is_worker_thread(self, thread: Thread) -> bool:
+        return (
+            thread is self._output_thread
+            or thread in self._translation_threads
+        )
 
     def _finish_stop_if_workers_exited_locked(self) -> None:
         if (
             self._lifecycle_state is _LifecycleState.STOPPING
             and self._shutdown_cleanup_complete
-            and self._translation_exited
+            and self._translation_exited_count == len(self._translation_threads)
             and self._output_exited
         ):
             self._lifecycle_state = _LifecycleState.STOPPED
@@ -339,7 +352,7 @@ class SourcePipeline:
             providers = tuple(trace.providers[:2])
             base_position = self._translation_queue.qsize()
             for slot_order, target in enumerate(trace.targets, start=1):
-                job_providers = tuple(self._rotate_providers(providers))[:2]
+                job_providers = tuple(self._rotate_providers(providers))[:1]
                 if not job_providers:
                     job_providers = providers
                 queued = TranslationUpdate(
@@ -684,7 +697,7 @@ class SourcePipeline:
         )
 
     def _run_translation_job(self, record: _TraceRecord, job: TranslationJob) -> None:
-        providers = list(job.providers[:2])
+        providers = list(job.providers[:1])
         try:
             use_local_fallback = self._local_fallback_enabled()
         except Exception:
@@ -958,18 +971,13 @@ class SourcePipeline:
         self,
         providers: list[str],
     ) -> bool:
-        """Spill a cloud backlog or full cooldown set into the opted-in local model."""
+        """Use local immediately when every assigned cloud provider is cooling."""
         cloud_providers = [
             provider for provider in providers
             if provider != "CTranslate2"
         ]
         if not cloud_providers:
             return False
-        if (
-            self._translation_queue.qsize()
-            >= CLOUD_BACKLOG_LOCAL_FALLBACK_THRESHOLD
-        ):
-            return True
 
         get_cooldowns = getattr(
             self._translator,
