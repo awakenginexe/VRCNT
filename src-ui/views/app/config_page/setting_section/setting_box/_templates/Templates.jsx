@@ -178,7 +178,7 @@ export const WordFilterContainer = (props) => {
 };
 
 export const DownloadModelsContainer = (props) => (
-    <CommonContainer Component={DownloadModels} {...props} />
+    <CommonContainer Component={DownloadModels} {...props} flex_column />
 );
 
 export const ConnectionCheckButtonContainer = (props) => (

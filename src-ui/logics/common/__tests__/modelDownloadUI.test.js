@@ -109,6 +109,30 @@ test("model download confirmation exposes an accessible modal contract", () => {
     assert.match(confirmation, /setModelDownloadBackgroundInert/);
 });
 
+test("model download controls retain readable full-width layout and centered dialog actions", () => {
+    const templates = readSource(
+        "src-ui/views/app/config_page/setting_section/setting_box/_templates/Templates.jsx",
+    );
+    const modelListStyles = readSource(
+        "src-ui/views/app/config_page/setting_section/setting_box/_components/download_models/DownloadModels.module.scss",
+    );
+    const confirmationStyles = readSource(
+        "src-ui/views/app/config_page/setting_section/setting_box/_components/download_models/ModelDownloadConfirmation.module.scss",
+    );
+
+    assert.match(
+        templates,
+        /<CommonContainer Component=\{DownloadModels\} \{\.\.\.props\} flex_column \/>/,
+    );
+    assert.match(modelListStyles, /\.container\s*\{[^}]*width:\s*100%/s);
+    assert.match(
+        confirmationStyles,
+        /\.(?:cancel_button|confirm_button)[\s\S]*display:\s*inline-flex/,
+    );
+    assert.match(confirmationStyles, /align-items:\s*center/);
+    assert.match(confirmationStyles, /justify-content:\s*center/);
+});
+
 test("Escape stops propagation before cancelling and restores the triggering row", () => {
     assert.equal(
         typeof accessibility.handleModelDownloadDialogKeyDown,

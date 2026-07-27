@@ -1,7 +1,7 @@
 .container {
     display: flex;
     flex-direction: column;
-    width: min(100%, 54rem);
+    width: 100%;
     gap: 0.7rem;
 }
 
@@ -90,4 +90,5 @@
     overflow-wrap: anywhere;
     font-size: 1.3rem;
     font-weight: 400;
+    line-height: 1.4;
 }

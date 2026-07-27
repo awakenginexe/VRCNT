@@ -42,11 +42,16 @@
 
 .cancel_button,
 .confirm_button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     min-width: 8rem;
     padding: 0.9rem 1.3rem;
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.28);
     border-radius: 0.7rem;
     font-size: 1.3rem;
+    line-height: 1;
+    text-align: center;
     transition: var(--transition_ui);
 }
 
