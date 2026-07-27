@@ -248,6 +248,13 @@ config_page:
     common:
         version: "バージョン {{version}}"
         model_download_button_label: "ダウンロード"
+        model_download:
+            title: "このモデルをダウンロードしますか？"
+            detail: "{{model}} を選択するには、先にダウンロードする必要があります。"
+            yes: "はい"
+            no: "いいえ"
+            required: "ダウンロードが必要"
+            unavailable: "利用できません"
         correct_auth_key_required: "正しい認証キーが必要"
         open_auth_key_webpage: "認証キー管理ページを開く"
         connection_check:

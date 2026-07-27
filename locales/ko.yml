@@ -248,6 +248,13 @@ config_page:
     common:
         version: "버전 {{version}}"
         model_download_button_label: "다운로드"
+        model_download:
+            title: "이 모델을 다운로드하시겠어요?"
+            detail: "{{model}} 모델을 선택하려면 먼저 다운로드해야 합니다."
+            yes: "예"
+            no: "아니요"
+            required: "다운로드 필요"
+            unavailable: "사용할 수 없음"
         correct_auth_key_required:
         open_auth_key_webpage:
         connection_check:

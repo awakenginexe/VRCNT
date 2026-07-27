@@ -1,32 +1,25 @@
-@import "@scss_mixins";
-
 .download_container {
     display: flex;
     align-items: center;
     justify-content: center;
     width: 100%;
-    max-width: 8rem;
+    max-width: 11rem;
+    padding: 0.6rem 0.9rem 0.6rem 0;
     flex-shrink: 0;
 }
 
-.download_button {
-    pointer-events: auto;
-    background-color: rgba(4, 8, 12, 0.58);
-    padding: 0.8rem 1rem;
-    flex-shrink: 0;
-    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.18);
-    border-radius: 0.6rem;
-    transition: var(--transition_ui);
-    &:hover {
-        background-color: rgba(var(--accent_color_rgb), 0.1);
-        border-color: rgba(var(--accent_color_rgb), 0.32);
-    }
-    &:active {
-        background-color: rgba(2, 5, 8, 0.9);
-    }
+.status_label {
+    color: var(--dark_400_color);
+    font-size: 1.1rem;
+    line-height: 1.35;
+    text-align: center;
 }
-.download_button_label {
-    font-size: 1.2rem;
+
+.progress {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .progress_label {
@@ -34,25 +27,24 @@
     font-size: 1rem;
 }
 
-.unavailable_label {
-    font-size: 1.1rem;
-    color: var(--dark_500_color);
-    text-align: center;
-    cursor: help;
-}
-
 .update_button {
-    pointer-events: auto;
-    background-color: rgba(var(--accent_color_rgb), 0.18);
     padding: 0.8rem 1rem;
-    flex-shrink: 0;
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.36);
     border-radius: 0.6rem;
+    background-color: rgba(var(--accent_color_rgb), 0.18);
+    pointer-events: auto;
+    flex-shrink: 0;
     transition: var(--transition_ui);
+
     &:hover {
         background-color: rgba(var(--accent_color_rgb), 0.26);
     }
+
     &:active {
         background-color: rgba(var(--accent_color_rgb), 0.12);
     }
+}
+
+.update_button_label {
+    font-size: 1.2rem;
 }

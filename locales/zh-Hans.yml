@@ -248,6 +248,13 @@ config_page:
     common:
         version: "版本 {{version}}"
         model_download_button_label: "下载"
+        model_download:
+            title: "下载此模型？"
+            detail: "必须先下载 {{model}}，然后才能选择该模型。"
+            yes: "是"
+            no: "否"
+            required: "需要下载"
+            unavailable: "不可用"
         correct_auth_key_required:
         open_auth_key_webpage:
         connection_check:

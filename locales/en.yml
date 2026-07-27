@@ -248,6 +248,13 @@ config_page:
     common:
         version: "Version {{version}}"
         model_download_button_label: "Download"
+        model_download:
+            title: "Download this model?"
+            detail: "{{model}} must be downloaded before it can be selected."
+            yes: "Yes"
+            no: "No"
+            required: "Download required"
+            unavailable: "Unavailable"
         correct_auth_key_required: "Correct Auth Key Required"
         open_auth_key_webpage: "Open Auth Key Management Webpage"
         connection_check:

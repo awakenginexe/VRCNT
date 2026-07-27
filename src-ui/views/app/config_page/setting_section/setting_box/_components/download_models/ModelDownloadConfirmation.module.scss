@@ -1,0 +1,73 @@
+.backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    background-color: rgba(2, 3, 8, 0.74);
+    backdrop-filter: blur(0.5rem);
+}
+
+.dialog {
+    width: min(100%, 44rem);
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 2.4rem;
+    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.34);
+    border-radius: 1.1rem;
+    background:
+        linear-gradient(
+            150deg,
+            rgba(var(--accent_color_rgb), 0.14),
+            rgba(var(--accent_color_rgb), 0.04)
+        ),
+        rgba(8, 10, 18, 0.98);
+    box-shadow: 0 2.4rem 6rem rgba(0, 0, 0, 0.48);
+}
+
+.title {
+    font-size: 1.8rem;
+    font-weight: 600;
+}
+
+.detail {
+    color: var(--dark_350_color);
+    font-size: 1.35rem;
+    line-height: 1.55;
+}
+
+.actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 0.5rem;
+}
+
+.cancel_button,
+.confirm_button {
+    min-width: 8rem;
+    padding: 0.9rem 1.3rem;
+    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.28);
+    border-radius: 0.7rem;
+    font-size: 1.3rem;
+    transition: var(--transition_ui);
+}
+
+.cancel_button {
+    background-color: rgba(255, 255, 255, 0.05);
+
+    &:hover {
+        background-color: rgba(255, 255, 255, 0.09);
+    }
+}
+
+.confirm_button {
+    background-color: rgba(var(--accent_color_rgb), 0.24);
+
+    &:hover {
+        background-color: rgba(var(--accent_color_rgb), 0.34);
+    }
+}

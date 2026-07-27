@@ -2,50 +2,47 @@ import { useI18n } from "@useI18n";
 import { CircularProgress } from "@common_components";
 import styles from "./_DownloadButton.module.scss";
 
-export const _DownloadButton = ({option, ...props}) => {
+export const _DownloadButton = ({ option, rowState, ...props }) => {
     const { t } = useI18n();
 
     const renderContent = () => {
-        const circular_progress = Math.floor(option.progress / 10) * 10;
-
         switch (true) {
-            case option.downloadable === false:
+            case rowState === "unavailable":
                 return (
-                    <p className={styles.unavailable_label} title={option.unavailable_reason}>
-                        Unavailable
+                    <p className={styles.status_label} title={option.unavailable_reason}>
+                        {t("config_page.common.model_download.unavailable")}
                     </p>
                 );
             case option.progress !== null:
                 return (
-                    <>
+                    <div className={styles.progress}>
                         <CircularProgress
                             variant={(option.progress === 100) ? "indeterminate" : "determinate"}
-                            value={circular_progress}
+                            value={Math.floor(option.progress / 10) * 10}
                             size="3rem"
                             sx={{ color: "var(--primary_300_color)" }}
                         />
-                        <p className={styles.progress_label}>{`${Math.round(option.progress)}%`}</p>
-                    </>
+                        <p className={styles.progress_label}>
+                            {`${Math.round(option.progress)}%`}
+                        </p>
+                    </div>
                 );
             case option.is_pending:
                 return <CircularProgress size="3rem" sx={{ color: "var(--dark_600_color)" }}/>;
-            case !option.is_downloaded:
+            case rowState === "download_required":
                 return (
-                    <button
-                        className={styles.download_button}
-                        onClick={() => props.downloadStartFunction(option.id)}
-                        disabled={option.downloadable === false}
-                    >
-                        <p className={styles.download_button_label}>{t("config_page.common.model_download_button_label")}</p>
-                    </button>
+                    <p className={styles.status_label}>
+                        {t("config_page.common.model_download.required")}
+                    </p>
                 );
             case option.update_button:
                 return (
                     <button
                         className={styles.update_button}
+                        type="button"
                         onClick={() => props.downloadStartFunction(option.id)}
                     >
-                        <p className={styles.download_button_label}>Update</p>
+                        <span className={styles.update_button_label}>Update</span>
                     </button>
                 );
             default:

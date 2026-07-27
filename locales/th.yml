@@ -248,6 +248,13 @@ config_page:
     common:
         version: "เวอร์ชัน {{version}}"
         model_download_button_label: "ดาวน์โหลด"
+        model_download:
+            title: "ดาวน์โหลดโมเดลนี้หรือไม่"
+            detail: "ต้องดาวน์โหลด {{model}} ก่อนจึงจะเลือกใช้งานได้"
+            yes: "ใช่"
+            no: "ไม่"
+            required: "ต้องดาวน์โหลด"
+            unavailable: "ไม่พร้อมใช้งาน"
         correct_auth_key_required: "ต้องใช้ Auth Key ที่ถูกต้อง"
         open_auth_key_webpage: "เปิดหน้าจัดการ Auth Key"
         connection_check:
