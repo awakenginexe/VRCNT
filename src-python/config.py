@@ -64,13 +64,26 @@ def _getTorch():
     except Exception:
         return None
 
-def _getUserDataPath(app_name: str = "VRCNT-Next") -> str:
+def _getUserDataPath(app_name: str = "VRCNT") -> str:
     base_path = (
         os_environ.get("LOCALAPPDATA")
         or os_environ.get("APPDATA")
         or os_path.expanduser("~")
     )
     return os_path.join(base_path, f"{app_name}Data")
+
+
+def _migrateRenamedUserData(legacy_path: str, target_path: str) -> bool:
+    """Move the 4.0 data directory only when the new destination is absent."""
+    if os_path.isdir(legacy_path) is False or os_path.exists(target_path):
+        return False
+    try:
+        shutil.move(legacy_path, target_path)
+        return True
+    except Exception:
+        errorLogging()
+        return False
+
 
 def _copytree_merge(src: str, dst: str) -> None:
     if not os_path.isdir(src):
@@ -907,7 +920,11 @@ class Config:
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
             self._PATH_LOCAL = os_path.dirname(os_path.abspath(__file__))
-        self._PATH_DATA = _getUserDataPath("VRCNT-Next")
+        new_data_path = _getUserDataPath("VRCNT")
+        legacy_data_path = _getUserDataPath("VRCNT-Next")
+        if getattr(sys, "frozen", False):
+            _migrateRenamedUserData(legacy_data_path, new_data_path)
+        self._PATH_DATA = new_data_path
         self._PATH_WEIGHTS = os_path.join(self._PATH_DATA, "weights")
         self._PATH_CONFIG = os_path.join(self._PATH_DATA, "config.json")
         self._PATH_LOGS = os_path.join(self._PATH_DATA, "logs")
@@ -1217,7 +1234,6 @@ class Config:
             return
 
         self._migrateLegacyLocalData()
-        self._migrateLegacyAppData()
 
     def _migrateLegacyLocalData(self) -> None:
         if os_path.abspath(self._PATH_LOCAL) == os_path.abspath(self._PATH_DATA):
@@ -1242,63 +1258,6 @@ class Config:
                     _copytree_merge(legacy_path, target_path)
             except Exception:
                 errorLogging()
-
-    def _shouldCopyLegacyAppConfig(self, legacy_config_path: str, migration_marker_path: str) -> bool:
-        if os_path.isfile(legacy_config_path) is False:
-            return False
-        if os_path.isfile(self._PATH_CONFIG) is False:
-            return True
-        if os_path.isfile(migration_marker_path):
-            return False
-
-        target_config = _load_json_file(self._PATH_CONFIG)
-        legacy_config = _load_json_file(legacy_config_path)
-        if len(target_config) == 0 or len(legacy_config) == 0:
-            return False
-        if target_config == legacy_config:
-            return False
-
-        generated_default_signals = {
-            "FONT_FAMILY": "Yu Gothic UI",
-            "TEXTBOX_UI_SCALING": 100,
-            "SELECTED_TRANSCRIPTION_ENGINE": "Google",
-            "WHISPER_WEIGHT_TYPE": DEFAULT_WHISPER_WEIGHT_TYPE,
-        }
-        target_looks_generated = all(
-            target_config.get(key) == value
-            for key, value in generated_default_signals.items()
-        )
-        legacy_has_user_state = any(
-            legacy_config.get(key) != target_config.get(key)
-            for key in generated_default_signals
-        )
-        return target_looks_generated and legacy_has_user_state
-
-    def _migrateLegacyAppData(self) -> None:
-        legacy_data_path = _getUserDataPath("VRCNT")
-        if os_path.isdir(legacy_data_path) is False:
-            return
-        if os_path.abspath(legacy_data_path) == os_path.abspath(self._PATH_DATA):
-            return
-
-        migration_marker_path = os_path.join(self._PATH_DATA, ".migrated-from-vrcntdata")
-        legacy_config_path = os_path.join(legacy_data_path, "config.json")
-        try:
-            if self._shouldCopyLegacyAppConfig(legacy_config_path, migration_marker_path):
-                if os_path.isfile(self._PATH_CONFIG):
-                    shutil.copy2(self._PATH_CONFIG, self._PATH_CONFIG + ".before-vrcnt-migration")
-                shutil.copy2(legacy_config_path, self._PATH_CONFIG)
-
-            for directory_name in ("weights", "logs"):
-                legacy_path = os_path.join(legacy_data_path, directory_name)
-                target_path = os_path.join(self._PATH_DATA, directory_name)
-                if os_path.isdir(legacy_path):
-                    _copytree_merge(legacy_path, target_path)
-
-            with open(migration_marker_path, "w", encoding="utf-8") as fp:
-                fp.write(legacy_data_path)
-        except Exception:
-            errorLogging()
 
     def load_config(self):
         self._config_data = {}

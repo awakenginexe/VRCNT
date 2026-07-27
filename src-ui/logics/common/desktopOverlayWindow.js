@@ -1,8 +1,11 @@
 import { isTauriRuntime } from "./tauriRuntime.js";
 
 export const DESKTOP_OVERLAY_WINDOW_LABEL = "desktop-overlay";
-export const DESKTOP_OVERLAY_CHANNEL = "vrcnt-next-desktop-overlay";
-export const DESKTOP_OVERLAY_STORAGE_KEY = "vrcnt-next-desktop-overlay-payload";
+export const DESKTOP_OVERLAY_CHANNEL = "vrcnt-desktop-overlay";
+export const DESKTOP_OVERLAY_STORAGE_KEY = "vrcnt-desktop-overlay-payload";
+export const DESKTOP_OVERLAY_SETTINGS_STORAGE_KEY = "vrcnt-desktop-overlay-settings";
+export const LEGACY_DESKTOP_OVERLAY_STORAGE_KEY = "vrcnt-next-desktop-overlay-payload";
+export const LEGACY_DESKTOP_OVERLAY_SETTINGS_STORAGE_KEY = "vrcnt-next-desktop-overlay-settings";
 
 export const buildDesktopOverlayRoute = () => `index.html?window=${DESKTOP_OVERLAY_WINDOW_LABEL}`;
 
@@ -115,11 +118,31 @@ export const createDesktopOverlayPayload = ({
     updatedAt: Date.now(),
 });
 
-export const readDesktopOverlayPayload = () => {
-    if (typeof localStorage === "undefined") return null;
+export const readMigratedStorageValue = (
+    storage,
+    currentKey,
+    legacyKey,
+) => {
+    const currentValue = storage?.getItem?.(currentKey);
+    if (currentValue !== null && currentValue !== undefined) {
+        return currentValue;
+    }
+    const legacyValue = storage?.getItem?.(legacyKey);
+    if (legacyValue === null || legacyValue === undefined) return null;
+    storage.setItem(currentKey, legacyValue);
+    storage.removeItem(legacyKey);
+    return legacyValue;
+};
 
+export const readDesktopOverlayPayload = (
+    storage = globalThis.localStorage,
+) => {
     try {
-        const rawPayload = localStorage.getItem(DESKTOP_OVERLAY_STORAGE_KEY);
+        const rawPayload = readMigratedStorageValue(
+            storage,
+            DESKTOP_OVERLAY_STORAGE_KEY,
+            LEGACY_DESKTOP_OVERLAY_STORAGE_KEY,
+        );
         return rawPayload ? JSON.parse(rawPayload) : null;
     } catch (error) {
         console.warn("Unable to read desktop overlay payload.", error);

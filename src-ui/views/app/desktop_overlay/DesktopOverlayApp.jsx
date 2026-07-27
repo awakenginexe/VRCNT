@@ -3,7 +3,10 @@ import clsx from "clsx";
 import { useI18n } from "@useI18n";
 import {
     DESKTOP_OVERLAY_CHANNEL,
+    DESKTOP_OVERLAY_SETTINGS_STORAGE_KEY,
+    LEGACY_DESKTOP_OVERLAY_SETTINGS_STORAGE_KEY,
     readDesktopOverlayPayload,
+    readMigratedStorageValue,
     createDesktopOverlayPayload,
 } from "@logics_common";
 import { store, useStore_MessageLogs } from "@store";
@@ -11,8 +14,6 @@ import ConfigurationSvg from "@images/configuration.svg?react";
 import ForegroundSvg from "@images/foreground.svg?react";
 import XMarkSvg from "@images/x_mark.svg?react";
 import styles from "./DesktopOverlayApp.module.scss";
-
-const DESKTOP_OVERLAY_SETTINGS_KEY = "vrcnt-next-desktop-overlay-settings";
 
 const DEFAULT_OVERLAY_SETTINGS = {
     pinned: true,
@@ -24,7 +25,11 @@ const DEFAULT_OVERLAY_SETTINGS = {
 
 const readOverlaySettings = () => {
     try {
-        const rawSettings = localStorage.getItem(DESKTOP_OVERLAY_SETTINGS_KEY);
+        const rawSettings = readMigratedStorageValue(
+            globalThis.localStorage,
+            DESKTOP_OVERLAY_SETTINGS_STORAGE_KEY,
+            LEGACY_DESKTOP_OVERLAY_SETTINGS_STORAGE_KEY,
+        );
         return rawSettings
             ? { ...DEFAULT_OVERLAY_SETTINGS, ...JSON.parse(rawSettings) }
             : DEFAULT_OVERLAY_SETTINGS;
@@ -55,7 +60,10 @@ export const DesktopOverlayApp = () => {
 
     useEffect(() => {
         try {
-            localStorage.setItem(DESKTOP_OVERLAY_SETTINGS_KEY, JSON.stringify(settings));
+            localStorage.setItem(
+                DESKTOP_OVERLAY_SETTINGS_STORAGE_KEY,
+                JSON.stringify(settings),
+            );
             store.appWindow?.setAlwaysOnTop?.(settings.pinned === true);
         } catch (error) {
             console.warn("Unable to update desktop overlay settings.", error);

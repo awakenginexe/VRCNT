@@ -180,7 +180,7 @@ Function ${FUNCTION_NAME}
   FileOpen $0 "$TEMP\VRCNT-preserve-user-data.ps1" w
   FileWrite $0 "$$ErrorActionPreference = 'SilentlyContinue'$\r$\n"
   FileWrite $0 "$$install = $$args[0]$\r$\n"
-  FileWrite $0 "$$data = Join-Path $$env:LOCALAPPDATA 'VRCNT-NextData'$\r$\n"
+  FileWrite $0 "$$data = Join-Path $$env:LOCALAPPDATA 'VRCNTData'$\r$\n"
   FileWrite $0 "New-Item -ItemType Directory -Force -Path $$data | Out-Null$\r$\n"
   FileWrite $0 "$$legacyConfig = Join-Path $$install 'config.json'$\r$\n"
   FileWrite $0 "$$targetConfig = Join-Path $$data 'config.json'$\r$\n"
@@ -845,7 +845,7 @@ Section Uninstall
   ; Delete app data
   ${If} $DeleteAppDataCheckboxState == 1
     SetShellVarContext current
-    RmDir /r "$LOCALAPPDATA\VRCNT-NextData"
+    RmDir /r "$LOCALAPPDATA\VRCNTData"
     RmDir /r "$APPDATA\${BUNDLEID}"
     RmDir /r "$LOCALAPPDATA\${BUNDLEID}"
   ${EndIf}
