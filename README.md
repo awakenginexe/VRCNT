@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.0.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-4.1.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>
@@ -97,13 +97,9 @@ npm run build-cuda
 The release executable and installer are generated under
 `src-tauri/target/release`.
 
-Downloaded models remain in `%LOCALAPPDATA%\VRCNT-NextData\weights` so the
-rebrand and future upgrades do not discard existing model files.
-
-## Known issue
-
-Fallback translation cooldown timing may be delayed while translations are queued.
-This is tracked for a follow-up fix.
+Downloaded models and configuration are stored under
+`%LOCALAPPDATA%\VRCNTData`. VRCNT 4.1.0 automatically migrates an existing
+`VRCNT-NextData` directory when the new directory does not yet exist.
 
 ## Project lineage
 
@@ -111,7 +107,7 @@ VRCNT is based on [VRCT](https://github.com/misyaguziya/VRCT) by misyaguziya.
 The original project and this fork are distributed under the MIT License.
 
 Report VRCNT-specific problems through the
-[VRCNT issue tracker](https://github.com/awakenginexe/VRCNT-Next/issues),
+[VRCNT issue tracker](https://github.com/awakenginexe/VRCNT/issues),
 not the upstream VRCT tracker.
 
 ## License and disclaimer

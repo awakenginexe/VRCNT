@@ -65,7 +65,7 @@ test("About replaces Credit and keeps both project repositories visible", () => 
     );
     assert.match(settingBox, /case "about":\s*return <AboutVrct\s*\/>/);
     assert.match(aboutPage, /currentSoftwareVersion/);
-    assert.match(aboutPage, /github\.com\/awakenginexe\/VRCNT-Next/);
+    assert.match(aboutPage, /github\.com\/awakenginexe\/VRCNT/);
     assert.match(aboutPage, /github\.com\/misyaguziya\/VRCT/);
     assert.match(aboutPage, /about_page\.lineage_description/);
 });

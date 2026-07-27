@@ -1,7 +1,7 @@
 {
   "githubOwner": "awakenginexe",
-  "githubRepo": "VRCNT-Next",
-  "hfRepoId": "AwakeNgineXE/VRCNT-Next",
+  "githubRepo": "VRCNT",
+  "hfRepoId": "AwakeNgineXE/VRCNT",
   "releaseAssetZipName": "VRCNT.zip",
   "latestJsonAssetName": "latest.json",
   "installerNamePattern": "VRCNT_${version}_x64-setup.exe"

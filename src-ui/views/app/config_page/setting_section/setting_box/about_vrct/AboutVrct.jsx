@@ -39,13 +39,13 @@ export const AboutVrct = () => {
                 <div className={styles.repository_links}>
                     <a
                         className={styles.repository_link}
-                        href="https://github.com/awakenginexe/VRCNT-Next"
+                        href="https://github.com/awakenginexe/VRCNT"
                         target="_blank"
                         rel="noreferrer"
                     >
                         <span>
                             <strong>{t("about_page.vrcnt_repository")}</strong>
-                            <small>github.com/awakenginexe/VRCNT-Next</small>
+                            <small>github.com/awakenginexe/VRCNT</small>
                         </span>
                         <ExternalLink aria-hidden="true" />
                     </a>

@@ -77,7 +77,11 @@ def update_versions():
     replace_in_file(
         os.path.join(root, "README.md"),
         [
-            (r'(badge/version-)[^-]+(-20d6ff)', rf'\g<1>{version}\g<2>', 1),
+            (
+                r'(badge/version-)[0-9]+\.[0-9]+\.[0-9]+(-)',
+                rf'\g<1>{version}\g<2>',
+                1,
+            ),
             (r'(VRCNT_)[0-9]+\.[0-9]+\.[0-9]+(_x64-setup\.exe)', rf'\g<1>{version}\g<2>', 1),
         ]
     )

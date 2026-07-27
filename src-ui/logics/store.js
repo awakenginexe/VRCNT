@@ -292,7 +292,7 @@ export const { atomInstance: Atom_OpenedQuickSetting, useHook: useStore_OpenedQu
 export const { atomInstance: Atom_LatestSoftwareVersionInfo, useHook: useStore_LatestSoftwareVersionInfo } = createAtomWithHook({
     is_update_available: false,
     new_version: "0.0.0",
-    release_url: "https://github.com/awakenginexe/VRCNT-Next/releases",
+    release_url: "https://github.com/awakenginexe/VRCNT/releases",
 }, "LatestSoftwareVersionInfo");
 export const { atomInstance: Atom_InitProgress, useHook: useStore_InitProgress } = createAtomWithHook(IS_TAURI_RUNTIME ? 0 : 4, "InitProgress");
 export const { atomInstance: Atom_InitStatus, useHook: useStore_InitStatus } = createAtomWithHook({

@@ -13,6 +13,12 @@ const pythonInstaller = fs.readFileSync(
     path.join(repoRoot, "bat/install.bat"),
     "utf8",
 );
+const releaseConfig = JSON.parse(
+    fs.readFileSync(
+        path.join(repoRoot, "release.config.json"),
+        "utf8",
+    ),
+);
 
 
 test("release workflow can republish an existing tag without moving it", () => {
@@ -23,6 +29,21 @@ test("release workflow can republish an existing tag without moving it", () => {
         workflow,
         /RELEASE_TAG=\$tag.*GITHUB_ENV/,
         "resolved manual tags must use the same release pipeline",
+    );
+});
+
+test("release workflow derives the renamed repositories without stale issue notes", () => {
+    assert.equal(releaseConfig.githubOwner, "awakenginexe");
+    assert.equal(releaseConfig.githubRepo, "VRCNT");
+    assert.equal(releaseConfig.hfRepoId, "AwakeNgineXE/VRCNT");
+    assert.match(workflow, /HF_REPO_ID=\$\(\$releaseConfig\.hfRepoId\)/);
+    assert.match(
+        workflow,
+        /https:\/\/huggingface\.co\/\$env:HF_REPO_ID\/resolve/,
+    );
+    assert.doesNotMatch(
+        workflow,
+        /Fallback translation cooldown timing may be delayed/,
     );
 });
 

@@ -3,11 +3,11 @@ name: Release VRCNT
 on:
   push:
     tags:
-      - 'v*' # Trigger when tag starts with 'v' (e.g. v4.0.0)
+      - 'v*' # Trigger when tag starts with 'v' (e.g. v4.1.0)
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Existing release tag to publish (for example, v4.0.0)'
+        description: 'Existing release tag to publish (for example, v4.1.0)'
         required: true
         type: string
 
@@ -252,7 +252,7 @@ jobs:
           $installerUrl = "https://huggingface.co/$env:HF_REPO_ID/resolve/$env:RELEASE_TAG/$env:INSTALLER_NAME"
           $latest = [ordered]@{
             version = $env:VERSION
-            notes = "VRCNT $env:VERSION. Known issue: Fallback translation cooldown timing may be delayed while translations are queued."
+            notes = "VRCNT $env:VERSION."
             pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
             platforms = @{
               "windows-x86_64" = @{
@@ -368,13 +368,10 @@ jobs:
           VRCNT $env:VERSION
 
           Large release files are hosted on Hugging Face:
-          - Installer: $env:VRCNT_INSTALLER_URL
-          - Portable payload: $env:VRCNT_ZIP_URL
-          - Updater manifest: $env:VRCNT_LATEST_JSON_URL
-
-          Known issue:
-          - Fallback translation cooldown timing may be delayed while translations are queued.
-          "@
+              - Installer: $env:VRCNT_INSTALLER_URL
+              - Portable payload: $env:VRCNT_ZIP_URL
+              - Updater manifest: $env:VRCNT_LATEST_JSON_URL
+              "@
 
           $repository = "$env:RELEASE_OWNER/$env:RELEASE_REPO"
           gh release view $tag --repo $repository *> $null
