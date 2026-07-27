@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import yaml from "js-yaml";
 
 const repoRoot = path.resolve(import.meta.dirname, "../../../..");
@@ -33,6 +34,15 @@ const interpolationTokens = (value) => (
         .map((match) => match[1])
         .sort()
 );
+const accessibilityModulePath = path.join(
+    repoRoot,
+    "src-ui/views/app/config_page/setting_section/setting_box/_components/download_models/modelDownloadDialogAccessibility.js",
+);
+const accessibility = await import(pathToFileURL(accessibilityModulePath).href)
+    .catch((error) => {
+        if (error.code === "ERR_MODULE_NOT_FOUND") return {};
+        throw error;
+    });
 
 test("model download copy keeps schema and interpolation parity across all six locales", () => {
     const english = yaml.load(readSource("locales/en.yml"))
@@ -73,6 +83,7 @@ test("model rows own download confirmation while retaining installed update acti
     assert.match(downloadModels, /resolvePendingModelSelection/);
     assert.match(downloadModels, /<ModelDownloadConfirmation/);
     assert.match(downloadModels, /onKeyDown=\{handleRowKeyDown/);
+    assert.match(downloadModels, /aria-label=\{props\.label\}/);
     assert.match(
         downloadModels,
         /triggeringRowRef\.current = rowRefs\.current\.get\(option\.id\)/,
@@ -92,5 +103,95 @@ test("model download confirmation exposes an accessible modal contract", () => {
     assert.match(confirmation, /aria-labelledby=/);
     assert.match(confirmation, /aria-describedby=/);
     assert.match(confirmation, /autoFocus/);
-    assert.match(confirmation, /event\.key === "Escape"/);
+    assert.match(confirmation, /handleModelDownloadDialogKeyDown/);
+    assert.match(confirmation, /createPortal/);
+    assert.match(confirmation, /document\.body/);
+    assert.match(confirmation, /setModelDownloadBackgroundInert/);
+});
+
+test("Escape stops propagation before cancelling and restores the triggering row", () => {
+    assert.equal(
+        typeof accessibility.handleModelDownloadDialogKeyDown,
+        "function",
+    );
+    const calls = [];
+    const event = {
+        key: "Escape",
+        shiftKey: false,
+        preventDefault: () => calls.push("preventDefault"),
+        stopPropagation: () => calls.push("stopPropagation"),
+    };
+
+    accessibility.handleModelDownloadDialogKeyDown(event, {
+        activeElement: null,
+        focusableElements: [],
+        onCancel: () => calls.push("cancel"),
+    });
+
+    assert.deepEqual(calls, ["preventDefault", "stopPropagation", "cancel"]);
+    const downloadModels = readSource(
+        "src-ui/views/app/config_page/setting_section/setting_box/_components/download_models/DownloadModels.jsx",
+    );
+    assert.match(downloadModels, /triggeringRowRef\.current\.focus\(\)/);
+});
+
+test("Tab and Shift+Tab wrap focus between the dialog controls", () => {
+    assert.equal(
+        typeof accessibility.handleModelDownloadDialogKeyDown,
+        "function",
+    );
+    const calls = [];
+    const first = { focus: () => calls.push("first") };
+    const last = { focus: () => calls.push("last") };
+    const focusableElements = [first, last];
+
+    accessibility.handleModelDownloadDialogKeyDown({
+        key: "Tab",
+        shiftKey: false,
+        preventDefault: () => calls.push("prevent-forward"),
+        stopPropagation: () => calls.push("stop-forward"),
+    }, {
+        activeElement: last,
+        focusableElements,
+        onCancel: () => calls.push("cancel-forward"),
+    });
+    accessibility.handleModelDownloadDialogKeyDown({
+        key: "Tab",
+        shiftKey: true,
+        preventDefault: () => calls.push("prevent-reverse"),
+        stopPropagation: () => calls.push("stop-reverse"),
+    }, {
+        activeElement: first,
+        focusableElements,
+        onCancel: () => calls.push("cancel-reverse"),
+    });
+
+    assert.deepEqual(calls, [
+        "prevent-forward",
+        "first",
+        "prevent-reverse",
+        "last",
+    ]);
+});
+
+test("dialog background inert state is applied and restored without clobbering prior state", () => {
+    assert.equal(
+        typeof accessibility.setModelDownloadBackgroundInert,
+        "function",
+    );
+    const attributes = new Set();
+    const background = {
+        hasAttribute: (name) => attributes.has(name),
+        setAttribute: (name) => attributes.add(name),
+        removeAttribute: (name) => attributes.delete(name),
+    };
+
+    const restore = accessibility.setModelDownloadBackgroundInert(background);
+    assert.equal(attributes.has("inert"), true);
+    restore();
+    assert.equal(attributes.has("inert"), false);
+
+    attributes.add("inert");
+    accessibility.setModelDownloadBackgroundInert(background)();
+    assert.equal(attributes.has("inert"), true);
 });

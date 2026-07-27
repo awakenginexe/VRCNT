@@ -73,6 +73,7 @@ export const DownloadModels = (props) => {
             <div
                 className={styles.container}
                 role="radiogroup"
+                aria-label={props.label}
                 aria-busy={selectionPending}
             >
                 {props.options.map((option) => {

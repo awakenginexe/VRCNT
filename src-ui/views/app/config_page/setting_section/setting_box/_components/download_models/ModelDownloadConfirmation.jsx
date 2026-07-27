@@ -1,18 +1,44 @@
-import { useEffect, useId } from "react";
+import { useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useI18n } from "@useI18n";
+import {
+    handleModelDownloadDialogKeyDown,
+    setModelDownloadBackgroundInert,
+} from "./modelDownloadDialogAccessibility";
 import styles from "./ModelDownloadConfirmation.module.scss";
+
+const FOCUSABLE_SELECTOR = [
+    "button:not([disabled])",
+    "[href]",
+    "input:not([disabled])",
+    "select:not([disabled])",
+    "textarea:not([disabled])",
+    "[tabindex]:not([tabindex='-1'])",
+].join(",");
 
 export const ModelDownloadConfirmation = ({ model, onConfirm, onCancel }) => {
     const { t } = useI18n();
     const titleId = useId();
     const descriptionId = useId();
+    const dialogRef = useRef(null);
+
+    useEffect(() => (
+        setModelDownloadBackgroundInert(document.getElementById("root"))
+    ), []);
 
     useEffect(() => {
-        const cancelOnEscape = (event) => {
-            if (event.key === "Escape") onCancel();
+        const handleDocumentKeyDown = (event) => {
+            const focusableElements = [
+                ...(dialogRef.current?.querySelectorAll(FOCUSABLE_SELECTOR) ?? []),
+            ];
+            handleModelDownloadDialogKeyDown(event, {
+                activeElement: document.activeElement,
+                focusableElements,
+                onCancel,
+            });
         };
-        document.addEventListener("keydown", cancelOnEscape);
-        return () => document.removeEventListener("keydown", cancelOnEscape);
+        document.addEventListener("keydown", handleDocumentKeyDown);
+        return () => document.removeEventListener("keydown", handleDocumentKeyDown);
     }, [onCancel]);
 
     const cancelOnBackdrop = (event) => {
@@ -20,7 +46,7 @@ export const ModelDownloadConfirmation = ({ model, onConfirm, onCancel }) => {
     };
     const modelLabel = model.label ?? model.id;
 
-    return (
+    return createPortal(
         <div className={styles.backdrop} onMouseDown={cancelOnBackdrop}>
             <div
                 className={styles.dialog}
@@ -28,6 +54,7 @@ export const ModelDownloadConfirmation = ({ model, onConfirm, onCancel }) => {
                 aria-modal="true"
                 aria-labelledby={titleId}
                 aria-describedby={descriptionId}
+                ref={dialogRef}
             >
                 <h2 className={styles.title} id={titleId}>
                     {t("config_page.common.model_download.title")}
@@ -53,6 +80,7 @@ export const ModelDownloadConfirmation = ({ model, onConfirm, onCancel }) => {
                     </button>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body,
     );
 };
