@@ -288,7 +288,44 @@ class TranslationAttemptTests(unittest.TestCase):
                 self.assertEqual(attempt.duration_ms, 25)
                 self.assertEqual(attempt.error_code, "provider_timeout")
 
-    def test_repeated_free_provider_calls_reserve_spaced_request_slots(self):
+    def test_repeated_google_and_bing_calls_do_not_wait_for_pacing(self):
+        for provider in ("Google", "Bing"):
+            with self.subTest(provider=provider):
+                self.translator._provider_next_request_at.clear()
+                self.translator._web_translator = Mock(
+                    return_value="translated"
+                )
+                with (
+                    patch.object(
+                        self.translator,
+                        "getLanguageCode",
+                        return_value=("ja", "en"),
+                    ),
+                    patch.object(
+                        translation_translator,
+                        "monotonic",
+                        side_effect=[100.0, 100.2],
+                    ),
+                    patch.object(
+                        translation_translator,
+                        "sleep",
+                    ) as paced_sleep,
+                ):
+                    for _ in range(2):
+                        self.translator._translate_once(
+                            provider,
+                            "unused",
+                            "Japanese",
+                            "English",
+                            "United States",
+                            "message",
+                            None,
+                            5.0,
+                        )
+
+                paced_sleep.assert_not_called()
+
+    def test_repeated_deepl_web_calls_keep_spaced_request_slots(self):
         self.translator._web_translator = Mock(return_value="translated")
         with (
             patch.object(
@@ -305,7 +342,7 @@ class TranslationAttemptTests(unittest.TestCase):
         ):
             for _ in range(2):
                 self.translator._translate_once(
-                    "Google",
+                    "DeepL",
                     "unused",
                     "Japanese",
                     "English",
@@ -486,6 +523,36 @@ class TranslationAttemptTests(unittest.TestCase):
             "provider_rate_limited",
         )
         self.assertGreaterEqual(cooldown_attempt.retry_after_seconds, 1)
+
+    def test_expired_cooldown_allows_next_real_message_to_probe_and_recover(self):
+        self.translator._provider_cooldowns["Google"] = 50.0
+        self.translator._provider_cooldown_reasons["Google"] = "rate_limited"
+        self.translator._provider_rate_limit_counts["Google"] = 2
+
+        with (
+            patch.object(
+                translation_translator,
+                "monotonic",
+                return_value=51.0,
+            ),
+            patch.object(
+                self.translator,
+                "_translate_once",
+                return_value="recovered",
+            ) as translate_once,
+            patch.object(
+                translation_translator,
+                "perf_counter",
+                side_effect=[10.0, 10.004],
+            ),
+        ):
+            attempt = self._attempt(translator_name="Google")
+
+        translate_once.assert_called_once()
+        self.assertEqual(attempt.status, TranslationStatus.SUCCESS)
+        self.assertEqual(attempt.message, "recovered")
+        self.assertNotIn("Google", self.translator._provider_cooldowns)
+        self.assertNotIn("Google", self.translator._provider_rate_limit_counts)
 
     def test_cooldown_callback_reports_independent_absolute_deadlines(self):
         snapshots = []
