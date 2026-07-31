@@ -97,9 +97,17 @@ class ClosedOnGetQueue:
 
 
 class FakeInferenceResult:
-    def __init__(self, segments, info):
+    def __init__(
+        self,
+        segments,
+        info,
+        detected_language=None,
+        detected_language_probability=None,
+    ):
         self.segments = tuple(segments)
         self.info = info
+        self.detected_language = detected_language
+        self.detected_language_probability = detected_language_probability
 
     def __iter__(self):
         yield self.segments
@@ -167,6 +175,27 @@ class FilteredWhisperLease(FakeLease):
                 ),
             ),
             SimpleNamespace(language="en", language_probability=0.9),
+        )
+
+
+class FakeRestrictedWhisperLease(FakeLease):
+    def __init__(self):
+        super().__init__()
+        self.restricted_calls = []
+
+    def transcribe_restricted_languages(self, audio, language_codes, **options):
+        self.restricted_calls.append((audio, tuple(language_codes), options))
+        return FakeInferenceResult(
+            (
+                SimpleNamespace(
+                    text=" 這是 VRChat test",
+                    avg_logprob=-0.1,
+                    no_speech_prob=0.05,
+                ),
+            ),
+            SimpleNamespace(language="zh", language_probability=1.0),
+            detected_language="zh",
+            detected_language_probability=0.84,
         )
 
 
@@ -505,6 +534,31 @@ class TranscriberPipelineTests(unittest.TestCase):
         self.assertEqual(lease.calls[0][1]["beam_size"], 2)
         self.assertTrue(lease.calls[0][1]["vad_filter"])
         self.assertEqual(transcriber.getTranscript()["text"], " hello world")
+
+    def test_multilingual_whisper_restricts_detection_and_preserves_embedded_english(self):
+        lease = FakeRestrictedWhisperLease()
+        context = make_pipeline_context(lease)
+        transcriber = make_transcriber(lease, context)
+
+        result = transcriber.transcribeAudioQueue(
+            queue_with(
+                AudioChunk(
+                    pcm(1200),
+                    datetime.now(timezone.utc),
+                    time.perf_counter(),
+                )
+            ),
+            ["English", "Thai", "Chinese Traditional"],
+            ["Singapore", "Thailand", "Taiwan"],
+        )
+
+        self.assertTrue(result)
+        self.assertEqual([], lease.calls)
+        self.assertEqual(1, len(lease.restricted_calls))
+        self.assertEqual(("en", "th", "zh"), lease.restricted_calls[0][1])
+        transcript = transcriber.getTranscript()
+        self.assertEqual(" 這是 VRChat test", transcript["text"])
+        self.assertEqual("Chinese Traditional", transcript["language"])
 
     def test_vad_rejected_music_like_audio_never_becomes_a_transcript(self):
         lease = EmptyWhisperLease()

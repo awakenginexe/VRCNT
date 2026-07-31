@@ -406,16 +406,18 @@ class AudioTranscriber:
                         if audio_data.size > max_samples:
                             audio_data = audio_data[-max_samples:]
 
-                        source_language = _languageCode("Whisper", languages[0], countries[0]) if len(languages) == 1 else None
-                        inference_result = lease.transcribe(
-                            audio_data,
+                        language_codes = tuple(
+                            code
+                            for language, country in zip(languages[:3], countries[:3])
+                            if (code := _languageCode("Whisper", language, country))
+                        )
+                        transcription_options = dict(
                             beam_size=_getWhisperBeamSize(
                                 context.whisper_decoding_profile
                             ),
                             temperature=0.0,
                             log_prob_threshold=avg_logprob,
                             no_speech_threshold=no_speech_prob,
-                            language=source_language,
                             word_timestamps=False,
                             without_timestamps=True,
                             task="transcribe",
@@ -423,6 +425,18 @@ class AudioTranscriber:
                             vad_filter=vad_filter,
                             vad_parameters=vad_parameters,
                         )
+                        if len(language_codes) > 1:
+                            inference_result = lease.transcribe_restricted_languages(
+                                audio_data,
+                                language_codes=language_codes,
+                                **transcription_options,
+                            )
+                        else:
+                            inference_result = lease.transcribe(
+                                audio_data,
+                                language=language_codes[0] if language_codes else None,
+                                **transcription_options,
+                            )
                         segments = inference_result.segments
                         info = inference_result.info
                         segments_seen = False
@@ -446,13 +460,25 @@ class AudioTranscriber:
                                 )
                             return False
 
-                        result_language = (
-                            languages[0] if len(languages) == 1
-                            else _languageForCode("Whisper", getattr(info, "language", None), languages, countries)
+                        detected_language_code = (
+                            inference_result.detected_language
+                            if len(language_codes) > 1
+                            else getattr(info, "language", None)
+                        )
+                        detected_language_probability = (
+                            inference_result.detected_language_probability
+                            if len(language_codes) > 1
+                            else getattr(info, "language_probability", 0.0)
+                        )
+                        result_language = _languageForCode(
+                            "Whisper",
+                            detected_language_code,
+                            languages,
+                            countries,
                         )
                         if result_language:
                             confidences.append({
-                                "confidence": info.language_probability,
+                                "confidence": detected_language_probability,
                                 "text": text,
                                 "language": result_language,
                             })

@@ -24,7 +24,19 @@ class FakeWhisperModel:
         self.iterator_entered = threading.Event()
         self.release_iterator = threading.Event()
         self.transcribe_calls = []
+        self.detect_language_calls = []
+        self.language_probabilities = [
+            ("fr", 0.95),
+            ("zh", 0.72),
+            ("th", 0.64),
+            ("en", 0.31),
+        ]
         self.second_model_entry = threading.Event()
+
+    def detect_language(self, audio, **options):
+        self.detect_language_calls.append((audio, options))
+        language, probability = self.language_probabilities[0]
+        return language, probability, list(self.language_probabilities)
 
     def transcribe(self, audio, **options):
         self.transcribe_calls.append((audio, options))
@@ -204,6 +216,99 @@ class WhisperRuntimeTests(unittest.TestCase):
         first.close()
         second.close()
         self.assertEqual(unloaded, [model])
+
+    def test_restricted_detection_selects_highest_allowed_language_and_decodes_once(self):
+        factory = RecordingFactory()
+        manager = WhisperRuntimeManager(factory=factory, unload=lambda model: None)
+        lease = manager.acquire("app-root", self.key_a)
+        model = factory.models[0]
+
+        result = lease.transcribe_restricted_languages(
+            "profile-audio",
+            language_codes=("en", "th", "zh"),
+            beam_size=2,
+            vad_filter=True,
+            vad_parameters={"min_silence_duration_ms": 500},
+        )
+
+        self.assertEqual("zh", result.detected_language)
+        self.assertEqual(0.72, result.detected_language_probability)
+        self.assertEqual(
+            [
+                (
+                    "profile-audio",
+                    {
+                        "vad_filter": True,
+                        "vad_parameters": {"min_silence_duration_ms": 500},
+                    },
+                )
+            ],
+            model.detect_language_calls,
+        )
+        self.assertEqual(1, len(model.transcribe_calls))
+        self.assertEqual("zh", model.transcribe_calls[0][1]["language"])
+        self.assertEqual(2, model.transcribe_calls[0][1]["beam_size"])
+        lease.close()
+
+    def test_restricted_detection_uses_configured_order_for_equal_probabilities(self):
+        factory = RecordingFactory()
+        manager = WhisperRuntimeManager(factory=factory, unload=lambda model: None)
+        lease = manager.acquire("app-root", self.key_a)
+        model = factory.models[0]
+        model.language_probabilities = [
+            ("fr", 0.98),
+            ("zh", 0.75),
+            ("th", 0.75),
+            ("en", 0.22),
+        ]
+
+        result = lease.transcribe_restricted_languages(
+            "tie-audio",
+            language_codes=("en", "th", "zh"),
+        )
+
+        self.assertEqual("th", result.detected_language)
+        self.assertEqual("th", model.transcribe_calls[0][1]["language"])
+        lease.close()
+
+    def test_final_close_waits_for_restricted_detection_and_decode_transaction(self):
+        detect_entered = threading.Event()
+        release_detection = threading.Event()
+
+        class BlockingDetectionModel(FakeWhisperModel):
+            def detect_language(self, audio, **options):
+                detect_entered.set()
+                release_detection.wait()
+                return super().detect_language(audio, **options)
+
+        model = BlockingDetectionModel()
+        unloaded = []
+        manager = WhisperRuntimeManager(
+            factory=lambda root, key: model,
+            unload=unloaded.append,
+        )
+        lease = manager.acquire("app-root", self.key_a)
+        self.addCleanup(release_detection.set)
+
+        inference_thread, inference_done, inference_outcome = run_in_thread(
+            "restricted-inference",
+            lambda: lease.transcribe_restricted_languages(
+                "blocked-detection",
+                language_codes=("en", "zh"),
+            ),
+        )
+        self.assertTrue(detect_entered.wait(WAIT_SECONDS))
+        close_thread, close_done, close_outcome = run_in_thread(
+            "restricted-close",
+            lease.close,
+        )
+        self.assertFalse(close_done.wait(0.05))
+        self.assertEqual([], unloaded)
+
+        release_detection.set()
+        self.assert_thread_finished(inference_thread, inference_done, inference_outcome)
+        self.assert_thread_finished(close_thread, close_done, close_outcome)
+        self.assertEqual([model], unloaded)
 
     def test_closing_waiting_lease_wakes_before_other_inference_finishes(self):
         factory = RecordingFactory(block_audio="active")
