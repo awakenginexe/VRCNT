@@ -35,6 +35,7 @@ const helperText = ({ t, group, engine, capability, count }) => {
 };
 
 export const LanguageProfileGroup = ({
+    variant = "settings",
     group,
     title,
     description,
@@ -68,7 +69,11 @@ export const LanguageProfileGroup = ({
     };
 
     return (
-        <section className={styles.role_card} aria-labelledby={titleId} aria-describedby={helperId}>
+        <section
+            className={clsx(styles.role_card, styles[`variant_${variant}`])}
+            aria-labelledby={titleId}
+            aria-describedby={helperId}
+        >
             <header className={styles.role_header}>
                 <div className={styles.role_identity}>
                     <Icon

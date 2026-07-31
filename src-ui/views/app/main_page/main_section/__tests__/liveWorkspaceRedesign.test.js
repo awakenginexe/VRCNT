@@ -12,6 +12,21 @@ test("the live workspace composes real route, message, and session controls", ()
     assert.match(source, /<MainFunctionSwitch\s+layout="session_dock"/);
 });
 
+test("the visible live language bar exposes complete speaking and Target profiles", () => {
+    const source = readSource("../live_language_bar/LiveLanguageBar.jsx");
+
+    assert.match(source, /<LanguageProfileGroup[\s\S]*group="speaking"/);
+    assert.match(source, /<LanguageProfileGroup[\s\S]*group="target"/);
+    assert.match(source, /languages=\{getCurrentYourLanguages\(\)\}/);
+    assert.match(source, /languages=\{getCurrentTargetLanguages\(\)\}/);
+    assert.match(source, /onRemove=\{removeYourLanguage\}/);
+    assert.match(source, /onRemove=\{removeTargetLanguage\}/);
+    assert.match(source, /variant="live_route"/);
+
+    const singleSelectors = source.match(/<LanguageSelectorOpenButton/g) ?? [];
+    assert.equal(singleSelectors.length, 1, "only the preferred language stays single-select");
+});
+
 test("slow pipeline state and notifications use the approved warning placement", () => {
     const pipeline = readSource("../pipeline_status/PipelineStatus.jsx");
     const snackbar = readSource("../../../others/snackbar_controller/SnackbarController.jsx");
