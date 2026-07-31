@@ -9,6 +9,7 @@ import styles from "./LanguageSelector.module.scss";
 import {
     getLanguageDisplayLabel,
 } from "../../sidebar_section/language_settings/languageDisplayUtils.js";
+import { findDuplicateSlot } from "@logics_common/languageProfileUtils.js";
 import { LanguageFlag } from "../../sidebar_section/language_settings/LanguageFlag.jsx";
 
 import { LanguageSelectorTopBar } from "./language_selector_top_bar/LanguageSelectorTopBar";
@@ -125,9 +126,13 @@ const getLanguageCode = ({ language, country }, engine) => {
     return LANGUAGE_CODES[language] ?? "";
 };
 
-const buildSupportGuard = ({ selectorType, engine, voskWeightType, parakeetWeightType, sensevoiceWeightType }) => {
+const buildSupportGuard = ({ selectorType, targetKey, engine, voskWeightType, parakeetWeightType, sensevoiceWeightType }) => {
     const isEngineLimited = engine === "Vosk" || engine === "Parakeet" || engine === "SenseVoice";
-    const shouldRestrict = isEngineLimited && (
+    const isPausedSingleEngineSlot = (
+        (engine === "Vosk" || engine === "Parakeet")
+        && targetKey !== "1"
+    );
+    const shouldRestrict = isEngineLimited && !isPausedSingleEngineSlot && (
         selectorType === "your_language" ||
         selectorType === "target_language"
     );
@@ -154,8 +159,13 @@ const buildSupportGuard = ({ selectorType, engine, voskWeightType, parakeetWeigh
 
 export const LanguageSelector = ({ title, onClickFunction, selectorType }) => {
     const { t } = useI18n();
-    const { updateIsOpenedLanguageSelector } = useStore_IsOpenedLanguageSelector();
-    const { currentSelectableLanguageList } = useLanguageSettings();
+    const { currentIsOpenedLanguageSelector, updateIsOpenedLanguageSelector } = useStore_IsOpenedLanguageSelector();
+    const {
+        currentSelectableLanguageList,
+        currentSelectedPresetTabNumber,
+        currentSelectedYourLanguages,
+        currentSelectedTargetLanguages,
+    } = useLanguageSettings();
     const [query, setQuery] = useState("");
     const [isLegacyLayout, setIsLegacyLayout] = useState(false);
     const searchInputRef = useRef(null);
@@ -168,11 +178,44 @@ export const LanguageSelector = ({ title, onClickFunction, selectorType }) => {
 
     const supportGuard = buildSupportGuard({
         selectorType,
+        targetKey: currentIsOpenedLanguageSelector.data.target_key,
         engine: currentSelectedTranscriptionEngine?.data,
         voskWeightType: currentSelectedVoskWeightType?.data,
         parakeetWeightType: currentSelectedParakeetWeightType?.data,
         sensevoiceWeightType: currentSelectedSenseVoiceWeightType?.data,
     });
+    const presetKey = currentSelectedPresetTabNumber.data ?? "1";
+    const selectedGroup = selectorType === "your_language"
+        ? currentSelectedYourLanguages.data?.[presetKey]
+        : selectorType === "target_language"
+            ? currentSelectedTargetLanguages.data?.[presetKey]
+            : null;
+
+    const getAvailability = (languageData) => {
+        const unsupported = supportGuard.isSupported(languageData) === false;
+        const duplicate = selectedGroup
+            ? findDuplicateSlot(
+                selectedGroup,
+                languageData,
+                currentIsOpenedLanguageSelector.data.target_key,
+            )
+            : null;
+        if (duplicate) {
+            return {
+                isDisabled: true,
+                reason: t("main_page.language_panels.duplicate_language"),
+            };
+        }
+        if (unsupported) {
+            return {
+                isDisabled: true,
+                reason: t("main_page.language_selector.unsupported_by_model", {
+                    engine: supportGuard.engine,
+                }),
+            };
+        }
+        return { isDisabled: false, reason: undefined };
+    };
 
     const closeLanguageSelector = () => {
         updateIsOpenedLanguageSelector({
@@ -284,22 +327,18 @@ export const LanguageSelector = ({ title, onClickFunction, selectorType }) => {
                                     onClickFunction={onClickFunction}
                                     letter={letter}
                                     languages={languages}
-                                    supportGuard={supportGuard}
-                                    t={t}
+                                    getAvailability={getAvailability}
                                 />
                             ))}
                         </div>
                     ) : (
                         <div className={styles.language_list_compact}>
                             {filteredLanguages.map((languageData) => (
-                                <LanguageButton
+                                <LanguageButtonWithAvailability
                                     key={`${languageData.language}-${languageData.country}`}
                                     onClickFunction={onClickFunction}
-                                    language_data={languageData}
-                                    isDisabled={supportGuard.isSupported(languageData) === false}
-                                    disabledReason={t("main_page.language_selector.unsupported_by_model", {
-                                        engine: supportGuard.engine,
-                                    })}
+                                    languageData={languageData}
+                                    getAvailability={getAvailability}
                                 />
                             ))}
                         </div>
@@ -310,23 +349,34 @@ export const LanguageSelector = ({ title, onClickFunction, selectorType }) => {
     );
 };
 
-const LanguageGroup = ({ onClickFunction, letter, languages, supportGuard, t }) => {
+const LanguageGroup = ({ onClickFunction, letter, languages, getAvailability }) => {
     return (
         <div className={styles.language_each_letter_box}>
             <div className={styles.language_letter_header}>
                 <p className={styles.language_latter}>{letter}</p>
                 <div className={styles.language_letter_divider}></div>
             </div>
-            {languages.map((language_data, index) => (
-                <LanguageButton
-                    key={index}
+            {languages.map((languageData) => (
+                <LanguageButtonWithAvailability
+                    key={`${languageData.language}-${languageData.country}`}
                     onClickFunction={onClickFunction}
-                    language_data={language_data}
-                    isDisabled={supportGuard.isSupported(language_data) === false}
-                    disabledReason={t("main_page.language_selector.unsupported_by_model", { engine: supportGuard.engine })}
+                    languageData={languageData}
+                    getAvailability={getAvailability}
                 />
             ))}
         </div>
+    );
+};
+
+const LanguageButtonWithAvailability = ({ onClickFunction, languageData, getAvailability }) => {
+    const availability = getAvailability(languageData);
+    return (
+        <LanguageButton
+            onClickFunction={onClickFunction}
+            language_data={languageData}
+            isDisabled={availability.isDisabled}
+            disabledReason={availability.reason}
+        />
     );
 };
 
@@ -350,8 +400,10 @@ const LanguageButton = ({ onClickFunction, language_data, isDisabled, disabledRe
             className={languageButtonClass}
             onClick={adjustedOnClickFunction}
             aria-disabled={isDisabled === true}
-            disabled={isDisabled === true}
             title={isDisabled === true ? disabledReason : undefined}
+            aria-label={isDisabled === true
+                ? `${getLanguageDisplayLabel(language_data)}. ${disabledReason}`
+                : getLanguageDisplayLabel(language_data)}
         >
             <div className={styles.language_identity}>
                 <LanguageFlag country={language_data.country} className={styles.language_flag} />

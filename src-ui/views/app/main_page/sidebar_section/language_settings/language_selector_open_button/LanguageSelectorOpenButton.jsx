@@ -14,6 +14,8 @@ export const LanguageSelectorOpenButton = ({
     selector_key,
     target_key,
     variant = "settings",
+    show_title = true,
+    selected_group,
 }) => {
     const { t } = useI18n();
     const { updateIsOpenedLanguageSelector, currentIsOpenedLanguageSelector } = useStore_IsOpenedLanguageSelector();
@@ -49,6 +51,7 @@ export const LanguageSelectorOpenButton = ({
     });
 
     const getVariable = (target_selector_key) => {
+        if (selected_group) return selected_group;
         const presetKey = currentSelectedPresetTabNumber.data ?? "1";
         if (target_selector_key === "your_language") return {
             ...getCurrentYourLanguages(),
@@ -84,10 +87,12 @@ export const LanguageSelectorOpenButton = ({
 
     return (
         <div className={clsx(styles.container, styles[`variant_${variant}`])}>
-            <div className={styles.title_container}>
-                <TurnedOnSvgComponent className={category_class_names} />
-                <p className={styles.title}>{title}</p>
-            </div>
+            {show_title && (
+                <div className={styles.title_container}>
+                    <TurnedOnSvgComponent className={category_class_names} />
+                    <p className={styles.title}>{title}</p>
+                </div>
+            )}
             <button
                 type="button"
                 className={styles.dropdown_menu_container}
@@ -97,6 +102,10 @@ export const LanguageSelectorOpenButton = ({
                     currentIsOpenedLanguageSelector.data[selector_key] === true &&
                     currentIsOpenedLanguageSelector.data.target_key === target_key
                 }
+                aria-label={t("main_page.language_panels.edit_language", {
+                    language: language_text,
+                    country: country_text,
+                })}
             >
                 <div className={styles.language_details}>
                     <LanguageFlag country={country_text} className={styles.flag_badge} />

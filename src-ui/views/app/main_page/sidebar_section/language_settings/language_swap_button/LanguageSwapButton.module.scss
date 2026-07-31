@@ -3,7 +3,7 @@
 }
 
 .swap_button_wrapper {
-    width: auto;
+    width: 100%;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -13,12 +13,22 @@
     border-radius: 1.2rem;
     background: rgba(var(--accent_color_rgb), 0.04);
     cursor: pointer;
+    color: inherit;
+    transition:
+        border-color var(--transition_ui),
+        background-color var(--transition_ui),
+        color var(--transition_ui);
     &:hover {
         border-color: rgba(var(--accent_color_rgb), 0.22);
         background-color: rgba(var(--accent_color_rgb), 0.08);
     }
     &:active {
         background-color: var(--dark_850_color);
+    }
+
+    &:focus-visible {
+        outline: 0.2rem solid var(--primary_250_color);
+        outline-offset: 0.2rem;
     }
 }
 
@@ -34,7 +44,5 @@
     font-size: 1.05rem;
     color: var(--dark_450_color);
     font-weight: 850;
-    &.is_hovered {
-        color: var(--dark_200_color);
-    }
+    text-align: center;
 }

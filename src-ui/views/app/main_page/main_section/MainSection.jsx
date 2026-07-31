@@ -113,7 +113,7 @@ const HandleLanguageSelector = () => {
             <LanguageSelector
                 title={title}
                 onClickFunction={onclickFunction_YourTranslationLanguage}
-                selectorType="target_language"
+                selectorType="your_translation_language"
             />
         );
     } else if (currentIsOpenedLanguageSelector.data.target_language === true) {
