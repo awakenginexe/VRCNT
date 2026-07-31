@@ -200,7 +200,17 @@ class ControllerProgressivePipelineTests(unittest.TestCase):
                         "enable": True,
                         "language": "Japanese",
                         "country": "Japan",
-                    }
+                    },
+                    "2": {
+                        "enable": True,
+                        "language": "Thai",
+                        "country": "Thailand",
+                    },
+                    "3": {
+                        "enable": True,
+                        "language": "Chinese Traditional",
+                        "country": "Taiwan",
+                    },
                 }
             },
             _SEND_MESSAGE_TO_VRC=False,
@@ -253,14 +263,38 @@ class ControllerProgressivePipelineTests(unittest.TestCase):
                         "status": "queued",
                         "engine": "Google",
                         "duration_ms": None,
-                    }
+                    },
+                    {
+                        "target_slot": "2",
+                        "language": "Thai",
+                        "country": "Thailand",
+                        "message": None,
+                        "transliteration": [],
+                        "status": "queued",
+                        "engine": "Google",
+                        "duration_ms": None,
+                    },
+                    {
+                        "target_slot": "3",
+                        "language": "Chinese Traditional",
+                        "country": "Taiwan",
+                        "message": None,
+                        "transliteration": [],
+                        "status": "queued",
+                        "engine": "Google",
+                        "duration_ms": None,
+                    },
                 ],
             },
         )
         fake_model.getInputTranslate.assert_not_called()
         self.assertEqual(len(pipeline.traces), 1)
+        self.assertEqual(
+            [target.target_slot for target in pipeline.traces[0].targets],
+            ["1", "2", "3"],
+        )
 
-    def test_speaker_initial_event_uses_all_enabled_targets_and_complete_snapshot(self):
+    def test_speaker_initial_event_uses_one_preferred_target_and_complete_snapshot(self):
         events = []
         controller = controller_module.Controller()
         controller.run_mapping = {
@@ -295,7 +329,7 @@ class ControllerProgressivePipelineTests(unittest.TestCase):
                 (item["target_slot"], item["language"], item["engine"])
                 for item in payload["translations"]
             ],
-            [("1", "Japanese", "Google"), ("2", "French", "Google")],
+            [("1", "Japanese", "Google")],
         )
         trace = pipeline.traces[0]
         self.assertEqual(trace.providers, ("Google", "Bing"))
@@ -303,7 +337,7 @@ class ControllerProgressivePipelineTests(unittest.TestCase):
         self.assertEqual(trace.context_history, ({"source": "mic", "text": "prior"},))
         self.assertEqual(
             [(target.target_slot, target.country) for target in trace.targets],
-            [("1", "Japan"), ("2", "France")],
+            [("1", "Japan")],
         )
         self.assertEqual(
             [

@@ -41,6 +41,7 @@ from utils import removeLog, printLog, errorLogging, isConnectedNetwork, isValid
 from errors import DeviceUnavailableError, ErrorCode, VRCTError
 from models.transcription.transcription_languages import transcription_lang
 from models.transcription.transcription_language_policy import (
+    normalize_language_slots,
     runtime_language_slots,
     transcription_language_capabilities,
 )
@@ -456,7 +457,7 @@ class Controller:
         target_snapshots = (
             output_config.target_languages
             if source is PipelineSource.MIC
-            else output_config.your_translation_languages
+            else output_config.your_translation_languages[:1]
         )
         targets = ()
         if output_config.translation_enabled:
@@ -4469,24 +4470,29 @@ class Controller:
             return all_established
 
     def swapYourLanguageAndTargetLanguage(self, *args, **kwargs) -> dict:
-        your_languages = config.SELECTED_YOUR_LANGUAGES
-        your_language_temp = your_languages[config.SELECTED_TAB_NO]["1"]
+        selected_tab = config.SELECTED_TAB_NO
+        your_languages = deepcopy(config.SELECTED_YOUR_LANGUAGES)
+        target_languages = deepcopy(config.SELECTED_TARGET_LANGUAGES)
+        original_your = deepcopy(your_languages[selected_tab])
+        original_target = deepcopy(target_languages[selected_tab])
 
-        target_languages = config.SELECTED_TARGET_LANGUAGES
-        target_language_temp = target_languages[config.SELECTED_TAB_NO]["1"]
+        your_languages[selected_tab] = normalize_language_slots(
+            original_target,
+            your_languages[selected_tab],
+            minimum_enabled=1,
+            maximum_enabled=3,
+        )
+        target_languages[selected_tab] = normalize_language_slots(
+            original_your,
+            target_languages[selected_tab],
+            minimum_enabled=1,
+            maximum_enabled=3,
+        )
 
-        your_languages[config.SELECTED_TAB_NO]["1"] = target_language_temp
-        target_languages[config.SELECTED_TAB_NO]["1"] = your_language_temp
-
-        self.setSelectedYourLanguages(your_languages)
-        self.setSelectedTargetLanguages(target_languages)
-
-        # Restart active transcription engines so they re-initialize with the
-        # swapped language settings (critical for Vosk/Parakeet which bind
-        # language at model-init time, not per-call like Google/Whisper).
-        th_restart = Thread(target=self._restartActiveTranscription)
-        th_restart.daemon = True
-        th_restart.start()
+        config.SELECTED_YOUR_LANGUAGES = your_languages
+        config.SELECTED_TARGET_LANGUAGES = target_languages
+        self.updateTranslationEngineAndEngineList()
+        self._requestCoordinatedTranscriptionRestart()
 
         return {
             "status":200,
