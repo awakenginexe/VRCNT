@@ -40,6 +40,10 @@ except ImportError:
 from utils import removeLog, printLog, errorLogging, isConnectedNetwork, isValidIpAddress, isAvailableWebSocketServer
 from errors import DeviceUnavailableError, ErrorCode, VRCTError
 from models.transcription.transcription_languages import transcription_lang
+from models.transcription.transcription_language_policy import (
+    runtime_language_slots,
+    transcription_language_capabilities,
+)
 from models.transcription.transcription_whisper import DEFAULT_WHISPER_WEIGHT_TYPE
 from models.transcription.transcription_vosk import getVoskModelMeta
 from models.transcription.transcription_parakeet import getParakeetModelMeta
@@ -1253,9 +1257,20 @@ class Controller:
         supported_codes = self._transcriptionSupportedLanguageCodes(engine)
         return bool(language_code and supported_codes and language_code in supported_codes)
 
-    def _selectedTabLanguagesSupported(self, selected_languages: dict, only_enabled: bool = True) -> bool:
+    def _selectedTabLanguagesSupported(
+        self,
+        selected_languages: dict,
+        only_enabled: bool = True,
+        direction: str = "microphone",
+    ) -> bool:
         tab_languages = selected_languages.get(config.SELECTED_TAB_NO, {})
-        for language_data in tab_languages.values():
+        engine = config.SELECTED_TRANSCRIPTION_ENGINE
+        language_values = (
+            runtime_language_slots(engine, tab_languages, direction)
+            if only_enabled
+            else tab_languages.values()
+        )
+        for language_data in language_values:
             if only_enabled and language_data.get("enable") is not True:
                 continue
             if self._isTranscriptionLanguageSupported(language_data) is False:
@@ -1342,44 +1357,9 @@ class Controller:
         return changed
 
     def _normalizeSelectedYourLanguageForTranscription(self) -> bool:
-        try:
-            selected = config.SELECTED_YOUR_LANGUAGES
-            tab_languages = selected[config.SELECTED_TAB_NO]
-        except Exception:
-            return False
-
-        changed = False
-        engine = config.SELECTED_TRANSCRIPTION_ENGINE
-
-        if engine not in {"Whisper", "SenseVoice"}:
-            for key, language_data in tab_languages.items():
-                if key != "1" and language_data.get("enable") is True:
-                    language_data["enable"] = False
-                    changed = True
-
-        if engine in {"Vosk", "Parakeet", "SenseVoice"}:
-            for key, language_data in tab_languages.items():
-                if language_data.get("enable") is not True:
-                    continue
-                if self._isTranscriptionLanguageSupported(language_data):
-                    continue
-
-                if key == "1":
-                    replacement = self._findFirstSupportedTranscriptionLanguage()
-                    if replacement is not None:
-                        tab_languages[key] = replacement
-                        changed = True
-                else:
-                    language_data["enable"] = False
-                    changed = True
-
-        if changed is False:
-            return False
-
-        config.SELECTED_YOUR_LANGUAGES = selected
-        self.updateTranslationEngineAndEngineList()
-        self.run(200, "/set/data/selected_your_languages", config.SELECTED_YOUR_LANGUAGES)
-        return True
+        # Recognition activation is derived at phrase capture time. Engine
+        # changes must never rewrite the user's saved multilingual profile.
+        return False
 
     def setInitMapping(self, init_mapping:dict) -> None:
         self.init_mapping = init_mapping
@@ -2554,7 +2534,13 @@ class Controller:
         return {"status":200, "result":config.SELECTED_TARGET_LANGUAGES}
 
     def setSelectedTargetLanguages(self, select:dict, *args, **kwargs) -> dict:
-        if config.ENABLE_TRANSCRIPTION_RECEIVE is True and self._selectedTabLanguagesSupported(select) is False:
+        if (
+            config.ENABLE_TRANSCRIPTION_RECEIVE is True
+            and self._selectedTabLanguagesSupported(
+                select,
+                direction="received",
+            ) is False
+        ):
             return {"status":200, "result":config.SELECTED_TARGET_LANGUAGES}
         config.SELECTED_TARGET_LANGUAGES = select
         self.updateTranslationEngineAndEngineList()
@@ -2564,6 +2550,10 @@ class Controller:
     def getTranscriptionEngines(*args, **kwargs) -> dict:
         engines = [key for key, value in config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS.items() if value is True]
         return {"status":200, "result":engines}
+
+    @staticmethod
+    def getTranscriptionLanguageCapabilities(*args, **kwargs) -> dict:
+        return {"status": 200, "result": transcription_language_capabilities()}
 
     @staticmethod
     def getSelectedTranscriptionEngine(*args, **kwargs) -> dict:
