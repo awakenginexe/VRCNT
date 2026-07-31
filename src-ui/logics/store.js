@@ -336,6 +336,13 @@ export const { atomInstance: Atom_SelectedTargetLanguages, useHook: useStore_Sel
     IS_TAURI_RUNTIME ? createTargetLanguagePresetMap() : createPreviewTargetLanguagePresetMap(),
     "SelectedTargetLanguages"
 );
+export const { atomInstance: Atom_TranscriptionLanguageCapabilities, useHook: useStore_TranscriptionLanguageCapabilities } = createAtomWithHook({
+    Whisper: { microphone_max: 3, received_max: 3, parallel_candidates: false },
+    Google: { microphone_max: 3, received_max: 3, parallel_candidates: true },
+    SenseVoice: { microphone_max: 3, received_max: 3, parallel_candidates: false },
+    Vosk: { microphone_max: 1, received_max: 1, parallel_candidates: false },
+    Parakeet: { microphone_max: 1, received_max: 1, parallel_candidates: false },
+}, "TranscriptionLanguageCapabilities");
 
 export const { atomInstance: Atom_TranslationEngines, useHook: useStore_TranslationEngines } = createAtomWithHook(
     translator_status,
