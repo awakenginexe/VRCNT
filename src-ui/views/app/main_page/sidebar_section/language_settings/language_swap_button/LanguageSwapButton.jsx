@@ -1,40 +1,30 @@
-import { useState } from "react";
 import clsx from "clsx";
 import { useI18n } from "@useI18n";
-
-import styles from "./LanguageSwapButton.module.scss";
-
 import NarrowArrowDownSvg from "@images/narrow_arrow_down.svg?react";
 import { useLanguageSettings } from "@logics_main";
+import styles from "./LanguageSwapButton.module.scss";
+
 
 export const LanguageSwapButton = () => {
-    const [isHovered, setIsHovered] = useState(false);
     const { t } = useI18n();
     const { swapSelectedLanguages } = useLanguageSettings();
-
-    const label = isHovered
-        ? t("main_page.swap_button_label")
-        : t("main_page.translate_each_other_label");
-
-    const labelClassName = clsx(styles["label"], {
-        [styles["is_hovered"]]: isHovered
-    });
-
-    const handleMouseEnter = () => setIsHovered(true);
-    const handleMouseLeave = () => setIsHovered(false);
+    const label = t("main_page.language_panels.swap_complete_profiles");
 
     return (
         <div className={styles.container}>
-            <div
+            <button
+                type="button"
                 className={styles.swap_button_wrapper}
-                onMouseEnter={handleMouseEnter}
-                onMouseLeave={handleMouseLeave}
                 onClick={swapSelectedLanguages}
+                aria-label={label}
             >
-                <NarrowArrowDownSvg className={clsx(styles.narrow_arrow_down_svg, styles.reverse)} />
-                <p className={labelClassName}>{label}</p>
-                <NarrowArrowDownSvg className={styles.narrow_arrow_down_svg} />
-            </div>
+                <NarrowArrowDownSvg
+                    className={clsx(styles.narrow_arrow_down_svg, styles.reverse)}
+                    aria-hidden="true"
+                />
+                <span className={styles.label}>{label}</span>
+                <NarrowArrowDownSvg className={styles.narrow_arrow_down_svg} aria-hidden="true" />
+            </button>
         </div>
     );
 };

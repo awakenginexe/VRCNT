@@ -7,7 +7,7 @@ import unittest
 from contextlib import contextmanager
 from dataclasses import FrozenInstanceError, fields
 from datetime import datetime, timedelta, timezone
-from threading import Event, Thread
+from threading import Barrier, Event, Lock, Thread
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -97,9 +97,17 @@ class ClosedOnGetQueue:
 
 
 class FakeInferenceResult:
-    def __init__(self, segments, info):
+    def __init__(
+        self,
+        segments,
+        info,
+        detected_language=None,
+        detected_language_probability=None,
+    ):
         self.segments = tuple(segments)
         self.info = info
+        self.detected_language = detected_language
+        self.detected_language_probability = detected_language_probability
 
     def __iter__(self):
         yield self.segments
@@ -139,6 +147,56 @@ class FakeLease:
 
     def close(self):
         self.closed = True
+
+
+class EmptyWhisperLease(FakeLease):
+    def transcribe(self, audio, **options):
+        self.calls.append((audio, options))
+        return FakeInferenceResult(
+            (),
+            SimpleNamespace(language="en", language_probability=0.9),
+        )
+
+
+class FilteredWhisperLease(FakeLease):
+    def transcribe(self, audio, **options):
+        self.calls.append((audio, options))
+        return FakeInferenceResult(
+            (
+                SimpleNamespace(
+                    text=" subtitle volunteers",
+                    avg_logprob=-2.0,
+                    no_speech_prob=0.1,
+                ),
+                SimpleNamespace(
+                    text=" please subscribe",
+                    avg_logprob=-0.1,
+                    no_speech_prob=0.95,
+                ),
+            ),
+            SimpleNamespace(language="en", language_probability=0.9),
+        )
+
+
+class FakeRestrictedWhisperLease(FakeLease):
+    def __init__(self):
+        super().__init__()
+        self.restricted_calls = []
+
+    def transcribe_restricted_languages(self, audio, language_codes, **options):
+        self.restricted_calls.append((audio, tuple(language_codes), options))
+        return FakeInferenceResult(
+            (
+                SimpleNamespace(
+                    text=" 這是 VRChat test",
+                    avg_logprob=-0.1,
+                    no_speech_prob=0.05,
+                ),
+            ),
+            SimpleNamespace(language="zh", language_probability=1.0),
+            detected_language="zh",
+            detected_language_probability=0.84,
+        )
 
 
 class FakeMicRecorder:
@@ -474,7 +532,90 @@ class TranscriberPipelineTests(unittest.TestCase):
 
         self.assertEqual(len(lease.calls), 1)
         self.assertEqual(lease.calls[0][1]["beam_size"], 2)
+        self.assertTrue(lease.calls[0][1]["vad_filter"])
         self.assertEqual(transcriber.getTranscript()["text"], " hello world")
+
+    def test_multilingual_whisper_restricts_detection_and_preserves_embedded_english(self):
+        lease = FakeRestrictedWhisperLease()
+        context = make_pipeline_context(lease)
+        transcriber = make_transcriber(lease, context)
+
+        result = transcriber.transcribeAudioQueue(
+            queue_with(
+                AudioChunk(
+                    pcm(1200),
+                    datetime.now(timezone.utc),
+                    time.perf_counter(),
+                )
+            ),
+            ["English", "Thai", "Chinese Traditional"],
+            ["Singapore", "Thailand", "Taiwan"],
+        )
+
+        self.assertTrue(result)
+        self.assertEqual([], lease.calls)
+        self.assertEqual(1, len(lease.restricted_calls))
+        self.assertEqual(("en", "th", "zh"), lease.restricted_calls[0][1])
+        transcript = transcriber.getTranscript()
+        self.assertEqual(" 這是 VRChat test", transcript["text"])
+        self.assertEqual("Chinese Traditional", transcript["language"])
+
+    def test_vad_rejected_music_like_audio_never_becomes_a_transcript(self):
+        lease = EmptyWhisperLease()
+        events = []
+        context = make_pipeline_context(lease, events=events)
+        transcriber = make_transcriber(lease, context)
+
+        result = transcriber.transcribeAudioQueue(
+            queue_with(
+                AudioChunk(
+                    pcm(1200),
+                    datetime.now(timezone.utc),
+                    time.perf_counter(),
+                )
+            ),
+            ["English"],
+            ["United States"],
+        )
+
+        self.assertFalse(result)
+        self.assertEqual(transcriber.getTranscript()["text"], "")
+        terminal = [
+            (event.outcome, event.error_code)
+            for event in events
+            if event.stage == "transcription" and event.outcome != "running"
+        ]
+        self.assertEqual(terminal, [("skipped", "transcription_no_speech")])
+
+    def test_fully_filtered_whisper_segments_never_become_a_transcript(self):
+        lease = FilteredWhisperLease()
+        events = []
+        context = make_pipeline_context(lease, events=events)
+        transcriber = make_transcriber(lease, context)
+
+        result = transcriber.transcribeAudioQueue(
+            queue_with(
+                AudioChunk(
+                    pcm(1200),
+                    datetime.now(timezone.utc),
+                    time.perf_counter(),
+                )
+            ),
+            ["English"],
+            ["United States"],
+        )
+
+        self.assertFalse(result)
+        self.assertEqual(transcriber.getTranscript()["text"], "")
+        terminal = [
+            (event.outcome, event.error_code)
+            for event in events
+            if event.stage == "transcription" and event.outcome != "running"
+        ]
+        self.assertEqual(
+            terminal,
+            [("skipped", "transcription_low_confidence")],
+        )
 
     def test_queue_age_metrics_and_phrase_start_use_audio_chunk_capture_time(self):
         lease = FakeLease()
@@ -638,15 +779,18 @@ class TranscriberPipelineTests(unittest.TestCase):
             ["United States"],
         )
 
-        self.assertTrue(result)
+        self.assertFalse(result)
         self.assertEqual(lease.calls, [])
         self.assertEqual(
             [
-                event.outcome
+                (event.outcome, event.error_code)
                 for event in events
                 if event.stage == "transcription"
             ],
-            ["running", "success"],
+            [
+                ("running", None),
+                ("skipped", "transcription_no_speech"),
+            ],
         )
 
     def test_missing_languages_ends_running_metric_with_input_error(self):
@@ -848,6 +992,137 @@ class TranscriberPipelineTests(unittest.TestCase):
             ],
             ["running", "success"],
         )
+
+    def test_google_language_candidates_run_concurrently_and_choose_highest_confidence(self):
+        events = []
+        transcriber = make_non_whisper_transcriber("Google", events, [])
+        barrier = Barrier(3)
+        calls = []
+        calls_lock = Lock()
+        results = {
+            "en-SG": ("hello", 0.61),
+            "th-TH": ("สวัสดี", 0.93),
+            "cmn-Hant-TW": ("你好", 0.72),
+        }
+
+        def recognize_google(audio, language, with_confidence):
+            with calls_lock:
+                calls.append(language)
+            barrier.wait(timeout=1.0)
+            return results[language]
+
+        transcriber.audio_recognizer = SimpleNamespace(
+            recognize_google=recognize_google,
+        )
+
+        result = transcriber.transcribeAudioQueue(
+            queue_with(
+                AudioChunk(
+                    pcm(100),
+                    datetime.now(timezone.utc),
+                    time.perf_counter(),
+                )
+            ),
+            ["English", "Thai", "Chinese Traditional"],
+            ["Singapore", "Thailand", "Taiwan"],
+        )
+
+        self.assertTrue(result)
+        self.assertCountEqual(["en-SG", "th-TH", "cmn-Hant-TW"], calls)
+        transcript = transcriber.getTranscript()
+        self.assertEqual("สวัสดี", transcript["text"])
+        self.assertEqual("Thai", transcript["language"])
+
+    def test_google_equal_confidence_uses_profile_slot_order(self):
+        transcriber = make_non_whisper_transcriber("Google", [], [])
+        barrier = Barrier(2)
+
+        def recognize_google(audio, language, with_confidence):
+            barrier.wait(timeout=1.0)
+            return ({"en-SG": "first", "th-TH": "second"}[language], 0.8)
+
+        transcriber.audio_recognizer = SimpleNamespace(
+            recognize_google=recognize_google,
+        )
+
+        self.assertTrue(
+            transcriber.transcribeAudioQueue(
+                queue_with(
+                    AudioChunk(
+                        pcm(100),
+                        datetime.now(timezone.utc),
+                        time.perf_counter(),
+                    )
+                ),
+                ["English", "Thai"],
+                ["Singapore", "Thailand"],
+            )
+        )
+
+        transcript = transcriber.getTranscript()
+        self.assertEqual("first", transcript["text"])
+        self.assertEqual("English", transcript["language"])
+
+    def test_google_limits_candidates_to_three_and_keeps_partial_success(self):
+        transcriber = make_non_whisper_transcriber("Google", [], [])
+        called_languages = []
+
+        def recognize_google(audio, language, with_confidence):
+            called_languages.append(language)
+            if language != "th-TH":
+                raise RuntimeError(f"candidate failed: {language}")
+            return "สวัสดี", 0.7
+
+        transcriber.audio_recognizer = SimpleNamespace(
+            recognize_google=recognize_google,
+        )
+
+        with patch.object(transcriber_module, "errorLogging"):
+            result = transcriber.transcribeAudioQueue(
+                queue_with(
+                    AudioChunk(
+                        pcm(100),
+                        datetime.now(timezone.utc),
+                        time.perf_counter(),
+                    )
+                ),
+                ["English", "Thai", "Chinese Traditional", "Japanese"],
+                ["Singapore", "Thailand", "Taiwan", "Japan"],
+            )
+
+        self.assertTrue(result)
+        self.assertCountEqual(["en-SG", "th-TH", "cmn-Hant-TW"], called_languages)
+        self.assertEqual("สวัสดี", transcriber.getTranscript()["text"])
+
+    def test_google_all_candidate_errors_emit_one_terminal_failure(self):
+        events = []
+        transcriber = make_non_whisper_transcriber("Google", events, [])
+        transcriber.audio_recognizer = SimpleNamespace(
+            recognize_google=lambda *args, **kwargs: (_ for _ in ()).throw(
+                RuntimeError("candidate failed")
+            )
+        )
+
+        with patch.object(transcriber_module, "errorLogging"):
+            result = transcriber.transcribeAudioQueue(
+                queue_with(
+                    AudioChunk(
+                        pcm(100),
+                        datetime.now(timezone.utc),
+                        time.perf_counter(),
+                    )
+                ),
+                ["English", "Thai", "Chinese Traditional"],
+                ["Singapore", "Thailand", "Taiwan"],
+            )
+
+        self.assertFalse(result)
+        terminal = [
+            (event.outcome, event.error_code)
+            for event in events
+            if event.stage == "transcription" and event.outcome != "running"
+        ]
+        self.assertEqual([("error", "google_recognition_failed")], terminal)
 
     def test_whisper_failure_clears_audio_and_only_requests_recovery(self):
         lease = FakeLease(error=RuntimeError("fake inference failed"))

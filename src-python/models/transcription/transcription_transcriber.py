@@ -6,6 +6,7 @@ either the Google web recognizer (online) or a local Whisper model (offline).
 
 import time
 import importlib
+from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from io import BytesIO
 from threading import Event
@@ -257,6 +258,74 @@ class AudioTranscriber:
             errorLogging()
             return False
 
+    def _recognizeGoogleCandidates(
+        self,
+        audio_data: AudioData,
+        languages: List[str],
+        countries: List[str],
+    ) -> tuple[List[Dict[str, Any]], int, int]:
+        candidates = []
+        configured = []
+        for index, (language, country) in enumerate(
+            zip(languages[:3], countries[:3])
+        ):
+            language_code = _languageCode("Google", language, country)
+            if language_code:
+                configured.append((index, language, language_code))
+
+        def recognize_candidate(candidate):
+            index, language, language_code = candidate
+            try:
+                text, confidence = self.audio_recognizer.recognize_google(
+                    audio_data,
+                    language=language_code,
+                    with_confidence=True,
+                )
+                if not isinstance(text, str) or not text.strip():
+                    return None, False
+                try:
+                    normalized_confidence = float(confidence)
+                except (TypeError, ValueError):
+                    normalized_confidence = 0.0
+                return {
+                    "index": index,
+                    "confidence": normalized_confidence,
+                    "text": text,
+                    "language": language,
+                }, False
+            except UnknownValueError:
+                return None, False
+            except Exception:
+                return None, True
+
+        if not configured:
+            return candidates, 0, 0
+
+        executor = ThreadPoolExecutor(
+            max_workers=len(configured),
+            thread_name_prefix="google-language-candidate",
+        )
+        futures = [executor.submit(recognize_candidate, item) for item in configured]
+        try:
+            completed, pending = wait(
+                futures,
+                timeout=GOOGLE_RECOGNITION_TIMEOUT_SECONDS,
+            )
+            error_count = len(pending)
+            for future in completed:
+                candidate, failed = future.result()
+                if failed:
+                    error_count += 1
+                elif candidate is not None:
+                    candidates.append(candidate)
+            for future in pending:
+                future.cancel()
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
+
+        candidates.sort(key=lambda candidate: candidate["index"])
+        return candidates, error_count, len(configured)
+
     def transcribeAudioQueue(
         self,
         audio_queue: Any,
@@ -265,7 +334,7 @@ class AudioTranscriber:
         avg_logprob: float = -0.8,
         no_speech_prob: float = 0.6,
         no_repeat_ngram_size: int = 0,
-        vad_filter: bool = False,
+        vad_filter: bool = True,
         vad_parameters: Optional[Union[dict, Any]] = None,
     ) -> bool:
         try:
@@ -356,22 +425,15 @@ class AudioTranscriber:
             audio_data = self.audio_sources["process_data_func"]()
             match self.transcription_engine:
                 case "Google":
-                    google_error_count = 0
-                    for language, country in zip(languages, countries):
-                        try:
-                            text, confidence = self.audio_recognizer.recognize_google(
-                                audio_data,
-                                language=transcription_lang[language][country][self.transcription_engine],
-                                with_confidence=True
-                                )
-                            confidences.append({"confidence": confidence, "text": text, "language": language})
-                        except UnknownValueError:
-                            pass
-                        except Exception:
-                            google_error_count += 1
-                            errorLogging()
-                            pass
-                    if len(languages) > 0 and google_error_count >= len(languages):
+                    google_candidates, google_error_count, candidate_count = (
+                        self._recognizeGoogleCandidates(
+                            audio_data,
+                            languages,
+                            countries,
+                        )
+                    )
+                    confidences.extend(google_candidates)
+                    if candidate_count > 0 and google_error_count >= candidate_count:
                         self._handleRecognitionFailure()
                         self.clearLiveAudioSample()
                         emit_terminal_metric(
@@ -397,22 +459,27 @@ class AudioTranscriber:
                             audio_data = audio_data.detach().numpy()
                         if audio_data.size == 0 or not np.any(audio_data):
                             if self._isGenerationCurrent():
-                                emit_terminal_metric("success")
-                            return True
+                                emit_terminal_metric(
+                                    "skipped",
+                                    "transcription_no_speech",
+                                )
+                            return False
                         max_samples = 16000 * MAX_WHISPER_LIVE_AUDIO_SECONDS
                         if audio_data.size > max_samples:
                             audio_data = audio_data[-max_samples:]
 
-                        source_language = _languageCode("Whisper", languages[0], countries[0]) if len(languages) == 1 else None
-                        inference_result = lease.transcribe(
-                            audio_data,
+                        language_codes = tuple(
+                            code
+                            for language, country in zip(languages[:3], countries[:3])
+                            if (code := _languageCode("Whisper", language, country))
+                        )
+                        transcription_options = dict(
                             beam_size=_getWhisperBeamSize(
                                 context.whisper_decoding_profile
                             ),
                             temperature=0.0,
                             log_prob_threshold=avg_logprob,
                             no_speech_threshold=no_speech_prob,
-                            language=source_language,
                             word_timestamps=False,
                             without_timestamps=True,
                             task="transcribe",
@@ -420,21 +487,60 @@ class AudioTranscriber:
                             vad_filter=vad_filter,
                             vad_parameters=vad_parameters,
                         )
+                        if len(language_codes) > 1:
+                            inference_result = lease.transcribe_restricted_languages(
+                                audio_data,
+                                language_codes=language_codes,
+                                **transcription_options,
+                            )
+                        else:
+                            inference_result = lease.transcribe(
+                                audio_data,
+                                language=language_codes[0] if language_codes else None,
+                                **transcription_options,
+                            )
                         segments = inference_result.segments
                         info = inference_result.info
-                        text = ""
+                        segments_seen = False
+                        accepted_parts = []
                         for s in segments:
+                            segments_seen = True
                             if s.avg_logprob < avg_logprob or s.no_speech_prob > no_speech_prob:
                                 continue
-                            text += s.text
+                            accepted_parts.append(s.text)
 
-                        result_language = (
-                            languages[0] if len(languages) == 1
-                            else _languageForCode("Whisper", getattr(info, "language", None), languages, countries)
+                        text = "".join(accepted_parts)
+                        if not text.strip():
+                            if self._isGenerationCurrent():
+                                emit_terminal_metric(
+                                    "skipped",
+                                    (
+                                        "transcription_low_confidence"
+                                        if segments_seen
+                                        else "transcription_no_speech"
+                                    ),
+                                )
+                            return False
+
+                        detected_language_code = (
+                            inference_result.detected_language
+                            if len(language_codes) > 1
+                            else getattr(info, "language", None)
+                        )
+                        detected_language_probability = (
+                            inference_result.detected_language_probability
+                            if len(language_codes) > 1
+                            else getattr(info, "language_probability", 0.0)
+                        )
+                        result_language = _languageForCode(
+                            "Whisper",
+                            detected_language_code,
+                            languages,
+                            countries,
                         )
                         if result_language:
                             confidences.append({
-                                "confidence": info.language_probability,
+                                "confidence": detected_language_probability,
                                 "text": text,
                                 "language": result_language,
                             })
@@ -554,7 +660,14 @@ class AudioTranscriber:
             if safe_to_restart is not None:
                 safe_to_restart.set()
 
-        result = max(confidences, key=lambda x: x["confidence"])
+        result = max(
+            confidences,
+            key=lambda item: (
+                item["confidence"],
+                -item.get("index", len(confidences)),
+            ),
+        )
+        result.pop("index", None)
         result["started_at_monotonic"] = self.audio_sources[
             "phrase_started_at_monotonic"
         ]

@@ -22,6 +22,8 @@ class WhisperInferenceResult:
 
     segments: tuple[Any, ...]
     info: Any
+    detected_language: Optional[str] = None
+    detected_language_probability: Optional[float] = None
 
 
 class WhisperRuntimeBusy(RuntimeError):
@@ -117,6 +119,19 @@ class WhisperRuntimeLease:
     def transcribe(self, audio: Any, **options: Any) -> WhisperInferenceResult:
         return self._manager._transcribe(self, audio, options)
 
+    def transcribe_restricted_languages(
+        self,
+        audio: Any,
+        language_codes: tuple[str, ...],
+        **options: Any,
+    ) -> WhisperInferenceResult:
+        return self._manager._transcribe_restricted_languages(
+            self,
+            audio,
+            language_codes,
+            options,
+        )
+
     def close(self) -> None:
         self._manager._close_lease(self)
 
@@ -189,6 +204,37 @@ class WhisperRuntimeManager:
         audio: Any,
         options: dict[str, Any],
     ) -> WhisperInferenceResult:
+        return self._run_inference(
+            lease,
+            lambda model: self._materialize_transcription(
+                model,
+                audio,
+                options,
+            ),
+        )
+
+    @staticmethod
+    def _materialize_transcription(
+        model: object,
+        audio: Any,
+        options: dict[str, Any],
+        *,
+        detected_language: Optional[str] = None,
+        detected_language_probability: Optional[float] = None,
+    ) -> WhisperInferenceResult:
+        segments, info = model.transcribe(audio, **options)
+        return WhisperInferenceResult(
+            tuple(segments),
+            info,
+            detected_language,
+            detected_language_probability,
+        )
+
+    def _run_inference(
+        self,
+        lease: WhisperRuntimeLease,
+        operation: Callable[[object], WhisperInferenceResult],
+    ) -> WhisperInferenceResult:
         with self._condition:
             self._ensure_lease_can_transcribe(lease)
             while self._active_inference:
@@ -200,13 +246,71 @@ class WhisperRuntimeManager:
             self._active_inference = 1
 
         try:
-            segments, info = model.transcribe(audio, **options)
-            materialized_segments = tuple(segments)
-            return WhisperInferenceResult(materialized_segments, info)
+            return operation(model)
         finally:
             with self._condition:
                 self._active_inference = 0
                 self._condition.notify_all()
+
+    def _transcribe_restricted_languages(
+        self,
+        lease: WhisperRuntimeLease,
+        audio: Any,
+        language_codes: tuple[str, ...],
+        options: dict[str, Any],
+    ) -> WhisperInferenceResult:
+        ordered_codes = tuple(
+            code
+            for index, code in enumerate(language_codes[:3])
+            if isinstance(code, str)
+            and code
+            and code not in language_codes[:index]
+        )
+        if not ordered_codes:
+            raise ValueError("at least one Whisper language code is required")
+
+        def detect_and_transcribe(model: object) -> WhisperInferenceResult:
+            detection_options = {
+                key: options[key]
+                for key in (
+                    "vad_filter",
+                    "vad_parameters",
+                    "language_detection_segments",
+                    "language_detection_threshold",
+                )
+                if key in options
+            }
+            _language, _probability, all_probabilities = model.detect_language(
+                audio,
+                **detection_options,
+            )
+            probability_by_code = dict(all_probabilities)
+            candidates = [
+                (code, probability_by_code[code], index)
+                for index, code in enumerate(ordered_codes)
+                if code in probability_by_code
+            ]
+            if not candidates:
+                raise RuntimeError(
+                    "Whisper returned no probability for a configured language"
+                )
+            selected_code, selected_probability, _index = max(
+                candidates,
+                key=lambda candidate: (candidate[1], -candidate[2]),
+            )
+            decode_options = dict(options)
+            decode_options.pop("language_detection_segments", None)
+            decode_options.pop("language_detection_threshold", None)
+            decode_options["language"] = selected_code
+            return self._materialize_transcription(
+                model,
+                audio,
+                decode_options,
+                detected_language=selected_code,
+                detected_language_probability=selected_probability,
+            )
+
+        return self._run_inference(lease, detect_and_transcribe)
 
     def _begin_drain_locked(self) -> _UnloadAttempt:
         model = self._model

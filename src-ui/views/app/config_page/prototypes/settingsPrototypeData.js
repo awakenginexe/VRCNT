@@ -320,7 +320,7 @@ export const settingsSections = [
             {
                 title: "VRCNT",
                 controls: [
-                    { label: "Installed version", type: "status", value: "4.1.0" },
+                    { label: "Installed version", type: "status", value: "4.2.1" },
                     { label: "Project page", type: "link", value: "Open project" },
                     { label: "Check for updates", type: "action", value: "Check now" },
                 ],

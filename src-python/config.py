@@ -34,6 +34,10 @@ try:
 except Exception:  # pragma: no cover - optional runtime
     transcription_lang = {}  # type: ignore
 
+from models.transcription.transcription_language_policy import (
+    normalize_language_profiles,
+)
+
 try:
     from models.transcription.transcription_whisper import _MODELS as whisper_models, DEFAULT_WHISPER_WEIGHT_TYPE
 except Exception:  # pragma: no cover - optional runtime
@@ -572,59 +576,32 @@ def _selected_translation_engines_validator(val, inst):
 def _selected_your_languages_validator(val, inst):
     if not isinstance(val, dict):
         return None
-    old = inst.SELECTED_YOUR_LANGUAGES
-    new = {}
-    for k0, v0 in val.items():
-        new[k0] = {}
-        for k1, v1 in v0.items():
-            language = v1.get("language")
-            country = v1.get("country")
-            enable = v1.get("enable")
-            if (language not in list(transcription_lang.keys()) or
-                country not in list(transcription_lang.get(language, {}).keys()) or
-                not isinstance(enable, bool)):
-                new[k0][k1] = old.get(k0, {}).get(k1)
-            else:
-                new[k0][k1] = {"language": language, "country": country, "enable": enable}
-    return new
+    return normalize_language_profiles(
+        val,
+        inst.SELECTED_YOUR_LANGUAGES,
+        minimum_enabled=1,
+        maximum_enabled=3,
+    )
 
 def _selected_your_translation_languages_validator(val, inst):
     if not isinstance(val, dict):
         return None
-    old = inst.SELECTED_YOUR_TRANSLATION_LANGUAGES
-    new = {}
-    for k0, v0 in val.items():
-        new[k0] = {}
-        for k1, v1 in v0.items():
-            language = v1.get("language")
-            country = v1.get("country")
-            enable = v1.get("enable")
-            if (language not in list(transcription_lang.keys()) or
-                country not in list(transcription_lang.get(language, {}).keys()) or
-                not isinstance(enable, bool)):
-                new[k0][k1] = old.get(k0, {}).get(k1)
-            else:
-                new[k0][k1] = {"language": language, "country": country, "enable": enable}
-    return new
+    return normalize_language_profiles(
+        val,
+        inst.SELECTED_YOUR_TRANSLATION_LANGUAGES,
+        minimum_enabled=1,
+        maximum_enabled=1,
+    )
 
 def _selected_target_languages_validator(val, inst):
     if not isinstance(val, dict):
         return None
-    old = inst.SELECTED_TARGET_LANGUAGES
-    new = {}
-    for k0, v0 in val.items():
-        new[k0] = {}
-        for k1, v1 in v0.items():
-            language = v1.get("language")
-            country = v1.get("country")
-            enable = v1.get("enable")
-            if (language not in list(transcription_lang.keys()) or
-                country not in list(transcription_lang.get(language, {}).keys()) or
-                not isinstance(enable, bool)):
-                new[k0][k1] = old.get(k0, {}).get(k1)
-            else:
-                new[k0][k1] = {"language": language, "country": country, "enable": enable}
-    return new
+    return normalize_language_profiles(
+        val,
+        inst.SELECTED_TARGET_LANGUAGES,
+        minimum_enabled=1,
+        maximum_enabled=3,
+    )
 
 def _selected_translation_compute_type_validator(val, inst):
     if not isinstance(val, str):
@@ -821,7 +798,11 @@ class Config:
     MIC_AVG_LOGPROB = ManagedProperty('MIC_AVG_LOGPROB', type_=(int, float))
     MIC_NO_SPEECH_PROB = ManagedProperty('MIC_NO_SPEECH_PROB', type_=(int, float))
     MIC_NO_REPEAT_NGRAM_SIZE = ManagedProperty('MIC_NO_REPEAT_NGRAM_SIZE', type_=int)
-    MIC_VAD_FILTER = ManagedProperty('MIC_VAD_FILTER', type_=bool)
+    MIC_VAD_FILTER = ManagedProperty(
+        'MIC_VAD_FILTER',
+        type_=bool,
+        serialize=False,
+    )
     MIC_VAD_PARAMETERS = ManagedProperty('MIC_VAD_PARAMETERS', type_=dict, mutable_tracking=True)
     HOTKEYS = ValidatedProperty('HOTKEYS',
         validator=lambda val, inst: (
@@ -840,7 +821,11 @@ class Config:
     SPEAKER_AVG_LOGPROB = ManagedProperty('SPEAKER_AVG_LOGPROB', type_=(int, float))
     SPEAKER_NO_SPEECH_PROB = ManagedProperty('SPEAKER_NO_SPEECH_PROB', type_=(int, float))
     SPEAKER_NO_REPEAT_NGRAM_SIZE = ManagedProperty('SPEAKER_NO_REPEAT_NGRAM_SIZE', type_=int)
-    SPEAKER_VAD_FILTER = ManagedProperty('SPEAKER_VAD_FILTER', type_=bool)
+    SPEAKER_VAD_FILTER = ManagedProperty(
+        'SPEAKER_VAD_FILTER',
+        type_=bool,
+        serialize=False,
+    )
     SPEAKER_VAD_PARAMETERS = ManagedProperty('SPEAKER_VAD_PARAMETERS', type_=dict, mutable_tracking=True)
 
     # --- Auth and API settings ---
@@ -927,7 +912,7 @@ class Config:
 
     def init_config(self):
         # Read Only
-        self._VERSION = "4.1.0"
+        self._VERSION = "4.2.1"
         if getattr(sys, 'frozen', False):
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
@@ -1103,7 +1088,7 @@ class Config:
         self._MIC_AVG_LOGPROB = -0.8
         self._MIC_NO_SPEECH_PROB = 0.6
         self._MIC_NO_REPEAT_NGRAM_SIZE = 0
-        self._MIC_VAD_FILTER = False
+        self._MIC_VAD_FILTER = True
         self._MIC_VAD_PARAMETERS = {
             "threshold": 0.5,
             "neg_threshold": None,
@@ -1130,7 +1115,7 @@ class Config:
         self._SPEAKER_AVG_LOGPROB = -0.8
         self._SPEAKER_NO_SPEECH_PROB = 0.6
         self._SPEAKER_NO_REPEAT_NGRAM_SIZE = 0
-        self._SPEAKER_VAD_FILTER = False
+        self._SPEAKER_VAD_FILTER = True
         self._SPEAKER_VAD_PARAMETERS = {
             "threshold": 0.5,
             "neg_threshold": None,
@@ -1302,7 +1287,12 @@ class Config:
                             errorLogging()
 
         if "SELECTED_YOUR_TRANSLATION_LANGUAGES" not in self._config_data:
-            self._SELECTED_YOUR_TRANSLATION_LANGUAGES = copy.deepcopy(self._SELECTED_YOUR_LANGUAGES)
+            self._SELECTED_YOUR_TRANSLATION_LANGUAGES = normalize_language_profiles(
+                self._SELECTED_YOUR_LANGUAGES,
+                self._SELECTED_YOUR_TRANSLATION_LANGUAGES,
+                minimum_enabled=1,
+                maximum_enabled=1,
+            )
 
         self.saveConfigToFile()
 

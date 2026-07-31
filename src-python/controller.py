@@ -40,6 +40,11 @@ except ImportError:
 from utils import removeLog, printLog, errorLogging, isConnectedNetwork, isValidIpAddress, isAvailableWebSocketServer
 from errors import DeviceUnavailableError, ErrorCode, VRCTError
 from models.transcription.transcription_languages import transcription_lang
+from models.transcription.transcription_language_policy import (
+    normalize_language_slots,
+    runtime_language_slots,
+    transcription_language_capabilities,
+)
 from models.transcription.transcription_whisper import DEFAULT_WHISPER_WEIGHT_TYPE
 from models.transcription.transcription_vosk import getVoskModelMeta
 from models.transcription.transcription_parakeet import getParakeetModelMeta
@@ -452,7 +457,7 @@ class Controller:
         target_snapshots = (
             output_config.target_languages
             if source is PipelineSource.MIC
-            else output_config.your_translation_languages
+            else output_config.your_translation_languages[:1]
         )
         targets = ()
         if output_config.translation_enabled:
@@ -1253,9 +1258,20 @@ class Controller:
         supported_codes = self._transcriptionSupportedLanguageCodes(engine)
         return bool(language_code and supported_codes and language_code in supported_codes)
 
-    def _selectedTabLanguagesSupported(self, selected_languages: dict, only_enabled: bool = True) -> bool:
+    def _selectedTabLanguagesSupported(
+        self,
+        selected_languages: dict,
+        only_enabled: bool = True,
+        direction: str = "microphone",
+    ) -> bool:
         tab_languages = selected_languages.get(config.SELECTED_TAB_NO, {})
-        for language_data in tab_languages.values():
+        engine = config.SELECTED_TRANSCRIPTION_ENGINE
+        language_values = (
+            runtime_language_slots(engine, tab_languages, direction)
+            if only_enabled
+            else tab_languages.values()
+        )
+        for language_data in language_values:
             if only_enabled and language_data.get("enable") is not True:
                 continue
             if self._isTranscriptionLanguageSupported(language_data) is False:
@@ -1342,44 +1358,9 @@ class Controller:
         return changed
 
     def _normalizeSelectedYourLanguageForTranscription(self) -> bool:
-        try:
-            selected = config.SELECTED_YOUR_LANGUAGES
-            tab_languages = selected[config.SELECTED_TAB_NO]
-        except Exception:
-            return False
-
-        changed = False
-        engine = config.SELECTED_TRANSCRIPTION_ENGINE
-
-        if engine not in {"Whisper", "SenseVoice"}:
-            for key, language_data in tab_languages.items():
-                if key != "1" and language_data.get("enable") is True:
-                    language_data["enable"] = False
-                    changed = True
-
-        if engine in {"Vosk", "Parakeet", "SenseVoice"}:
-            for key, language_data in tab_languages.items():
-                if language_data.get("enable") is not True:
-                    continue
-                if self._isTranscriptionLanguageSupported(language_data):
-                    continue
-
-                if key == "1":
-                    replacement = self._findFirstSupportedTranscriptionLanguage()
-                    if replacement is not None:
-                        tab_languages[key] = replacement
-                        changed = True
-                else:
-                    language_data["enable"] = False
-                    changed = True
-
-        if changed is False:
-            return False
-
-        config.SELECTED_YOUR_LANGUAGES = selected
-        self.updateTranslationEngineAndEngineList()
-        self.run(200, "/set/data/selected_your_languages", config.SELECTED_YOUR_LANGUAGES)
-        return True
+        # Recognition activation is derived at phrase capture time. Engine
+        # changes must never rewrite the user's saved multilingual profile.
+        return False
 
     def setInitMapping(self, init_mapping:dict) -> None:
         self.init_mapping = init_mapping
@@ -2052,12 +2033,38 @@ class Controller:
         return {"status":200, "result":config.SELECTED_TRANSLATION_COMPUTE_DEVICE}
 
     def setSelectedTranslationComputeDevice(self, device:str, *args, **kwargs) -> dict:
-        printLog("setSelectedTranslationComputeDevice", device)
-        config.SELECTED_TRANSLATION_COMPUTE_DEVICE = device
-        config.SELECTED_TRANSLATION_COMPUTE_TYPE = "auto"
-        self.run(200, self.run_mapping["selected_translation_compute_type"], config.SELECTED_TRANSLATION_COMPUTE_TYPE)
-        model.setChangedTranslatorParameters(True)
-        return {"status":200,"result":config.SELECTED_TRANSLATION_COMPUTE_DEVICE}
+        with self._translation_activation_lock:
+            printLog("setSelectedTranslationComputeDevice", device)
+            previous_device = deepcopy(
+                config.SELECTED_TRANSLATION_COMPUTE_DEVICE
+            )
+            previous_compute_type = config.SELECTED_TRANSLATION_COMPUTE_TYPE
+            config.SELECTED_TRANSLATION_COMPUTE_DEVICE = device
+            config.SELECTED_TRANSLATION_COMPUTE_TYPE = "auto"
+            model.setChangedTranslatorParameters(True)
+            try:
+                self._refreshActiveCTranslate2Readiness()
+            except Exception as error:
+                config.SELECTED_TRANSLATION_COMPUTE_DEVICE = previous_device
+                config.SELECTED_TRANSLATION_COMPUTE_TYPE = previous_compute_type
+                model.setChangedTranslatorParameters(True)
+                try:
+                    self._refreshActiveCTranslate2Readiness()
+                except Exception:
+                    errorLogging()
+                return self._translationActivationError(
+                    error,
+                    preserve_enabled=True,
+                )
+            self.run(
+                200,
+                self.run_mapping["selected_translation_compute_type"],
+                config.SELECTED_TRANSLATION_COMPUTE_TYPE,
+            )
+            return {
+                "status":200,
+                "result":config.SELECTED_TRANSLATION_COMPUTE_DEVICE,
+            }
 
     @staticmethod
     def getSelectableCtranslate2WeightTypeDict(*args, **kwargs) -> dict:
@@ -2250,6 +2257,36 @@ class Controller:
             model.changeTranslatorCTranslate2Model()
             model.setChangedTranslatorParameters(False)
 
+    def _refreshActiveCTranslate2Readiness(
+        self,
+        selection=None,
+        *,
+        release_if_unused: bool = False,
+    ) -> bool:
+        if config.ENABLE_TRANSLATION is not True:
+            if release_if_unused:
+                self._releaseCTranslate2()
+            return False
+        if selection is None:
+            selection = config.SELECTED_TRANSLATION_ENGINES.get(
+                config.SELECTED_TAB_NO,
+                "",
+            )
+        providers = boundedTranslationProviderSnapshot(selection)
+        needs_local = self._isCTranslate2Primary(selection) or (
+            bool(providers)
+            and providers[0] != "CTranslate2"
+            and config.ENABLE_CTRANSLATE2_AUTO_FALLBACK is True
+        )
+        if needs_local:
+            self._ensureCTranslate2Ready(
+                selection,
+                include_auto_fallback=True,
+            )
+        elif release_if_unused:
+            self._releaseCTranslate2()
+        return needs_local
+
     @staticmethod
     def _releaseCTranslate2() -> None:
         try:
@@ -2378,11 +2415,21 @@ class Controller:
         return {"status":200, "result":config.SELECTED_TAB_NO}
 
     def setSelectedTabNo(self, selected_tab_no:str, *args, **kwargs) -> dict:
-        printLog("setSelectedTabNo", selected_tab_no)
-        config.SELECTED_TAB_NO = selected_tab_no
-        self._normalizeSelectedYourLanguageForTranscription()
-        self.updateTranslationEngineAndEngineList()
-        return {"status":200, "result":config.SELECTED_TAB_NO}
+        with self._translation_activation_lock:
+            printLog("setSelectedTabNo", selected_tab_no)
+            previous_tab_no = config.SELECTED_TAB_NO
+            config.SELECTED_TAB_NO = selected_tab_no
+            try:
+                self._refreshActiveCTranslate2Readiness()
+            except Exception as error:
+                config.SELECTED_TAB_NO = previous_tab_no
+                return self._translationActivationError(
+                    error,
+                    preserve_enabled=True,
+                )
+            self._normalizeSelectedYourLanguageForTranscription()
+            self.updateTranslationEngineAndEngineList()
+            return {"status":200, "result":config.SELECTED_TAB_NO}
 
     @staticmethod
     def getTranslationEngines(*args, **kwargs) -> dict:
@@ -2440,20 +2487,21 @@ class Controller:
                     "result": config.SELECTED_TRANSLATION_ENGINES,
                 }
 
-            if self._isCTranslate2Primary(proposed_selection):
-                try:
-                    self._ensureCTranslate2Ready(proposed_selection)
-                except Exception as error:
-                    return self._translationActivationError(
-                        error,
-                        preserve_enabled=True,
-                    )
-                config.SELECTED_TRANSLATION_ENGINES = normalized
-            elif self._isCTranslate2Primary(current_selection):
-                config.SELECTED_TRANSLATION_ENGINES = normalized
+            try:
+                needs_local = self._refreshActiveCTranslate2Readiness(
+                    proposed_selection,
+                )
+            except Exception as error:
+                return self._translationActivationError(
+                    error,
+                    preserve_enabled=True,
+                )
+            config.SELECTED_TRANSLATION_ENGINES = normalized
+            if (
+                needs_local is False
+                and self._isCTranslate2Primary(current_selection)
+            ):
                 self._releaseCTranslate2()
-            else:
-                config.SELECTED_TRANSLATION_ENGINES = normalized
 
             model.resetTranslationProviderRotation()
             return {
@@ -2487,7 +2535,13 @@ class Controller:
         return {"status":200, "result":config.SELECTED_TARGET_LANGUAGES}
 
     def setSelectedTargetLanguages(self, select:dict, *args, **kwargs) -> dict:
-        if config.ENABLE_TRANSCRIPTION_RECEIVE is True and self._selectedTabLanguagesSupported(select) is False:
+        if (
+            config.ENABLE_TRANSCRIPTION_RECEIVE is True
+            and self._selectedTabLanguagesSupported(
+                select,
+                direction="received",
+            ) is False
+        ):
             return {"status":200, "result":config.SELECTED_TARGET_LANGUAGES}
         config.SELECTED_TARGET_LANGUAGES = select
         self.updateTranslationEngineAndEngineList()
@@ -2497,6 +2551,10 @@ class Controller:
     def getTranscriptionEngines(*args, **kwargs) -> dict:
         engines = [key for key, value in config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS.items() if value is True]
         return {"status":200, "result":engines}
+
+    @staticmethod
+    def getTranscriptionLanguageCapabilities(*args, **kwargs) -> dict:
+        return {"status": 200, "result": transcription_language_capabilities()}
 
     @staticmethod
     def getSelectedTranscriptionEngine(*args, **kwargs) -> dict:
@@ -3770,21 +3828,52 @@ class Controller:
     def getCtranslate2WeightType(*args, **kwargs) -> dict:
         return {"status":200, "result":config.CTRANSLATE2_WEIGHT_TYPE}
 
-    @staticmethod
-    def setCtranslate2WeightType(data, *args, **kwargs) -> dict:
-        config.CTRANSLATE2_WEIGHT_TYPE = str(data)
-        model.setChangedTranslatorParameters(True)
-        return {"status":200, "result":config.CTRANSLATE2_WEIGHT_TYPE}
+    def setCtranslate2WeightType(self, data, *args, **kwargs) -> dict:
+        with self._translation_activation_lock:
+            previous_value = config.CTRANSLATE2_WEIGHT_TYPE
+            config.CTRANSLATE2_WEIGHT_TYPE = str(data)
+            model.setChangedTranslatorParameters(True)
+            try:
+                self._refreshActiveCTranslate2Readiness()
+            except Exception as error:
+                config.CTRANSLATE2_WEIGHT_TYPE = previous_value
+                model.setChangedTranslatorParameters(True)
+                try:
+                    self._refreshActiveCTranslate2Readiness()
+                except Exception:
+                    errorLogging()
+                return self._translationActivationError(
+                    error,
+                    preserve_enabled=True,
+                )
+            return {"status":200, "result":config.CTRANSLATE2_WEIGHT_TYPE}
 
     @staticmethod
     def getSelectedTranslationComputeType(*args, **kwargs) -> dict:
         return {"status":200, "result":config.SELECTED_TRANSLATION_COMPUTE_TYPE}
 
-    @staticmethod
-    def setSelectedTranslationComputeType(data, *args, **kwargs) -> dict:
-        config.SELECTED_TRANSLATION_COMPUTE_TYPE = str(data)
-        model.setChangedTranslatorParameters(True)
-        return {"status":200, "result":config.SELECTED_TRANSLATION_COMPUTE_TYPE}
+    def setSelectedTranslationComputeType(self, data, *args, **kwargs) -> dict:
+        with self._translation_activation_lock:
+            previous_value = config.SELECTED_TRANSLATION_COMPUTE_TYPE
+            config.SELECTED_TRANSLATION_COMPUTE_TYPE = str(data)
+            model.setChangedTranslatorParameters(True)
+            try:
+                self._refreshActiveCTranslate2Readiness()
+            except Exception as error:
+                config.SELECTED_TRANSLATION_COMPUTE_TYPE = previous_value
+                model.setChangedTranslatorParameters(True)
+                try:
+                    self._refreshActiveCTranslate2Readiness()
+                except Exception:
+                    errorLogging()
+                return self._translationActivationError(
+                    error,
+                    preserve_enabled=True,
+                )
+            return {
+                "status":200,
+                "result":config.SELECTED_TRANSLATION_COMPUTE_TYPE,
+            }
 
     @staticmethod
     def getWhisperWeightType(*args, **kwargs) -> dict:
@@ -4381,24 +4470,29 @@ class Controller:
             return all_established
 
     def swapYourLanguageAndTargetLanguage(self, *args, **kwargs) -> dict:
-        your_languages = config.SELECTED_YOUR_LANGUAGES
-        your_language_temp = your_languages[config.SELECTED_TAB_NO]["1"]
+        selected_tab = config.SELECTED_TAB_NO
+        your_languages = deepcopy(config.SELECTED_YOUR_LANGUAGES)
+        target_languages = deepcopy(config.SELECTED_TARGET_LANGUAGES)
+        original_your = deepcopy(your_languages[selected_tab])
+        original_target = deepcopy(target_languages[selected_tab])
 
-        target_languages = config.SELECTED_TARGET_LANGUAGES
-        target_language_temp = target_languages[config.SELECTED_TAB_NO]["1"]
+        your_languages[selected_tab] = normalize_language_slots(
+            original_target,
+            your_languages[selected_tab],
+            minimum_enabled=1,
+            maximum_enabled=3,
+        )
+        target_languages[selected_tab] = normalize_language_slots(
+            original_your,
+            target_languages[selected_tab],
+            minimum_enabled=1,
+            maximum_enabled=3,
+        )
 
-        your_languages[config.SELECTED_TAB_NO]["1"] = target_language_temp
-        target_languages[config.SELECTED_TAB_NO]["1"] = your_language_temp
-
-        self.setSelectedYourLanguages(your_languages)
-        self.setSelectedTargetLanguages(target_languages)
-
-        # Restart active transcription engines so they re-initialize with the
-        # swapped language settings (critical for Vosk/Parakeet which bind
-        # language at model-init time, not per-call like Google/Whisper).
-        th_restart = Thread(target=self._restartActiveTranscription)
-        th_restart.daemon = True
-        th_restart.start()
+        config.SELECTED_YOUR_LANGUAGES = your_languages
+        config.SELECTED_TARGET_LANGUAGES = target_languages
+        self.updateTranslationEngineAndEngineList()
+        self._requestCoordinatedTranscriptionRestart()
 
         return {
             "status":200,

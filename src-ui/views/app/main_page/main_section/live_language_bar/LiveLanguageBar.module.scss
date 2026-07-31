@@ -23,6 +23,8 @@
 
 .language_routes {
     flex: 1 1 auto;
+    align-items: flex-start;
+    gap: 1.2rem;
 }
 
 .engine_controls {
@@ -30,10 +32,17 @@
 }
 
 .route_arrow {
+    align-self: center;
     color: var(--primary_250_color);
     font-size: 1.6rem;
     font-weight: 800;
     transition: color var(--transition_ui), transform var(--transition_ui);
+}
+
+.preferred_route {
+    width: min(18rem, 22vw);
+    min-width: 12rem;
+    flex: 0 1 18rem;
 }
 
 .language_routes:hover .route_arrow {
@@ -64,5 +73,21 @@
     .language_routes,
     .engine_controls {
         justify-content: space-between;
+    }
+}
+
+@media (max-width: 88rem) {
+    .language_routes {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .route_arrow {
+        display: none;
+    }
+
+    .preferred_route {
+        width: 100%;
+        min-width: 0;
     }
 }

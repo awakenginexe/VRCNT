@@ -1,8 +1,15 @@
-import { useStore_SelectedPresetTabNumber, useStore_SelectedYourLanguages, useStore_SelectedYourTranslationLanguages, useStore_SelectedTargetLanguages, useStore_TranslationEngines, useStore_SelectedTranslationEngines, useStore_TranslationEngineSelectionTransition, useStore_CTranslate2AutoFallback, useStore_SelectableLanguageList } from "@store";
+import { useStore_SelectedPresetTabNumber, useStore_SelectedYourLanguages, useStore_SelectedYourTranslationLanguages, useStore_SelectedTargetLanguages, useStore_TranscriptionLanguageCapabilities, useStore_TranslationEngines, useStore_SelectedTranslationEngines, useStore_TranslationEngineSelectionTransition, useStore_CTranslate2AutoFallback, useStore_SelectableLanguageList } from "@store";
 import { useStdoutToPython } from "@useStdoutToPython";
 import { translator_status } from "@ui_configs";
 import { useI18n } from "@useI18n";
 import { useNotificationStatus } from "../common/useNotificationStatus";
+import {
+    enabledSlotKeys,
+    findDuplicateSlot,
+    nextDisabledSlotKey,
+    removeLanguageSlot,
+    setLanguageSlot,
+} from "../common/languageProfileUtils.js";
 
 export const useLanguageSettings = () => {
     const { asyncStdoutToPython } = useStdoutToPython();
@@ -24,6 +31,10 @@ export const useLanguageSettings = () => {
         updateSelectedTargetLanguages,
         pendingSelectedTargetLanguages,
     } = useStore_SelectedTargetLanguages();
+    const {
+        currentTranscriptionLanguageCapabilities,
+        updateTranscriptionLanguageCapabilities,
+    } = useStore_TranscriptionLanguageCapabilities();
     const {
         currentSelectedPresetTabNumber,
         updateSelectedPresetTabNumber,
@@ -103,7 +114,6 @@ export const useLanguageSettings = () => {
     };
 
     const setSelectedYourLanguages = (selected_language_data) => {
-        pendingSelectedYourLanguages();
         const presetKey = getPresetKey();
         const send_obj = structuredClone(currentSelectedYourLanguages.data ?? {});
         send_obj[presetKey] = {
@@ -111,47 +121,41 @@ export const useLanguageSettings = () => {
             ...(send_obj[presetKey] ?? {}),
         };
         const targetKey = selected_language_data.target_key ?? "1";
-        send_obj[presetKey][targetKey] ??= { language: "", country: "", enable: true };
-        send_obj[presetKey][targetKey].language = selected_language_data.language;
-        send_obj[presetKey][targetKey].country = selected_language_data.country;
-        send_obj[presetKey][targetKey].enable = true;
+        if (findDuplicateSlot(send_obj[presetKey], selected_language_data, targetKey)) {
+            showNotification_Error(
+                t("main_page.language_panels.duplicate_language"),
+                { category_id: "duplicate_language" },
+            );
+            return false;
+        }
+        send_obj[presetKey] = setLanguageSlot(
+            send_obj[presetKey],
+            targetKey,
+            selected_language_data,
+        );
+        pendingSelectedYourLanguages();
         asyncStdoutToPython("/set/data/selected_your_languages", send_obj);
+        return true;
     };
 
     const addYourLanguage = () => {
-        pendingSelectedYourLanguages();
-        const presetKey = getPresetKey();
-        const send_obj = structuredClone(currentSelectedYourLanguages.data ?? {});
-        send_obj[presetKey] = {
-            ...createFallbackYourLanguages(),
-            ...(send_obj[presetKey] ?? {}),
-        };
-        let target_key = "2";
-        if (send_obj[presetKey]["2"].enable === true) {
-            target_key = "3";
-        }
-        if (!send_obj[presetKey][target_key].language) {
-            send_obj[presetKey][target_key].language = target_key === "2" ? "English" : "Chinese Simplified";
-            send_obj[presetKey][target_key].country = target_key === "2" ? "United States" : "China";
-        }
-        send_obj[presetKey][target_key].enable = true;
-        asyncStdoutToPython("/set/data/selected_your_languages", send_obj);
+        return nextDisabledSlotKey(getCurrentYourLanguages());
     };
 
-    const removeYourLanguage = () => {
-        pendingSelectedYourLanguages();
+    const removeYourLanguage = (targetKey) => {
         const presetKey = getPresetKey();
         const send_obj = structuredClone(currentSelectedYourLanguages.data ?? {});
         send_obj[presetKey] = {
             ...createFallbackYourLanguages(),
             ...(send_obj[presetKey] ?? {}),
         };
-        let target_key = "3";
-        if (send_obj[presetKey]["3"].enable === false) {
-            target_key = "2";
-        }
-        send_obj[presetKey][target_key].enable = false;
+        const removalKey = targetKey ?? enabledSlotKeys(send_obj[presetKey]).at(-1);
+        const updated = removeLanguageSlot(send_obj[presetKey], removalKey);
+        if (updated === send_obj[presetKey]) return false;
+        send_obj[presetKey] = updated;
+        pendingSelectedYourLanguages();
         asyncStdoutToPython("/set/data/selected_your_languages", send_obj);
+        return true;
     };
 
     const getSelectedYourTranslationLanguages = () => {
@@ -161,16 +165,15 @@ export const useLanguageSettings = () => {
 
     const setSelectedYourTranslationLanguages = (selected_language_data) => {
         pendingSelectedYourTranslationLanguages();
-        const send_obj = {
-            ...currentSelectedYourTranslationLanguages.data,
-            [currentSelectedPresetTabNumber.data]: {
-                1: {
-                    language: selected_language_data.language,
-                    country: selected_language_data.country,
-                    enable: true,
-                }
-            }
+        const presetKey = getPresetKey();
+        const send_obj = structuredClone(currentSelectedYourTranslationLanguages.data ?? {});
+        send_obj[presetKey] = {
+            ...createFallbackYourLanguages(),
+            ...(send_obj[presetKey] ?? {}),
         };
+        send_obj[presetKey] = setLanguageSlot(send_obj[presetKey], "1", selected_language_data);
+        send_obj[presetKey]["2"].enable = false;
+        send_obj[presetKey]["3"].enable = false;
         asyncStdoutToPython("/set/data/selected_your_translation_languages", send_obj);
     };
 
@@ -181,39 +184,47 @@ export const useLanguageSettings = () => {
     };
 
     const setSelectedTargetLanguages = (selected_language_data) => {
-        pendingSelectedTargetLanguages();
         const presetKey = getPresetKey();
         const send_obj = structuredClone(currentSelectedTargetLanguages.data ?? {});
-        send_obj[presetKey] ??= createFallbackTargetLanguages();
-        send_obj[presetKey][selected_language_data.target_key] ??= { language: "", country: "", enable: true };
-        send_obj[presetKey][selected_language_data.target_key].language = selected_language_data.language,
-        send_obj[presetKey][selected_language_data.target_key].country = selected_language_data.country,
+        send_obj[presetKey] = {
+            ...createFallbackTargetLanguages(),
+            ...(send_obj[presetKey] ?? {}),
+        };
+        const targetKey = selected_language_data.target_key ?? "1";
+        if (findDuplicateSlot(send_obj[presetKey], selected_language_data, targetKey)) {
+            showNotification_Error(
+                t("main_page.language_panels.duplicate_language"),
+                { category_id: "duplicate_language" },
+            );
+            return false;
+        }
+        send_obj[presetKey] = setLanguageSlot(
+            send_obj[presetKey],
+            targetKey,
+            selected_language_data,
+        );
+        pendingSelectedTargetLanguages();
         asyncStdoutToPython("/set/data/selected_target_languages", send_obj);
+        return true;
     };
 
     const addTargetLanguage = () => {
-        pendingSelectedTargetLanguages();
-        const presetKey = getPresetKey();
-        const send_obj = structuredClone(currentSelectedTargetLanguages.data ?? {});
-        send_obj[presetKey] ??= createFallbackTargetLanguages();
-        let target_key = "2";
-        if (send_obj[presetKey]["2"].enable === true) {
-            target_key = "3";
-        }
-        send_obj[presetKey][target_key].enable = true,
-        asyncStdoutToPython("/set/data/selected_target_languages", send_obj);
+        return nextDisabledSlotKey(getCurrentTargetLanguages());
     };
-    const removeTargetLanguage = () => {
-        pendingSelectedTargetLanguages();
+    const removeTargetLanguage = (targetKey) => {
         const presetKey = getPresetKey();
         const send_obj = structuredClone(currentSelectedTargetLanguages.data ?? {});
-        send_obj[presetKey] ??= createFallbackTargetLanguages();
-        let target_key = "3";
-        if (send_obj[presetKey]["3"].enable === false) {
-            target_key = "2";
-        }
-        send_obj[presetKey][target_key].enable = false,
+        send_obj[presetKey] = {
+            ...createFallbackTargetLanguages(),
+            ...(send_obj[presetKey] ?? {}),
+        };
+        const removalKey = targetKey ?? enabledSlotKeys(send_obj[presetKey]).at(-1);
+        const updated = removeLanguageSlot(send_obj[presetKey], removalKey);
+        if (updated === send_obj[presetKey]) return false;
+        send_obj[presetKey] = updated;
+        pendingSelectedTargetLanguages();
         asyncStdoutToPython("/set/data/selected_target_languages", send_obj);
+        return true;
     };
 
 
@@ -302,14 +313,12 @@ export const useLanguageSettings = () => {
 
     const swapSelectedLanguages = () => {
         pendingSelectedYourLanguages();
-        pendingSelectedYourTranslationLanguages();
         pendingSelectedTargetLanguages();
         asyncStdoutToPython("/run/swap_your_language_and_target_language");
     };
 
     const updateBothSelectedLanguages = (payload) => {
         updateSelectedYourLanguages(payload.your);
-        if (payload.your_translation) updateSelectedYourTranslationLanguages(payload.your_translation);
         updateSelectedTargetLanguages(payload.target);
     };
 
@@ -346,6 +355,9 @@ export const useLanguageSettings = () => {
 
         addTargetLanguage,
         removeTargetLanguage,
+
+        currentTranscriptionLanguageCapabilities,
+        updateTranscriptionLanguageCapabilities,
 
         currentTranslationEngines,
         getTranslationEngines,

@@ -41,6 +41,7 @@ from models.transcription.whisper_runtime import (
 )
 from models.translation.translation_languages import translation_lang
 from models.transcription.transcription_languages import transcription_lang
+from models.transcription.transcription_language_policy import runtime_language_slots
 from models.translation.translation_utils import checkCTranslate2Weight, checkCTranslate2Tokenizer, downloadCTranslate2Weight, downloadCTranslate2Tokenizer, backwardCompatibleRenameWeightsDir
 from models.transcription.transcription_whisper import (
     checkWhisperWeight,
@@ -66,6 +67,18 @@ TRANSCRIPT_STALL_CHECK_SECONDS = 5.0
 DEFAULT_TRANSLATION_ENGINE = "CTranslate2"
 TRANSCRIPTION_AUDIO_QUEUE_SIZE = 4
 TRANSCRIPTION_PIPELINE_METRIC_HISTORY_SIZE = 256
+
+
+def _runtimeTranscriptionLanguageLists(
+    engine: str,
+    selected_languages: dict,
+    direction: str,
+) -> tuple[list[str], list[str]]:
+    active_slots = runtime_language_slots(engine, selected_languages, direction)
+    return (
+        [slot["language"] for slot in active_slots],
+        [slot["country"] for slot in active_slots],
+    )
 
 
 class _MetricAudioQueue(LatestQueue):
@@ -1709,8 +1722,11 @@ class Model:
                     return
                 try:
                     selected_your_languages = config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]
-                    languages = [data["language"] for data in selected_your_languages.values() if data["enable"] is True]
-                    countries = [data["country"] for data in selected_your_languages.values() if data["enable"] is True]
+                    languages, countries = _runtimeTranscriptionLanguageLists(
+                        config.SELECTED_TRANSCRIPTION_ENGINE,
+                        selected_your_languages,
+                        "microphone",
+                    )
                     if isinstance(transcriber, AudioTranscriber) is True:
                         res = transcriber.transcribeAudioQueue(
                             audio_queue,
@@ -2194,8 +2210,11 @@ class Model:
                     return
                 try:
                     selected_target_languages = config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]
-                    languages = [data["language"] for data in selected_target_languages.values() if data["enable"] is True]
-                    countries = [data["country"] for data in selected_target_languages.values() if data["enable"] is True]
+                    languages, countries = _runtimeTranscriptionLanguageLists(
+                        config.SELECTED_TRANSCRIPTION_ENGINE,
+                        selected_target_languages,
+                        "received",
+                    )
                     if isinstance(transcriber, AudioTranscriber) is True:
                         res = transcriber.transcribeAudioQueue(
                             speaker_audio_queue,

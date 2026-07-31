@@ -139,6 +139,7 @@ mapping = {
     "/set/data/selected_target_languages": {"status": True, "variable":controller.setSelectedTargetLanguages},
 
     "/get/data/selectable_transcription_engines": {"status": False, "variable":controller.getTranscriptionEngines},
+    "/get/data/transcription_language_capabilities": {"status": False, "variable":controller.getTranscriptionLanguageCapabilities},
     "/get/data/selected_transcription_engine": {"status": False, "variable":controller.getSelectedTranscriptionEngine},
     "/set/data/selected_transcription_engine": {"status": False, "variable":controller.setSelectedTranscriptionEngine},
 

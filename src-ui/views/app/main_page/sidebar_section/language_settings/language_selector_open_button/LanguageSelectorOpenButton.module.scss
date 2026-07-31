@@ -161,3 +161,17 @@
         width: 1.25rem;
     }
 }
+
+.container.variant_profile {
+    gap: 0;
+
+    .dropdown_menu_container {
+        min-height: 4.6rem;
+        border-radius: 1rem;
+    }
+
+    .dropdown_menu_container:focus-visible {
+        outline: 0.2rem solid var(--primary_250_color);
+        outline-offset: 0.2rem;
+    }
+}
