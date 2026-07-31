@@ -6,6 +6,7 @@ either the Google web recognizer (online) or a local Whisper model (offline).
 
 import time
 import importlib
+from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from io import BytesIO
 from threading import Event
@@ -257,6 +258,74 @@ class AudioTranscriber:
             errorLogging()
             return False
 
+    def _recognizeGoogleCandidates(
+        self,
+        audio_data: AudioData,
+        languages: List[str],
+        countries: List[str],
+    ) -> tuple[List[Dict[str, Any]], int, int]:
+        candidates = []
+        configured = []
+        for index, (language, country) in enumerate(
+            zip(languages[:3], countries[:3])
+        ):
+            language_code = _languageCode("Google", language, country)
+            if language_code:
+                configured.append((index, language, language_code))
+
+        def recognize_candidate(candidate):
+            index, language, language_code = candidate
+            try:
+                text, confidence = self.audio_recognizer.recognize_google(
+                    audio_data,
+                    language=language_code,
+                    with_confidence=True,
+                )
+                if not isinstance(text, str) or not text.strip():
+                    return None, False
+                try:
+                    normalized_confidence = float(confidence)
+                except (TypeError, ValueError):
+                    normalized_confidence = 0.0
+                return {
+                    "index": index,
+                    "confidence": normalized_confidence,
+                    "text": text,
+                    "language": language,
+                }, False
+            except UnknownValueError:
+                return None, False
+            except Exception:
+                return None, True
+
+        if not configured:
+            return candidates, 0, 0
+
+        executor = ThreadPoolExecutor(
+            max_workers=len(configured),
+            thread_name_prefix="google-language-candidate",
+        )
+        futures = [executor.submit(recognize_candidate, item) for item in configured]
+        try:
+            completed, pending = wait(
+                futures,
+                timeout=GOOGLE_RECOGNITION_TIMEOUT_SECONDS,
+            )
+            error_count = len(pending)
+            for future in completed:
+                candidate, failed = future.result()
+                if failed:
+                    error_count += 1
+                elif candidate is not None:
+                    candidates.append(candidate)
+            for future in pending:
+                future.cancel()
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
+
+        candidates.sort(key=lambda candidate: candidate["index"])
+        return candidates, error_count, len(configured)
+
     def transcribeAudioQueue(
         self,
         audio_queue: Any,
@@ -356,22 +425,15 @@ class AudioTranscriber:
             audio_data = self.audio_sources["process_data_func"]()
             match self.transcription_engine:
                 case "Google":
-                    google_error_count = 0
-                    for language, country in zip(languages, countries):
-                        try:
-                            text, confidence = self.audio_recognizer.recognize_google(
-                                audio_data,
-                                language=transcription_lang[language][country][self.transcription_engine],
-                                with_confidence=True
-                                )
-                            confidences.append({"confidence": confidence, "text": text, "language": language})
-                        except UnknownValueError:
-                            pass
-                        except Exception:
-                            google_error_count += 1
-                            errorLogging()
-                            pass
-                    if len(languages) > 0 and google_error_count >= len(languages):
+                    google_candidates, google_error_count, candidate_count = (
+                        self._recognizeGoogleCandidates(
+                            audio_data,
+                            languages,
+                            countries,
+                        )
+                    )
+                    confidences.extend(google_candidates)
+                    if candidate_count > 0 and google_error_count >= candidate_count:
                         self._handleRecognitionFailure()
                         self.clearLiveAudioSample()
                         emit_terminal_metric(
@@ -598,7 +660,14 @@ class AudioTranscriber:
             if safe_to_restart is not None:
                 safe_to_restart.set()
 
-        result = max(confidences, key=lambda x: x["confidence"])
+        result = max(
+            confidences,
+            key=lambda item: (
+                item["confidence"],
+                -item.get("index", len(confidences)),
+            ),
+        )
+        result.pop("index", None)
         result["started_at_monotonic"] = self.audio_sources[
             "phrase_started_at_monotonic"
         ]

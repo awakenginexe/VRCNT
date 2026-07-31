@@ -19,6 +19,7 @@ from models.transcription.transcription_language_policy import (
 )
 import config as config_module
 import controller as controller_module
+import model as model_module
 from controller import Controller
 
 
@@ -258,6 +259,26 @@ class LanguageProfileIntegrationTests(unittest.TestCase):
         route = mainloop.mapping["/get/data/transcription_language_capabilities"]
         self.assertIs(route["variable"], mainloop.controller.getTranscriptionLanguageCapabilities)
         self.assertFalse(route["status"])
+
+    def test_model_runtime_lists_pause_single_language_engine_extras(self):
+        languages, countries = model_module._runtimeTranscriptionLanguageLists(
+            "Parakeet",
+            THREE_LANGUAGE_SLOTS,
+            "microphone",
+        )
+
+        self.assertEqual(["English"], languages)
+        self.assertEqual(["Singapore"], countries)
+
+    def test_model_runtime_lists_keep_three_received_languages_for_google(self):
+        languages, countries = model_module._runtimeTranscriptionLanguageLists(
+            "Google",
+            THREE_LANGUAGE_SLOTS,
+            "received",
+        )
+
+        self.assertEqual(["English", "Thai", "Chinese Traditional"], languages)
+        self.assertEqual(["Singapore", "Thailand", "Taiwan"], countries)
 
 
 if __name__ == "__main__":

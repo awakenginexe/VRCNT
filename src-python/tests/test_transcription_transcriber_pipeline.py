@@ -7,7 +7,7 @@ import unittest
 from contextlib import contextmanager
 from dataclasses import FrozenInstanceError, fields
 from datetime import datetime, timedelta, timezone
-from threading import Event, Thread
+from threading import Barrier, Event, Lock, Thread
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -992,6 +992,137 @@ class TranscriberPipelineTests(unittest.TestCase):
             ],
             ["running", "success"],
         )
+
+    def test_google_language_candidates_run_concurrently_and_choose_highest_confidence(self):
+        events = []
+        transcriber = make_non_whisper_transcriber("Google", events, [])
+        barrier = Barrier(3)
+        calls = []
+        calls_lock = Lock()
+        results = {
+            "en-SG": ("hello", 0.61),
+            "th-TH": ("สวัสดี", 0.93),
+            "cmn-Hant-TW": ("你好", 0.72),
+        }
+
+        def recognize_google(audio, language, with_confidence):
+            with calls_lock:
+                calls.append(language)
+            barrier.wait(timeout=1.0)
+            return results[language]
+
+        transcriber.audio_recognizer = SimpleNamespace(
+            recognize_google=recognize_google,
+        )
+
+        result = transcriber.transcribeAudioQueue(
+            queue_with(
+                AudioChunk(
+                    pcm(100),
+                    datetime.now(timezone.utc),
+                    time.perf_counter(),
+                )
+            ),
+            ["English", "Thai", "Chinese Traditional"],
+            ["Singapore", "Thailand", "Taiwan"],
+        )
+
+        self.assertTrue(result)
+        self.assertCountEqual(["en-SG", "th-TH", "cmn-Hant-TW"], calls)
+        transcript = transcriber.getTranscript()
+        self.assertEqual("สวัสดี", transcript["text"])
+        self.assertEqual("Thai", transcript["language"])
+
+    def test_google_equal_confidence_uses_profile_slot_order(self):
+        transcriber = make_non_whisper_transcriber("Google", [], [])
+        barrier = Barrier(2)
+
+        def recognize_google(audio, language, with_confidence):
+            barrier.wait(timeout=1.0)
+            return ({"en-SG": "first", "th-TH": "second"}[language], 0.8)
+
+        transcriber.audio_recognizer = SimpleNamespace(
+            recognize_google=recognize_google,
+        )
+
+        self.assertTrue(
+            transcriber.transcribeAudioQueue(
+                queue_with(
+                    AudioChunk(
+                        pcm(100),
+                        datetime.now(timezone.utc),
+                        time.perf_counter(),
+                    )
+                ),
+                ["English", "Thai"],
+                ["Singapore", "Thailand"],
+            )
+        )
+
+        transcript = transcriber.getTranscript()
+        self.assertEqual("first", transcript["text"])
+        self.assertEqual("English", transcript["language"])
+
+    def test_google_limits_candidates_to_three_and_keeps_partial_success(self):
+        transcriber = make_non_whisper_transcriber("Google", [], [])
+        called_languages = []
+
+        def recognize_google(audio, language, with_confidence):
+            called_languages.append(language)
+            if language != "th-TH":
+                raise RuntimeError(f"candidate failed: {language}")
+            return "สวัสดี", 0.7
+
+        transcriber.audio_recognizer = SimpleNamespace(
+            recognize_google=recognize_google,
+        )
+
+        with patch.object(transcriber_module, "errorLogging"):
+            result = transcriber.transcribeAudioQueue(
+                queue_with(
+                    AudioChunk(
+                        pcm(100),
+                        datetime.now(timezone.utc),
+                        time.perf_counter(),
+                    )
+                ),
+                ["English", "Thai", "Chinese Traditional", "Japanese"],
+                ["Singapore", "Thailand", "Taiwan", "Japan"],
+            )
+
+        self.assertTrue(result)
+        self.assertCountEqual(["en-SG", "th-TH", "cmn-Hant-TW"], called_languages)
+        self.assertEqual("สวัสดี", transcriber.getTranscript()["text"])
+
+    def test_google_all_candidate_errors_emit_one_terminal_failure(self):
+        events = []
+        transcriber = make_non_whisper_transcriber("Google", events, [])
+        transcriber.audio_recognizer = SimpleNamespace(
+            recognize_google=lambda *args, **kwargs: (_ for _ in ()).throw(
+                RuntimeError("candidate failed")
+            )
+        )
+
+        with patch.object(transcriber_module, "errorLogging"):
+            result = transcriber.transcribeAudioQueue(
+                queue_with(
+                    AudioChunk(
+                        pcm(100),
+                        datetime.now(timezone.utc),
+                        time.perf_counter(),
+                    )
+                ),
+                ["English", "Thai", "Chinese Traditional"],
+                ["Singapore", "Thailand", "Taiwan"],
+            )
+
+        self.assertFalse(result)
+        terminal = [
+            (event.outcome, event.error_code)
+            for event in events
+            if event.stage == "transcription" and event.outcome != "running"
+        ]
+        self.assertEqual([("error", "google_recognition_failed")], terminal)
 
     def test_whisper_failure_clears_audio_and_only_requests_recovery(self):
         lease = FakeLease(error=RuntimeError("fake inference failed"))
