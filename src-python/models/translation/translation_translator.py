@@ -93,6 +93,7 @@ class Translator:
         self._ctranslate2_condition = Condition(RLock())
         self._ctranslate2_active_calls = 0
         self._ctranslate2_transitioning = False
+        self._ctranslate2_tokenizer_lock = Lock()
         self._web_translator = None
         self.is_enable_translators: bool = True
         self._provider_cooldown_lock = Lock()
@@ -741,21 +742,29 @@ class Translator:
 
         result: Any = False
         try:
-            tokenizer.src_lang = source_language
-            source = tokenizer.convert_ids_to_tokens(tokenizer.encode(message))
-            match weight_type:
-                case "m2m100_418M-ct2-int8" | "m2m100_1.2B-ct2-int8":
-                    target_prefix = [tokenizer.lang_code_to_token[target_language]]
-                case "nllb-200-distilled-1.3B-ct2-int8" | "nllb-200-3.3B-ct2-int8":
-                    target_prefix = [target_language]
-                case _:
-                    return False
+            with self._ctranslate2_tokenizer_lock:
+                tokenizer.src_lang = source_language
+                source = tokenizer.convert_ids_to_tokens(
+                    tokenizer.encode(message)
+                )
+                match weight_type:
+                    case "m2m100_418M-ct2-int8" | "m2m100_1.2B-ct2-int8":
+                        target_prefix = [
+                            tokenizer.lang_code_to_token[target_language]
+                        ]
+                    case "nllb-200-distilled-1.3B-ct2-int8" | "nllb-200-3.3B-ct2-int8":
+                        target_prefix = [target_language]
+                    case _:
+                        return False
             results = native_translator.translate_batch(
                 [source],
                 target_prefix=[target_prefix],
             )
             target = results[0].hypotheses[0][1:]
-            result = tokenizer.decode(tokenizer.convert_tokens_to_ids(target))
+            with self._ctranslate2_tokenizer_lock:
+                result = tokenizer.decode(
+                    tokenizer.convert_tokens_to_ids(target)
+                )
         except Exception:
             errorLogging()
         finally:

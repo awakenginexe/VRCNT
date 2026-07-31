@@ -130,6 +130,51 @@ class BlockingNativeCTranslate2Translator:
         return [SimpleNamespace(hypotheses=[["__en__", "translated"]])]
 
 
+class RacingCTranslate2Tokenizer:
+    def __init__(self):
+        self._src_lang = None
+        self.lang_code_to_token = {"en": "__en__"}
+        self.first_encode_entered = threading.Event()
+        self.release_first_encode = threading.Event()
+
+    @property
+    def src_lang(self):
+        return self._src_lang
+
+    @src_lang.setter
+    def src_lang(self, value):
+        self._src_lang = value
+
+    def encode(self, message):
+        if message == "first":
+            self.first_encode_entered.set()
+            self.release_first_encode.wait(WAIT_SECONDS)
+        return [f"{self.src_lang}:{message}"]
+
+    @staticmethod
+    def convert_ids_to_tokens(values):
+        return list(values)
+
+    @staticmethod
+    def convert_tokens_to_ids(values):
+        return list(values)
+
+    @staticmethod
+    def decode(_values):
+        return "translated"
+
+
+class RecordingNativeCTranslate2Translator:
+    def __init__(self):
+        self.sources = []
+        self.lock = threading.Lock()
+
+    def translate_batch(self, sources, **_kwargs):
+        with self.lock:
+            self.sources.append(tuple(sources[0]))
+        return [SimpleNamespace(hypotheses=[["__en__", "translated"]])]
+
+
 class CaptureStartedPipeline:
     """Deterministic source-session boundary for controller integration tests."""
 
@@ -168,6 +213,52 @@ class TranslationAttemptTests(unittest.TestCase):
         translator.ctranslate2_tokenizer = FakeCTranslate2Tokenizer()
         translator.is_loaded_ctranslate2_model = True
         return native
+
+    def test_parallel_local_jobs_keep_source_language_attached_to_own_text(self):
+        tokenizer = RacingCTranslate2Tokenizer()
+        native = RecordingNativeCTranslate2Translator()
+        self.translator.ctranslate2_translator = native
+        self.translator.ctranslate2_tokenizer = tokenizer
+        self.translator.is_loaded_ctranslate2_model = True
+        results = []
+
+        first = threading.Thread(
+            target=lambda: results.append(
+                self.translator.translateCTranslate2(
+                    "first",
+                    "ja",
+                    "en",
+                    "m2m100_418M-ct2-int8",
+                )
+            ),
+            daemon=True,
+        )
+        second = threading.Thread(
+            target=lambda: results.append(
+                self.translator.translateCTranslate2(
+                    "second",
+                    "zh",
+                    "en",
+                    "m2m100_418M-ct2-int8",
+                )
+            ),
+            daemon=True,
+        )
+
+        try:
+            first.start()
+            self.assertTrue(tokenizer.first_encode_entered.wait(WAIT_SECONDS))
+            second.start()
+            second.join(0.05)
+        finally:
+            tokenizer.release_first_encode.set()
+            first.join(WAIT_SECONDS)
+            second.join(WAIT_SECONDS)
+
+        self.assertFalse(first.is_alive())
+        self.assertFalse(second.is_alive())
+        self.assertEqual(sorted(native.sources), [("ja:first",), ("zh:second",)])
+        self.assertEqual(results, ["translated", "translated"])
 
     def test_unload_waits_for_active_local_inference_and_clears_references(self):
         native = self._mark_ctranslate2_loaded(
