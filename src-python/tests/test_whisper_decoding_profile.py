@@ -266,6 +266,7 @@ class WhisperDecodingConfigTests(unittest.TestCase):
         instance._config_data = {}
         instance._timer = None
         instance._SELECTED_YOUR_LANGUAGES = {}
+        instance._SELECTED_YOUR_TRANSLATION_LANGUAGES = {}
         instance.saveConfig = lambda key, value, immediate_save=False: instance._config_data.update(
             {key: value}
         )
