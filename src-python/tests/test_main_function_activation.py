@@ -681,6 +681,310 @@ class MainFunctionActivationTests(unittest.TestCase):
         finally:
             release_unload.set()
 
+    def test_switching_away_from_ctranslate2_keeps_enabled_fallback_loaded(self):
+        controller = _controller_for_activation()
+        loaded = True
+
+        def unload_model():
+            nonlocal loaded
+            loaded = False
+
+        with (
+            patch.multiple(
+                controller_module.config,
+                _ENABLE_TRANSLATION=True,
+                _ENABLE_CTRANSLATE2_AUTO_FALLBACK=True,
+                _SELECTED_TAB_NO="1",
+                _SELECTED_TRANSLATION_ENGINES={"1": "CTranslate2"},
+            ),
+            patch.object(
+                model_module.model,
+                "isLoadedCTranslate2Model",
+                side_effect=lambda: loaded,
+            ),
+            patch.object(
+                model_module.model,
+                "isChangedTranslatorParameters",
+                return_value=False,
+            ),
+            patch.object(
+                model_module.model,
+                "unloadTranslatorCTranslate2Model",
+                side_effect=unload_model,
+            ),
+        ):
+            response = controller.setSelectedTranslationEngines(
+                {"1": ["Google", "Bing"]}
+            )
+
+        self.assertEqual(
+            response,
+            {"status": 200, "result": {"1": ["Google", "Bing"]}},
+        )
+        self.assertTrue(loaded)
+
+    def test_active_cloud_engine_change_repairs_missing_enabled_fallback(self):
+        controller = _controller_for_activation()
+        loaded = False
+
+        def load_model():
+            nonlocal loaded
+            loaded = True
+
+        with (
+            patch.multiple(
+                controller_module.config,
+                _ENABLE_TRANSLATION=True,
+                _ENABLE_CTRANSLATE2_AUTO_FALLBACK=True,
+                _SELECTED_TAB_NO="1",
+                _SELECTED_TRANSLATION_ENGINES={"1": "Google"},
+            ),
+            patch.object(
+                model_module.model,
+                "isLoadedCTranslate2Model",
+                side_effect=lambda: loaded,
+            ),
+            patch.object(
+                model_module.model,
+                "isChangedTranslatorParameters",
+                return_value=False,
+            ),
+            patch.object(
+                model_module.model,
+                "changeTranslatorCTranslate2Model",
+                side_effect=load_model,
+            ),
+            patch.object(model_module.model, "setChangedTranslatorParameters"),
+        ):
+            response = controller.setSelectedTranslationEngines(
+                {"1": ["Bing", "Google"]}
+            )
+
+        self.assertEqual(response["status"], 200)
+        self.assertTrue(loaded)
+
+    def test_active_tab_change_repairs_missing_enabled_fallback(self):
+        controller = _controller_for_activation()
+        controller._normalizeSelectedYourLanguageForTranscription = Mock()
+        controller.updateTranslationEngineAndEngineList = Mock()
+        loaded = False
+
+        def load_model():
+            nonlocal loaded
+            loaded = True
+
+        with (
+            patch.multiple(
+                controller_module.config,
+                _ENABLE_TRANSLATION=True,
+                _ENABLE_CTRANSLATE2_AUTO_FALLBACK=True,
+                _SELECTED_TAB_NO="1",
+                _SELECTED_TRANSLATION_ENGINES={
+                    "1": "Google",
+                    "2": "Bing",
+                },
+            ),
+            patch.object(
+                model_module.model,
+                "isLoadedCTranslate2Model",
+                side_effect=lambda: loaded,
+            ),
+            patch.object(
+                model_module.model,
+                "isChangedTranslatorParameters",
+                return_value=False,
+            ),
+            patch.object(
+                model_module.model,
+                "changeTranslatorCTranslate2Model",
+                side_effect=load_model,
+            ),
+            patch.object(model_module.model, "setChangedTranslatorParameters"),
+        ):
+            response = controller.setSelectedTabNo("2")
+
+        self.assertEqual(response, {"status": 200, "result": "2"})
+        self.assertTrue(loaded)
+
+    def test_active_fallback_weight_change_reloads_before_returning(self):
+        controller = _controller_for_activation()
+        parameter_changed = False
+        loads = []
+
+        def set_parameter_changed(value):
+            nonlocal parameter_changed
+            parameter_changed = value
+
+        with (
+            patch.multiple(
+                controller_module.config,
+                _ENABLE_TRANSLATION=True,
+                _ENABLE_CTRANSLATE2_AUTO_FALLBACK=True,
+                _SELECTED_TAB_NO="1",
+                _SELECTED_TRANSLATION_ENGINES={"1": "Google"},
+                _CTRANSLATE2_WEIGHT_TYPE="m2m100_418M-ct2-int8",
+            ),
+            patch.object(
+                model_module.model,
+                "isLoadedCTranslate2Model",
+                return_value=True,
+            ),
+            patch.object(
+                model_module.model,
+                "isChangedTranslatorParameters",
+                side_effect=lambda: parameter_changed,
+            ),
+            patch.object(
+                model_module.model,
+                "setChangedTranslatorParameters",
+                side_effect=set_parameter_changed,
+            ),
+            patch.object(
+                model_module.model,
+                "changeTranslatorCTranslate2Model",
+                side_effect=lambda: loads.append("loaded"),
+            ),
+        ):
+            response = controller.setCtranslate2WeightType(
+                "nllb-200-distilled-1.3B-ct2-int8"
+            )
+
+        self.assertEqual(response["status"], 200)
+        self.assertEqual(loads, ["loaded"])
+        self.assertFalse(parameter_changed)
+
+    def test_active_fallback_device_change_reloads_before_returning(self):
+        controller = _controller_for_activation()
+        controller.run_mapping["selected_translation_compute_type"] = (
+            "/run/selected_translation_compute_type"
+        )
+        parameter_changed = False
+        loads = []
+
+        def set_parameter_changed(value):
+            nonlocal parameter_changed
+            parameter_changed = value
+
+        previous_device = {
+            "device": "cuda",
+            "device_index": 0,
+            "device_name": "Test CUDA",
+            "compute_types": ["auto", "float16", "int8_float16"],
+        }
+        selected_device = {
+            "device": "cpu",
+            "device_index": 0,
+            "device_name": "cpu",
+            "compute_types": ["auto", "float32", "int8"],
+        }
+        with (
+            patch.multiple(
+                controller_module.config,
+                _ENABLE_TRANSLATION=True,
+                _ENABLE_CTRANSLATE2_AUTO_FALLBACK=True,
+                _SELECTED_TAB_NO="1",
+                _SELECTED_TRANSLATION_ENGINES={"1": "Google"},
+                _SELECTABLE_COMPUTE_DEVICE_LIST=[
+                    previous_device,
+                    selected_device,
+                ],
+                _SELECTED_TRANSLATION_COMPUTE_DEVICE=previous_device,
+                _SELECTED_TRANSLATION_COMPUTE_TYPE="float16",
+            ),
+            patch.object(
+                model_module.model,
+                "isLoadedCTranslate2Model",
+                return_value=True,
+            ),
+            patch.object(
+                model_module.model,
+                "isChangedTranslatorParameters",
+                side_effect=lambda: parameter_changed,
+            ),
+            patch.object(
+                model_module.model,
+                "setChangedTranslatorParameters",
+                side_effect=set_parameter_changed,
+            ),
+            patch.object(
+                model_module.model,
+                "changeTranslatorCTranslate2Model",
+                side_effect=lambda: loads.append("loaded"),
+            ),
+        ):
+            response = controller.setSelectedTranslationComputeDevice(
+                selected_device
+            )
+            applied_device = (
+                controller_module.config.SELECTED_TRANSLATION_COMPUTE_DEVICE
+            )
+            applied_type = (
+                controller_module.config.SELECTED_TRANSLATION_COMPUTE_TYPE
+            )
+
+        self.assertEqual(response, {"status": 200, "result": selected_device})
+        self.assertEqual(applied_device, selected_device)
+        self.assertEqual(applied_type, "auto")
+        self.assertEqual(loads, ["loaded"])
+        self.assertFalse(parameter_changed)
+
+    def test_active_fallback_compute_type_change_reloads_before_returning(self):
+        controller = _controller_for_activation()
+        parameter_changed = False
+        loads = []
+
+        def set_parameter_changed(value):
+            nonlocal parameter_changed
+            parameter_changed = value
+
+        with (
+            patch.multiple(
+                controller_module.config,
+                _ENABLE_TRANSLATION=True,
+                _ENABLE_CTRANSLATE2_AUTO_FALLBACK=True,
+                _SELECTED_TAB_NO="1",
+                _SELECTED_TRANSLATION_ENGINES={"1": "Google"},
+                _SELECTED_TRANSLATION_COMPUTE_DEVICE={
+                    "device": "cuda",
+                    "device_index": 0,
+                    "device_name": "Test CUDA",
+                    "compute_types": [
+                        "auto",
+                        "float16",
+                        "int8_float16",
+                    ],
+                },
+                _SELECTED_TRANSLATION_COMPUTE_TYPE="auto",
+            ),
+            patch.object(
+                model_module.model,
+                "isLoadedCTranslate2Model",
+                return_value=True,
+            ),
+            patch.object(
+                model_module.model,
+                "isChangedTranslatorParameters",
+                side_effect=lambda: parameter_changed,
+            ),
+            patch.object(
+                model_module.model,
+                "setChangedTranslatorParameters",
+                side_effect=set_parameter_changed,
+            ),
+            patch.object(
+                model_module.model,
+                "changeTranslatorCTranslate2Model",
+                side_effect=lambda: loads.append("loaded"),
+            ),
+        ):
+            response = controller.setSelectedTranslationComputeType(
+                "int8_float16"
+            )
+
+        self.assertEqual(response, {"status": 200, "result": "int8_float16"})
+        self.assertEqual(loads, ["loaded"])
+        self.assertFalse(parameter_changed)
+
     def test_disabling_ctranslate2_unloads_and_next_enable_loads_again(self):
         controller = _controller_for_activation()
         loaded = True
