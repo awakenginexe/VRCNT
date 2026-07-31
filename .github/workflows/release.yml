@@ -3,7 +3,7 @@ name: Release VRCNT
 on:
   push:
     tags:
-      - 'v*' # Trigger when tag starts with 'v' (e.g. v4.2.0)
+      - 'v*' # Trigger when tag starts with 'v' (e.g. v4.2.1)
   workflow_dispatch:
     inputs:
       release_tag:

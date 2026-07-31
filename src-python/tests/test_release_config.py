@@ -13,9 +13,9 @@ from release_config import build_release_urls, load_release_config
 
 
 class ReleaseConfigTests(unittest.TestCase):
-    def test_vrcnt_4_2_0_urls_use_renamed_repositories(self):
+    def test_vrcnt_4_2_1_urls_use_renamed_repositories(self):
         config = load_release_config(REPOSITORY_ROOT)
-        urls = build_release_urls(config, "4.2.0")
+        urls = build_release_urls(config, "4.2.1")
 
         self.assertEqual(config.github_owner, "awakenginexe")
         self.assertEqual(config.github_repo, "VRCNT")
@@ -35,11 +35,11 @@ class ReleaseConfigTests(unittest.TestCase):
             urls.installer_url,
             (
                 "https://huggingface.co/AwakeNgineXE/VRCNT/"
-                "resolve/v4.2.0/VRCNT_4.2.0_x64-setup.exe"
+                "resolve/v4.2.1/VRCNT_4.2.1_x64-setup.exe"
             ),
         )
 
-    def test_release_manifests_and_readme_are_version_4_2_0(self):
+    def test_release_manifests_and_readme_are_version_4_2_1(self):
         with open(
             os.path.join(REPOSITORY_ROOT, "package.json"),
             "r",
@@ -63,9 +63,9 @@ class ReleaseConfigTests(unittest.TestCase):
         ) as readme_file:
             readme = readme_file.read()
 
-        self.assertEqual(package["version"], "4.2.0")
-        self.assertEqual(tauri_config["version"], "4.2.0")
-        self.assertIn("badge/version-4.2.0-", readme)
+        self.assertEqual(package["version"], "4.2.1")
+        self.assertEqual(tauri_config["version"], "4.2.1")
+        self.assertIn("badge/version-4.2.1-", readme)
 
 
 if __name__ == "__main__":
