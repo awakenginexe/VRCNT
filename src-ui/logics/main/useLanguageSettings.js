@@ -313,7 +313,6 @@ export const useLanguageSettings = () => {
 
     const swapSelectedLanguages = () => {
         pendingSelectedYourLanguages();
-        pendingSelectedYourTranslationLanguages();
         pendingSelectedTargetLanguages();
         asyncStdoutToPython("/run/swap_your_language_and_target_language");
     };

@@ -92,3 +92,15 @@ test("language settings replaces hidden numbered rows with the three role groups
     assert.doesNotMatch(source, /AddRemoveYourLanguageButtons/);
     assert.doesNotMatch(source, /AddRemoveTargetLanguageButtons/);
 });
+
+test("complete profile swap does not leave the unchanged preferred language pending", () => {
+    const source = read("src-ui/logics/main/useLanguageSettings.js");
+    const swapBody = source.match(
+        /const swapSelectedLanguages = \(\) => \{([\s\S]*?)\n    \};/,
+    )?.[1];
+
+    assert.equal(typeof swapBody, "string");
+    assert.match(swapBody, /pendingSelectedYourLanguages/);
+    assert.match(swapBody, /pendingSelectedTargetLanguages/);
+    assert.doesNotMatch(swapBody, /pendingSelectedYourTranslationLanguages/);
+});
