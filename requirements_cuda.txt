@@ -1,6 +1,6 @@
 torch==2.7.0
 --extra-index-url https://download.pytorch.org/whl/cu128
-faster-whisper==1.1.1
+faster-whisper==1.2.1
 ctranslate2==4.6.0
 onnxruntime-gpu==1.19.2
 -f https://k2-fsa.github.io/sherpa/onnx/cuda.html

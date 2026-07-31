@@ -141,6 +141,35 @@ class FakeLease:
         self.closed = True
 
 
+class EmptyWhisperLease(FakeLease):
+    def transcribe(self, audio, **options):
+        self.calls.append((audio, options))
+        return FakeInferenceResult(
+            (),
+            SimpleNamespace(language="en", language_probability=0.9),
+        )
+
+
+class FilteredWhisperLease(FakeLease):
+    def transcribe(self, audio, **options):
+        self.calls.append((audio, options))
+        return FakeInferenceResult(
+            (
+                SimpleNamespace(
+                    text=" subtitle volunteers",
+                    avg_logprob=-2.0,
+                    no_speech_prob=0.1,
+                ),
+                SimpleNamespace(
+                    text=" please subscribe",
+                    avg_logprob=-0.1,
+                    no_speech_prob=0.95,
+                ),
+            ),
+            SimpleNamespace(language="en", language_probability=0.9),
+        )
+
+
 class FakeMicRecorder:
     events = None
 
@@ -474,7 +503,65 @@ class TranscriberPipelineTests(unittest.TestCase):
 
         self.assertEqual(len(lease.calls), 1)
         self.assertEqual(lease.calls[0][1]["beam_size"], 2)
+        self.assertTrue(lease.calls[0][1]["vad_filter"])
         self.assertEqual(transcriber.getTranscript()["text"], " hello world")
+
+    def test_vad_rejected_music_like_audio_never_becomes_a_transcript(self):
+        lease = EmptyWhisperLease()
+        events = []
+        context = make_pipeline_context(lease, events=events)
+        transcriber = make_transcriber(lease, context)
+
+        result = transcriber.transcribeAudioQueue(
+            queue_with(
+                AudioChunk(
+                    pcm(1200),
+                    datetime.now(timezone.utc),
+                    time.perf_counter(),
+                )
+            ),
+            ["English"],
+            ["United States"],
+        )
+
+        self.assertFalse(result)
+        self.assertEqual(transcriber.getTranscript()["text"], "")
+        terminal = [
+            (event.outcome, event.error_code)
+            for event in events
+            if event.stage == "transcription" and event.outcome != "running"
+        ]
+        self.assertEqual(terminal, [("skipped", "transcription_no_speech")])
+
+    def test_fully_filtered_whisper_segments_never_become_a_transcript(self):
+        lease = FilteredWhisperLease()
+        events = []
+        context = make_pipeline_context(lease, events=events)
+        transcriber = make_transcriber(lease, context)
+
+        result = transcriber.transcribeAudioQueue(
+            queue_with(
+                AudioChunk(
+                    pcm(1200),
+                    datetime.now(timezone.utc),
+                    time.perf_counter(),
+                )
+            ),
+            ["English"],
+            ["United States"],
+        )
+
+        self.assertFalse(result)
+        self.assertEqual(transcriber.getTranscript()["text"], "")
+        terminal = [
+            (event.outcome, event.error_code)
+            for event in events
+            if event.stage == "transcription" and event.outcome != "running"
+        ]
+        self.assertEqual(
+            terminal,
+            [("skipped", "transcription_low_confidence")],
+        )
 
     def test_queue_age_metrics_and_phrase_start_use_audio_chunk_capture_time(self):
         lease = FakeLease()
@@ -638,15 +725,18 @@ class TranscriberPipelineTests(unittest.TestCase):
             ["United States"],
         )
 
-        self.assertTrue(result)
+        self.assertFalse(result)
         self.assertEqual(lease.calls, [])
         self.assertEqual(
             [
-                event.outcome
+                (event.outcome, event.error_code)
                 for event in events
                 if event.stage == "transcription"
             ],
-            ["running", "success"],
+            [
+                ("running", None),
+                ("skipped", "transcription_no_speech"),
+            ],
         )
 
     def test_missing_languages_ends_running_metric_with_input_error(self):

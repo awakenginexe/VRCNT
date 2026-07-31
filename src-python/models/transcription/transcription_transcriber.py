@@ -265,7 +265,7 @@ class AudioTranscriber:
         avg_logprob: float = -0.8,
         no_speech_prob: float = 0.6,
         no_repeat_ngram_size: int = 0,
-        vad_filter: bool = False,
+        vad_filter: bool = True,
         vad_parameters: Optional[Union[dict, Any]] = None,
     ) -> bool:
         try:
@@ -397,8 +397,11 @@ class AudioTranscriber:
                             audio_data = audio_data.detach().numpy()
                         if audio_data.size == 0 or not np.any(audio_data):
                             if self._isGenerationCurrent():
-                                emit_terminal_metric("success")
-                            return True
+                                emit_terminal_metric(
+                                    "skipped",
+                                    "transcription_no_speech",
+                                )
+                            return False
                         max_samples = 16000 * MAX_WHISPER_LIVE_AUDIO_SECONDS
                         if audio_data.size > max_samples:
                             audio_data = audio_data[-max_samples:]
@@ -422,11 +425,26 @@ class AudioTranscriber:
                         )
                         segments = inference_result.segments
                         info = inference_result.info
-                        text = ""
+                        segments_seen = False
+                        accepted_parts = []
                         for s in segments:
+                            segments_seen = True
                             if s.avg_logprob < avg_logprob or s.no_speech_prob > no_speech_prob:
                                 continue
-                            text += s.text
+                            accepted_parts.append(s.text)
+
+                        text = "".join(accepted_parts)
+                        if not text.strip():
+                            if self._isGenerationCurrent():
+                                emit_terminal_metric(
+                                    "skipped",
+                                    (
+                                        "transcription_low_confidence"
+                                        if segments_seen
+                                        else "transcription_no_speech"
+                                    ),
+                                )
+                            return False
 
                         result_language = (
                             languages[0] if len(languages) == 1

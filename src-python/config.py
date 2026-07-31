@@ -821,7 +821,11 @@ class Config:
     MIC_AVG_LOGPROB = ManagedProperty('MIC_AVG_LOGPROB', type_=(int, float))
     MIC_NO_SPEECH_PROB = ManagedProperty('MIC_NO_SPEECH_PROB', type_=(int, float))
     MIC_NO_REPEAT_NGRAM_SIZE = ManagedProperty('MIC_NO_REPEAT_NGRAM_SIZE', type_=int)
-    MIC_VAD_FILTER = ManagedProperty('MIC_VAD_FILTER', type_=bool)
+    MIC_VAD_FILTER = ManagedProperty(
+        'MIC_VAD_FILTER',
+        type_=bool,
+        serialize=False,
+    )
     MIC_VAD_PARAMETERS = ManagedProperty('MIC_VAD_PARAMETERS', type_=dict, mutable_tracking=True)
     HOTKEYS = ValidatedProperty('HOTKEYS',
         validator=lambda val, inst: (
@@ -840,7 +844,11 @@ class Config:
     SPEAKER_AVG_LOGPROB = ManagedProperty('SPEAKER_AVG_LOGPROB', type_=(int, float))
     SPEAKER_NO_SPEECH_PROB = ManagedProperty('SPEAKER_NO_SPEECH_PROB', type_=(int, float))
     SPEAKER_NO_REPEAT_NGRAM_SIZE = ManagedProperty('SPEAKER_NO_REPEAT_NGRAM_SIZE', type_=int)
-    SPEAKER_VAD_FILTER = ManagedProperty('SPEAKER_VAD_FILTER', type_=bool)
+    SPEAKER_VAD_FILTER = ManagedProperty(
+        'SPEAKER_VAD_FILTER',
+        type_=bool,
+        serialize=False,
+    )
     SPEAKER_VAD_PARAMETERS = ManagedProperty('SPEAKER_VAD_PARAMETERS', type_=dict, mutable_tracking=True)
 
     # --- Auth and API settings ---
@@ -1103,7 +1111,7 @@ class Config:
         self._MIC_AVG_LOGPROB = -0.8
         self._MIC_NO_SPEECH_PROB = 0.6
         self._MIC_NO_REPEAT_NGRAM_SIZE = 0
-        self._MIC_VAD_FILTER = False
+        self._MIC_VAD_FILTER = True
         self._MIC_VAD_PARAMETERS = {
             "threshold": 0.5,
             "neg_threshold": None,
@@ -1130,7 +1138,7 @@ class Config:
         self._SPEAKER_AVG_LOGPROB = -0.8
         self._SPEAKER_NO_SPEECH_PROB = 0.6
         self._SPEAKER_NO_REPEAT_NGRAM_SIZE = 0
-        self._SPEAKER_VAD_FILTER = False
+        self._SPEAKER_VAD_FILTER = True
         self._SPEAKER_VAD_PARAMETERS = {
             "threshold": 0.5,
             "neg_threshold": None,
