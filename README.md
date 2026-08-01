@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.2.1-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-4.2.2-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>
@@ -96,6 +96,13 @@ npm run build-cuda
 
 The release executable and installer are generated under
 `src-tauri/target/release`.
+
+Official builds are published on [GitHub Releases](https://github.com/awakenginexe/VRCNT/releases).
+The installer can download its three signed multipart package files, or use
+`VRCNT_<version>.7z.001` through `.003` when they are placed beside it together
+with `package-manifest.json` and `package-manifest.json.sig`. To run
+VRCNT portably, keep all three parts together, extract `.7z.001` with 7-Zip,
+and launch `vrcnt.exe` from the extracted directory.
 
 Downloaded models and configuration are stored under
 `%LOCALAPPDATA%\VRCNTData`. VRCNT 4.1.0 automatically migrates an existing

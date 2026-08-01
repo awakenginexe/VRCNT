@@ -107,15 +107,16 @@ npm run build-cuda
 
 Same pipeline but uses `.venv_cuda` and `spec/backend_cuda.spec`. Produces a GPU-accelerated build.
 
-### Step 6 — (Optional) Release ZIP
+### Step 6 — GitHub Release packaging
 
-```powershell
-npm run release        # CPU
-npm run release-cuda   # CUDA
-npm run release-all    # both
-```
-
-Produces `VRCT.zip` / `VRCT_cuda.zip` at the repo root.
+The `.github/workflows/release.yml` workflow is the authoritative release path.
+For a `vMAJOR.MINOR.PATCH` tag it builds the CUDA payload and thin NSIS
+installer, creates exactly three `VRCNT_<version>.7z.00N` portable parts,
+signs the package manifest and Tauri updater artifact, generates
+`SHA256SUMS.txt` and `latest.json`, verifies them, and uploads all assets to the
+matching GitHub Release. The workflow requires the existing
+`TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` GitHub
+Actions Secrets; never store either value in the repository.
 
 ---
 

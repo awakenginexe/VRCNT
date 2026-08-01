@@ -87,14 +87,23 @@ def update_versions():
     )
 
     nsis_release_base = (
-        f"https://huggingface.co/{release_config.hf_repo_id}/resolve/v${{VERSION}}"
+        f"https://github.com/{release_config.github_owner}/{release_config.github_repo}/releases/download/v${{VERSION}}"
         if not release_config.has_placeholders else ""
     )
     replace_in_file(
         os.path.join(root, "src-tauri", "nsis", "template.nsi"),
         [
             (r'(!define SOFTWARE_RELEASE_URL ")[^"]*(")', rf'\g<1>{nsis_release_base}\g<2>', 1),
-            (r'(!define SOFTWARE_DOWNLOAD_FILENAME ")[^"]*(")', rf'\g<1>{release_config.release_asset_zip_name}\g<2>', 1),
+            (
+                r'(!define PACKAGE_MANIFEST_NAME ")[^"]*(")',
+                rf'\g<1>{release_config.package_manifest_asset_name}\g<2>',
+                1,
+            ),
+            (
+                r'(!define PACKAGE_PART_COUNT )[0-9]+',
+                rf'\g<1>{release_config.package_part_count}',
+                1,
+            ),
         ]
     )
 

@@ -43,9 +43,13 @@ ${StrLoc}
 !define MANUPRODUCTKEY "Software\${MANUFACTURER}\${PRODUCTNAME}"
 !define UNINSTALLERSIGNCOMMAND "{{uninstaller_sign_cmd}}"
 !define ESTIMATEDSIZE "{{estimated_size}}"
+!define SOFTWARE_RELEASE_URL "https://github.com/awakenginexe/VRCNT/releases/download/v${VERSION}"
+!define PACKAGE_MANIFEST_NAME "package-manifest.json"
+!define PACKAGE_MANIFEST_SIGNATURE_NAME "package-manifest.json.sig"
+!define PACKAGE_PART_COUNT 3
 ; The app payload is downloaded at install time, so Tauri's generated estimate is 0.
-; Installed size tracks the current release ZIP's uncompressed payload size in KiB.
-; Required size also includes the temporary ZIP that exists during extraction.
+; Installed size tracks the release payload's uncompressed size in KiB.
+; Required size also includes the temporary multipart package during extraction.
 !define VRCNT_EXTERNAL_INSTALLED_SIZE_KB 6823822
 !define VRCNT_EXTERNAL_REQUIRED_SIZE_KB 10752577
 
@@ -625,49 +629,26 @@ Section Install
 
   !insertmacro CheckIfAppIsRunning
 
-  !addplugindir "..\..\..\..\nsis\plugins\x86-unicode"
-  ; 指定のURLからファイルをダウンロード
-  !define SOFTWARE_RELEASE_URL "https://huggingface.co/AwakeNgineXE/VRCNT/resolve/v${VERSION}"
-  !define SOFTWARE_DOWNLOAD_FILENAME "VRCNT.zip"
-  Var /GLOBAL i
-  Var /GLOBAL cmder_dl
-  Var /GLOBAL cmder_version
-  Var /GLOBAL file_name
-  StrCpy $file_name "${SOFTWARE_DOWNLOAD_FILENAME}"
+  ; Embed only the authenticated download helper and extraction tools, never the app payload.
+  InitPluginsDir
+  File "/oname=$PLUGINSDIR\VRCNT.ReleaseHelper.exe" "..\..\..\..\nsis\bin\VRCNT.ReleaseHelper.exe"
+  File "/oname=$PLUGINSDIR\7za.exe" "..\..\..\..\nsis\bin\7za.exe"
+  File "/oname=$PLUGINSDIR\minisign.exe" "..\..\..\..\nsis\bin\minisign.exe"
 
-  StrCpy $cmder_dl "${SOFTWARE_RELEASE_URL}/$file_name"
-  DetailPrint "Got URL : $cmder_dl"
-
-  DetailPrint "Downloading and extracting $file_name..."
-  FileOpen $0 "$TEMP\VRCNT-install.ps1" w
-  FileWrite $0 "$$ErrorActionPreference = 'Stop'$\r$\n"
-  FileWrite $0 "$$ProgressPreference = 'SilentlyContinue'$\r$\n"
-  FileWrite $0 "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12$\r$\n"
-  FileWrite $0 "$$url = $$args[0]$\r$\n"
-  FileWrite $0 "$$zipPath = $$args[1]$\r$\n"
-  FileWrite $0 "$$dest = $$args[2]$\r$\n"
-  FileWrite $0 "Write-Output ('Downloading ' + $$url)$\r$\n"
-  FileWrite $0 "Invoke-WebRequest -Uri $$url -OutFile $$zipPath -UseBasicParsing$\r$\n"
-  FileWrite $0 "$$downloadedBytes = (Get-Item -LiteralPath $$zipPath).Length$\r$\n"
-  FileWrite $0 "Write-Output ('Downloaded ' + $$downloadedBytes + ' bytes')$\r$\n"
-  FileWrite $0 "Write-Output ('Extracting to ' + $$dest)$\r$\n"
-  FileWrite $0 "Expand-Archive -LiteralPath $$zipPath -DestinationPath $$dest -Force$\r$\n"
-  FileWrite $0 "Write-Output 'Extraction complete'$\r$\n"
-  FileClose $0
-
-  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$TEMP\VRCNT-install.ps1" "$cmder_dl" "$TEMP\$file_name" "$INSTDIR"'
+  CreateDirectory "$LOCALAPPDATA\VRCNTInstallerCache\v${VERSION}"
+  DetailPrint "Checking for VRCNT_${VERSION}.7z.001 through .003 beside the installer..."
+  nsExec::ExecToLog '"$PLUGINSDIR\VRCNT.ReleaseHelper.exe" --version "${VERSION}" --release-base-url "${SOFTWARE_RELEASE_URL}" --installer-directory "$EXEDIR" --cache-directory "$LOCALAPPDATA\VRCNTInstallerCache\v${VERSION}" --destination "$INSTDIR" --manifest-name "${PACKAGE_MANIFEST_NAME}" --signature-name "${PACKAGE_MANIFEST_SIGNATURE_NAME}" --part-count "${PACKAGE_PART_COUNT}" --sevenzip "$PLUGINSDIR\7za.exe" --minisign "$PLUGINSDIR\minisign.exe"'
   Pop $0
-  Delete "$TEMP\VRCNT-install.ps1"
   ${If} $0 != 0
-    DetailPrint "Install Failed: download or extraction failed with exit code $0."
-    Abort
+    DetailPrint "Install failed with exit code $0. Partial downloads were retained safely for resume."
+    MessageBox MB_ICONSTOP|MB_OK "VRCNT installation failed. Review the installer details for the exact signature, hash, download, or extraction error. Run the installer again to resume interrupted downloads."
+    Abort "VRCNT application payload installation failed."
   ${EndIf}
 
   ${IfNot} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe"
     DetailPrint "Install Failed: $INSTDIR\${MAINBINARYNAME}.exe was not extracted."
-    Abort
+    Abort "The verified package did not contain ${MAINBINARYNAME}.exe."
   ${EndIf}
-  Delete "$TEMP\$file_name"
 
   ; Create uninstaller
   WriteUninstaller "$INSTDIR\uninstall.exe"
