@@ -68,6 +68,8 @@ test("workflow signs and verifies both package and Tauri updater artifacts", () 
     assert.match(workflow, /latest\.json has an invalid GitHub updater URL or empty signature/);
     assert.match(workflow, /signed Tauri updater artifact is missing/i);
     assert.doesNotMatch(workflow, /continue-on-error:\s*true/);
+    assert.match(workflow, /minisign-0\.12-win64\.zip/);
+    assert.match(workflow, /37b600344e20c19314b2e82813db2bfdcc408b77b876f7727889dbd46d539479/);
 });
 
 

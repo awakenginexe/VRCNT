@@ -114,21 +114,39 @@ jobs:
       - name: Prepare bundled installer tools
         shell: pwsh
         run: |
-          choco install 7zip.commandline minisign -y --no-progress
+          choco install 7zip.commandline -y --no-progress
           if ($LASTEXITCODE -ne 0) {
-            throw 'Could not install the 7za/minisign build tools.'
+            throw 'Could not install the 7za build tool.'
           }
           $toolDir = Join-Path (Get-Location) 'src-tauri/nsis/bin'
           New-Item -ItemType Directory -Path $toolDir -Force | Out-Null
           $sevenZip = Get-ChildItem $env:ChocolateyInstall/lib -Recurse -Filter 7za.exe |
             Sort-Object FullName | Select-Object -First 1
-          $minisign = Get-ChildItem $env:ChocolateyInstall/lib -Recurse -Filter minisign.exe |
-            Where-Object { $_.FullName -notmatch 'aarch64|arm64' } |
-            Sort-Object FullName | Select-Object -First 1
-          if (-not $sevenZip -or -not $minisign) {
-            throw '7za.exe or minisign.exe was not found after installation.'
+          if (-not $sevenZip) {
+            throw '7za.exe was not found after installation.'
           }
           Copy-Item $sevenZip.FullName (Join-Path $toolDir '7za.exe') -Force
+
+          $minisignArchive = Join-Path $env:RUNNER_TEMP 'minisign-0.12-win64.zip'
+          curl.exe -L --fail --retry 3 `
+            -o $minisignArchive `
+            'https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-win64.zip'
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not download minisign 0.12.'
+          }
+          $expectedMinisignSha256 = '37b600344e20c19314b2e82813db2bfdcc408b77b876f7727889dbd46d539479'
+          $actualMinisignSha256 = (Get-FileHash $minisignArchive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualMinisignSha256 -ne $expectedMinisignSha256) {
+            throw "minisign archive SHA-256 mismatch: expected $expectedMinisignSha256, got $actualMinisignSha256."
+          }
+          $minisignExtract = Join-Path $env:RUNNER_TEMP 'minisign-0.12'
+          Expand-Archive -LiteralPath $minisignArchive -DestinationPath $minisignExtract -Force
+          $minisign = Get-ChildItem $minisignExtract -Recurse -Filter minisign.exe |
+            Where-Object { $_.FullName -match 'x86_64' } |
+            Select-Object -First 1
+          if (-not $minisign) {
+            throw 'The verified minisign 0.12 archive did not contain the x86_64 executable.'
+          }
           Copy-Item $minisign.FullName (Join-Path $toolDir 'minisign.exe') -Force
           dotnet publish ./installer-helper/VRCNT.ReleaseHelper.csproj `
             -c Release -r win-x64 --self-contained true `
