@@ -222,32 +222,33 @@ class WhisperRuntimeTests(unittest.TestCase):
         manager = WhisperRuntimeManager(factory=factory, unload=lambda model: None)
         lease = manager.acquire("app-root", self.key_a)
         model = factory.models[0]
+        vad_parameters = {
+            "threshold": 0.5,
+            "min_silence_duration_ms": 500,
+        }
 
         result = lease.transcribe_restricted_languages(
             "profile-audio",
             language_codes=("en", "th", "zh"),
             beam_size=2,
             vad_filter=True,
-            vad_parameters={"min_silence_duration_ms": 500},
+            vad_parameters=vad_parameters,
         )
 
         self.assertEqual("zh", result.detected_language)
         self.assertEqual(0.72, result.detected_language_probability)
-        self.assertEqual(
-            [
-                (
-                    "profile-audio",
-                    {
-                        "vad_filter": True,
-                        "vad_parameters": {"min_silence_duration_ms": 500},
-                    },
-                )
-            ],
-            model.detect_language_calls,
-        )
+        self.assertEqual(1, len(model.detect_language_calls))
+        detected_audio, detection_options = model.detect_language_calls[0]
+        self.assertEqual("profile-audio", detected_audio)
+        self.assertTrue(detection_options["vad_filter"])
+        detected_vad_parameters = detection_options["vad_parameters"]
+        self.assertEqual(0.5, detected_vad_parameters.threshold)
+        self.assertEqual(500, detected_vad_parameters.min_silence_duration_ms)
+        self.assertIsNot(detected_vad_parameters, vad_parameters)
         self.assertEqual(1, len(model.transcribe_calls))
         self.assertEqual("zh", model.transcribe_calls[0][1]["language"])
         self.assertEqual(2, model.transcribe_calls[0][1]["beam_size"])
+        self.assertIs(vad_parameters, model.transcribe_calls[0][1]["vad_parameters"])
         lease.close()
 
     def test_restricted_detection_uses_configured_order_for_equal_probabilities(self):

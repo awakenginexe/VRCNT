@@ -131,16 +131,21 @@ class TranscriptionLanguagePolicyTests(unittest.TestCase):
 
     def test_multilingual_engines_activate_up_to_three_saved_languages(self):
         for engine in ("Whisper", "Google", "SenseVoice"):
-            with self.subTest(engine=engine):
-                runtime = runtime_language_slots(
-                    engine,
-                    THREE_LANGUAGE_SLOTS,
-                    direction="received",
-                )
-                self.assertEqual(
-                    (THREE_LANGUAGE_SLOTS["1"], THREE_LANGUAGE_SLOTS["2"], THREE_LANGUAGE_SLOTS["3"]),
-                    runtime,
-                )
+            for direction in ("microphone", "received"):
+                with self.subTest(engine=engine, direction=direction):
+                    runtime = runtime_language_slots(
+                        engine,
+                        THREE_LANGUAGE_SLOTS,
+                        direction=direction,
+                    )
+                    self.assertEqual(
+                        (
+                            THREE_LANGUAGE_SLOTS["1"],
+                            THREE_LANGUAGE_SLOTS["2"],
+                            THREE_LANGUAGE_SLOTS["3"],
+                        ),
+                        runtime,
+                    )
 
     def test_capabilities_explain_parallel_and_single_language_engines(self):
         capabilities = transcription_language_capabilities()

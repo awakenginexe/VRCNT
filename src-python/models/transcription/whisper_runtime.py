@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum, auto
+import importlib
 from threading import Condition, get_ident
 from typing import Any, Callable, Optional
 
@@ -32,6 +34,24 @@ class WhisperRuntimeBusy(RuntimeError):
 
 class WhisperRuntimeClosed(RuntimeError):
     """Raised when work is requested from a closed lease or manager."""
+
+
+def _normalize_detection_vad_parameters(vad_parameters: Any) -> Any:
+    """Adapt saved VAD dictionaries for faster-whisper language detection.
+
+    ``WhisperModel.transcribe`` accepts a dictionary and internally converts it
+    to ``VadOptions``.  In faster-whisper 1.2.1, ``detect_language`` skips
+    that conversion and instead reads attributes directly.  Multi-language
+    transcription invokes this method first, so passing the app's persisted
+    VAD dictionary would otherwise raise ``AttributeError`` before decoding.
+    """
+
+    if not isinstance(vad_parameters, Mapping):
+        return vad_parameters
+    vad_options_type = importlib.import_module(
+        "faster_whisper.vad"
+    ).VadOptions
+    return vad_options_type(**dict(vad_parameters))
 
 
 def _default_factory(root: str, key: WhisperRuntimeKey) -> object:
@@ -280,6 +300,12 @@ class WhisperRuntimeManager:
                 )
                 if key in options
             }
+            if detection_options.get("vad_filter"):
+                detection_options["vad_parameters"] = (
+                    _normalize_detection_vad_parameters(
+                        detection_options.get("vad_parameters")
+                    )
+                )
             _language, _probability, all_probabilities = model.detect_language(
                 audio,
                 **detection_options,
