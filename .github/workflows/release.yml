@@ -339,10 +339,27 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw 'Could not create or update the GitHub Release.'
           }
-          $assets = Get-ChildItem $env:ASSET_DIR -File | ForEach-Object FullName
-          gh release upload $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --clobber $assets
+          $installerAsset = Join-Path $env:ASSET_DIR $env:INSTALLER_NAME
+          if (-not (Test-Path -LiteralPath $installerAsset)) {
+            throw "Installer asset $env:INSTALLER_NAME is missing."
+          }
+          $supportingAssets = @(
+            Get-ChildItem $env:ASSET_DIR -File |
+              Where-Object { $_.FullName -ne $installerAsset } |
+              Sort-Object Name |
+              ForEach-Object FullName
+          )
+
+          # GitHub shows assets in upload order, so upload the installer first.
+          gh release upload $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --clobber $installerAsset
           if ($LASTEXITCODE -ne 0) {
-            throw 'GitHub Release asset upload failed.'
+            throw 'Installer asset upload failed.'
+          }
+          if ($supportingAssets.Count -gt 0) {
+            gh release upload $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --clobber $supportingAssets
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Supporting release asset upload failed.'
+            }
           }
 
       - name: Verify published GitHub Release

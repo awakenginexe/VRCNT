@@ -94,7 +94,7 @@ class Telemetry:
         except Exception:
             pass
     
-    def init(self, enabled: bool, app_version: str = "4.2.3"):
+    def init(self, enabled: bool, app_version: str = "4.2.4"):
         """テレメトリ初期化（同期インターフェース）
         
         重要：このメソッドは冪等です。複数回呼ばれても安全です。

@@ -1647,10 +1647,10 @@ class Controller:
             )
 
         def downloaded(self) -> None:
-            if (
-                model.checkTranslatorCTranslate2ModelWeight(self.weight_type) is True
-                and model.checkTranslatorCTranslate2ModelTokenizer(self.weight_type) is True
-            ):
+            is_weight_valid = model.checkTranslatorCTranslate2ModelWeight(self.weight_type)
+            is_tokenizer_valid = model.checkTranslatorCTranslate2ModelTokenizer(self.weight_type)
+
+            if is_weight_valid is True and is_tokenizer_valid is True:
                 config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[self.weight_type] = True
 
                 self.run(
@@ -1659,9 +1659,20 @@ class Controller:
                     self.weight_type,
                 )
             else:
+                failed_stage = "weight" if is_weight_valid is False else "tokenizer"
                 error_response = VRCTError.create_error_response(
                     ErrorCode.WEIGHT_CTRANSLATE2_DOWNLOAD,
-                    data=None
+                    data={
+                        "weight_type": self.weight_type,
+                        "stage": failed_stage,
+                    },
+                    details={
+                        "stage": failed_stage,
+                        "reason": "verification_failed",
+                        "weight_valid": is_weight_valid,
+                        "tokenizer_valid": is_tokenizer_valid,
+                        "retryable": True,
+                    },
                 )
                 self.run(
                     error_response["status"],
@@ -4524,9 +4535,13 @@ class Controller:
                 download_ctranslate2.downloaded,
                 )
         else:
-            if model.downloadCTranslate2ModelWeight(weight_type, download_ctranslate2.progressBar, None):
-                model.downloadCTranslate2ModelTokenizer(weight_type)
-            download_ctranslate2.downloaded()
+            try:
+                if model.downloadCTranslate2ModelWeight(weight_type, download_ctranslate2.progressBar, None):
+                    model.downloadCTranslate2ModelTokenizer(weight_type)
+            except Exception:
+                errorLogging()
+            finally:
+                download_ctranslate2.downloaded()
         return {"status":200, "result":True}
 
     def downloadWhisperWeight(self, data:str, asynchronous:bool=True, *args, **kwargs) -> dict:
@@ -4942,10 +4957,14 @@ class Controller:
     @staticmethod
     def startThreadingDownloadCtranslate2Weight(weight_type:str, callback:Callable[[float], None], end_callback:Optional[Callable[..., None]] = None) -> None:
         def run_download():
-            if model.downloadCTranslate2ModelWeight(weight_type, callback, None):
-                model.downloadCTranslate2ModelTokenizer(weight_type)
-            if end_callback is not None:
-                end_callback()
+            try:
+                if model.downloadCTranslate2ModelWeight(weight_type, callback, None):
+                    model.downloadCTranslate2ModelTokenizer(weight_type)
+            except Exception:
+                errorLogging()
+            finally:
+                if end_callback is not None:
+                    end_callback()
 
         th_download = Thread(target=run_download)
         th_download.daemon = True

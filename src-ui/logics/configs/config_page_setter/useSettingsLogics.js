@@ -201,6 +201,17 @@ export const useSettingsLogics = (settingsArray, Category) => {
                     );
                 });
             };
+            result[`downloadFailed${base}`] = (id) => {
+                if (typeof id !== "string") return;
+
+                update((old_status) => {
+                    return old_status.data.map((item) =>
+                        id === item.id
+                            ? { ...item, is_pending: false, progress: null }
+                            : item
+                    );
+                });
+            };
 
             result[`download${base}`] = (weight_type) => {
                 asyncStdoutToPython(`/run/download_${s.base_endpoint_name}`, weight_type);

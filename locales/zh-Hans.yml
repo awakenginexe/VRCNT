@@ -24,7 +24,7 @@ common_error:
     no_device_mic: "未检测到麦克风设备。"
     no_device_speaker: "未检测到扬声器设备。"
     threshold_invalid_value: "可设置的数值范围为 {{min}} 到 {{max}}。"
-    failed_download_weight_ctranslate2: "CTranslate2 模型下载失败。"
+    failed_download_weight_ctranslate2: "无法完成 CTranslate2 模型下载。请重试；若仍失败，请重启 VRCNT。"
     failed_download_weight_whisper: "Whisper 模型下载失败。"
     failed_download_weight_sensevoice: "SenseVoice 模型下载失败。"
     translation_limit: "已达到翻译引擎使用限制或临时受到使用限制。"
@@ -294,6 +294,7 @@ config_page:
             no: "否"
             required: "需要下载"
             unavailable: "不可用"
+            finalizing: "正在准备模型..."
         correct_auth_key_required:
         open_auth_key_webpage:
         connection_check:

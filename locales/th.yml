@@ -24,7 +24,7 @@ common_error:
     no_device_mic: "ไม่พบอุปกรณ์ไมโครโฟน"
     no_device_speaker: "ไม่พบอุปกรณ์ลำโพง"
     threshold_invalid_value: "สามารถตั้งค่าได้ระหว่าง {{min}} ถึง {{max}}"
-    failed_download_weight_ctranslate2: "เกิดข้อผิดพลาดในการดาวน์โหลดโมเดล CTranslate2"
+    failed_download_weight_ctranslate2: "ไม่สามารถดาวน์โหลดโมเดล CTranslate2 ให้เสร็จสมบูรณ์ได้ โปรดลองดาวน์โหลดอีกครั้ง หากยังล้มเหลว ให้เริ่ม VRCNT ใหม่"
     failed_download_weight_whisper: "เกิดข้อผิดพลาดในการดาวน์โหลดโมเดล Whisper"
     failed_download_weight_sensevoice: "เกิดข้อผิดพลาดในการดาวน์โหลดโมเดล SenseVoice"
     translation_limit: "ถึงขีดจำกัดของเอนจินแปลภาษา หรือบริการถูกจำกัดชั่วคราว"
@@ -294,6 +294,7 @@ config_page:
             no: "ไม่"
             required: "ต้องดาวน์โหลด"
             unavailable: "ไม่พร้อมใช้งาน"
+            finalizing: "กำลังเตรียมโมเดล..."
         correct_auth_key_required: "ต้องใช้ Auth Key ที่ถูกต้อง"
         open_auth_key_webpage: "เปิดหน้าจัดการ Auth Key"
         connection_check:

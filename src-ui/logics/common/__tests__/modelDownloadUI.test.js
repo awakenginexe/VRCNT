@@ -21,6 +21,7 @@ const modelDownloadKeys = [
     "no",
     "required",
     "unavailable",
+    "finalizing",
 ];
 const readSource = (relativePath) => (
     fs.readFileSync(path.join(repoRoot, relativePath), "utf8")
@@ -91,6 +92,8 @@ test("model rows own download confirmation while retaining installed update acti
     assert.doesNotMatch(downloadButton, /model_download_button_label/);
     assert.doesNotMatch(downloadButton, /case !option\.is_downloaded/);
     assert.match(downloadButton, /case option\.update_button/);
+    assert.match(downloadButton, /option\.progress >= 100/);
+    assert.match(downloadButton, /model_download\.finalizing/);
 });
 
 test("model download confirmation exposes an accessible modal contract", () => {

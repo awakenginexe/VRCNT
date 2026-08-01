@@ -17,7 +17,9 @@ from models.telemetry.client import AptabaseWrapper
 from models.telemetry.core import TelemetryCore
 
 
-APP_VERSION = "4.2.1"
+APP_VERSION = json.loads(
+    (ROOT / "package.json").read_text(encoding="utf-8")
+)["version"]
 
 
 class ReleaseVersionTests(unittest.TestCase):

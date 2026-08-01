@@ -25,6 +25,21 @@ test("release distribution uses GitHub Releases without Hugging Face pipeline de
     assert.match(workflow, /gh release upload/);
 });
 
+test("workflow uploads the VRCNT installer before supporting release assets", () => {
+    const installerUpload = workflow.indexOf(
+        "gh release upload $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --clobber $installerAsset",
+    );
+    const supportingUpload = workflow.indexOf(
+        "gh release upload $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --clobber $supportingAssets",
+    );
+
+    assert.match(workflow, /\$installerAsset = Join-Path \$env:ASSET_DIR \$env:INSTALLER_NAME/);
+    assert.match(workflow, /\$supportingAssets = @\(/);
+    assert.match(workflow, /Sort-Object Name/);
+    assert.ok(installerUpload >= 0, "installer upload must be present");
+    assert.ok(supportingUpload > installerUpload, "installer must upload before supporting assets");
+});
+
 
 test("updater endpoint moved to GitHub while the existing public key remains unchanged", () => {
     assert.deepEqual(tauriConfig.plugins.updater.endpoints, [

@@ -854,12 +854,14 @@ const buildCategoryApiFromSettings = (settings, settingsArray, Category, extraFu
             const updateDownloadedKey = `updateDownloaded${base}`;
             const pendingKey = `pending${base}`;
             const downloadedKey = `downloaded${base}`;
+            const downloadFailedKey = `downloadFailed${base}`;
             const downloadKey = `download${base}`;
 
             if (typeof settings[updateDownloadProgressKey] === "function") api[updateDownloadProgressKey] = settings[updateDownloadProgressKey];
             if (typeof settings[updateDownloadedKey] === "function") api[updateDownloadedKey] = settings[updateDownloadedKey];
             if (typeof settings[pendingKey] === "function") api[pendingKey] = settings[pendingKey];
             if (typeof settings[downloadedKey] === "function") api[downloadedKey] = settings[downloadedKey];
+            if (typeof settings[downloadFailedKey] === "function") api[downloadFailedKey] = settings[downloadFailedKey];
             if (typeof settings[downloadKey] === "function") api[downloadKey] = settings[downloadKey];
 
             const updateFromBackendKey = `updateFromBackend${base}`;

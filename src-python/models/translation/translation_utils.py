@@ -53,15 +53,13 @@ ctranslate2_weights = {
 }
 
 
-_REQUIRED_CTRANSLATE2_FILES = (
+# These are the files shared by the CTranslate2 model repositories. Tokenizer
+# assets intentionally are not listed here: M2M100 and NLLB use different
+# tokenizer formats and are validated separately by checkCTranslate2Tokenizer.
+_REQUIRED_CTRANSLATE2_RUNTIME_FILES = (
     "config.json",
-    "generation_config.json",
     "model.bin",
-    "sentencepiece.bpe.model",
     "shared_vocabulary.json",
-    "special_tokens_map.json",
-    "tokenizer_config.json",
-    "vocab.json",
 )
 
 _CTRANSLATE2_RUNTIME_PREPARED = False
@@ -136,7 +134,7 @@ def checkCTranslate2Weight(root: str, weight_type: str = "m2m100_418M-ct2-int8")
 
     if not os_path.isdir(path):
         return False
-    for filename in _REQUIRED_CTRANSLATE2_FILES:
+    for filename in _REQUIRED_CTRANSLATE2_RUNTIME_FILES:
         if not os_path.isfile(os_path.join(path, filename)):
             return False
 
@@ -173,11 +171,22 @@ def checkCTranslate2Tokenizer(root: str, weight_type: str = "m2m100_418M-ct2-int
         return False
 
 def downloadCTranslate2Weight(root: str, weight_type: str = "m2m100_418M-ct2-int8", callback: Callable = None, end_callback: Callable = None):
-    hf_repo = ctranslate2_weights[weight_type]["hf_repo"]
-    files = list_repo_files(repo_id=hf_repo)
-    path = os_path.join(root, "weights", "ctranslate2", ctranslate2_weights[weight_type]["directory_name"])
+    try:
+        hf_repo = ctranslate2_weights[weight_type]["hf_repo"]
+    except Exception:
+        errorLogging()
+        return False
+
     if checkCTranslate2Weight(root, weight_type):
         return True
+
+    try:
+        files = list_repo_files(repo_id=hf_repo)
+    except Exception:
+        errorLogging()
+        return False
+
+    path = os_path.join(root, "weights", "ctranslate2", ctranslate2_weights[weight_type]["directory_name"])
     os_makedirs(path, exist_ok=True)
 
     def downloadFile(url: str, file_path: str, func: Callable = None):

@@ -24,7 +24,7 @@ common_error:
     no_device_mic: "マイクデバイスが検出されませんでした。"
     no_device_speaker: "スピーカーデバイスが検出されませんでした。"
     threshold_invalid_value: "{{min}} から {{max}} までの数値で設定できます。"
-    failed_download_weight_ctranslate2: "CTranslate2 モデルのダウンロードに失敗しました。"
+    failed_download_weight_ctranslate2: "CTranslate2 モデルを完了できませんでした。もう一度ダウンロードしてください。再び失敗する場合は、VRCNT を再起動してください。"
     failed_download_weight_whisper: "Whisper モデルのダウンロードに失敗しました。"
     failed_download_weight_sensevoice: "SenseVoice モデルのダウンロードに失敗しました。"
     translation_limit: "翻訳エンジンの使用制限に達したか、一時的に利用制限がかけられています。"
@@ -294,6 +294,7 @@ config_page:
             no: "いいえ"
             required: "ダウンロードが必要"
             unavailable: "利用できません"
+            finalizing: "モデルを準備しています..."
         correct_auth_key_required: "正しい認証キーが必要"
         open_auth_key_webpage: "認証キー管理ページを開く"
         connection_check:

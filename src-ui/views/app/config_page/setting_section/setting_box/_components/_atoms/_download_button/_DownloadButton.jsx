@@ -13,20 +13,24 @@ export const _DownloadButton = ({ option, rowState, ...props }) => {
                         {t("config_page.common.model_download.unavailable")}
                     </p>
                 );
-            case option.progress !== null:
+            case option.progress !== null: {
+                const isFinalizing = option.progress >= 100;
                 return (
                     <div className={styles.progress}>
                         <CircularProgress
-                            variant={(option.progress === 100) ? "indeterminate" : "determinate"}
+                            variant={isFinalizing ? "indeterminate" : "determinate"}
                             value={Math.floor(option.progress / 10) * 10}
                             size="3rem"
                             sx={{ color: "var(--primary_300_color)" }}
                         />
                         <p className={styles.progress_label}>
-                            {`${Math.round(option.progress)}%`}
+                            {isFinalizing
+                                ? t("config_page.common.model_download.finalizing")
+                                : `${Math.round(option.progress)}%`}
                         </p>
                     </div>
                 );
+            }
             case option.is_pending:
                 return <CircularProgress size="3rem" sx={{ color: "var(--dark_600_color)" }}/>;
             case rowState === "download_required":

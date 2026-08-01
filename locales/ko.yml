@@ -24,7 +24,7 @@ common_error:
     no_device_mic: "마이크 디바이스를 찾지 못했습니다."
     no_device_speaker: "스피커 디바이스를 찾지 못했습니다."
     threshold_invalid_value: "{{min}}부터 {{max}}까지의 숫자로 설정할 수 있습니다."
-    failed_download_weight_ctranslate2: "CTranslate2 모델 다운로드에 실패했습니다."
+    failed_download_weight_ctranslate2: "CTranslate2 모델 다운로드를 완료하지 못했습니다. 다시 다운로드하세요. 계속 실패하면 VRCNT를 다시 시작하세요."
     failed_download_weight_whisper: "Whisper 모델 다운로드에 실패했습니다."
     failed_download_weight_sensevoice: "SenseVoice 모델 다운로드에 실패했습니다."
     translation_limit: "번역 엔진 사용 제한에 도달했거나 일시적으로 이용 제한이 걸렸습니다."
@@ -294,6 +294,7 @@ config_page:
             no: "아니요"
             required: "다운로드 필요"
             unavailable: "사용할 수 없음"
+            finalizing: "모델을 준비하는 중..."
         correct_auth_key_required:
         open_auth_key_webpage:
         connection_check:

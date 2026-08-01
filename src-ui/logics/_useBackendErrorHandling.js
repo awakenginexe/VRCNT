@@ -58,6 +58,8 @@ export const _useBackendErrorHandling = () => {
         updateSelectedLMStudioModel,
 
         updateSelectedOllamaModel,
+
+        downloadFailedCTranslate2WeightTypeStatus,
     } = useTranslation();
 
     const { updateEnableVrcMicMuteSync } = useOthers();
@@ -140,6 +142,15 @@ export const _useBackendErrorHandling = () => {
             // ウェイトダウンロード関連エラー (WEIGHT_*)
             // ============================================================================
             case "WEIGHT_CTRANSLATE2_DOWNLOAD":
+                console.error("[VRCNT] CTranslate2 model download failed.", {
+                    endpoint,
+                    error_code,
+                    message,
+                    data,
+                    details: result?.details ?? {},
+                    result,
+                });
+                downloadFailedCTranslate2WeightTypeStatus(data?.weight_type);
                 showNotification_Error(t("common_error.failed_download_weight_ctranslate2"), { category_id: error_code });
                 return;
             case "WEIGHT_WHISPER_DOWNLOAD":

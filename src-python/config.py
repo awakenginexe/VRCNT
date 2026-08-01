@@ -912,7 +912,7 @@ class Config:
 
     def init_config(self):
         # Read Only
-        self._VERSION = "4.2.3"
+        self._VERSION = "4.2.4"
         if getattr(sys, 'frozen', False):
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
