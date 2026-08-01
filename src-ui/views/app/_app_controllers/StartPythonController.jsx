@@ -72,7 +72,7 @@ const useStartPython = () => {
     };
 
     const asyncStartPython = async () => {
-        const command = Command.sidecar("bin/VRCT-sidecar");
+        const command = Command.sidecar("bin/VRCNT-backend");
         command.on("error", (error) => {
             markBackendStartupError(error);
         });

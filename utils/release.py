@@ -16,8 +16,8 @@ from release_config import load_release_config
 
 
 DEFAULT_RELEASE_FILES = (
-    Path("src-tauri/target/release/vrcnt.exe"),
-    Path("src-tauri/target/release/VRCT-sidecar.exe"),
+    Path("src-tauri/target/release/VRCNT.exe"),
+    Path("src-tauri/target/release/VRCNT-backend.exe"),
 )
 DEFAULT_RELEASE_DIRECTORIES = (
     Path("src-tauri/target/release/_internal"),

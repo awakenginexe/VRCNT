@@ -93,7 +93,7 @@ Pipeline:
 1. `task-kill` — kill stale VRCT processes
 2. `clean` — wipe `src-tauri/bin` and `dist`
 3. `update-version` — bump version in `tauri.conf.json`
-4. `build-python` → `pyinstaller spec/backend.spec` — bundles Python sidecar to `src-tauri/bin/VRCT-sidecar-x86_64-pc-windows-msvc.exe`
+4. `build-python` → `pyinstaller spec/backend.spec` — bundles the Python backend to `src-tauri/bin/VRCNT-backend-x86_64-pc-windows-msvc.exe`
 5. `vite-build` — builds JS UI to `dist/`
 6. `tauri build` — Cargo compiles Rust shell, then NSIS packages everything
 

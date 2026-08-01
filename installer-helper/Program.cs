@@ -100,7 +100,7 @@ internal static class Program
             new[] { "x", "-y", "-aoa", $"-o{options.Destination}", firstPart },
             "extract");
 
-        var mainExecutable = Path.Combine(options.Destination, "vrcnt.exe");
+        var mainExecutable = Path.Combine(options.Destination, "VRCNT.exe");
         if (!File.Exists(mainExecutable))
         {
             throw new InvalidDataException($"Extraction completed but {mainExecutable} is missing.");

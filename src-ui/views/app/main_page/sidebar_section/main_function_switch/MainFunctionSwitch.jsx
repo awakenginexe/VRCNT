@@ -77,6 +77,7 @@ export const MainFunctionSwitch = ({ forceCompact = false, layout = "sidebar", i
                     SvgComponent={item.SvgComponent}
                     isDisabled={item.isDisabled}
                     forceCompact={forceCompact}
+                    showStateMark={layout !== "session_dock"}
                 >
                 </SwitchContainer>
             ))}
@@ -84,7 +85,7 @@ export const MainFunctionSwitch = ({ forceCompact = false, layout = "sidebar", i
     );
 };
 
-export const SwitchContainer = ({ switchLabel, switch_id, children, currentState, toggleFunction, SvgComponent, isDisabled = false, forceCompact = false }) => {
+export const SwitchContainer = ({ switchLabel, switch_id, children, currentState, toggleFunction, SvgComponent, isDisabled = false, forceCompact = false, showStateMark = true }) => {
     const { t } = useI18n();
     const [is_hovered, setIsHovered] = useState(false);
     const [is_mouse_down, setIsMouseDown] = useState(false);
@@ -126,6 +127,14 @@ export const SwitchContainer = ({ switchLabel, switch_id, children, currentState
     const getPendingMessage = () => t(
         getMainFunctionPendingCopyKey(switch_id, pending_elapsed_ms),
     );
+    const getStatusLabel = () => {
+        if (currentState.state === "pending") return getPendingMessage();
+        if (isDisabled) return t("main_page.language_panels.backend_waiting");
+        return t(currentState.data === true
+            ? "main_page.state_text_enabled"
+            : "main_page.state_text_disabled");
+    };
+    const statusLabel = getStatusLabel();
     const tooltipMeta = getMainFunctionTooltipMeta(switch_id);
 
     return (
@@ -143,6 +152,7 @@ export const SwitchContainer = ({ switchLabel, switch_id, children, currentState
                 aria-label={switchLabel}
                 aria-checked={currentState.data === true}
                 aria-busy={currentState.state === "pending"}
+                data-state={currentState.state === "pending" ? "pending" : currentState.data === true ? "on" : "off"}
                 disabled={isDisabled}
                 aria-disabled={currentState.state === "pending"}
                 className={getClassNames(styles.switch_container)}
@@ -156,12 +166,10 @@ export const SwitchContainer = ({ switchLabel, switch_id, children, currentState
                     <SvgComponent className={getClassNames(styles.switch_svg)} />
                     <span className={styles.label_text_wrapper}>
                         <span className={getClassNames(styles.switch_label)}>{switchLabel}</span>
-                        {currentState.state === "pending" && (
-                            <span className={getClassNames(styles.pending_status)}>{getPendingMessage()}</span>
-                        )}
-                        {isDisabled && currentState.state !== "pending" && (
-                            <span className={getClassNames(styles.pending_status)}>{t("main_page.language_panels.backend_waiting")}</span>
-                        )}
+                        <span className={getClassNames(styles.state_badge)}>
+                            {showStateMark && <span className={getClassNames(styles.state_mark)} aria-hidden="true" />}
+                            <span>{statusLabel}</span>
+                        </span>
                     </span>
                     {children}
                 </span>

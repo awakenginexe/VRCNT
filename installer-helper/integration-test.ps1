@@ -39,8 +39,8 @@ function Invoke-Helper([string]$InstallerDirectory, [string]$CacheDirectory, [st
 try {
   $payload = Join-Path $testRoot 'payload'
   New-Item -ItemType Directory -Path "$payload/frontend", "$payload/_internal" -Force | Out-Null
-  Set-Content -LiteralPath "$payload/vrcnt.exe" -Value 'test executable' -Encoding utf8
-  Set-Content -LiteralPath "$payload/VRCT-sidecar.exe" -Value 'test sidecar' -Encoding utf8
+  Set-Content -LiteralPath "$payload/VRCNT.exe" -Value 'test executable' -Encoding utf8
+  Set-Content -LiteralPath "$payload/VRCNT-backend.exe" -Value 'test backend' -Encoding utf8
   Set-Content -LiteralPath "$payload/frontend/index.html" -Value '<html>test</html>' -Encoding utf8
   Set-Content -LiteralPath "$payload/_internal/runtime.txt" -Value 'runtime' -Encoding utf8
 
@@ -49,7 +49,7 @@ try {
   $archive = Join-Path $release 'VRCNT_4.2.2.7z'
   Push-Location $payload
   try {
-    & $SevenZip a -t7z -mx=1 $archive vrcnt.exe VRCT-sidecar.exe frontend _internal | Out-Null
+    & $SevenZip a -t7z -mx=1 $archive VRCNT.exe VRCNT-backend.exe frontend _internal | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Fixture archive generation failed.' }
   } finally {
     Pop-Location
@@ -92,7 +92,7 @@ write_manifest("4.2.2", parts, root / "package-manifest.json")
 
   $localDestination = Join-Path $testRoot 'local-install'
   $local = Invoke-Helper $release (Join-Path $testRoot 'local-cache') $localDestination 'http://127.0.0.1:1'
-  if ($local.ExitCode -ne 0 -or -not (Test-Path "$localDestination/vrcnt.exe")) {
+    if ($local.ExitCode -ne 0 -or -not (Test-Path "$localDestination/VRCNT.exe")) {
     throw "Local multipart installation failed:`n$($local.Output)"
   }
   if ($local.Output -notmatch 'Network package download will be skipped') {
@@ -101,7 +101,7 @@ write_manifest("4.2.2", parts, root / "package-manifest.json")
 
   $portable = Join-Path $testRoot 'portable'
   & $SevenZip x -y "${release}/VRCNT_4.2.2.7z.001" "-o$portable" | Out-Null
-  if ($LASTEXITCODE -ne 0 -or -not (Test-Path "$portable/vrcnt.exe")) {
+  if ($LASTEXITCODE -ne 0 -or -not (Test-Path "$portable/VRCNT.exe")) {
     throw 'Manual portable extraction failed.'
   }
 
@@ -140,7 +140,7 @@ write_manifest("4.2.2", parts, root / "package-manifest.json")
     )
     $onlineDestination = Join-Path $testRoot 'online-install'
     $online = Invoke-Helper $onlineInstaller $onlineCache $onlineDestination "http://127.0.0.1:$port"
-    if ($online.ExitCode -ne 0 -or -not (Test-Path "$onlineDestination/vrcnt.exe")) {
+    if ($online.ExitCode -ne 0 -or -not (Test-Path "$onlineDestination/VRCNT.exe")) {
       throw "Online installation failed:`n$($online.Output)"
     }
     if ($online.Output -notmatch '\[resume\].*\.001') {

@@ -86,6 +86,7 @@ main_page:
     translator: "翻譯器"
     translator_label_default: "預設"
     quick_setting_update: "更新"
+    quick_setting_latest: "最新"
     quick_setting_overlay: "Overlay (VR)"
 
     sidebar_panel:
@@ -254,6 +255,7 @@ main_page:
         foreground_long: "仍在更新"
 
     update_available: "有新版本可供使用！"
+    update_available_detail: "VRCNT {{version}} 已準備好。開啟 Update 即可下載並重新啟動。"
     updating: "正在更新..."
 
 update_modal:
@@ -263,6 +265,21 @@ update_modal:
     cuda_disk_space_desc: "需要約 {{size}} 的磁碟空間"
     close_modal: "關閉"
     download_latest_and_restart: "將下載最新版本，\n應用程式將自動重新啟動。"
+    download_latest_button: "下載並重新啟動"
+    check_for_updates: "檢查更新"
+    new_version_available: "VRCNT {{version}} 已準備好安裝。"
+    opening: "正在開啟發行頁面…"
+    opening_releases: "正在開啟發行頁面…"
+    opened_releases: "已開啟 VRCNT 發行頁面。"
+    checking: "正在檢查已簽署的更新…"
+    downloading: "正在下載已簽署的更新…"
+    restarting: "正在安裝更新並重新啟動…"
+    progress_label: "更新下載進度"
+    progress: "{{percent}}%"
+    up_to_date: "VRCNT 已是最新版本。"
+    error: "無法安裝更新。"
+    open_releases: "開啟發行頁面"
+    fallback_detail: "你可以從 GitHub Releases 下載安裝程式。"
     is_latest_version_already: "已在使用最新版本"
     is_current_compute_device: "目前使用的版本"
 

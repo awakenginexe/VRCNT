@@ -43,8 +43,6 @@ const OpenUpdateQuickSetting = () => {
     const { updateOpenedQuickSetting } = useStore_OpenedQuickSetting();
     const { currentLatestSoftwareVersionInfo } = useSoftwareVersion();
 
-    if (currentLatestSoftwareVersionInfo.data.is_update_available !== true) return null;
-
     const onClickFunction = () => {
         updateOpenedQuickSetting("update_software");
     };
@@ -52,7 +50,7 @@ const OpenUpdateQuickSetting = () => {
     return (
         <OpenQuickSettingButton
             label={t("main_page.quick_setting_update")}
-            variable={true}
+            variable={currentLatestSoftwareVersionInfo.data.is_update_available === true}
             onClickFunction={onClickFunction}
         />
     );

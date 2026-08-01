@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useI18n } from "@useI18n";
-import { store, useStore_SelectedConfigTabId } from "@store";
-import { useIsOpenedConfigPage, usePipelineStatus } from "@logics_common";
+import { store, useStore_OpenedQuickSetting, useStore_SelectedConfigTabId } from "@store";
+import { useIsOpenedConfigPage, usePipelineStatus, useSoftwareVersion } from "@logics_common";
 import { selectPipelineStatusSummary } from "@logics_common/pipelineStatusUtils.js";
 import { DesktopOverlayButton } from "../../sidebar_section/desktop_overlay_button/DesktopOverlayButton";
 import styles from "./LiveWeaveNavigation.module.scss";
@@ -18,7 +18,10 @@ export const LiveWeaveNavigation = () => {
     const { t } = useI18n();
     const { currentIsOpenedConfigPage, setIsOpenedConfigPage } = useIsOpenedConfigPage();
     const { updateSelectedConfigTabId } = useStore_SelectedConfigTabId();
+    const { updateOpenedQuickSetting } = useStore_OpenedQuickSetting();
+    const { currentLatestSoftwareVersionInfo } = useSoftwareVersion();
     const { currentPipelineStatus } = usePipelineStatus();
+    const hasUpdateAvailable = currentLatestSoftwareVersionInfo.data.is_update_available === true;
     const summary = useMemo(
         () => selectPipelineStatusSummary(currentPipelineStatus.data, Date.now()),
         [currentPipelineStatus.data],
@@ -74,6 +77,18 @@ export const LiveWeaveNavigation = () => {
                         ? t("main_page.live_weave.session_live")
                         : t(`main_page.pipeline_status.${summary.health}`)}
                 </span>
+                <button
+                    type="button"
+                    className={styles.update_button}
+                    data-update-available={hasUpdateAvailable}
+                    onClick={() => updateOpenedQuickSetting("update_software")}
+                >
+                    {t(
+                        hasUpdateAvailable
+                            ? "main_page.quick_setting_update"
+                            : "main_page.quick_setting_latest",
+                    )}
+                </button>
                 <DesktopOverlayButton forceCompact />
             </div>
         </div>

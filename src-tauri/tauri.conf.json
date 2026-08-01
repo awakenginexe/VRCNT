@@ -1,7 +1,8 @@
 {
     "$schema": "https://schema.tauri.app/config/2",
     "productName": "VRCNT",
-    "version": "4.2.2",
+    "mainBinaryName": "VRCNT",
+    "version": "4.2.3",
     "identifier": "com.vrcnt.app",
     "build": {
         "beforeDevCommand": "",
@@ -54,7 +55,7 @@
             "icons/icon.ico"
         ],
         "externalBin": [
-            "bin/VRCT-sidecar"
+            "bin/VRCNT-backend"
         ],
         "resources": {
             "../dist": "frontend",

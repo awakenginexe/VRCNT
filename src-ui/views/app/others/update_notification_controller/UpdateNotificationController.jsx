@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useI18n } from "@useI18n";
 import { useStore_OpenedQuickSetting } from "@store";
 import {
     useIsBackendReady,
@@ -12,6 +13,7 @@ export const UpdateNotificationController = () => {
     const { currentLatestSoftwareVersionInfo } = useSoftwareVersion();
     const { showNotification_Warning } = useNotificationStatus();
     const { updateOpenedQuickSetting } = useStore_OpenedQuickSetting();
+    const { t } = useI18n();
 
     useEffect(() => {
         if (currentIsBackendReady.data !== true) return;
@@ -20,7 +22,9 @@ export const UpdateNotificationController = () => {
 
         hasNotifiedRef.current = true;
         showNotification_Warning(
-            `VRCNT ${currentLatestSoftwareVersionInfo.data.new_version} is available. Open the Update button to visit GitHub Releases.`,
+            t("main_page.update_available_detail", {
+                version: currentLatestSoftwareVersionInfo.data.new_version,
+            }),
             {
                 category_id: "software_update_available",
                 hide_duration: 10000,
@@ -33,6 +37,7 @@ export const UpdateNotificationController = () => {
         currentLatestSoftwareVersionInfo.data.new_version,
         showNotification_Warning,
         updateOpenedQuickSetting,
+        t,
     ]);
 
     return null;

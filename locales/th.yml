@@ -86,6 +86,7 @@ main_page:
     translator: "ตัวแปลภาษา"
     translator_label_default: "ค่าเริ่มต้น"
     quick_setting_update: "อัปเดต"
+    quick_setting_latest: "ล่าสุด"
     quick_setting_overlay: "โอเวอร์เลย์ (VR)"
 
     sidebar_panel:
@@ -254,6 +255,7 @@ main_page:
         foreground_long: "ยังอัปเดตอยู่"
 
     update_available: "มีเวอร์ชันใหม่พร้อมใช้งาน"
+    update_available_detail: "VRCNT {{version}} พร้อมใช้งาน เปิด Update เพื่อดาวน์โหลดและรีสตาร์ต"
     updating: "กำลังอัปเดต..."
 
 update_modal:
@@ -263,6 +265,21 @@ update_modal:
     cuda_disk_space_desc: "ต้องใช้พื้นที่ดิสก์ประมาณ {{size}}"
     close_modal: "ปิด"
     download_latest_and_restart: "จะดาวน์โหลดเวอร์ชันล่าสุด\nและแอปจะรีสตาร์ตอัตโนมัติ"
+    download_latest_button: "ดาวน์โหลดและรีสตาร์ต"
+    check_for_updates: "ตรวจหาการอัปเดต"
+    new_version_available: "VRCNT {{version}} พร้อมติดตั้งแล้ว"
+    opening: "กำลังเปิดหน้ารุ่นเผยแพร่…"
+    opening_releases: "กำลังเปิดหน้ารุ่นเผยแพร่…"
+    opened_releases: "เปิดหน้ารุ่นเผยแพร่ของ VRCNT แล้ว"
+    checking: "กำลังตรวจหาการอัปเดตที่มีลายเซ็น…"
+    downloading: "กำลังดาวน์โหลดการอัปเดตที่มีลายเซ็น…"
+    restarting: "กำลังติดตั้งการอัปเดตและรีสตาร์ต…"
+    progress_label: "ความคืบหน้าการดาวน์โหลดการอัปเดต"
+    progress: "{{percent}}%"
+    up_to_date: "VRCNT เป็นเวอร์ชันล่าสุดอยู่แล้ว"
+    error: "ไม่สามารถติดตั้งการอัปเดตได้"
+    open_releases: "เปิดหน้ารุ่นเผยแพร่"
+    fallback_detail: "คุณสามารถดาวน์โหลดตัวติดตั้งจาก GitHub Releases ได้"
     is_latest_version_already: "กำลังใช้เวอร์ชันล่าสุดอยู่แล้ว"
     is_current_compute_device: "เวอร์ชันที่กำลังใช้งานอยู่"
 

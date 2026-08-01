@@ -14,7 +14,12 @@ export const OpenQuickSettingButton = (props) => {
 
     return (
         <div className={styles.container}>
-            <div className={styles.button_wrapper} onClick={props.onClickFunction}>
+            <button
+                type="button"
+                className={styles.button_wrapper}
+                onClick={props.onClickFunction}
+                aria-label={props.label}
+            >
                 <p className={styles.button_label}>{props.label}</p>
                 {variable !== null && (
                     props.variable === true ? (
@@ -30,7 +35,7 @@ export const OpenQuickSettingButton = (props) => {
                         </p>
                     )
                 )}
-            </div>
+            </button>
         </div>
     );
 };

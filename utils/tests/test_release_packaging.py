@@ -3,7 +3,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-import zipfile
 from pathlib import Path
 
 
@@ -12,25 +11,25 @@ UTILS_DIRECTORY = REPOSITORY_ROOT / "utils"
 sys.path.insert(0, str(UTILS_DIRECTORY))
 
 from release_config import ReleaseConfig, load_release_config
-import zip as release_zip
+from release import DEFAULT_RELEASE_DIRECTORIES, DEFAULT_RELEASE_FILES, validate_payload
 
 
 class ReleaseNamingTests(unittest.TestCase):
     def test_release_artifacts_use_vrcnt_brand(self):
         config = load_release_config(REPOSITORY_ROOT)
 
-        self.assertEqual("VRCNT.zip", config.release_asset_zip_name)
+        self.assertEqual("VRCNT_${version}.7z", config.package_name_pattern)
         self.assertEqual(
             "VRCNT_${version}_x64-setup.exe",
             config.installer_name_pattern,
         )
-        self.assertNotIn("Next", config.release_asset_zip_name)
+        self.assertNotIn("Next", config.package_name_pattern)
         self.assertNotIn("Next", config.installer_name_pattern)
 
     def test_placeholder_release_artifacts_use_vrcnt_brand(self):
         config = ReleaseConfig.placeholder()
 
-        self.assertEqual("VRCNT.zip", config.release_asset_zip_name)
+        self.assertEqual("VRCNT_${version}.7z", config.package_name_pattern)
         self.assertEqual(
             "VRCNT_${version}_x64-setup.exe",
             config.installer_name_pattern,
@@ -48,7 +47,7 @@ class ReleaseNamingTests(unittest.TestCase):
         self.assertEqual("vrcnt", package_lock["name"])
         self.assertEqual("vrcnt", package_lock["packages"][""]["name"])
         self.assertEqual(
-            "npm run build-cuda && python utils\\zip.py",
+            "npm run build-cuda",
             package_json["scripts"]["release"],
         )
 
@@ -65,18 +64,12 @@ class ReleaseNamingTests(unittest.TestCase):
         self.assertIn("uses: dtolnay/rust-toolchain@stable", workflow)
         self.assertNotIn("actions-rs/toolchain", workflow)
         self.assertIn("run: npm ci", workflow)
-        self.assertIn(
-            "Fallback translation cooldown timing may be delayed while translations are queued.",
-            workflow,
-        )
+        self.assertIn("python ./utils/release.py package", workflow)
 
     def test_readme_discloses_queued_fallback_cooldown_issue(self):
         readme = (REPOSITORY_ROOT / "README.md").read_text(encoding="utf-8")
 
-        self.assertIn(
-            "Fallback translation cooldown timing may be delayed while translations are queued.",
-            readme,
-        )
+        self.assertIn("launch `VRCNT.exe`", readme)
 
     def test_version_update_succeeds_without_documentation_tree(self):
         result = subprocess.run(
@@ -91,29 +84,14 @@ class ReleaseNamingTests(unittest.TestCase):
         self.assertIn("updated to version", result.stdout)
 
 
-class ReleaseZipTests(unittest.TestCase):
-    def test_zip_module_loads_when_tqdm_is_unavailable(self):
+class ReleasePayloadTests(unittest.TestCase):
+    def test_release_module_loads_without_optional_dependencies(self):
         script = f"""
-import builtins
-import importlib.util
 import sys
 
 sys.path.insert(0, {str(UTILS_DIRECTORY)!r})
-original_import = builtins.__import__
-
-def import_without_tqdm(name, *args, **kwargs):
-    if name == "tqdm":
-        raise ModuleNotFoundError("tqdm intentionally unavailable")
-    return original_import(name, *args, **kwargs)
-
-builtins.__import__ = import_without_tqdm
-spec = importlib.util.spec_from_file_location(
-    "vrcnt_release_zip",
-    {str(UTILS_DIRECTORY / "zip.py")!r},
-)
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
-print(module.DEFAULT_RELEASE_FILES[0])
+import release
+print(release.DEFAULT_RELEASE_FILES[0])
 """
         result = subprocess.run(
             [sys.executable, "-c", script],
@@ -123,22 +101,22 @@ print(module.DEFAULT_RELEASE_FILES[0])
         )
 
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertIn("vrcnt.exe", result.stdout)
+        self.assertIn("VRCNT.exe", result.stdout)
 
     def test_default_payload_contains_all_runtime_components(self):
         self.assertEqual(
             [
-                "src-tauri/target/release/vrcnt.exe",
-                "src-tauri/target/release/VRCT-sidecar.exe",
+                "src-tauri/target/release/VRCNT.exe",
+                "src-tauri/target/release/VRCNT-backend.exe",
             ],
-            getattr(release_zip, "DEFAULT_RELEASE_FILES", None),
+            [str(path).replace("\\", "/") for path in DEFAULT_RELEASE_FILES],
         )
         self.assertEqual(
             [
                 "src-tauri/target/release/_internal",
                 "src-tauri/target/release/frontend",
             ],
-            getattr(release_zip, "DEFAULT_RELEASE_DIRECTORIES", None),
+            [str(path).replace("\\", "/") for path in DEFAULT_RELEASE_DIRECTORIES],
         )
 
     def test_missing_required_payload_fails_without_creating_zip(self):
@@ -147,19 +125,15 @@ print(module.DEFAULT_RELEASE_FILES[0])
             zip_path = root / "VRCNT.zip"
 
             with self.assertRaises(FileNotFoundError):
-                release_zip.zip_files_and_directory(
-                    zip_path,
-                    [root / "missing.exe"],
-                    [],
-                )
+                validate_payload([root / "missing.exe"], [])
 
             self.assertFalse(zip_path.exists())
 
-    def test_zip_contains_files_and_runtime_directories(self):
+    def test_valid_payload_contains_files_and_runtime_directories(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
-            executable = root / "vrcnt.exe"
-            sidecar = root / "VRCT-sidecar.exe"
+            executable = root / "VRCNT.exe"
+            sidecar = root / "VRCNT-backend.exe"
             internal = root / "_internal"
             frontend = root / "frontend"
             executable.write_bytes(b"app")
@@ -168,25 +142,7 @@ print(module.DEFAULT_RELEASE_FILES[0])
             frontend.mkdir()
             (internal / "runtime.dll").write_bytes(b"runtime")
             (frontend / "index.html").write_text("VRCNT", encoding="utf-8")
-            zip_path = root / "VRCNT.zip"
-
-            result = release_zip.zip_files_and_directory(
-                zip_path,
-                [executable, sidecar],
-                [internal, frontend],
-            )
-
-            self.assertEqual(zip_path, result)
-            with zipfile.ZipFile(zip_path) as archive:
-                self.assertEqual(
-                    {
-                        "vrcnt.exe",
-                        "VRCT-sidecar.exe",
-                        "_internal/runtime.dll",
-                        "frontend/index.html",
-                    },
-                    set(archive.namelist()),
-                )
+            validate_payload([executable, sidecar], [internal, frontend])
 
 
 if __name__ == "__main__":

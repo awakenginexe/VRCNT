@@ -39,18 +39,6 @@
         var(--surface_2_color);
     box-shadow: 0 1.8rem 4.8rem rgba(0, 0, 0, 0.28), inset 0 0.1rem 0 #ffffff10;
 }
-.update_desc {
-    position: absolute;
-    top: 100%;
-    transform: translateY(-50%);
-    font-size: 1.4rem;
-    background-color: var(--surface_overlay_color);
-    padding: 0 2.8rem;
-    text-align: center;
-    font-weight: 400;
-}
-
-
 .single_update_section  {
     width: 100%;
     display: flex;
@@ -92,10 +80,6 @@
     &:active {
         background-color: rgba(var(--accent_color_rgb), 0.13);
     }
-    &.is_latest_version_already {
-        background-color: rgba(255, 255, 255, 0.06);
-        pointer-events: none;
-    }
     &:disabled {
         background-color: rgba(255, 255, 255, 0.06);
         cursor: default;
@@ -129,6 +113,40 @@
     color: var(--dark_350_color);
 }
 
+.error_section {
+    width: min(42rem, 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding-top: 0.6rem;
+}
+
+.error_message {
+    color: var(--error_bc_color);
+    font-size: 1.3rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+.fallback_button {
+    min-width: 14rem;
+    padding: 0.9rem 1.2rem;
+    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.36);
+    border-radius: 0.7rem;
+    background-color: rgba(var(--accent_color_rgb), 0.12);
+    font-size: 1.3rem;
+    text-align: center;
+
+    &:hover {
+        background-color: rgba(var(--accent_color_rgb), 0.22);
+    }
+
+    &:active {
+        background-color: rgba(var(--accent_color_rgb), 0.1);
+    }
+}
+
 .progress_wrapper {
     width: min(36rem, 100%);
     display: flex;
@@ -151,4 +169,21 @@
     min-width: 0.4rem;
     background: linear-gradient(90deg, var(--accent_color), var(--primary_200_color));
     transition: width 180ms ease;
+}
+
+.progress_fill.is_indeterminate {
+    width: 42%;
+    animation: update-progress 1.2s var(--ease_out_quart) infinite;
+}
+
+@keyframes update-progress {
+    0% { transform: translateX(-115%); }
+    100% { transform: translateX(250%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .progress_fill.is_indeterminate {
+        width: 42%;
+        animation: none;
+    }
 }
