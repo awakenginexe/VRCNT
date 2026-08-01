@@ -25,19 +25,30 @@ test("release distribution uses GitHub Releases without Hugging Face pipeline de
     assert.match(workflow, /gh release upload/);
 });
 
-test("workflow uploads the VRCNT installer before supporting release assets", () => {
+test("workflow places the installer first while keeping its public display name", () => {
     const installerUpload = workflow.indexOf(
-        "gh release upload $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --clobber $installerAsset",
+        "gh release upload $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --clobber $installerUpload",
+    );
+    const signatureUpload = workflow.indexOf(
+        "gh release upload $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --clobber $installerSignatureUpload",
     );
     const supportingUpload = workflow.indexOf(
         "gh release upload $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --clobber $supportingAssets",
     );
 
-    assert.match(workflow, /\$installerAsset = Join-Path \$env:ASSET_DIR \$env:INSTALLER_NAME/);
+    assert.match(workflow, /\$installerReleaseAssetName = "00_\$installerName"/);
+    assert.match(workflow, /INSTALLER_RELEASE_ASSET_NAME=\$installerReleaseAssetName/);
+    assert.match(workflow, /--updater-name \$env:INSTALLER_RELEASE_ASSET_NAME/);
+    assert.match(workflow, /\$installerAsset = Join-Path \$env:ASSET_DIR \$env:INSTALLER_RELEASE_ASSET_NAME/);
+    assert.match(workflow, /\$installerUpload = "\$installerAsset#\$env:INSTALLER_NAME"/);
+    assert.match(workflow, /\$installerSignatureUpload = "\$installerSignatureAsset#\$env:INSTALLER_NAME\.sig"/);
     assert.match(workflow, /\$supportingAssets = @\(/);
     assert.match(workflow, /Sort-Object Name/);
     assert.ok(installerUpload >= 0, "installer upload must be present");
-    assert.ok(supportingUpload > installerUpload, "installer must upload before supporting assets");
+    assert.ok(signatureUpload > installerUpload, "signature must upload after installer");
+    assert.ok(supportingUpload > signatureUpload, "supporting assets must upload last");
+    assert.match(workflow, /The installer is not the first release asset/);
+    assert.match(workflow, /The installer display label is incorrect/);
 });
 
 

@@ -97,11 +97,15 @@ jobs:
           }
 
           $installerName = $config.installerNamePattern.Replace('${version}', $version)
+          # GitHub lists release assets alphabetically. This internal prefix keeps the
+          # installer first while its public display label stays the clean installer name.
+          $installerReleaseAssetName = "00_$installerName"
           $packageBaseName = $config.packageNamePattern.Replace('${version}', $version)
           "RELEASE_TAG=$tag" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
           "VERSION=$version" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
           "RELEASE_REPOSITORY=$configuredRepository" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
           "INSTALLER_NAME=$installerName" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          "INSTALLER_RELEASE_ASSET_NAME=$installerReleaseAssetName" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
           "PACKAGE_BASE_NAME=$packageBaseName" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
           "PACKAGE_MANIFEST_NAME=$($config.packageManifestAssetName)" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
           "HASHES_NAME=$($config.hashesAssetName)" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
@@ -225,10 +229,12 @@ jobs:
           if (-not (Test-Path $updaterSignature)) {
             throw 'The signed Tauri updater artifact is missing. Signature verification is mandatory.'
           }
-          Copy-Item $installer.FullName (Join-Path $env:ASSET_DIR $installer.Name) -Force
-          Copy-Item $updaterSignature (Join-Path $env:ASSET_DIR "$($installer.Name).sig") -Force
-          "INSTALLER_PATH=$(Join-Path $env:ASSET_DIR $installer.Name)" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
-          "UPDATER_SIGNATURE_PATH=$(Join-Path $env:ASSET_DIR "$($installer.Name).sig")" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          $releaseInstaller = Join-Path $env:ASSET_DIR $env:INSTALLER_RELEASE_ASSET_NAME
+          $releaseInstallerSignature = "$releaseInstaller.sig"
+          Copy-Item $installer.FullName $releaseInstaller -Force
+          Copy-Item $updaterSignature $releaseInstallerSignature -Force
+          "INSTALLER_PATH=$releaseInstaller" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          "UPDATER_SIGNATURE_PATH=$releaseInstallerSignature" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Sign and verify package manifest
         env:
@@ -272,7 +278,7 @@ jobs:
           $latest = Join-Path $env:ASSET_DIR $env:LATEST_JSON_NAME
           python ./utils/release.py latest `
             --version $env:VERSION `
-            --updater-name $env:INSTALLER_NAME `
+            --updater-name $env:INSTALLER_RELEASE_ASSET_NAME `
             --signature $env:UPDATER_SIGNATURE_PATH `
             --output $latest `
             --pub-date $pubDate
@@ -281,7 +287,7 @@ jobs:
           }
           $latestDocument = Get-Content -Raw $latest | ConvertFrom-Json
           $platform = $latestDocument.platforms.'windows-x86_64'
-          $expectedUrl = "https://github.com/$env:RELEASE_REPOSITORY/releases/download/$env:RELEASE_TAG/$env:INSTALLER_NAME"
+          $expectedUrl = "https://github.com/$env:RELEASE_REPOSITORY/releases/download/$env:RELEASE_TAG/$env:INSTALLER_RELEASE_ASSET_NAME"
           if ($platform.url -ne $expectedUrl -or [string]::IsNullOrWhiteSpace($platform.signature)) {
             throw 'latest.json has an invalid GitHub updater URL or empty signature.'
           }
@@ -339,21 +345,47 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw 'Could not create or update the GitHub Release.'
           }
-          $installerAsset = Join-Path $env:ASSET_DIR $env:INSTALLER_NAME
+          $installerAsset = Join-Path $env:ASSET_DIR $env:INSTALLER_RELEASE_ASSET_NAME
+          $installerSignatureAsset = "$installerAsset.sig"
           if (-not (Test-Path -LiteralPath $installerAsset)) {
-            throw "Installer asset $env:INSTALLER_NAME is missing."
+            throw "Installer asset $env:INSTALLER_RELEASE_ASSET_NAME is missing."
           }
+          if (-not (Test-Path -LiteralPath $installerSignatureAsset)) {
+            throw "Installer signature asset $env:INSTALLER_RELEASE_ASSET_NAME.sig is missing."
+          }
+
+          # Remove the pre-v4.2.4 naming scheme if this is a repaired release.
+          # The local source file is still VRCNT_X.X.X_x64-setup.exe; only its
+          # GitHub storage name has a sort prefix.
+          $existingRelease = gh release view $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --json assets |
+            ConvertFrom-Json
+          foreach ($legacyAsset in @($env:INSTALLER_NAME, "$env:INSTALLER_NAME.sig")) {
+            if ($existingRelease.assets.name -contains $legacyAsset) {
+              gh release delete-asset $env:RELEASE_TAG $legacyAsset --repo $env:RELEASE_REPOSITORY --yes
+              if ($LASTEXITCODE -ne 0) {
+                throw "Could not remove legacy release asset $legacyAsset."
+              }
+            }
+          }
+
+          $installerUpload = "$installerAsset#$env:INSTALLER_NAME"
+          $installerSignatureUpload = "$installerSignatureAsset#$env:INSTALLER_NAME.sig"
           $supportingAssets = @(
             Get-ChildItem $env:ASSET_DIR -File |
-              Where-Object { $_.FullName -ne $installerAsset } |
+              Where-Object { $_.FullName -notin @($installerAsset, $installerSignatureAsset) } |
               Sort-Object Name |
               ForEach-Object FullName
           )
 
-          # GitHub shows assets in upload order, so upload the installer first.
-          gh release upload $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --clobber $installerAsset
+          # GitHub displays assets alphabetically by stored name. The 00_ prefix places
+          # the installer first, while the label shows users VRCNT_X.X.X_x64-setup.exe.
+          gh release upload $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --clobber $installerUpload
           if ($LASTEXITCODE -ne 0) {
             throw 'Installer asset upload failed.'
+          }
+          gh release upload $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --clobber $installerSignatureUpload
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Installer signature asset upload failed.'
           }
           if ($supportingAssets.Count -gt 0) {
             gh release upload $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --clobber $supportingAssets
@@ -378,4 +410,16 @@ jobs:
             if ([long]$asset.size -ne $file.Length) {
               throw "Published asset $($file.Name) has the wrong size."
             }
+          }
+          $orderedAssets = @($published.assets | Sort-Object name)
+          if ($orderedAssets[0].name -ne $env:INSTALLER_RELEASE_ASSET_NAME) {
+            throw 'The installer is not the first release asset.'
+          }
+          $installer = $published.assets | Where-Object name -eq $env:INSTALLER_RELEASE_ASSET_NAME
+          if ($installer.label -ne $env:INSTALLER_NAME) {
+            throw 'The installer display label is incorrect.'
+          }
+          $installerSignature = $published.assets | Where-Object name -eq "$env:INSTALLER_RELEASE_ASSET_NAME.sig"
+          if ($installerSignature.label -ne "$env:INSTALLER_NAME.sig") {
+            throw 'The installer signature display label is incorrect.'
           }
