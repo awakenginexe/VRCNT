@@ -43,6 +43,14 @@ tmp/
 *.exe
 *.d
 /VRCNT*.zip
+/VRCNT*.7z*
+/release-assets/
+/installer-helper/bin/
+/installer-helper/obj/
+/installer-helper/publish*/
+/src-tauri/nsis/bin/
+*.key
+*.key.pub
 
 # Runtime data
 logs/

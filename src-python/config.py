@@ -912,7 +912,7 @@ class Config:
 
     def init_config(self):
         # Read Only
-        self._VERSION = "4.2.1"
+        self._VERSION = "4.2.2"
         if getattr(sys, 'frozen', False):
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
@@ -933,7 +933,7 @@ class Config:
         os_makedirs(self._PATH_LOGS, exist_ok=True)
         self._GITHUB_URL = "https://raw.githubusercontent.com/awakenginexe/VRCNT/main/package.json"
         self._UPDATER_URL = "https://github.com/awakenginexe/VRCNT/releases"
-        self._LATEST_JSON_URL = "https://huggingface.co/AwakeNgineXE/VRCNT/resolve/main/latest.json"
+        self._LATEST_JSON_URL = "https://github.com/awakenginexe/VRCNT/releases/latest/download/latest.json"
 
         self._MAX_MIC_THRESHOLD = 2000
         self._MAX_SPEAKER_THRESHOLD = 4000

@@ -1,7 +1,7 @@
 {
   "name": "vrcnt",
   "private": true,
-  "version": "4.2.1",
+  "version": "4.2.2",
   "type": "module",
   "scripts": {
     "setup-python": "bat\\install.bat",
@@ -22,7 +22,7 @@
     "analyze-error": "node utils/analyze_ui_error.js",
     "build": "npm run task-kill && npm run clean && npm run update-version && npm run build-python && npm run vite-build && npm run tauri build",
     "build-cuda": "npm run task-kill && npm run clean && npm run update-version && npm run build-python-cuda && npm run vite-build && npm run tauri build",
-    "release": "npm run build-cuda && python utils\\zip.py"
+    "release": "npm run build-cuda"
   },
   "dependencies": {
     "@babel/standalone": "7.27.0",
