@@ -91,9 +91,6 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
             throw 'TAURI_SIGNING_PRIVATE_KEY is required for updater and manifest signatures.'
           }
-          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD)) {
-            throw 'TAURI_SIGNING_PRIVATE_KEY_PASSWORD is required.'
-          }
           $packageVersion = (Get-Content -Raw ./package.json | ConvertFrom-Json).version
           if ($packageVersion -ne $version) {
             throw "Tag $tag does not match package.json version $packageVersion."

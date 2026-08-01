@@ -61,6 +61,7 @@ test("thin installer authenticates metadata before hashes and uses bundled 7za",
 test("workflow signs and verifies both package and Tauri updater artifacts", () => {
     assert.match(workflow, /TAURI_SIGNING_PRIVATE_KEY/);
     assert.match(workflow, /TAURI_SIGNING_PRIVATE_KEY_PASSWORD/);
+    assert.doesNotMatch(workflow, /TAURI_SIGNING_PRIVATE_KEY_PASSWORD is required/);
     assert.match(workflow, /tauri signer sign/);
     assert.match(workflow, /minisign.*-Vm/s);
     assert.match(workflow, /Tauri updater signature does not match/);

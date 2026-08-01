@@ -115,8 +115,9 @@ installer, creates exactly three `VRCNT_<version>.7z.00N` portable parts,
 signs the package manifest and Tauri updater artifact, generates
 `SHA256SUMS.txt` and `latest.json`, verifies them, and uploads all assets to the
 matching GitHub Release. The workflow requires the existing
-`TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` GitHub
-Actions Secrets; never store either value in the repository.
+`TAURI_SIGNING_PRIVATE_KEY` GitHub Actions Secret. Configure
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` only when the existing key is encrypted;
+never store signing material in the repository.
 
 ---
 

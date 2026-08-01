@@ -22,6 +22,6 @@ VRCNT 4.2.2 changes release delivery without changing application features.
 ## Required GitHub Actions secrets
 
 - `TAURI_SIGNING_PRIVATE_KEY`
-- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (only when the private key is encrypted)
 
 The same existing Tauri signing identity is used to authenticate both updater artifacts and the package manifest. No private signing material is stored in the repository.
