@@ -1,4 +1,4 @@
-import React, { useEffect, useState, isValidElement } from "react";
+import React, { useEffect } from "react";
 import { ToastContainer, toast, cssTransition } from "react-toastify";
 import clsx from "clsx";
 
@@ -9,9 +9,10 @@ import WarningSvg from "@images/warning.svg?react";
 import MegaphoneSvg from "@images/megaphone.svg?react";
 import CheckMarkSvg from "@images/check_mark.svg?react";
 import ErrorSvg from "@images/error.svg?react";
+import XMarkSvg from "@images/cancel.svg?react";
 
+import { useI18n } from "@useI18n";
 import { useNotificationStatus } from "@logics_common";
-import { CloseButton } from "@common_components";
 
 const CustomTransition = cssTransition({
     enter: "fade_in",
@@ -22,7 +23,7 @@ const CustomTransition = cssTransition({
 
 export const SnackbarController = () => {
     const { currentNotificationStatus, closeNotification } = useNotificationStatus();
-    // const [containerKey, setContainerKey] = useState(0);
+    const { t } = useI18n();
 
     const settings = currentNotificationStatus.data;
 
@@ -49,35 +50,45 @@ export const SnackbarController = () => {
         const message_text = settings.message;
         const category_id = settings.category_id ? settings.category_id : message_text;
 
-        const to_hide_progress_bar = (settings.options?.to_hide_progress_bar === true) ? true : false;
+        const to_hide_progress_bar = settings.options?.to_hide_progress_bar === true;
+        const timeoutId = window.setTimeout(() => {
+            toast(message_text, {
+                toastId: category_id,
+                type: settings.status,
+                autoClose: hide_duration,
+                transition: CustomTransition,
+                toastClassName: snackbar_classname,
+                hideProgressBar: to_hide_progress_bar || hide_duration === false,
+                progressClassName: styles.toast_progress,
+                style: hide_duration === false ? undefined : {
+                    "--vrcnt-notification-duration": `${hide_duration}ms`,
+                },
+                closeButton: ({ closeToast }) => (
+                    <button
+                        type="button"
+                        className={styles.dismiss_button}
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            closeToast(true);
+                        }}
+                        aria-label={t("main_page.notifications.dismiss")}
+                        title={t("main_page.notifications.dismiss")}
+                    >
+                        <XMarkSvg aria-hidden="true" className={styles.dismiss_icon} />
+                    </button>
+                ),
+                onClose: () => {
+                    closeNotification();
+                },
+            });
+        }, 100);
 
-        const asyncShowNotification = async () => {
-            setTimeout(() => {
-                toast(message_text, {
-                    toastId: category_id,
-                    type: settings.status,
-                    autoClose: hide_duration,
-                    transition: CustomTransition,
-                    toastClassName: snackbar_classname,
-                    hideProgressBar: to_hide_progress_bar,
-                    progressClassName: styles.toast_progress,
-                    closeButton: ({ closeToast }) => <CloseButton size="small" onClick={closeToast} />,
-                    onClose: () => {
-                        closeNotification();
-                    },
-                });
-            }, 100);
-        };
-
-        // setContainerKey(prevKey => prevKey + 1);
-        asyncShowNotification();
-
-    }, [settings]);
+        return () => window.clearTimeout(timeoutId);
+    }, [settings, snackbar_classname, hide_duration, closeNotification, t]);
 
     return (
         <ToastContainer
-            // key={containerKey}
-            position="top-right"
+            position="bottom-left"
             transition={CustomTransition}
             hideProgressBar={false}
             newestOnTop={false}
@@ -86,6 +97,7 @@ export const SnackbarController = () => {
             draggable={false}
             pauseOnHover={true}
             theme="dark"
+            aria-label={t("main_page.notifications.label")}
             icon={({ type }) => {
                 switch (type) {
                     case "info":

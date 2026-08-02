@@ -3,7 +3,7 @@
     width: 100%;
     height: 100%;
     display: grid;
-    grid-template-rows: var(--main_page_topbar_height) auto minmax(0, 1fr);
+    grid-template-rows: var(--main_page_topbar_height) minmax(0, 1fr);
     overflow: hidden;
     padding-right: 0;
     background: var(--canvas_color);
@@ -14,13 +14,26 @@
     height: 100%;
 }
 
+.workspace {
+    min-width: 0;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(21rem, 24rem) minmax(0, 1fr);
+    gap: 1rem;
+    padding: 1rem;
+    overflow: hidden;
+}
+
 .chat_panel {
     min-width: 0;
     min-height: 0;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
-    gap: 1.35rem;
-    padding: 1.55rem 2.8rem 1.8rem;
+    gap: 1rem;
+    padding: 1.25rem;
+    overflow: hidden;
+    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.16);
+    border-radius: 1rem;
     background:
         radial-gradient(circle at 75% 14%, rgba(var(--accent_color_rgb), 0.06), transparent 29%),
         var(--canvas_color);
@@ -59,30 +72,35 @@
 }
 
 .resource_cluster {
-    flex: 0 1 33.5rem;
-    min-width: 30rem;
+    flex: 0 1 31rem;
+    min-width: 25rem;
 }
 
 @media (max-width: 90rem) {
-    .chat_panel {
-        padding: 1.4rem 1.6rem;
+    .workspace {
+        grid-template-columns: 19.5rem minmax(0, 1fr);
+        gap: 0.8rem;
+        padding: 0.8rem;
     }
 
-    .workspace_header {
-        gap: 1.3rem;
+    .chat_panel {
+        padding: 1rem;
     }
 
     .resource_cluster {
-        flex-basis: 31rem;
-        min-width: 29rem;
+        min-width: 23rem;
     }
 }
 
 @media (max-height: 46rem) {
+    .workspace {
+        gap: 0.7rem;
+        padding: 0.7rem;
+    }
+
     .chat_panel {
         gap: 0.75rem;
-        padding-top: 1.05rem;
-        padding-bottom: 1rem;
+        padding: 0.8rem;
     }
 
     .workspace_copy {
@@ -91,5 +109,22 @@
 
     .workspace_detail {
         margin-top: 0.25rem;
+    }
+}
+
+@media (max-width: 64rem) {
+    .workspace {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(13rem, 38vh) minmax(0, 1fr);
+        overflow-y: auto;
+    }
+
+    .workspace_header {
+        flex-direction: column;
+    }
+
+    .resource_cluster {
+        width: 100%;
+        min-width: 0;
     }
 }

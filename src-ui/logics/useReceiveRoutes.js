@@ -83,6 +83,8 @@ export const STATIC_ROUTE_META_LIST = [
     { endpoint: "/set/disable/transcription_send", ns: main, hook_name: "useMainFunction", method_name: "updateTranscriptionSendStatus" },
     { endpoint: "/set/enable/transcription_receive", ns: main, hook_name: "useMainFunction", method_name: "updateTranscriptionReceiveStatus" },
     { endpoint: "/set/disable/transcription_receive", ns: main, hook_name: "useMainFunction", method_name: "updateTranscriptionReceiveStatus" },
+    { endpoint: "/set/enable/live_session", ns: null, hook_name: null, method_name: null },
+    { endpoint: "/set/disable/live_session", ns: null, hook_name: null, method_name: null },
 
     // Language Settings
     { endpoint: "/get/data/selected_tab_no", ns: main, hook_name: "useLanguageSettings", method_name: "updateSelectedPresetTabNumber" },
@@ -122,7 +124,7 @@ export const STATIC_ROUTE_META_LIST = [
     { endpoint: "/set/data/hotkeys", ns: configs, hook_name: "useHotkeys", method_name: "setSuccessHotkeys" },
 
     // // Not Implemented.
-    { endpoint: "/get/data/selectable_transcription_engines", ns: null, hook_name: null, method_name: null }, // Not implemented on UI yet. (if ai_models has not been detected, this will be blank array[]. if the ai_models are ok but just network has not connected, it'l be only ["Whisper"])
+    { endpoint: "/get/data/selectable_transcription_engines", ns: configs, hook_name: "useTranscription", method_name: "updateFromBackendSelectableTranscriptionEngineList" },
     { endpoint: "/run/shutdown", ns: null, hook_name: null, method_name: null }, // Not implemented on UI.
 ];
 
@@ -190,6 +192,15 @@ export const useReceiveRoutes = () => {
                     ?.refreshCTranslate2AutoFallback?.();
             }
         };
+        const settleLiveSession = () => {
+            if (
+                endpoint === "/set/enable/live_session"
+                || endpoint === "/set/disable/live_session"
+            ) {
+                hook_results.useMainFunction
+                    ?.clearPendingMainFunctionStatuses?.();
+            }
+        };
 
         if (endpoint === "/run/initialization_complete") {
             Object.entries(result).forEach(([ep, value]) => {
@@ -215,6 +226,7 @@ export const useReceiveRoutes = () => {
             case 400:
                 settleTranslationEngineSelection();
                 settleCTranslate2AutoFallback();
+                settleLiveSession();
                 hook_results.useMainFunction?.clearPendingMainFunctionError?.({
                     endpoint,
                     errorCode: result?.error_code,
@@ -237,6 +249,7 @@ export const useReceiveRoutes = () => {
             case 503: {
                 settleTranslationEngineSelection();
                 settleCTranslate2AutoFallback();
+                settleLiveSession();
                 hook_results.useMainFunction?.clearPendingMainFunctionError?.({
                     endpoint,
                     errorCode: result?.error_code,

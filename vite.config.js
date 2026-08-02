@@ -10,6 +10,10 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(() => {
     return {
         base: "./",
+        // The worktree shares node_modules through a junction. Keep Vite's
+        // optimizer cache local so normal development and verification never
+        // mutate that shared environment.
+        cacheDir: path.resolve(__dirname, ".vite-cache"),
         plugins: [
             yaml({ include: ["**/*.yml", "**/*.yaml"] }),
             react(),

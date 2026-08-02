@@ -63,6 +63,10 @@ run_mapping = {
     "selected_translation_compute_type":"/run/selected_translation_compute_type",
     "selected_transcription_compute_type":"/run/selected_transcription_compute_type",
     "selected_transcription_compute_device":"/run/selected_transcription_compute_device",
+    "selected_transcription_compute_type_send":"/run/selected_transcription_compute_type_send",
+    "selected_transcription_compute_type_receive":"/run/selected_transcription_compute_type_receive",
+    "selected_transcription_compute_device_send":"/run/selected_transcription_compute_device_send",
+    "selected_transcription_compute_device_receive":"/run/selected_transcription_compute_device_receive",
 
     "selectable_plamo_model_list":"/run/selectable_plamo_model_list",
     "selected_plamo_model":"/run/selected_plamo_model",
@@ -110,6 +114,9 @@ mapping = {
     "/set/enable/transcription_receive": {"status": False, "variable":controller.setEnableTranscriptionReceive},
     "/set/disable/transcription_receive": {"status": False, "variable":controller.setDisableTranscriptionReceive},
 
+    "/set/enable/live_session": {"status": False, "variable":controller.setEnableLiveSession},
+    "/set/disable/live_session": {"status": False, "variable":controller.setDisableLiveSession},
+
     "/set/enable/foreground": {"status": True, "variable":controller.setEnableForeground},
     "/set/disable/foreground": {"status": True, "variable":controller.setDisableForeground},
 
@@ -142,6 +149,10 @@ mapping = {
     "/get/data/transcription_language_capabilities": {"status": False, "variable":controller.getTranscriptionLanguageCapabilities},
     "/get/data/selected_transcription_engine": {"status": False, "variable":controller.getSelectedTranscriptionEngine},
     "/set/data/selected_transcription_engine": {"status": False, "variable":controller.setSelectedTranscriptionEngine},
+    "/get/data/selected_transcription_engine_send": {"status": False, "variable":controller.getSelectedTranscriptionEngineSend},
+    "/set/data/selected_transcription_engine_send": {"status": False, "variable":controller.setSelectedTranscriptionEngineSend},
+    "/get/data/selected_transcription_engine_receive": {"status": False, "variable":controller.getSelectedTranscriptionEngineReceive},
+    "/set/data/selected_transcription_engine_receive": {"status": False, "variable":controller.setSelectedTranscriptionEngineReceive},
 
     "/run/send_message_box": {"status": False, "variable":controller.sendMessageBox},
     "/run/typing_message_box": {"status": False, "variable":controller.typingMessageBox},
@@ -200,6 +211,10 @@ mapping = {
     "/get/data/selectable_transcription_compute_device_list": {"status": True, "variable":controller.getComputeDeviceList},
     "/get/data/selected_transcription_compute_device": {"status": True, "variable":controller.getSelectedTranscriptionComputeDevice},
     "/set/data/selected_transcription_compute_device": {"status": True, "variable":controller.setSelectedTranscriptionComputeDevice},
+    "/get/data/selected_transcription_compute_device_send": {"status": True, "variable":controller.getSelectedTranscriptionComputeDeviceSend},
+    "/set/data/selected_transcription_compute_device_send": {"status": True, "variable":controller.setSelectedTranscriptionComputeDeviceSend},
+    "/get/data/selected_transcription_compute_device_receive": {"status": True, "variable":controller.getSelectedTranscriptionComputeDeviceReceive},
+    "/set/data/selected_transcription_compute_device_receive": {"status": True, "variable":controller.setSelectedTranscriptionComputeDeviceReceive},
 
     # Translation
     "/get/data/selectable_ctranslate2_weight_type_dict": {"status": True, "variable":controller.getSelectableCtranslate2WeightTypeDict},
@@ -373,6 +388,10 @@ mapping = {
 
     "/get/data/selected_transcription_compute_type": {"status": True, "variable":controller.getSelectedTranscriptionComputeType},
     "/set/data/selected_transcription_compute_type": {"status": True, "variable":controller.setSelectedTranscriptionComputeType},
+    "/get/data/selected_transcription_compute_type_send": {"status": True, "variable":controller.getSelectedTranscriptionComputeTypeSend},
+    "/set/data/selected_transcription_compute_type_send": {"status": True, "variable":controller.setSelectedTranscriptionComputeTypeSend},
+    "/get/data/selected_transcription_compute_type_receive": {"status": True, "variable":controller.getSelectedTranscriptionComputeTypeReceive},
+    "/set/data/selected_transcription_compute_type_receive": {"status": True, "variable":controller.setSelectedTranscriptionComputeTypeReceive},
 
     "/run/download_whisper_weight": {"status": True, "variable":controller.downloadWhisperWeight},
     "/run/download_vosk_weight": {"status": True, "variable":controller.downloadVoskWeight},

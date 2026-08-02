@@ -4,16 +4,29 @@ import { readFileSync } from "node:fs";
 
 const readSource = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
-test("the live workspace composes real route, message, and session controls", () => {
+test("the live workspace uses the approved real-data control rail and compact composer", () => {
     const source = readSource("../MainSection.jsx");
+    const rail = readSource("../live_control_rail/LiveControlRail.jsx");
 
-    assert.match(source, /<LiveLanguageBar\s*\/>/);
-    assert.match(source, /<MessageContainer[\s\S]*sessionControls=/);
-    assert.match(source, /<MainFunctionSwitch\s+layout="session_dock"/);
+    assert.match(source, /<LiveControlRail\s*\/>/);
+    assert.match(source, /<MessageContainer[\s\S]*compactComposer/);
+    assert.doesNotMatch(source, /<LiveLanguageBar\s*\/>/);
+    assert.doesNotMatch(rail, /SessionPrimaryAction/);
+    assert.match(
+        rail,
+        /<MainFunctionSwitch\s+layout="control_rail"\s+includeForeground=\{false\}\s*\/>/,
+    );
+    assert.match(rail, /<LanguageProfileGroup[\s\S]*group="speaking"/);
+    assert.match(rail, /<LanguageProfileGroup[\s\S]*group="target"/);
+    assert.match(rail, /<LanguageSelectorOpenButton/);
+    assert.match(rail, /<TranscriptionEngineLabel\s+variant="live_compact"/);
+    assert.match(rail, /<TranslatorSelectorOpenButton\s+variant="live_compact"/);
+    assert.match(rail, /useIsOscAvailable/);
+    assert.match(rail, /currentEnableSendMessageToVrc/);
 });
 
-test("the visible live language bar exposes complete speaking and Target profiles", () => {
-    const source = readSource("../live_language_bar/LiveLanguageBar.jsx");
+test("the real control rail exposes complete speaking and target profiles", () => {
+    const source = readSource("../live_control_rail/LiveControlRail.jsx");
 
     assert.match(source, /<LanguageProfileGroup[\s\S]*group="speaking"/);
     assert.match(source, /<LanguageProfileGroup[\s\S]*group="target"/);
@@ -21,7 +34,7 @@ test("the visible live language bar exposes complete speaking and Target profile
     assert.match(source, /languages=\{getCurrentTargetLanguages\(\)\}/);
     assert.match(source, /onRemove=\{removeYourLanguage\}/);
     assert.match(source, /onRemove=\{removeTargetLanguage\}/);
-    assert.match(source, /variant="live_route"/);
+    assert.match(source, /variant="live_rail"/);
 
     const singleSelectors = source.match(/<LanguageSelectorOpenButton/g) ?? [];
     assert.equal(singleSelectors.length, 1, "only the preferred language stays single-select");
@@ -32,7 +45,7 @@ test("slow pipeline state and notifications use the approved warning placement",
     const snackbar = readSource("../../../others/snackbar_controller/SnackbarController.jsx");
 
     assert.match(pipeline, /data-health=\{summary\.health\}/);
-    assert.match(snackbar, /position="top-right"/);
+    assert.match(snackbar, /position="bottom-left"/);
 });
 
 test("the session health pill has centered text without a leading dot", () => {
@@ -72,15 +85,48 @@ test("Live Weave uses top navigation and excludes unsupported VRChat world copy"
     assert.doesNotMatch(navigation, /Garden world|speakers connected/i);
 });
 
-test("the session dock keeps pipeline status above three primary controls", () => {
+test("advanced diagnostics stay collapsed while the rail keeps the real controls visible", () => {
     const mainSection = readSource("../MainSection.jsx");
-    const messageContainer = readSource("../message_container/MessageContainer.jsx");
+    const controlRail = readSource("../live_control_rail/LiveControlRail.jsx");
     const switches = readSource("../../sidebar_section/main_function_switch/MainFunctionSwitch.jsx");
+    const switchStyles = readSource("../../sidebar_section/main_function_switch/MainFunctionSwitch.module.scss");
 
-    assert.match(mainSection, /pipelineStatus=\{<PipelineStatus\s*\/>\}/);
-    assert.match(messageContainer, /pipelineStatus/);
-    assert.match(mainSection, /includeForeground=\{false\}/);
+    assert.match(mainSection, /<LiveControlRail\s*\/>/);
+    assert.match(controlRail, /<details/);
+    assert.doesNotMatch(controlRail, /<details[^>]*\bopen\b/);
+    assert.match(controlRail, /<PipelineStatus\s*\/>/);
+    assert.doesNotMatch(controlRail, /SessionPrimaryAction/);
+    assert.match(
+        controlRail,
+        /<MainFunctionSwitch\s+layout="control_rail"\s+includeForeground=\{false\}\s*\/>/,
+    );
+    assert.match(switches, /styles\[`layout_\$\{layout\}`\]/);
+    assert.match(switchStyles, /\.container\.layout_control_rail/);
     assert.match(switches, /switch_items\.filter\(\(item\) => item\.switch_id !== "foreground"/);
+});
+
+test("the live control rail uses the persisted individual main-function toggles", () => {
+    const switches = readSource("../../sidebar_section/main_function_switch/MainFunctionSwitch.jsx");
+    const mainFunction = readSource("../../../../../logics/main/useMainFunction.js");
+
+    assert.match(switches, /toggleTranslation/);
+    assert.match(switches, /toggleTranscriptionSend/);
+    assert.match(switches, /toggleTranscriptionReceive/);
+    assert.match(mainFunction, /const createTogglePair/);
+    assert.match(mainFunction, /`\/set\/\$\{action\}\/\$\{endpointName\}`/);
+});
+
+test("message rows put completed translations ahead of the original source text", () => {
+    const row = readSource("../message_container/log_box/message_container/MessageContainer.jsx");
+    const rowStyles = readSource("../message_container/log_box/message_container/MessageContainer.module.scss");
+
+    assert.ok(
+        row.indexOf("messages.translations.map") < row.indexOf("original_message"),
+        "translation entries must render before original text",
+    );
+    assert.match(row, /className=\{styles\.translation_list\}/);
+    assert.match(rowStyles, /\.translation_list/);
+    assert.match(rowStyles, /\.original_message[\s\S]*?&\.with_translations[\s\S]*border-top/);
 });
 
 test("quick engine menus open below their triggers without clipping their option grids", () => {

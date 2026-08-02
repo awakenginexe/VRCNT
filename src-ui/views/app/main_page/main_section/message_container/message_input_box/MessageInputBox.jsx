@@ -5,8 +5,10 @@ import { useMessage } from "@logics_common";
 import { useAppearance, useOthers } from "@logics_configs";
 import { useMessageLogScroll } from "@logics_main";
 import { store } from "@store";
+import { useI18n } from "@useI18n";
 
 export const MessageInputBox = () => {
+    const { t } = useI18n();
     const [message_history, setMessageHistory] = useState([]);
     const [history_index, setHistoryIndex] = useState(-1);
     const {
@@ -101,7 +103,7 @@ export const MessageInputBox = () => {
                     className={styles.message_box_input_area}
                     onChange={onChangeFunction}
                     onBlur={stopTyping}
-                    // placeholder="Input Textfield"
+                    placeholder={t("main_page.live_workspace.composer_placeholder")}
                     value={currentMessageInputValue.data}
                     onKeyDown={onKeyDownFunction}
                 />

@@ -175,6 +175,37 @@ test("opening desktop overlay focuses an existing overlay before creating a new 
     ]);
 });
 
+test("opening an existing desktop overlay does not fail when a focus operation is unavailable", async () => {
+    const calls = [];
+    const existingWindow = {
+        async unminimize() {
+            calls.push("unminimize");
+            throw new Error("window is already visible");
+        },
+        async setFocus() {
+            calls.push("setFocus");
+            throw new Error("focus was declined");
+        },
+    };
+
+    const result = await openDesktopOverlayWindow({
+        isTauri: true,
+        WebviewWindow: {
+            async getByLabel(label) {
+                calls.push(["getByLabel", label]);
+                return existingWindow;
+            },
+        },
+    });
+
+    assert.equal(result, existingWindow);
+    assert.deepEqual(calls, [
+        ["getByLabel", "desktop-overlay"],
+        "unminimize",
+        "setFocus",
+    ]);
+});
+
 test("opening desktop overlay creates the utility window when no overlay exists", async () => {
     const calls = [];
 
@@ -201,6 +232,35 @@ test("opening desktop overlay creates the utility window when no overlay exists"
     assert.equal(result.options.alwaysOnTop, true);
     assert.deepEqual(calls[0], ["getByLabel", "desktop-overlay"]);
     assert.equal(calls[1][0], "create");
+});
+
+test("reopening a newly created desktop overlay reuses its live window handle", async () => {
+    const calls = [];
+
+    class CachedWebviewWindow {
+        constructor(label, options) {
+            calls.push(["create", label, options]);
+            this.label = label;
+            this.options = options;
+        }
+
+        static async getByLabel(label) {
+            calls.push(["getByLabel", label]);
+            return null;
+        }
+    }
+
+    const firstWindow = await openDesktopOverlayWindow({
+        isTauri: true,
+        WebviewWindow: CachedWebviewWindow,
+    });
+    const secondWindow = await openDesktopOverlayWindow({
+        isTauri: true,
+        WebviewWindow: CachedWebviewWindow,
+    });
+
+    assert.equal(secondWindow, firstWindow);
+    assert.equal(calls.filter(([kind]) => kind === "create").length, 1);
 });
 
 test("opening desktop overlay rejects when Tauri reports a creation error", async () => {

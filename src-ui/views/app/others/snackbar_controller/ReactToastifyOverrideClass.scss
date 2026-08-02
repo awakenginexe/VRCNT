@@ -13,7 +13,7 @@
     --toastify-icon-color-error: var(--toastify-color-error);
 
     --toastify-container-width: fit-content;
-    --toastify-toast-width: 32rem;
+    --toastify-toast-width: min(38rem, calc(100vw - 3.2rem));
     --toastify-toast-offset: 1.6rem;
     --toastify-toast-top: max(var(--toastify-toast-offset), env(safe-area-inset-top));
     --toastify-toast-right: max(var(--toastify-toast-offset), env(safe-area-inset-right));
@@ -80,27 +80,28 @@
     justify-content: start;
     align-items: center;
     font-size: 1.4rem;
-    width: fit-content;
-    max-width: 70vw;
-    padding-right: 4rem;
+    width: var(--toastify-toast-width);
+    max-width: calc(100vw - 3.2rem);
+    padding: 0;
     background-color: var(--surface_overlay_color);
     gap: 0.6rem;
     white-space: pre-wrap;
 }
 
+.Toastify__toast-container--bottom-left {
+    bottom: max(2.4rem, env(safe-area-inset-bottom));
+    left: max(2.4rem, env(safe-area-inset-left));
+}
+
 .Toastify__progress-bar--wrp {
     height: 0.4rem;
-}
-.Toastify__progress-bar--success {
-    background: var(--success_bc_color);
+    background: rgba(255, 255, 255, 0.08);
 }
 
-.Toastify__progress-bar--warning {
-    background: var(--warning_bc_color);
-}
-
-.Toastify__progress-bar--error {
-    background: var(--error_bc_color);
+@media (prefers-reduced-motion: reduce) {
+    .Toastify__progress-bar--animated {
+        animation-duration: var(--vrcnt-notification-duration, 5000ms) !important;
+    }
 }
 
 

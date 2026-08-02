@@ -143,14 +143,26 @@
     color: var(--dark_100_color);
 }
 
+.translation_list {
+    width: 100%;
+    max-width: 100%;
+
+    .message_main {
+        color: var(--dark_100_color);
+        font-size: 1.5em;
+        font-weight: 850;
+        line-height: 1.35;
+    }
+}
+
 .original_message {
     max-width: 100%;
 
     &.with_translations {
         width: 100%;
-        margin-bottom: 0.85em;
-        padding-bottom: 0.85em;
-        border-bottom: 0.1rem solid rgba(255, 255, 255, 0.06);
+        margin-top: 0.85em;
+        padding-top: 0.85em;
+        border-top: 0.1rem solid rgba(255, 255, 255, 0.06);
 
         .message_main {
             color: var(--dark_400_color);

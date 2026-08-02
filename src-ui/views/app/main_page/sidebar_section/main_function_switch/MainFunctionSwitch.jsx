@@ -153,6 +153,7 @@ export const SwitchContainer = ({ switchLabel, switch_id, children, currentState
                 aria-checked={currentState.data === true}
                 aria-busy={currentState.state === "pending"}
                 data-state={currentState.state === "pending" ? "pending" : currentState.data === true ? "on" : "off"}
+                data-function={switch_id}
                 disabled={isDisabled}
                 aria-disabled={currentState.state === "pending"}
                 className={getClassNames(styles.switch_container)}

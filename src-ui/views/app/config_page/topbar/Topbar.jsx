@@ -3,19 +3,14 @@ import { useI18n } from "@useI18n";
 import clsx from "clsx";
 
 import styles from "./Topbar.module.scss";
-import { useIsOpenedConfigPage } from "@logics_common";
 import ArrowLeftSvg from "@images/arrow_left.svg?react";
 
 import { TitleBox } from "./title_box/TitleBox";
 import { VersionLabel } from "../version_label/VersionLabel.jsx";
 
-export const Topbar = ({ searchQuery, setSearchQuery }) => {
+export const Topbar = ({ searchQuery, setSearchQuery, onClose }) => {
     const { t } = useI18n();
     const searchInputRef = useRef(null);
-    const { currentIsOpenedConfigPage, setIsOpenedConfigPage } = useIsOpenedConfigPage();
-    const closeConfigPage = () => {
-        setIsOpenedConfigPage(false);
-    };
 
     useEffect(() => {
         const focusSearch = (event) => {
@@ -28,15 +23,12 @@ export const Topbar = ({ searchQuery, setSearchQuery }) => {
     }, []);
 
     return (
-        <header className={clsx(styles.container, {
-            [styles.show_config]: currentIsOpenedConfigPage.data,
-            [styles.show_main]: !currentIsOpenedConfigPage.data
-        })}>
+        <header className={clsx(styles.container, styles.show_config)}>
             <div className={styles.wrapper}>
                 <button
                     type="button"
                     className={styles.go_back_button}
-                    onClick={closeConfigPage}
+                    onClick={onClose}
                     aria-label={t("common.go_back_button_label")}
                 >
                     <ArrowLeftSvg className={styles.arrow_left_svg} />

@@ -32,6 +32,17 @@ session.
 - One CUDA-enabled Windows build that can also use CPU processing.
 - A focused matte-black and violet desktop interface.
 
+## Hardware and performance
+
+VRCNT works on CPU-only systems, but an NVIDIA GPU provides the best real-time performance.
+
+VRCNT includes local AI runtime dependencies, which is why the application package is large. They let you use local speech and translation features without depending on a cloud service for every conversation.
+
+- Speech models may require additional downloads after installation.
+- Larger models require more RAM or VRAM, so choose a model that suits your computer.
+- CPU-only mode is supported but may have higher latency, especially with larger speech models.
+- Cloud engines can help weaker computers but require internet access.
+
 ## Preview
 
 The current preview images are retained for now and will be refreshed for the

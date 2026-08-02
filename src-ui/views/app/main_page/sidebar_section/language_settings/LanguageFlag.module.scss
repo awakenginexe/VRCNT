@@ -1,8 +1,9 @@
 .flag_shell {
     width: 3.2rem;
     height: 2.35rem;
-    display: grid;
-    place-items: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
     border-radius: 0.45rem;
     overflow: hidden;
@@ -14,10 +15,34 @@
 }
 
 .flag_icon {
+    box-shadow: inset 0 0 0 0.1rem #00000018;
+}
+
+.flag_image {
+    display: block;
     width: 100%;
     height: 100%;
-    background-size: cover;
-    box-shadow: inset 0 0 0 0.1rem #00000018;
+    object-fit: cover;
+}
+
+/* Override flag-icons library base class when inside flag_shell.
+   The .fi class sets display:inline-block, width:1.333em, and a
+   ::before pseudo — all of which prevent the element from filling
+   its parent container. We override with higher specificity. */
+.flag_shell :global(.fi) {
+    display: block !important;
+    position: relative !important;
+    width: 100% !important;
+    height: 100% !important;
+    line-height: 1 !important;
+    background-size: cover !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+
+    &::before {
+        content: none !important;
+        display: none !important;
+    }
 }
 
 .fallback {

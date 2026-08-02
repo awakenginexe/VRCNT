@@ -1,23 +1,32 @@
 import { useMemo } from "react";
 import { useI18n } from "@useI18n";
-import { store, useStore_OpenedQuickSetting, useStore_SelectedConfigTabId } from "@store";
+import {
+    store,
+    useStore_ExperienceRoute,
+    useStore_OpenedQuickSetting,
+    useStore_SelectedConfigTabId,
+} from "@store";
 import { useIsOpenedConfigPage, usePipelineStatus, useSoftwareVersion } from "@logics_common";
 import { selectPipelineStatusSummary } from "@logics_common/pipelineStatusUtils.js";
 import { DesktopOverlayButton } from "../../sidebar_section/desktop_overlay_button/DesktopOverlayButton";
+import logoBadge from "@images/vrcnt_logo_badge.png";
 import styles from "./LiveWeaveNavigation.module.scss";
 
 const NAVIGATION_ITEMS = [
-    { id: "live", labelKey: "main_page.live_weave.navigation.live" },
-    { id: "history", labelKey: "main_page.live_weave.navigation.history" },
-    { id: "models", labelKey: "main_page.live_weave.navigation.models", configTab: "model_and_provider" },
-    { id: "overlay", labelKey: "main_page.live_weave.navigation.overlay", configTab: "vr" },
-    { id: "settings", labelKey: "main_page.live_weave.navigation.settings", configTab: "appearance" },
+    { id: "live", icon: "⚡", labelKey: "main_page.live_weave.navigation.live" },
+    { id: "setup", icon: "🪄", labelKey: "main_page.live_weave.navigation.setup" },
+    { id: "engines", icon: "⚙", labelKey: "main_page.live_weave.navigation.engines", configTab: "model_and_provider" },
+    { id: "models", icon: "🧠", labelKey: "main_page.live_weave.navigation.models", configTab: "model_and_provider" },
+    { id: "overlay", icon: "🖼", labelKey: "main_page.live_weave.navigation.overlay", configTab: "vr" },
+    { id: "history", icon: "📜", labelKey: "main_page.live_weave.navigation.history" },
+    { id: "settings", icon: "⚙", labelKey: "main_page.live_weave.navigation.settings", configTab: "appearance" },
 ];
 
 export const LiveWeaveNavigation = () => {
     const { t } = useI18n();
-    const { currentIsOpenedConfigPage, setIsOpenedConfigPage } = useIsOpenedConfigPage();
+    const { setIsOpenedConfigPage } = useIsOpenedConfigPage();
     const { updateSelectedConfigTabId } = useStore_SelectedConfigTabId();
+    const { currentExperienceRoute, updateExperienceRoute } = useStore_ExperienceRoute();
     const { updateOpenedQuickSetting } = useStore_OpenedQuickSetting();
     const { currentLatestSoftwareVersionInfo } = useSoftwareVersion();
     const { currentPipelineStatus } = usePipelineStatus();
@@ -28,7 +37,18 @@ export const LiveWeaveNavigation = () => {
     );
 
     const openItem = (item) => {
+        updateExperienceRoute(item.id);
         if (item.id === "live") {
+            setIsOpenedConfigPage(false);
+            return;
+        }
+
+        if (item.id === "setup") {
+            setIsOpenedConfigPage(false);
+            return;
+        }
+
+        if (item.id === "engines" || item.id === "models" || item.id === "overlay") {
             setIsOpenedConfigPage(false);
             return;
         }
@@ -38,8 +58,10 @@ export const LiveWeaveNavigation = () => {
             return;
         }
 
-        updateSelectedConfigTabId(item.configTab);
-        setIsOpenedConfigPage(true);
+        if (item.configTab) {
+            updateSelectedConfigTabId(item.configTab);
+            setIsOpenedConfigPage(true);
+        }
     };
 
     return (
@@ -47,15 +69,18 @@ export const LiveWeaveNavigation = () => {
             <button
                 type="button"
                 className={styles.wordmark}
-                onClick={() => setIsOpenedConfigPage(false)}
+                onClick={() => {
+                    updateExperienceRoute("live");
+                    setIsOpenedConfigPage(false);
+                }}
                 aria-label={t("main_page.live_weave.navigation.live")}
             >
+                <img className={styles.wordmark_badge} src={logoBadge} alt="" />
                 <span>VRCNT</span>
             </button>
             <nav className={styles.navigation} aria-label={t("main_page.live_weave.navigation.live")}>
                 {NAVIGATION_ITEMS.map((item) => {
-                    const isLive = item.id === "live";
-                    const isActive = isLive && !currentIsOpenedConfigPage.data;
+                    const isActive = currentExperienceRoute.data === item.id;
 
                     return (
                         <button
@@ -66,6 +91,7 @@ export const LiveWeaveNavigation = () => {
                             aria-current={isActive ? "page" : undefined}
                             onClick={() => openItem(item)}
                         >
+                            <span className={styles.navigation_icon} aria-hidden="true">{item.icon}</span>
                             {t(item.labelKey)}
                         </button>
                     );

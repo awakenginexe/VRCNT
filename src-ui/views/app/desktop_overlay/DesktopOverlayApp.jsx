@@ -1,43 +1,29 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
+import { PhysicalSize } from "@tauri-apps/api/window";
 import { useI18n } from "@useI18n";
 import {
     DESKTOP_OVERLAY_CHANNEL,
-    DESKTOP_OVERLAY_SETTINGS_STORAGE_KEY,
-    LEGACY_DESKTOP_OVERLAY_SETTINGS_STORAGE_KEY,
+    DESKTOP_OVERLAY_CONTROL_CHANNEL,
+    DESKTOP_OVERLAY_SETTINGS_CHANNEL,
+    DESKTOP_OVERLAY_WINDOW_CONSTRAINTS,
+    estimateDesktopOverlayFitHeight,
     readDesktopOverlayPayload,
-    readMigratedStorageValue,
+    readDesktopOverlaySettings,
     createDesktopOverlayPayload,
+    normalizeDesktopOverlaySettings,
+    writeDesktopOverlaySettings,
 } from "@logics_common";
 import { store, useStore_MessageLogs } from "@store";
 import ConfigurationSvg from "@images/configuration.svg?react";
 import ForegroundSvg from "@images/foreground.svg?react";
 import XMarkSvg from "@images/x_mark.svg?react";
+import {
+    createDesktopOverlayStyle,
+    DesktopOverlayMessageStack,
+    DesktopOverlayStatusStrip,
+} from "./DesktopOverlayPreview";
 import styles from "./DesktopOverlayApp.module.scss";
-
-const DEFAULT_OVERLAY_SETTINGS = {
-    pinned: true,
-    opacity: 92,
-    scale: 100,
-    translationsOnly: false,
-    expanded: true,
-};
-
-const readOverlaySettings = () => {
-    try {
-        const rawSettings = readMigratedStorageValue(
-            globalThis.localStorage,
-            DESKTOP_OVERLAY_SETTINGS_STORAGE_KEY,
-            LEGACY_DESKTOP_OVERLAY_SETTINGS_STORAGE_KEY,
-        );
-        return rawSettings
-            ? { ...DEFAULT_OVERLAY_SETTINGS, ...JSON.parse(rawSettings) }
-            : DEFAULT_OVERLAY_SETTINGS;
-    } catch (error) {
-        console.warn("Unable to read desktop overlay settings.", error);
-        return DEFAULT_OVERLAY_SETTINGS;
-    }
-};
 
 export const DesktopOverlayApp = () => {
     const { t, i18n } = useI18n();
@@ -45,8 +31,9 @@ export const DesktopOverlayApp = () => {
     const [payload, setPayload] = useState(() => (
         readDesktopOverlayPayload() ?? createDesktopOverlayPayload({ messageLogs: currentMessageLogs.data })
     ));
-    const [settings, setSettings] = useState(readOverlaySettings);
+    const [settings, setSettings] = useState(readDesktopOverlaySettings);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const panelRef = useRef(null);
 
     useEffect(() => {
         document.documentElement.classList.add(styles.desktop_overlay_root);
@@ -59,15 +46,8 @@ export const DesktopOverlayApp = () => {
     }, []);
 
     useEffect(() => {
-        try {
-            localStorage.setItem(
-                DESKTOP_OVERLAY_SETTINGS_STORAGE_KEY,
-                JSON.stringify(settings),
-            );
-            store.appWindow?.setAlwaysOnTop?.(settings.pinned === true);
-        } catch (error) {
-            console.warn("Unable to update desktop overlay settings.", error);
-        }
+        writeDesktopOverlaySettings(settings);
+        store.appWindow?.setAlwaysOnTop?.(settings.pinned === true);
     }, [settings]);
 
     useEffect(() => {
@@ -86,6 +66,29 @@ export const DesktopOverlayApp = () => {
     }, []);
 
     useEffect(() => {
+        const applyIncomingSettings = (nextSettings) => {
+            setSettings(normalizeDesktopOverlaySettings(nextSettings));
+        };
+        const onStorage = (event) => {
+            if (event.key === "vrcnt-desktop-overlay-settings") {
+                applyIncomingSettings(readDesktopOverlaySettings());
+            }
+        };
+
+        globalThis.addEventListener?.("storage", onStorage);
+        try {
+            const channel = new BroadcastChannel(DESKTOP_OVERLAY_SETTINGS_CHANNEL);
+            channel.onmessage = (event) => applyIncomingSettings(event.data);
+            return () => {
+                globalThis.removeEventListener?.("storage", onStorage);
+                channel.close();
+            };
+        } catch {
+            return () => globalThis.removeEventListener?.("storage", onStorage);
+        }
+    }, []);
+
+    useEffect(() => {
         const intervalId = setInterval(() => {
             const storedPayload = readDesktopOverlayPayload();
             if (storedPayload) setPayload(storedPayload);
@@ -93,11 +96,6 @@ export const DesktopOverlayApp = () => {
 
         return () => clearInterval(intervalId);
     }, []);
-
-    const visibleLogs = useMemo(() => {
-        const logs = payload?.messageLogs ?? [];
-        return settings.expanded ? logs.slice(-3) : logs.slice(-1);
-    }, [payload, settings.expanded]);
 
     const startDragging = (event) => {
         if (event.button !== 0) return;
@@ -112,6 +110,88 @@ export const DesktopOverlayApp = () => {
         }));
     };
 
+    const fitToContent = useCallback(async () => {
+        const visibleLogCount = settings.expanded
+            ? (payload?.messageLogs?.slice(-3).length ?? 0)
+            : Math.min(1, payload?.messageLogs?.length ?? 0);
+        const measuredHeight = panelRef.current?.scrollHeight
+            ? Math.ceil(panelRef.current.scrollHeight + 24)
+            : estimateDesktopOverlayFitHeight({ visibleLogCount });
+        const height = Math.min(
+            settings.geometry.maxHeight,
+            Math.max(DESKTOP_OVERLAY_WINDOW_CONSTRAINTS.minHeight, measuredHeight),
+        );
+        const nextSettings = normalizeDesktopOverlaySettings({
+            ...settings,
+            geometry: {
+                ...settings.geometry,
+                height,
+                autoHeight: true,
+            },
+        });
+
+        setSettings((currentSettings) => (
+            currentSettings.geometry.height === nextSettings.geometry.height
+            && currentSettings.geometry.autoHeight === nextSettings.geometry.autoHeight
+                ? currentSettings
+                : nextSettings
+        ));
+        await store.appWindow?.setSize?.(new PhysicalSize(
+            nextSettings.geometry.width,
+            nextSettings.geometry.height,
+        ));
+    }, [payload?.messageLogs, settings]);
+
+    useEffect(() => {
+        if (!settings.geometry.autoHeight) return undefined;
+        const frameId = globalThis.requestAnimationFrame?.(() => {
+            fitToContent();
+        });
+        return () => {
+            if (frameId !== undefined) globalThis.cancelAnimationFrame?.(frameId);
+        };
+    }, [fitToContent, settings.geometry.autoHeight]);
+
+    useEffect(() => {
+        let dispose;
+        const listenForFitToContent = () => {
+            try {
+                const channel = new BroadcastChannel(DESKTOP_OVERLAY_CONTROL_CHANNEL);
+                channel.onmessage = (event) => {
+                    if (event.data?.type === "fit-to-content") fitToContent();
+                };
+                dispose = () => channel.close();
+            } catch {
+                dispose = undefined;
+            }
+        };
+        listenForFitToContent();
+        return () => dispose?.();
+    }, [fitToContent]);
+
+    useEffect(() => {
+        let unlisten;
+        const persistManualGeometry = async () => {
+            const size = await store.appWindow?.outerSize?.();
+            if (!size) return;
+            setSettings((currentSettings) => normalizeDesktopOverlaySettings({
+                ...currentSettings,
+                geometry: {
+                    ...currentSettings.geometry,
+                    width: size.width,
+                    height: size.height,
+                    autoHeight: false,
+                },
+            }));
+        };
+
+        store.appWindow?.onResized?.(persistManualGeometry)
+            ?.then?.((unsubscribe) => {
+                unlisten = unsubscribe;
+            });
+        return () => unlisten?.();
+    }, []);
+
     const closeOverlay = () => {
         store.appWindow?.close?.();
     };
@@ -119,13 +199,10 @@ export const DesktopOverlayApp = () => {
     return (
         <div
             className={styles.overlay_shell}
-            style={{
-                "--desktop-overlay-opacity": `${settings.opacity / 100}`,
-                "--desktop-overlay-scale": `${settings.scale / 100}`,
-            }}
+            style={createDesktopOverlayStyle(settings)}
             onMouseDown={startDragging}
         >
-            <section className={styles.overlay_panel}>
+            <section ref={panelRef} className={styles.overlay_panel}>
                 <header className={styles.header}>
                     <div className={styles.title_group}>
                         <p className={styles.eyebrow}>VRCNT</p>
@@ -158,23 +235,12 @@ export const DesktopOverlayApp = () => {
                     </div>
                 </header>
 
-                <StatusStrip statuses={payload?.statuses} />
-
-                <div className={styles.log_stack}>
-                    {visibleLogs.length > 0 ? (
-                        visibleLogs.map((log) => (
-                            <OverlayMessage
-                                key={log.id ?? `${log.category}-${log.created_at}`}
-                                log={log}
-                                translationsOnly={settings.translationsOnly}
-                            />
-                        ))
-                    ) : (
-                        <div className={styles.empty_state}>
-                            {t("main_page.desktop_overlay.waiting")}
-                        </div>
-                    )}
-                </div>
+                <DesktopOverlayStatusStrip statuses={payload?.statuses} />
+                <DesktopOverlayMessageStack
+                    payload={payload}
+                    settings={settings}
+                    className={styles.log_stack}
+                />
 
                 {isSettingsOpen && (
                     <div className={styles.settings_panel}>
@@ -211,59 +277,6 @@ export const DesktopOverlayApp = () => {
                 )}
             </section>
         </div>
-    );
-};
-
-const StatusStrip = ({ statuses = {} }) => {
-    const { t } = useI18n();
-    const statusItems = [
-        ["translationEnabled", t("main_page.translation")],
-        ["speakingEnabled", t("main_page.transcription_send")],
-        ["listeningEnabled", t("main_page.transcription_receive")],
-    ];
-
-    return (
-        <div className={styles.status_strip}>
-            {statusItems.map(([key, label]) => (
-                <div
-                    key={key}
-                    className={clsx(styles.status_pill, {
-                        [styles.is_active]: statuses[key] === true,
-                    })}
-                >
-                    <span className={styles.status_dot}></span>
-                    <span>{label}</span>
-                </div>
-            ))}
-        </div>
-    );
-};
-
-const OverlayMessage = ({ log, translationsOnly }) => {
-    const { t } = useI18n();
-    const originalMessage = log?.messages?.original?.message ?? "";
-    const translations = (log?.messages?.translations ?? [])
-        .map((translation) => translation.message)
-        .filter(Boolean);
-    const shouldShowOriginal = translationsOnly !== true && originalMessage;
-
-    return (
-        <article className={clsx(styles.message_card, styles[log.category] ?? styles.system)}>
-            <div className={styles.message_meta}>
-                <span>{t(`main_page.message_log.${log.category}`, { defaultValue: log.category })}</span>
-                {log.created_at && <span>{log.created_at}</span>}
-            </div>
-            {shouldShowOriginal && (
-                <p className={styles.original_message}>{originalMessage}</p>
-            )}
-            {translations.length > 0 ? (
-                translations.map((message, index) => (
-                    <p key={`${log.id}-translation-${index}`} className={styles.translated_message}>{message}</p>
-                ))
-            ) : (
-                <p className={styles.no_translation}>{t("main_page.desktop_overlay.no_translation")}</p>
-            )}
-        </article>
     );
 };
 

@@ -162,6 +162,89 @@
     }
 }
 
+.container.variant_live_rail {
+    gap: 0.45rem;
+    padding: 0.85rem;
+    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.16);
+    border-radius: 0.9rem;
+    background: var(--surface_control_color);
+    transition: border-color var(--transition_ui), background-color var(--transition_ui);
+
+    &[data-selector-key="your_translation_language"] {
+        border-color: rgba(var(--warning_color_rgb), 0.32);
+        background: color-mix(in srgb, var(--warning_color) 5%, var(--surface_control_color));
+
+        .category_svg {
+            color: var(--warning_color);
+        }
+
+        .title {
+            color: var(--dark_150_color);
+        }
+
+        .dropdown_menu_container {
+            border-color: rgba(var(--warning_color_rgb), 0.25);
+            background: var(--surface_2_color);
+
+            &:hover {
+                border-color: rgba(var(--warning_color_rgb), 0.55);
+                background: var(--surface_3_color);
+            }
+        }
+
+        .selected_language {
+            color: var(--warning_color);
+        }
+
+        .arrow_left_svg {
+            color: var(--warning_color);
+        }
+    }
+
+    .title_container {
+        gap: 0.5rem;
+    }
+
+    .category_svg {
+        display: block;
+        width: 1.3rem;
+    }
+
+    .title {
+        color: var(--dark_350_color);
+        font-size: 0.9rem;
+        letter-spacing: 0.07rem;
+    }
+
+    .dropdown_menu_container {
+        min-height: 4.4rem;
+        padding: 0.7rem 2.8rem 0.7rem 0.85rem;
+        border-radius: 0.85rem;
+        background: var(--surface_2_color);
+    }
+
+    .flag_badge {
+        width: 2.4rem;
+        height: 1.7rem;
+    }
+
+    .selected_language {
+        font-size: 1.18rem;
+        font-weight: 850;
+    }
+
+    .selected_country {
+        display: block;
+        font-size: 0.9rem;
+        color: var(--dark_450_color);
+    }
+
+    .arrow_left_svg {
+        right: 0.85rem;
+        width: 1.35rem;
+    }
+}
+
 .container.variant_profile {
     gap: 0;
 
