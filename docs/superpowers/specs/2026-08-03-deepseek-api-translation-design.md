@@ -32,7 +32,7 @@ Rust/Tauri remains responsible for packaging and launching the Python sidecar; i
 
 `translation_deepseek.py` will define a narrowly scoped `DeepSeekClient`. It will use the already present Python OpenAI SDK with a fixed base URL and a hard-coded two-model allowlist. It will expose only the responsibilities needed by the translation dispatcher:
 
-- accept a credential only from the credential-store boundary;
+- accept the saved key through the existing provider configuration boundary;
 - validate a requested model against the fixed allowlist;
 - perform an explicit connection test using the official API without revealing the key;
 - create one non-streaming chat-completions request for a translation;
@@ -49,41 +49,26 @@ The client must not use `reasoning_content` for output or for subsequent turns. 
 
 Its history configuration is permanently disabled for v1 (`use_history: false`, zero sources, zero message and character limits). The dispatcher may still pass the normal empty context value through its standard call shape, but the DeepSeek client will not render or send it. This preserves pipeline compatibility while ensuring that no prior chat, microphone, or speaker text reaches DeepSeek by default.
 
-## 5. Credential storage and configuration
+## 5. API-key configuration and persistence
 
-### Credential-store abstraction
+DeepSeek follows VRCNT's established user-supplied cloud-provider key flow. A user pastes a key into Settings, saves or replaces it, may test it, and then enables DeepSeek or places it in the existing provider order. The key is persisted through the existing `Config.AUTH_KEYS` configuration mechanism with the new `DeepSeek_API` entry; this feature adds no provider-specific storage subsystem or dependency.
 
-The feature introduces a small injected Python interface, for example `CredentialStore`, with write, read, delete, availability, and opaque-reference operations. Its first production implementation is Windows Credential Manager, reached through the Windows credential API without a plaintext fallback. Tests use an in-memory fake store injected into the client/controller composition path; they never read or write the real Windows Credential Manager.
+The `AUTH_KEYS` default schema adds `"DeepSeek_API": None`. Its exact-key validation/load path receives a narrow safe schema migration: a legacy saved `AUTH_KEYS` object missing only `DeepSeek_API` is normalized by adding the default `None`; it preserves all existing provider values. There is no key migration because DeepSeek is new. `SELECTED_DEEPSEEK_MODEL` defaults to `"deepseek-v4-flash"` and accepts only the two fixed official IDs.
 
-A newly entered key is written under an opaque VRCNT DeepSeek credential target. The config stores only that opaque reference and non-secret state. The raw key is never put in `Config.AUTH_KEYS`, `config.json`, provider selections, model lists, response payloads, test fixtures, screenshots, or logs.
-
-If Credential Manager is unavailable, disabled, or rejects an operation, the controller returns a clear credential-store-unavailable state. DeepSeek remains unconfigured and unavailable for provider selection. It must not fall back to plaintext config storage, environment variables, or an alternative key store.
-
-### Non-secret config schema and migration
-
-DeepSeek does not extend the existing `AUTH_KEYS` dictionary, whose exact-key validation would otherwise make legacy config loading brittle. It adds separate non-secret settings with defaults:
-
-- `DEEPSEEK_CREDENTIAL_REFERENCE = None`
-- `SELECTED_DEEPSEEK_MODEL = "deepseek-v4-flash"`
-- runtime-only configured/health/provider-availability status derived from the credential store and the last operation.
-
-The persisted credential reference is opaque and contains no API-key material. The existing selected-provider-order setting may contain `DeepSeek_API` only when its credential is configured and the provider is available. The safe migration accepts absent DeepSeek fields in existing configurations, applies the defaults without treating the absence as corruption, and never attempts to migrate any old raw secret because none exists.
-
-On startup, the controller reads the opaque reference through the credential store. A successful read enables DeepSeek for normal provider selection; a missing, unreadable, or unavailable reference leaves it unconfigured and leaves other providers unchanged. The startup path does not return the recovered key to the frontend.
+The existing startup/provider-authentication path reads the saved DeepSeek key from configuration and authenticates it using the dedicated client. A missing key leaves DeepSeek unavailable for provider selection and lets the normal fallback flow continue. An invalid or insufficient-balance result is provider-specific runtime health state; it neither deletes another provider's key nor changes another provider's availability.
 
 ## 6. Backend, frontend, and settings contract
 
-The backend provides separate routes for:
+The backend follows the existing provider get/set/delete/model route convention and adds separate routes for:
 
-- configuration/health status, returning only `not_configured`, `configured`, `invalid_credentials`, `insufficient_balance`, `unavailable`, or a transient failure status;
-- saving or replacing a newly submitted key, returning status only;
-- removing the saved credential and disabling DeepSeek;
-- testing the saved credential; and
+- getting, saving, replacing, and removing the DeepSeek API key through the normal provider configuration channel;
+- configuration/health status, returning only `not_configured`, `configured`, `invalid_credentials`, `insufficient_balance`, or a transient failure status;
+- testing the saved key; and
 - reading and selecting one of the two fixed model IDs.
 
-The save route accepts a key once over the existing local frontend-to-sidecar channel, writes it immediately to Credential Manager, and returns no secret. Get/status routes never return a saved key. The controller must not follow existing provider methods that log an incoming key or echo it in `result` data.
+The key getter is limited to the existing Settings hydration/edit flow; translation results, provider-status messages, connection-test results, and diagnostic events never contain the key. The save route persists the user-entered key through `Config.AUTH_KEYS["DeepSeek_API"]`. The controller must not follow existing provider methods that log an incoming key or echo it in a non-key response.
 
-The Translation settings section adds a DeepSeek block without redesigning the page: provider documentation link, password-type empty input, Save/Replace action, Remove action, Test connection action, configured status, error status, and a disabled-until-configured two-item model dropdown. Hydration always shows an empty input; the stored secret is never used as its value. The component uses a real `type="password"` input rather than an edit cover over a plaintext input.
+The Translation settings section adds a DeepSeek block without redesigning the page: provider documentation link, real password-type input, Save/Replace action, Remove action, Test connection action, configured status, error status, and a disabled-until-configured two-item model dropdown. When the existing key getter hydrates the field, `type="password"` masks it visually; the UI never shows the full key as plain text and never uses an edit cover over a plaintext input.
 
 The connection test is explicit and does not change selected-provider order, overwrite the credential, or enable another provider. A successful test marks the current DeepSeek credential usable for the process. Failure states are visible and actionable but do not block settings navigation or unrelated translators.
 
@@ -106,7 +91,7 @@ This feature does not change how many providers the scheduler attempts, how othe
 
 | Condition | DeepSeek result | Scheduler effect |
 | --- | --- | --- |
-| No credential, unreadable reference, or unavailable Credential Manager | unavailable/not configured | Skip DeepSeek; continue normal fallback. |
+| No saved key | unavailable/not configured | Skip DeepSeek; continue normal fallback. |
 | HTTP 401 | invalid credentials | Mark DeepSeek invalid for this attempt; continue fallback; never delete another provider. |
 | HTTP 402 | insufficient balance | Report the provider-specific balance state; continue fallback. |
 | HTTP 429 | rate-limited error with parsed Retry-After when supplied | Use `Translator`'s existing cooldown mechanism; continue fallback. |
@@ -120,7 +105,7 @@ The retry is one additional request at most, with a short bounded delay and no r
 
 The only user text sent to DeepSeek is the current translation request plus the source and target language prompt values. No previous conversation, transcript history, tool output, local file content, machine identifier, or personal `user_id` is sent.
 
-Credential values and authorization material are confidential at every boundary. A redaction helper will sanitize exception text, request metadata, headers, credential-store errors, and diagnostic payloads before `printLog`, `errorLogging`, controller responses, or frontend notifications receive them. It must redact Bearer values, API-key-shaped strings, raw credential-store blobs, and authorization headers. Tests will assert that a known test key never appears in a log event, exception response, UI state, or persisted JSON.
+Credential values and authorization material are confidential at every boundary. A redaction helper will sanitize exception text, request metadata, headers, and diagnostic payloads before `printLog`, `errorLogging`, controller responses, or frontend notifications receive them. It must redact Bearer values, API-key-shaped strings, and authorization headers. Tests will assert that a known test key never appears in a log event, exception response, UI screenshot/fixture, or provider-status payload. The key is persisted only through the existing API-key configuration mechanism.
 
 Translation diagnostics may name the provider, model, non-secret error category, retry/cooldown duration, and request duration. They must not contain request headers, response reasoning, raw request text beyond the application's existing safe diagnostic policy, or any credential value.
 
@@ -128,16 +113,15 @@ Translation diagnostics may name the provider, model, non-secret error category,
 
 Focused automated coverage will include:
 
-- credential-store fake behavior, unavailable-store handling, opaque-reference persistence, no real Credential Manager access, and no plaintext config key;
-- config migration from configurations with no DeepSeek fields, fixed-model validation, and preservation of existing provider settings;
+- config migration from configurations whose `AUTH_KEYS` object has no `DeepSeek_API` entry, fixed-model validation, key persistence, and preservation of existing provider settings;
 - dedicated-client payload construction: official base URL, fixed models, `stream=False`, thinking disabled, no history, no tools, no JSON mode, and final-content-only extraction;
 - missing, empty, malformed, reasoning-only, 401, 402, 429, 500, 503, timeout, and one-retry failure paths;
 - scheduler dispatch, provider lock, cooldown, fallback, stale-generation suppression, and cancellation behavior;
-- controller and route contracts proving saved keys are never returned, logged, or serialized;
-- frontend password input, empty hydration, Save/Replace, Remove, Test connection, configured/error statuses, fixed model choices, and no secret rendered after save; and
+- controller and route contracts proving keys are excluded from logs, errors, translation results, provider-status messages, and connection-test results;
+- frontend password input, masked normal display, Save/Replace, Remove, Test connection, configured/error statuses, and fixed model choices; and
 - regression coverage that Google, Bing, Gemini, OpenAI, local translation, source/target normalization, and existing fallback behavior remain unaffected.
 
-All API and credential tests are hermetic: mocked OpenAI responses, deterministic clock/retry controls, and injected credential stores. They make no DeepSeek network call and use no real key.
+All API and key-configuration tests are hermetic: mocked OpenAI responses, deterministic clock/retry controls, and isolated test configuration. They make no DeepSeek network call and use no real key.
 
 ## 11. Explicit non-goals
 
@@ -150,4 +134,4 @@ All API and credential tests are hermetic: mocked OpenAI responses, deterministi
 
 ## 12. Specification self-review
 
-This specification contains no placeholders or deferred product choices. It fixes the official endpoint and two allowed model IDs, separates the key from plaintext config, defines the error-to-fallback behavior, and explicitly excludes related provider refactoring. Its only implementation prerequisite is Windows Credential Manager availability; failure is intentionally a visible unconfigured state rather than a silent security downgrade.
+This specification contains no placeholders or deferred product choices. It fixes the official endpoint and two allowed model IDs, uses VRCNT's existing `AUTH_KEYS` persistence path, defines the error-to-fallback behavior, and explicitly excludes related provider refactoring or a broader security migration. The DeepSeek UI uses a real password input and the implementation redacts secrets from logs and non-key responses without changing the lifecycle of existing API-key providers.
