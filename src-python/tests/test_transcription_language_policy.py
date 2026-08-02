@@ -220,37 +220,43 @@ class LanguageProfileIntegrationTests(unittest.TestCase):
             Controller.getTranscriptionLanguageCapabilities()["result"]["Google"]["parallel_candidates"]
         )
 
-    def test_vosk_accepts_saved_speaking_extras_when_slot_one_is_supported(self):
+    def test_source_vosk_accepts_saved_speaking_extras_when_slot_one_is_supported(self):
         controller = object.__new__(Controller)
         controller.updateTranslationEngineAndEngineList = Mock()
         controller._normalizeSelectedYourLanguageForTranscription = Mock(return_value=False)
         controller._isTranscriptionLanguageSupported = Mock(
-            side_effect=lambda slot, engine=None: slot["language"] == "English"
+            side_effect=lambda slot, engine=None: (
+                engine == "Vosk" and slot["language"] == "English"
+            )
         )
         old_profiles = {"1": copy.deepcopy(DEFAULT_SLOTS)}
         proposed_profiles = {"1": copy.deepcopy(THREE_LANGUAGE_SLOTS)}
 
         with (
             patch.object(controller_module.config, "_SELECTED_TAB_NO", "1"),
-            patch.object(controller_module.config, "_SELECTED_TRANSCRIPTION_ENGINE", "Vosk"),
+            patch.object(controller_module.config, "_SELECTED_TRANSCRIPTION_ENGINE", "Google"),
+            patch.object(controller_module.config, "_SELECTED_TRANSCRIPTION_ENGINE_SEND", "Vosk"),
             patch.object(controller_module.config, "_SELECTED_YOUR_LANGUAGES", old_profiles),
         ):
             response = controller.setSelectedYourLanguages(proposed_profiles)
 
             self.assertEqual(THREE_LANGUAGE_SLOTS, response["result"]["1"])
 
-    def test_vosk_accepts_saved_target_extras_for_outgoing_translation(self):
+    def test_source_vosk_accepts_saved_target_extras_for_outgoing_translation(self):
         controller = object.__new__(Controller)
         controller.updateTranslationEngineAndEngineList = Mock()
         controller._isTranscriptionLanguageSupported = Mock(
-            side_effect=lambda slot, engine=None: slot["language"] == "English"
+            side_effect=lambda slot, engine=None: (
+                engine == "Vosk" and slot["language"] == "English"
+            )
         )
         old_profiles = {"1": copy.deepcopy(DEFAULT_SLOTS)}
         proposed_profiles = {"1": copy.deepcopy(THREE_LANGUAGE_SLOTS)}
 
         with (
             patch.object(controller_module.config, "_SELECTED_TAB_NO", "1"),
-            patch.object(controller_module.config, "_SELECTED_TRANSCRIPTION_ENGINE", "Vosk"),
+            patch.object(controller_module.config, "_SELECTED_TRANSCRIPTION_ENGINE", "Google"),
+            patch.object(controller_module.config, "_SELECTED_TRANSCRIPTION_ENGINE_RECEIVE", "Vosk"),
             patch.object(controller_module.config, "_SELECTED_TARGET_LANGUAGES", old_profiles),
             patch.object(controller_module.config, "_ENABLE_TRANSCRIPTION_RECEIVE", True),
         ):

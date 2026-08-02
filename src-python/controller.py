@@ -1279,7 +1279,7 @@ class Controller:
         for language_data in language_values:
             if only_enabled and language_data.get("enable") is not True:
                 continue
-            if self._isTranscriptionLanguageSupported(language_data) is False:
+            if self._isTranscriptionLanguageSupported(language_data, engine) is False:
                 return False
         return True
 
