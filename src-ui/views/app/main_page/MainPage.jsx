@@ -4,6 +4,7 @@ import { MainSection } from "./main_section/MainSection";
 import { GuidedSetup } from "./guided_setup/GuidedSetup";
 import { EnginesWorkspace } from "./engines/EnginesWorkspace";
 import { ModelsHub } from "./models/ModelsHub";
+import { OverlayStudio } from "./overlay_studio/OverlayStudio";
 import { useIsOpenedConfigPage } from "@logics_common";
 import { useStore_ExperienceRoute } from "@store";
 
@@ -19,7 +20,8 @@ export const MainPage = () => {
             <div className={styles.container}>
                 {currentExperienceRoute.data === "setup" ? <GuidedSetup /> :
                     currentExperienceRoute.data === "engines" ? <EnginesWorkspace /> :
-                        currentExperienceRoute.data === "models" ? <ModelsHub /> : <MainSection />}
+                        currentExperienceRoute.data === "models" ? <ModelsHub /> :
+                            currentExperienceRoute.data === "overlay" ? <OverlayStudio /> : <MainSection />}
             </div>
         </div>
     );

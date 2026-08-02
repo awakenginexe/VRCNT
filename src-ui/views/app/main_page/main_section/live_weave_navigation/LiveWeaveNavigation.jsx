@@ -48,7 +48,7 @@ export const LiveWeaveNavigation = () => {
             return;
         }
 
-        if (item.id === "engines" || item.id === "models") {
+        if (item.id === "engines" || item.id === "models" || item.id === "overlay") {
             setIsOpenedConfigPage(false);
             return;
         }

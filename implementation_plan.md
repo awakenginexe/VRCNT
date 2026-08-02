@@ -349,15 +349,17 @@ remain accepted; reverting source code leaves legacy global values readable.
 **Modify**
 
 - `src-ui/views/app/desktop_overlay/DesktopOverlayApp.jsx`
-- `src-ui/views/app/desktop_overlay/DesktopOverlayApp.module.scss`
-- `src-ui/views/app/desktop_overlay/DesktopOverlayBridge.jsx`
 - `src-ui/logics/common/desktopOverlayWindow.js`
+- `src-ui/logics/common/__tests__/desktopOverlayWindow.test.js`
 - `src-ui/logics/common/index.js`
 - `src-ui/views/app/main_page/MainPage.jsx`
-- `src-ui/views/app/main_page/MainPage.module.scss`
-- `src-ui/views/app/config_page/setting_section/setting_box/vr/Vr.jsx`
-- `src-ui/logics/ui_configs.js`
-- locale files listed in Milestone 2
+- `src-ui/views/app/main_page/main_section/live_weave_navigation/LiveWeaveNavigation.jsx`
+- `locales/en.yml`
+- `locales/ja.yml`
+- `locales/ko.yml`
+- `locales/th.yml`
+- `locales/zh-Hans.yml`
+- `locales/zh-Hant.yml`
 
 **Implementation**
 
@@ -378,6 +380,21 @@ actual preview data path, and control routing; run required verification; commit
 
 **Rollback boundary**: compatible overlay storage defaults and the pre-existing
 VR settings remain usable if the commit is reverted.
+
+**Completion evidence (2026-08-02)**
+
+- The focused test suite initially failed before the new settings and Studio
+  modules existed. Two additional real-app regressions were then captured
+  test-first: redundant focus handling for an existing overlay window and
+  geometry application through Tauri's `Window` API. The focused suite now
+  passes 18 tests.
+- In the real Tauri application, Overlay Studio opened a 520 × 240 desktop
+  overlay, Fit to Content changed its live window geometry, and Reset Size
+  restored the live window to 520 × 240. Reusing an already-open overlay kept
+  a single utility window and produced no false open-failure notification.
+- The Studio preview renders the actual empty/live overlay payload rather than
+  sample conversation text, and its synchronized accent control writes the
+  existing small and large VR overlay settings.
 
 ### Milestone 6 — Notifications, accessibility, and responsive polish
 
