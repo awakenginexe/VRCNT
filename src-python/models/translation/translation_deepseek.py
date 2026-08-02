@@ -1,3 +1,4 @@
+import re
 from time import monotonic
 from typing import Any
 
@@ -17,6 +18,20 @@ except Exception:
 
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 DEEPSEEK_MODELS = ("deepseek-v4-flash", "deepseek-v4-pro")
+
+
+def redactDeepSeekDiagnostic(value: object) -> str:
+    text = str(value)
+    text = re.sub(
+        r"(?i)(authorization\s*:\s*bearer\s+)[^\s,;]+",
+        r"\1[REDACTED]",
+        text,
+    )
+    return re.sub(
+        r"(?i)(api[_-]?key\s*[=:]\s*)[^\s,;]+",
+        r"\1[REDACTED]",
+        text,
+    )
 
 
 class DeepSeekProviderError(RuntimeError):

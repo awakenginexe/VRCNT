@@ -12,6 +12,7 @@ from models.translation.translation_deepseek import (
     DEEPSEEK_MODELS,
     DeepSeekClient,
     DeepSeekProviderError,
+    redactDeepSeekDiagnostic,
 )
 from models.translation.translation_languages import loadTranslationLanguages
 import controller as controller_module
@@ -40,6 +41,18 @@ def completion_with(content):
 
 
 class DeepSeekClientTests(unittest.TestCase):
+    def test_redaction_removes_bearer_tokens_and_api_key_values(self):
+        marker = "not-a-real-secret"
+        result = redactDeepSeekDiagnostic(
+            f"Authorization: Bearer {marker}; api_key={marker}; api-key:{marker}"
+        )
+
+        self.assertNotIn(marker, result)
+        self.assertEqual(
+            result,
+            "Authorization: Bearer [REDACTED]; api_key=[REDACTED]; api-key:[REDACTED]",
+        )
+
     def _configured_client(self, OpenAI):
         sdk_client = OpenAI.return_value
         sdk_client.models.list.return_value = SimpleNamespace(data=[])

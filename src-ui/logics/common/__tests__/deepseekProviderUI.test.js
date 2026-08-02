@@ -89,3 +89,14 @@ test("DeepSeek labels have locale coverage in every supported interface language
         assert.match(localeSource, /^        select_deepseek_model:/m, locale);
     }
 });
+
+test("DeepSeek source never logs an incoming key or puts one in frontend status state", () => {
+    const controller = readSource("src-python", "controller.py");
+    const mainloop = readSource("src-python", "mainloop.py");
+    const hook = readSource("src-ui", "logics", "common", "useDeepSeekConfiguration.js");
+
+    assert.doesNotMatch(controller, /printLog\("Set DeepSeek Auth Key",\s*data\)/);
+    assert.match(mainloop, /endpoint == "\/set\/data\/deepseek_auth_key"/);
+    assert.match(mainloop, /"receive_data": "\[redacted\]"/);
+    assert.doesNotMatch(hook, /result\.key|savedKey|auth_key_value/);
+});
