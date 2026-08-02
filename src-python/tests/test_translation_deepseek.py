@@ -2,7 +2,7 @@ import os
 import sys
 import unittest
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -14,6 +14,8 @@ from models.translation.translation_deepseek import (
     DeepSeekProviderError,
 )
 from models.translation.translation_languages import loadTranslationLanguages
+import controller as controller_module
+from controller import Controller
 
 
 class FakeProviderException(Exception):
@@ -206,6 +208,161 @@ class DeepSeekClientTests(unittest.TestCase):
         client, _completion = self._configured_client(OpenAI)
 
         self.assertIn("English", client.supported_languages)
+
+
+class DeepSeekSettingsBackendTests(unittest.TestCase):
+    def _config(self, deepseek_key=None):
+        return SimpleNamespace(
+            AUTH_KEYS={"DeepSeek_API": deepseek_key, "OpenAI_API": "other-provider-key"},
+            SELECTABLE_TRANSLATION_ENGINE_STATUS={"DeepSeek_API": False, "OpenAI_API": True},
+            SELECTABLE_DEEPSEEK_MODEL_LIST=list(DEEPSEEK_MODELS),
+            SELECTED_DEEPSEEK_MODEL="deepseek-v4-flash",
+            SELECTED_TRANSLATION_ENGINES={"1": "OpenAI_API"},
+        )
+
+    def _controller(self):
+        instance = object.__new__(Controller)
+        instance.run = Mock()
+        instance.run_mapping = {
+            "selectable_deepseek_model_list": "/run/selectable_deepseek_model_list",
+            "selected_deepseek_model": "/run/selected_deepseek_model",
+        }
+        instance.updateTranslationEngineAndEngineList = Mock()
+        return instance
+
+    def _model(self):
+        instance = Mock()
+        instance.getTranslatorDeepSeekModelList.return_value = list(DEEPSEEK_MODELS)
+        instance.setTranslatorDeepSeekModel.return_value = True
+        instance.getTranslatorDeepSeekLastError.return_value = None
+        return instance
+
+    def test_key_save_replace_status_read_and_delete_never_return_the_key(self):
+        fake_config = self._config()
+        fake_model = self._model()
+        fake_model.authenticationTranslatorDeepSeekAuthKey.return_value = True
+        controller = self._controller()
+
+        with patch.object(controller_module, "config", fake_config), patch.object(
+            controller_module, "model", fake_model
+        ):
+            saved = controller.setDeepSeekAuthKey("not-a-real-secret")
+            replaced = controller.setDeepSeekAuthKey("replacement-not-a-real-secret")
+            hydrated = controller.getDeepSeekAuthKey()
+            deleted = controller.delDeepSeekAuthKey()
+
+        self.assertEqual(saved["status"], 200)
+        self.assertEqual(replaced["status"], 200)
+        self.assertNotIn("not-a-real-secret", repr(saved))
+        self.assertNotIn("replacement-not-a-real-secret", repr(replaced))
+        self.assertEqual(hydrated, {
+            "status": 200,
+            "result": {"configured": True, "health": "configured"},
+        })
+        self.assertEqual(deleted, {
+            "status": 200,
+            "result": {"configured": False, "health": "not_configured"},
+        })
+        self.assertIsNone(fake_config.AUTH_KEYS["DeepSeek_API"])
+        self.assertNotIn("not-a-real-secret", repr(hydrated))
+        self.assertEqual(fake_model.authenticationTranslatorDeepSeekAuthKey.call_count, 2)
+
+    def test_401_and_402_are_provider_local_and_do_not_replace_saved_key(self):
+        for category, error_code in (
+            ("invalid_credentials", "AUTH_DEEPSEEK_INVALID"),
+            ("insufficient_balance", "AUTH_DEEPSEEK_INSUFFICIENT_BALANCE"),
+        ):
+            with self.subTest(category=category):
+                fake_config = self._config(deepseek_key="existing-not-a-real-secret")
+                fake_model = self._model()
+                fake_model.authenticationTranslatorDeepSeekAuthKey.return_value = False
+                fake_model.getTranslatorDeepSeekLastError.return_value = SimpleNamespace(
+                    category=category
+                )
+                controller = self._controller()
+
+                with patch.object(controller_module, "config", fake_config), patch.object(
+                    controller_module, "model", fake_model
+                ):
+                    response = controller.setDeepSeekAuthKey("replacement-not-a-real-secret")
+
+                self.assertEqual(response["status"], 400)
+                self.assertEqual(response["result"]["error_code"], error_code)
+                self.assertEqual(fake_config.AUTH_KEYS["DeepSeek_API"], "existing-not-a-real-secret")
+                self.assertEqual(fake_config.AUTH_KEYS["OpenAI_API"], "other-provider-key")
+                self.assertNotIn("replacement-not-a-real-secret", repr(response))
+
+    def test_connection_failure_is_status_only_and_preserves_provider_order(self):
+        fake_config = self._config(deepseek_key="existing-not-a-real-secret")
+        fake_model = self._model()
+        fake_model.authenticationTranslatorDeepSeekAuthKey.return_value = False
+        fake_model.getTranslatorDeepSeekLastError.return_value = SimpleNamespace(
+            category="insufficient_balance"
+        )
+        controller = self._controller()
+        order_before = dict(fake_config.SELECTED_TRANSLATION_ENGINES)
+
+        with patch.object(controller_module, "config", fake_config), patch.object(
+            controller_module, "model", fake_model
+        ):
+            response = controller.checkDeepSeekConnection()
+            hydrated = controller.getDeepSeekAuthKey()
+
+        self.assertEqual(response["status"], 400)
+        self.assertEqual(response["result"]["error_code"], "AUTH_DEEPSEEK_INSUFFICIENT_BALANCE")
+        self.assertEqual(fake_config.AUTH_KEYS["DeepSeek_API"], "existing-not-a-real-secret")
+        self.assertEqual(fake_config.SELECTED_TRANSLATION_ENGINES, order_before)
+        controller.updateTranslationEngineAndEngineList.assert_not_called()
+        self.assertEqual(hydrated["result"], {
+            "configured": True,
+            "health": "insufficient_balance",
+        })
+        self.assertNotIn("existing-not-a-real-secret", repr(response))
+
+    def test_startup_availability_failure_preserves_saved_key_and_health(self):
+        fake_config = self._config(deepseek_key="existing-not-a-real-secret")
+        fake_model = self._model()
+        fake_model.getTranslatorDeepSeekLastError.return_value = SimpleNamespace(
+            category="invalid_credentials"
+        )
+        controller = self._controller()
+
+        with patch.object(controller_module, "config", fake_config), patch.object(
+            controller_module, "model", fake_model
+        ):
+            controller._setDeepSeekStartupAvailability(False)
+            hydrated = controller.getDeepSeekAuthKey()
+
+        self.assertEqual(fake_config.AUTH_KEYS["DeepSeek_API"], "existing-not-a-real-secret")
+        self.assertFalse(fake_config.SELECTABLE_TRANSLATION_ENGINE_STATUS["DeepSeek_API"])
+        self.assertEqual(hydrated["result"], {
+            "configured": True,
+            "health": "invalid_credentials",
+        })
+
+    def test_fixed_models_default_to_flash_and_reject_unknown_values(self):
+        fake_config = self._config()
+        fake_config.SELECTED_DEEPSEEK_MODEL = "retired-model"
+        fake_model = self._model()
+        controller = self._controller()
+
+        with patch.object(controller_module, "config", fake_config), patch.object(
+            controller_module, "model", fake_model
+        ):
+            self.assertEqual(
+                controller.getDeepSeekModelList(),
+                {"status": 200, "result": list(DEEPSEEK_MODELS)},
+            )
+            self.assertEqual(
+                controller.getDeepSeekModel(),
+                {"status": 200, "result": "deepseek-v4-flash"},
+            )
+            valid = controller.setDeepSeekModel("deepseek-v4-pro")
+            invalid = controller.setDeepSeekModel("retired-model")
+
+        self.assertEqual(valid, {"status": 200, "result": "deepseek-v4-pro"})
+        self.assertEqual(invalid["status"], 400)
+        self.assertEqual(invalid["result"]["error_code"], "MODEL_DEEPSEEK_INVALID")
 
 
 if __name__ == "__main__":

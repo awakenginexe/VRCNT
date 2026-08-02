@@ -3652,6 +3652,143 @@ class Controller:
     def getOpenAIAuthKey(*args, **kwargs) -> dict:
         return {"status":200, "result":config.AUTH_KEYS["OpenAI_API"]}
 
+    @staticmethod
+    def _deepSeekConfigured() -> bool:
+        key = config.AUTH_KEYS.get("DeepSeek_API")
+        return isinstance(key, str) and bool(key.strip())
+
+    def _deepSeekStatus(self, health: str | None = None) -> dict:
+        configured = self._deepSeekConfigured()
+        if not configured:
+            health = "not_configured"
+        elif health is None:
+            health = getattr(self, "_deepseek_health", "configured")
+        return {"configured": configured, "health": health}
+
+    def _deepSeekFailureResponse(self) -> dict:
+        category = getattr(model.getTranslatorDeepSeekLastError(), "category", None)
+        error_codes = {
+            "invalid_credentials": ErrorCode.AUTH_DEEPSEEK_INVALID,
+            "insufficient_balance": ErrorCode.AUTH_DEEPSEEK_INSUFFICIENT_BALANCE,
+        }
+        error_code = error_codes.get(category, ErrorCode.AUTH_DEEPSEEK_FAILED)
+        self._deepseek_health = category if category in error_codes else "failed"
+        config.SELECTABLE_TRANSLATION_ENGINE_STATUS["DeepSeek_API"] = False
+        return VRCTError.create_error_response(error_code, data=self._deepSeekStatus())
+
+    def _setDeepSeekStartupAvailability(self, status: bool) -> None:
+        config.SELECTABLE_TRANSLATION_ENGINE_STATUS["DeepSeek_API"] = status
+        if status:
+            self._deepseek_health = "configured"
+            return
+        category = getattr(model.getTranslatorDeepSeekLastError(), "category", None)
+        if category in ("invalid_credentials", "insufficient_balance"):
+            self._deepseek_health = category
+        elif self._deepSeekConfigured():
+            self._deepseek_health = "failed"
+        else:
+            self._deepseek_health = "not_configured"
+
+    def _normalizeDeepSeekModel(self) -> str:
+        model_list = ["deepseek-v4-flash", "deepseek-v4-pro"]
+        config.SELECTABLE_DEEPSEEK_MODEL_LIST = model_list
+        if config.SELECTED_DEEPSEEK_MODEL not in model_list:
+            config.SELECTED_DEEPSEEK_MODEL = model_list[0]
+        return config.SELECTED_DEEPSEEK_MODEL
+
+    def getDeepSeekAuthKey(self, *args, **kwargs) -> dict:
+        return {"status": 200, "result": self._deepSeekStatus()}
+
+    def setDeepSeekAuthKey(self, data, *args, **kwargs) -> dict:
+        if not isinstance(data, str) or not data.strip():
+            self._deepseek_health = "failed"
+            return VRCTError.create_error_response(
+                ErrorCode.AUTH_DEEPSEEK_FAILED,
+                data=self._deepSeekStatus(),
+            )
+
+        try:
+            authenticated = model.authenticationTranslatorDeepSeekAuthKey(auth_key=data)
+        except Exception:
+            authenticated = False
+
+        if not authenticated:
+            return self._deepSeekFailureResponse()
+
+        auth_keys = dict(config.AUTH_KEYS)
+        auth_keys["DeepSeek_API"] = data
+        config.AUTH_KEYS = auth_keys
+        config.SELECTABLE_TRANSLATION_ENGINE_STATUS["DeepSeek_API"] = True
+        self._deepseek_health = "configured"
+        selected_model = self._normalizeDeepSeekModel()
+        model.setTranslatorDeepSeekModel(model=selected_model)
+        model.updateTranslatorDeepSeekClient()
+        self.run(200, self.run_mapping["selectable_deepseek_model_list"], config.SELECTABLE_DEEPSEEK_MODEL_LIST)
+        self.run(200, self.run_mapping["selected_deepseek_model"], selected_model)
+        self.updateTranslationEngineAndEngineList()
+        return {"status": 200, "result": self._deepSeekStatus()}
+
+    def delDeepSeekAuthKey(self, *args, **kwargs) -> dict:
+        auth_keys = dict(config.AUTH_KEYS)
+        auth_keys["DeepSeek_API"] = None
+        config.AUTH_KEYS = auth_keys
+        config.SELECTABLE_TRANSLATION_ENGINE_STATUS["DeepSeek_API"] = False
+        config.SELECTED_DEEPSEEK_MODEL = "deepseek-v4-flash"
+        config.SELECTABLE_DEEPSEEK_MODEL_LIST = ["deepseek-v4-flash", "deepseek-v4-pro"]
+        self._deepseek_health = "not_configured"
+        model.clearTranslatorDeepSeekClient()
+        self.run(200, self.run_mapping["selectable_deepseek_model_list"], config.SELECTABLE_DEEPSEEK_MODEL_LIST)
+        self.run(200, self.run_mapping["selected_deepseek_model"], config.SELECTED_DEEPSEEK_MODEL)
+        self.updateTranslationEngineAndEngineList()
+        return {"status": 200, "result": self._deepSeekStatus()}
+
+    def checkDeepSeekConnection(self, *args, **kwargs) -> dict:
+        if not self._deepSeekConfigured():
+            self._deepseek_health = "not_configured"
+            config.SELECTABLE_TRANSLATION_ENGINE_STATUS["DeepSeek_API"] = False
+            return {"status": 200, "result": self._deepSeekStatus()}
+
+        try:
+            authenticated = model.authenticationTranslatorDeepSeekAuthKey(
+                auth_key=config.AUTH_KEYS["DeepSeek_API"]
+            )
+        except Exception:
+            authenticated = False
+        if not authenticated:
+            return self._deepSeekFailureResponse()
+
+        config.SELECTABLE_TRANSLATION_ENGINE_STATUS["DeepSeek_API"] = True
+        self._deepseek_health = "configured"
+        selected_model = self._normalizeDeepSeekModel()
+        model.setTranslatorDeepSeekModel(model=selected_model)
+        model.updateTranslatorDeepSeekClient()
+        self.run(200, self.run_mapping["selectable_deepseek_model_list"], config.SELECTABLE_DEEPSEEK_MODEL_LIST)
+        self.run(200, self.run_mapping["selected_deepseek_model"], selected_model)
+        return {"status": 200, "result": self._deepSeekStatus()}
+
+    def getDeepSeekModelList(self, *args, **kwargs) -> dict:
+        self._normalizeDeepSeekModel()
+        return {"status": 200, "result": config.SELECTABLE_DEEPSEEK_MODEL_LIST}
+
+    def getDeepSeekModel(self, *args, **kwargs) -> dict:
+        return {"status": 200, "result": self._normalizeDeepSeekModel()}
+
+    def setDeepSeekModel(self, data, *args, **kwargs) -> dict:
+        if data not in ("deepseek-v4-flash", "deepseek-v4-pro"):
+            return VRCTError.create_error_response(
+                ErrorCode.MODEL_DEEPSEEK_INVALID,
+                data=self._normalizeDeepSeekModel(),
+            )
+        if model.setTranslatorDeepSeekModel(model=data) is not True:
+            return VRCTError.create_error_response(
+                ErrorCode.MODEL_DEEPSEEK_INVALID,
+                data=self._normalizeDeepSeekModel(),
+            )
+        config.SELECTED_DEEPSEEK_MODEL = data
+        model.updateTranslatorDeepSeekClient()
+        self.run(200, self.run_mapping["selected_deepseek_model"], data)
+        return {"status": 200, "result": data}
+
     def setOpenAIAuthKey(self, data, *args, **kwargs) -> dict:
         printLog("Set OpenAI Auth Key", data)
         translator_name = "OpenAI_API"
@@ -5581,6 +5718,13 @@ class Controller:
                                     status = True
                                 else:
                                     auth_key_invalid = True
+                        case "DeepSeek_API":
+                            if config.AUTH_KEYS[engine] is None:
+                                status = False
+                            elif model.authenticationTranslatorDeepSeekAuthKey(auth_key=config.AUTH_KEYS[engine]) is True:
+                                model_list = model.getTranslatorDeepSeekModelList()
+                                selected_model = config.SELECTED_DEEPSEEK_MODEL if config.SELECTED_DEEPSEEK_MODEL in model_list else model_list[0]
+                                status = True
                         case "Groq_API":
                             if config.AUTH_KEYS[engine] is None:
                                 status = False
@@ -5634,7 +5778,10 @@ class Controller:
                     continue
 
                 status, auth_key_invalid, model_list, selected_model = engine_results[engine]
-                config.SELECTABLE_TRANSLATION_ENGINE_STATUS[engine] = status
+                if engine == "DeepSeek_API":
+                    self._setDeepSeekStartupAvailability(status)
+                else:
+                    config.SELECTABLE_TRANSLATION_ENGINE_STATUS[engine] = status
 
                 if auth_key_invalid:
                     auth_keys = config.AUTH_KEYS
@@ -5666,6 +5813,11 @@ class Controller:
                             config.SELECTED_OPENAI_MODEL = selected_model
                             model.setTranslatorOpenAIModel(selected_model)
                             model.updateTranslatorOpenAIClient()
+                        case "DeepSeek_API":
+                            config.SELECTABLE_DEEPSEEK_MODEL_LIST = model_list
+                            config.SELECTED_DEEPSEEK_MODEL = selected_model
+                            model.setTranslatorDeepSeekModel(selected_model)
+                            model.updateTranslatorDeepSeekClient()
                         case "Groq_API":
                             config.SELECTABLE_GROQ_MODEL_LIST = model_list
                             config.SELECTED_GROQ_MODEL = selected_model

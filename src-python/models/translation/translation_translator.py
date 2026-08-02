@@ -507,6 +507,10 @@ class Translator:
         if self.deepseek_client is not None:
             self.deepseek_client.updateClient()
 
+    def clearDeepSeekClient(self) -> None:
+        self.deepseek_client = None
+        self.deepseek_last_error = None
+
     def authenticationGroqAuthKey(self, auth_key: str, root_path: str = None) -> bool:
         """Authenticate Groq API with the provided key.
 

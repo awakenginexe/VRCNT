@@ -132,6 +132,34 @@ class DualTranscriptionEngineContractTests(unittest.TestCase):
         self.assertIn("SELECTED_TRANSCRIPTION_ENGINE_SEND", controller_source)
         self.assertIn("SELECTED_TRANSCRIPTION_ENGINE_RECEIVE", controller_source)
 
+    def test_deepseek_settings_routes_are_status_only_contract_routes(self):
+        mainloop_source = read_source("mainloop.py")
+        controller_source = read_source("controller.py")
+
+        for endpoint in (
+            "/get/data/deepseek_auth_key",
+            "/set/data/deepseek_auth_key",
+            "/delete/data/deepseek_auth_key",
+            "/run/deepseek_connection",
+            "/get/data/selectable_deepseek_model_list",
+            "/get/data/selected_deepseek_model",
+            "/set/data/selected_deepseek_model",
+        ):
+            self.assertIn(endpoint, mainloop_source)
+
+        for method in (
+            "getDeepSeekAuthKey",
+            "setDeepSeekAuthKey",
+            "delDeepSeekAuthKey",
+            "checkDeepSeekConnection",
+        ):
+            self.assertIn(method, controller_source)
+
+        self.assertRegex(
+            mainloop_source,
+            r'endpoint == "/set/data/deepseek_auth_key"[\s\S]{0,160}"\[redacted\]"',
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

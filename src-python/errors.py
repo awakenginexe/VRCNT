@@ -72,6 +72,9 @@ class ErrorCode(str, Enum):
     AUTH_GEMINI_FAILED = "AUTH_GEMINI_FAILED"
     AUTH_OPENAI_INVALID = "AUTH_OPENAI_INVALID"
     AUTH_OPENAI_FAILED = "AUTH_OPENAI_FAILED"
+    AUTH_DEEPSEEK_INVALID = "AUTH_DEEPSEEK_INVALID"
+    AUTH_DEEPSEEK_INSUFFICIENT_BALANCE = "AUTH_DEEPSEEK_INSUFFICIENT_BALANCE"
+    AUTH_DEEPSEEK_FAILED = "AUTH_DEEPSEEK_FAILED"
     AUTH_GROQ_INVALID = "AUTH_GROQ_INVALID"
     AUTH_GROQ_FAILED = "AUTH_GROQ_FAILED"
     AUTH_OPENROUTER_INVALID = "AUTH_OPENROUTER_INVALID"
@@ -83,6 +86,7 @@ class ErrorCode(str, Enum):
     MODEL_PLAMO_INVALID = "MODEL_PLAMO_INVALID"
     MODEL_GEMINI_INVALID = "MODEL_GEMINI_INVALID"
     MODEL_OPENAI_INVALID = "MODEL_OPENAI_INVALID"
+    MODEL_DEEPSEEK_INVALID = "MODEL_DEEPSEEK_INVALID"
     MODEL_GROQ_INVALID = "MODEL_GROQ_INVALID"
     MODEL_OPENROUTER_INVALID = "MODEL_OPENROUTER_INVALID"
     MODEL_LMSTUDIO_INVALID = "MODEL_LMSTUDIO_INVALID"
@@ -366,6 +370,24 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
         "severity": "error",
         "user_action_required": True,
     },
+    ErrorCode.AUTH_DEEPSEEK_INVALID: {
+        "category": ErrorCategory.AUTH,
+        "message": "DeepSeek credentials are invalid",
+        "severity": "warning",
+        "user_action_required": True,
+    },
+    ErrorCode.AUTH_DEEPSEEK_INSUFFICIENT_BALANCE: {
+        "category": ErrorCategory.AUTH,
+        "message": "DeepSeek account balance is insufficient",
+        "severity": "error",
+        "user_action_required": True,
+    },
+    ErrorCode.AUTH_DEEPSEEK_FAILED: {
+        "category": ErrorCategory.AUTH,
+        "message": "Unable to verify DeepSeek credentials",
+        "severity": "error",
+        "user_action_required": True,
+    },
     ErrorCode.AUTH_GROQ_INVALID: {
         "category": ErrorCategory.AUTH,
         "message": "Groq auth key is not valid",
@@ -407,6 +429,12 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
     ErrorCode.MODEL_OPENAI_INVALID: {
         "category": ErrorCategory.MODEL,
         "message": "OpenAI model is not valid",
+        "severity": "warning",
+        "user_action_required": True,
+    },
+    ErrorCode.MODEL_DEEPSEEK_INVALID: {
+        "category": ErrorCategory.MODEL,
+        "message": "DeepSeek model is not valid",
         "severity": "warning",
         "user_action_required": True,
     },
@@ -645,8 +673,21 @@ ENDPOINT_ERROR_MAPPING: Dict[str, Dict[str, ErrorCode]] = {
         "INVALID": ErrorCode.AUTH_OPENAI_INVALID,
         "FAILED": ErrorCode.AUTH_OPENAI_FAILED,
     },
+    "/set/data/deepseek_auth_key": {
+        "INVALID": ErrorCode.AUTH_DEEPSEEK_INVALID,
+        "INSUFFICIENT_BALANCE": ErrorCode.AUTH_DEEPSEEK_INSUFFICIENT_BALANCE,
+        "FAILED": ErrorCode.AUTH_DEEPSEEK_FAILED,
+    },
     "/set/data/selected_openai_model": {
         "INVALID": ErrorCode.MODEL_OPENAI_INVALID,
+    },
+    "/set/data/selected_deepseek_model": {
+        "INVALID": ErrorCode.MODEL_DEEPSEEK_INVALID,
+    },
+    "/run/deepseek_connection": {
+        "INVALID": ErrorCode.AUTH_DEEPSEEK_INVALID,
+        "INSUFFICIENT_BALANCE": ErrorCode.AUTH_DEEPSEEK_INSUFFICIENT_BALANCE,
+        "FAILED": ErrorCode.AUTH_DEEPSEEK_FAILED,
     },
     "/set/data/groq_auth_key": {
         "INVALID": ErrorCode.AUTH_GROQ_INVALID,

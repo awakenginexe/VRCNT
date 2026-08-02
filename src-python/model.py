@@ -944,6 +944,10 @@ class Model:
         self.ensure_initialized()
         self.translator.updateDeepSeekClient()
 
+    def clearTranslatorDeepSeekClient(self) -> None:
+        self.ensure_initialized()
+        self.translator.clearDeepSeekClient()
+
     def authenticationTranslatorGroqAuthKey(self, auth_key: str) -> bool:
         result = self.translator.authenticationGroqAuthKey(auth_key, root_path=config.PATH_LOCAL)
         return result
