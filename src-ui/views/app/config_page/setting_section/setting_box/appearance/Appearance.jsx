@@ -1,15 +1,9 @@
-import clsx from "clsx";
-import { useEffect } from "react";
 import { useI18n } from "@useI18n";
 import styles from "./Appearance.module.scss";
 import { ui_configs } from "@ui_configs";
 import { useStore_SelectableFontFamilyList, useStore_EnablePerformanceMode } from "@store";
 
 import {
-    getThaiPreferredFontFamily,
-    THAI_PREFERRED_FONT_FAMILY,
-    THAI_UI_LANGUAGE_ID,
-    useNotificationStatus,
     useWindow,
 } from "@logics_common";
 
@@ -42,31 +36,11 @@ export const Appearance = () => {
 const UiLanguageContainer = () => {
     const { t } = useI18n();
     const {
-        currentSelectedFontFamily,
         currentUiLanguage,
-        setSelectedFontFamily,
         setUiLanguage,
     } = useAppearance();
-    const { currentSelectableFontFamilyList } = useStore_SelectableFontFamilyList();
-    const { showNotification_Warning } = useNotificationStatus();
 
-    const selectFunction = (ui_language) => {
-        if (ui_language === THAI_UI_LANGUAGE_ID) {
-            const itim_font = getThaiPreferredFontFamily(currentSelectableFontFamilyList.data);
-            if (itim_font) {
-                setSelectedFontFamily(itim_font);
-            } else if (currentSelectedFontFamily.data !== THAI_PREFERRED_FONT_FAMILY) {
-                showNotification_Warning(
-                    t("config_page.appearance.ui_language.itim_font_missing"),
-                    {
-                        hide_duration: 10000,
-                        category_id: "thai_itim_font_missing",
-                    },
-                );
-            }
-        }
-        setUiLanguage(ui_language);
-    };
+    const selectFunction = (ui_language) => setUiLanguage(ui_language);
 
     const is_not_en_lang = currentUiLanguage.data !== "en" && currentUiLanguage.data !== undefined;
     return (
