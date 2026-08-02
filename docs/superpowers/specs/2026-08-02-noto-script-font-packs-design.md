@@ -430,6 +430,14 @@ Implementation licensing work is concrete:
 - Add a compact Font licenses entry to the existing About surface in [`src-ui/views/app/config_page/setting_section/setting_box/about_vrct/AboutVrct.jsx`](../../../src-ui/views/app/config_page/setting_section/setting_box/about_vrct/AboutVrct.jsx), backed by the bundled/installed manifest metadata so it works offline.
 - Correct the existing un-attributed Noto overlay files as part of their replacement; no old Noto file remains packaged without its license material.
 
+## 21. Approved implementation update — direct official optional sources
+
+The initial runtime-hosting proposal assumed a VRCNT-owned immutable GitHub Release. That release is not a prerequisite for this feature. Optional packs instead use their exact, immutable official upstream binary URL from the bundled manifest: an official `google/fonts` repository file at the pinned source revision, an official `notofonts` repository/release asset, or an official fixed Google-hosted binary only when the repository/release form is unavailable. A manifest entry records the repository, exact revision or release, upstream path, family/version/style, byte size, SHA-256, and OFL source before the pack can be offered for download. It never accepts a URL from the WebView and never uses a mutable branch, the Google Fonts CSS API, or a runtime CSS import.
+
+Optional files are downloaded once by the Rust manager into the verified VRCNT cache and are subsequently loaded locally. The generic pack URL discloses only a pack identifier to the upstream host; it carries no transcript, profile, or user-provided query. A failure remains a non-blocking system-fallback condition.
+
+The user-facing default choice is **VRCNT Noto (Recommended)** with logical CSS family `"VRCNT Noto"`. It selects managed script faces automatically and is the default for new, missing, and invalid preferences. An existing valid explicit user font remains intact and is used as the managed stack's fallback; migration never overwrites that preference. Internal Noto script families remain implementation details rather than normal selectable font-family entries.
+
 This design uses upstream source provenance from Google Fonts and VRCNT-controlled release distribution. It does not infer a license from a family name or use an uncontrolled CDN.
 
 ## 21. Configuration migration
