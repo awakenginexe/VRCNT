@@ -158,49 +158,63 @@ workspace and settings modal without touching backend configuration.
 - `src-ui/views/app/main_page/main_section/live_control_rail/LiveControlRail.module.scss`
 - `src-ui/views/app/main_page/main_section/live_control_rail/SessionPrimaryAction.jsx`
 - `src-ui/views/app/main_page/main_section/live_control_rail/SessionPrimaryAction.module.scss`
-- `src-ui/logics/common/useStreamerPrivacy.js`
-- `src-ui/views/app/main_page/main_section/__tests__/approvedLivePage.test.js`
+- `src-ui/logics/main/sessionControlUtils.js`
+- `src-ui/logics/common/__tests__/sessionControlUtils.test.js`
 
 **Modify**
 
-- `src-ui/logics/common/index.js`
-- `src-ui/views/app/main_page/main_section/live_language_bar/LiveLanguageBar.jsx`
-- `src-ui/views/app/main_page/main_section/live_language_bar/LiveLanguageBar.module.scss`
+- `src-ui/logics/main/useMainFunction.js`
+- `src-ui/logics/useReceiveRoutes.js`
+- `src-python/mainloop.py`
+- `src-python/controller.py`
+- `src-python/tests/test_main_function_activation.py`
+- `src-ui/views/app/main_page/main_section/MainSection.jsx`
+- `src-ui/views/app/main_page/main_section/MainSection.module.scss`
 - `src-ui/views/app/main_page/sidebar_section/main_function_switch/MainFunctionSwitch.jsx`
 - `src-ui/views/app/main_page/sidebar_section/main_function_switch/MainFunctionSwitch.module.scss`
-- `src-ui/views/app/main_page/main_section/resource_monitor/ResourceMonitor.jsx`
-- `src-ui/views/app/main_page/main_section/resource_monitor/ResourceMonitor.module.scss`
-- `src-ui/views/app/main_page/main_section/resource_monitor/GpuMonitorMenu.jsx`
-- `src-ui/views/app/main_page/main_section/pipeline_status/PipelineStatus.jsx`
-- `src-ui/views/app/main_page/main_section/pipeline_status/PipelineStatus.module.scss`
+- `src-ui/views/app/main_page/sidebar_section/language_settings/language_profile_group/LanguageProfileGroup.module.scss`
+- `src-ui/views/app/main_page/sidebar_section/language_settings/language_selector_open_button/LanguageSelectorOpenButton.module.scss`
 - `src-ui/views/app/main_page/main_section/message_container/MessageContainer.jsx`
 - `src-ui/views/app/main_page/main_section/message_container/MessageContainer.module.scss`
 - `src-ui/views/app/main_page/main_section/message_container/log_box/message_container/MessageContainer.jsx`
 - `src-ui/views/app/main_page/main_section/message_container/log_box/message_container/MessageContainer.module.scss`
+- `src-ui/views/app/main_page/main_section/message_container/message_input_box/MessageInputBox.jsx`
 - `src-ui/views/app/main_page/main_section/__tests__/liveWorkspaceRedesign.test.js`
+- `src-ui/logics/common/__tests__/pipelineStatusStructure.test.js`
 - `locales/en.yml`, `locales/ja.yml`, `locales/ko.yml`, `locales/th.yml`, `locales/zh-Hans.yml`, `locales/zh-Hant.yml`
 
 **Implementation**
 
-- Add the approved 290px control rail with colored Speaking, Listening, and
-  Translating controls that retain current individual real toggles plus a
-  primary real Start/Stop session action. Pending/backend-unavailable states
+- Add the approved control rail with colored Speaking, Listening, and
+  Translating controls that retain current individual real toggles plus one
+  primary Start/Stop action. The primary action uses a new serialized backend
+  `live_session` command: translation, microphone transcription, then desktop
+  audio transcription. Existing individual endpoints and run events remain
+  intact for advanced controls and hotkeys. Pending/backend-unavailable states
   remain non-interactive and visible.
 - Use persisted language profile selectors/cards and real provider controls.
 - Make translations first in the conversation hierarchy, original speech
   secondary, while retaining progressive status, retry, sent/received
   semantics, text entry, and OSC/chatbox path.
-- Compact real resource telemetry and a real GPU selector; privacy mode hides
-  hardware names without inventing names or values. Do not display latency
-  until actual pipeline data exists.
+- Retain compact real resource telemetry and the existing real GPU selector;
+  do not invent hardware, latency, or message values.
 - Put diagnostics behind an accessible collapsed-by-default disclosure.
 
 **Test-first gate and commit**: focused tests first, then the full UI suite,
 Vite build, real Tauri screenshots/log/startup smoke; commit
 `feat(ui): connect approved live workspace`.
 
-**Rollback boundary**: UI/store-only commit. Existing backend endpoints and
-message schema remain unchanged.
+**Milestone evidence**: initial focused tests failed because the aggregate
+session command did not exist; after implementation, the focused Node and
+Python tests passed, `npm run test:ui` passed 190/190, and `npm run vite-build`
+passed. The real Tauri app reached all three enabled states and returned to
+all three disabled states at 1920×1080, 1366×768, and 1280×720. Its process log
+recorded the serialized endpoint/event order with no startup failure or
+PortAudio assertion.
+
+**Rollback boundary**: one commit. It removes the live rail and aggregate
+session endpoint while preserving existing individual endpoints, configuration,
+and message schema.
 
 ### Milestone 3 — Guided Setup
 

@@ -5,10 +5,8 @@ import { TopBar } from "./top_bar/TopBar";
 import { MessageContainer } from "./message_container/MessageContainer";
 import { LanguageSelector } from "./language_selector/LanguageSelector";
 import { ResourceMonitor } from "./resource_monitor/ResourceMonitor";
-import { PipelineStatus } from "./pipeline_status/PipelineStatus";
-import { LiveLanguageBar } from "./live_language_bar/LiveLanguageBar";
-import { MainFunctionSwitch } from "../sidebar_section/main_function_switch/MainFunctionSwitch";
 import { ProviderCooldowns } from "./provider_cooldowns/ProviderCooldowns";
+import { LiveControlRail } from "./live_control_rail/LiveControlRail";
 
 import { useStore_IsOpenedLanguageSelector } from "@store";
 import { useLanguageSettings } from "@logics_main";
@@ -20,23 +18,22 @@ export const MainSection = () => {
     return (
         <div className={styles.container}>
             <TopBar />
-            <LiveLanguageBar />
-            <section className={styles.chat_panel} aria-label={t("main_page.live_weave.conversation_title")}>
-                <header className={styles.workspace_header}>
-                    <div className={styles.workspace_copy}>
-                        <h1 className={styles.workspace_title}>{t("main_page.live_weave.conversation_title")}</h1>
-                        <p className={styles.workspace_detail}>{t("main_page.live_weave.conversation_detail")}</p>
-                    </div>
-                    <div className={styles.resource_cluster}>
-                        <ProviderCooldowns />
-                        <ResourceMonitor />
-                    </div>
-                </header>
-                <MessageContainer
-                    pipelineStatus={<PipelineStatus />}
-                    sessionControls={<MainFunctionSwitch layout="session_dock" includeForeground={false} />}
-                />
-            </section>
+            <div className={styles.workspace}>
+                <LiveControlRail />
+                <section className={styles.chat_panel} aria-label={t("main_page.live_weave.conversation_title")}>
+                    <header className={styles.workspace_header}>
+                        <div className={styles.workspace_copy}>
+                            <h1 className={styles.workspace_title}>{t("main_page.live_weave.conversation_title")}</h1>
+                            <p className={styles.workspace_detail}>{t("main_page.live_weave.conversation_detail")}</p>
+                        </div>
+                        <div className={styles.resource_cluster}>
+                            <ProviderCooldowns />
+                            <ResourceMonitor />
+                        </div>
+                    </header>
+                    <MessageContainer compactComposer />
+                </section>
+            </div>
             <HandleLanguageSelector />
         </div>
     );

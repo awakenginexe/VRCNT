@@ -81,6 +81,22 @@ export const MessageContainer = ({
                         <p className={styles.message_main_system}>{messages.original.message}</p>
                     ) : (
                         <>
+                            <div className={styles.translation_list}>
+                                {messages.translations.map((entry) => (
+                                    <TranslationEntry
+                                        key={entry.target_slot}
+                                        entry={entry}
+                                        retryPayload={{
+                                            trace_id,
+                                            target_slot: entry.target_slot,
+                                            original_message: messages.original.message,
+                                            source_language,
+                                            target_language: entry.language,
+                                            target_country: entry.country,
+                                        }}
+                                    />
+                                ))}
+                            </div>
                             <div
                                 className={clsx(styles.original_message, {
                                     [styles.with_translations]: has_translations,
@@ -88,20 +104,6 @@ export const MessageContainer = ({
                             >
                                 <MessageText item={messages.original} />
                             </div>
-                            {messages.translations.map((entry) => (
-                                <TranslationEntry
-                                    key={entry.target_slot}
-                                    entry={entry}
-                                    retryPayload={{
-                                        trace_id,
-                                        target_slot: entry.target_slot,
-                                        original_message: messages.original.message,
-                                        source_language,
-                                        target_language: entry.language,
-                                        target_country: entry.country,
-                                    }}
-                                />
-                            ))}
                         </>
                     )}
                 </div>

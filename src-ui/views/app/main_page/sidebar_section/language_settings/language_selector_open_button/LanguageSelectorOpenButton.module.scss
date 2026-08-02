@@ -162,6 +162,54 @@
     }
 }
 
+.container.variant_live_rail {
+    gap: 0.35rem;
+    padding: 0.7rem;
+    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.16);
+    border-radius: 0.8rem;
+    background: var(--surface_control_color);
+
+    .title_container {
+        gap: 0.4rem;
+    }
+
+    .category_svg {
+        display: block;
+        width: 1.05rem;
+    }
+
+    .title {
+        color: var(--dark_350_color);
+        font-size: 0.74rem;
+        letter-spacing: 0.07rem;
+    }
+
+    .dropdown_menu_container {
+        min-height: 3.15rem;
+        padding: 0.45rem 2.3rem 0.45rem 0.6rem;
+        border-radius: 0.65rem;
+        background: var(--surface_2_color);
+    }
+
+    .flag_badge {
+        width: 1.65rem;
+        height: 1.2rem;
+    }
+
+    .selected_language {
+        font-size: 0.9rem;
+    }
+
+    .selected_country {
+        display: none;
+    }
+
+    .arrow_left_svg {
+        right: 0.6rem;
+        width: 1.1rem;
+    }
+}
+
 .container.variant_profile {
     gap: 0;
 

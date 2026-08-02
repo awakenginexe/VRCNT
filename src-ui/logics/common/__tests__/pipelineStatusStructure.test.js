@@ -17,25 +17,27 @@ const stylesheetPath = (
     "src-ui/views/app/main_page/main_section/pipeline_status/PipelineStatus.module.scss"
 );
 
-test("pipeline status is placed above the session dock while resources stay in the conversation header", () => {
+test("pipeline status stays in collapsed rail diagnostics while resources remain in the conversation header", () => {
     const source = readSource("src-ui/views/app/main_page/main_section/MainSection.jsx");
-    assert.match(source, /import \{ PipelineStatus \} from "\.\/pipeline_status\/PipelineStatus";/);
+    const controlRail = readSource(
+        "src-ui/views/app/main_page/main_section/live_control_rail/LiveControlRail.jsx",
+    );
+    assert.match(source, /import \{ LiveControlRail \} from "\.\/live_control_rail\/LiveControlRail";/);
     assert.match(
         source,
-        /<ResourceMonitor\s*\/>[\s\S]*?<MessageContainer[\s\S]*?pipelineStatus=\{<PipelineStatus\s*\/>\}/,
+        /<LiveControlRail\s*\/>[\s\S]*?<ResourceMonitor\s*\/>[\s\S]*?<MessageContainer\s+compactComposer\s*\/>/,
     );
-
-    const messageContainer = readSource(
-        "src-ui/views/app/main_page/main_section/message_container/MessageContainer.jsx",
-    );
-    assert.match(messageContainer, /pipelineStatus = null/);
-    assert.match(messageContainer, /\{pipelineStatus\}/);
+    assert.match(controlRail, /import \{ PipelineStatus \} from "\.\.\/pipeline_status\/PipelineStatus";/);
+    assert.match(controlRail, /<details/);
+    assert.doesNotMatch(controlRail, /<details[^>]*\bopen\b/);
+    assert.match(controlRail, /<PipelineStatus\s*\/>/);
 
     const styles = readSource("src-ui/views/app/main_page/main_section/MainSection.module.scss");
     assert.match(
         styles,
-        /grid-template-rows:\s*var\(--main_page_topbar_height\)\s+auto\s+minmax\(0,\s*1fr\)/,
+        /grid-template-rows:\s*var\(--main_page_topbar_height\)\s+minmax\(0,\s*1fr\)/,
     );
+    assert.match(styles, /grid-template-columns:\s*minmax\(16\.5rem,\s*18\.2rem\)\s+minmax\(0,\s*1fr\)/);
 });
 
 test("the strip uses localized stage/source labels and existing semantic icons", () => {

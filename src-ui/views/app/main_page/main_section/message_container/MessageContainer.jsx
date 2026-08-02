@@ -6,7 +6,7 @@ import { MessageLogSettingsContainer } from "./message_log_settings_container/Me
 import { MessageInputBox } from "./message_input_box/MessageInputBox";
 import { useMessageInputBoxRatio } from "@logics_main";
 
-export const MessageContainer = ({ sessionControls = null, pipelineStatus = null }) => {
+export const MessageContainer = ({ sessionControls = null, pipelineStatus = null, compactComposer = false }) => {
     const { currentMessageInputBoxRatio, asyncSetMessageInputBoxRatio } = useMessageInputBoxRatio();
     const [ui_message_box_ratio, setUiMessageBoxRatio] = useState(false);
     const [is_hovered, setIsHovered] = useState(false);
@@ -71,7 +71,7 @@ export const MessageContainer = ({ sessionControls = null, pipelineStatus = null
             </div>
             <Separator {...separatorProps} ref={separator_ref} />
             <div
-                className={styles.message_box_resize_wrapper}
+                className={`${styles.message_box_resize_wrapper} ${compactComposer ? styles.compact_composer : ""}`}
                 ref={message_input_box_wrapper_ref}
                 style={{ height: `${ui_message_box_ratio}%` }}
             >

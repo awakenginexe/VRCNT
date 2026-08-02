@@ -90,6 +90,32 @@ export const useMainFunction = () => {
         "transcription_receive",
     );
 
+    const setLiveSession = async (to_enable) => {
+        const operationStatuses = [
+            currentTranslationStatus,
+            currentTranscriptionSendStatus,
+            currentTranscriptionReceiveStatus,
+        ];
+        if (operationStatuses.some((status) => status.state === "pending")) return;
+
+        pendingTranslationStatus();
+        pendingTranscriptionSendStatus();
+        pendingTranscriptionReceiveStatus();
+
+        const action = to_enable ? "enable" : "disable";
+        const transportResult = await asyncStdoutToPython(
+            `/set/${action}/live_session`,
+        );
+        if (!transportResult.ok) {
+            clearPendingMainFunctionStatuses();
+            showNotification_Error(
+                t("blocking_operation.backend_unavailable"),
+                { category_id: "backend_unavailable" },
+            );
+        }
+        return transportResult;
+    };
+
     const clearPendingMainFunctionStatuses = () => {
         updateTranslationStatus((current) => current.data);
         updateTranscriptionSendStatus((current) => current.data);
@@ -128,6 +154,8 @@ export const useMainFunction = () => {
         updateTranscriptionReceiveStatus,
         setTranscriptionReceive,
         pendingTranscriptionReceiveStatus, // Exception.(It shouldn't be used in other function, normally.)
+
+        setLiveSession,
 
         currentForegroundStatus,
         toggleForeground,

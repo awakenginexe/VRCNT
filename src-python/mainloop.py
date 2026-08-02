@@ -110,6 +110,9 @@ mapping = {
     "/set/enable/transcription_receive": {"status": False, "variable":controller.setEnableTranscriptionReceive},
     "/set/disable/transcription_receive": {"status": False, "variable":controller.setDisableTranscriptionReceive},
 
+    "/set/enable/live_session": {"status": False, "variable":controller.setEnableLiveSession},
+    "/set/disable/live_session": {"status": False, "variable":controller.setDisableLiveSession},
+
     "/set/enable/foreground": {"status": True, "variable":controller.setEnableForeground},
     "/set/disable/foreground": {"status": True, "variable":controller.setDisableForeground},
 

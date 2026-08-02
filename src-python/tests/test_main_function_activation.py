@@ -116,6 +116,82 @@ class MainFunctionActivationTests(unittest.TestCase):
     def test_transcription_receive_enable_waits_for_real_readiness(self):
         self._assert_transcription_activation_waits(PipelineSource.SPEAKER)
 
+    def test_live_session_enables_each_pipeline_in_order_and_emits_real_results(self):
+        controller = _controller_for_activation()
+        controller.setEnableTranslation = Mock(return_value={"status": 200, "result": True})
+        controller.setEnableTranscriptionSend = Mock(return_value={"status": 200, "result": True})
+        controller.setEnableTranscriptionReceive = Mock(return_value={"status": 200, "result": True})
+
+        response = controller.setEnableLiveSession()
+
+        self.assertEqual(
+            response,
+            {
+                "status": 200,
+                "result": {
+                    "translation": True,
+                    "transcription_send": True,
+                    "transcription_receive": True,
+                },
+            },
+        )
+        controller.setEnableTranslation.assert_called_once_with()
+        controller.setEnableTranscriptionSend.assert_called_once_with()
+        controller.setEnableTranscriptionReceive.assert_called_once_with()
+        self.assertEqual(
+            [entry.args for entry in controller.run.call_args_list],
+            [
+                (200, "/run/enable_translation", True),
+                (200, "/run/enable_transcription_send", True),
+                (200, "/run/enable_transcription_receive", True),
+            ],
+        )
+
+    def test_live_session_stops_every_pipeline_even_when_they_are_already_off(self):
+        controller = _controller_for_activation()
+        controller.setDisableTranslation = Mock(return_value={"status": 200, "result": False})
+        controller.setDisableTranscriptionSend = Mock(return_value={"status": 200, "result": False})
+        controller.setDisableTranscriptionReceive = Mock(return_value={"status": 200, "result": False})
+
+        response = controller.setDisableLiveSession()
+
+        self.assertEqual(
+            response,
+            {
+                "status": 200,
+                "result": {
+                    "translation": False,
+                    "transcription_send": False,
+                    "transcription_receive": False,
+                },
+            },
+        )
+        controller.setDisableTranslation.assert_called_once_with()
+        controller.setDisableTranscriptionSend.assert_called_once_with()
+        controller.setDisableTranscriptionReceive.assert_called_once_with()
+        self.assertEqual(
+            [entry.args for entry in controller.run.call_args_list],
+            [
+                (200, "/run/enable_translation", False),
+                (200, "/run/enable_transcription_send", False),
+                (200, "/run/enable_transcription_receive", False),
+            ],
+        )
+
+    def test_live_session_transport_routes_target_the_serialized_controller_commands(self):
+        mainloop_path = os.path.join(os.path.dirname(__file__), "..", "mainloop.py")
+        with open(mainloop_path, encoding="utf-8") as mainloop_file:
+            mainloop_source = mainloop_file.read()
+
+        self.assertIn(
+            '"/set/enable/live_session": {"status": False, "variable":controller.setEnableLiveSession}',
+            mainloop_source,
+        )
+        self.assertIn(
+            '"/set/disable/live_session": {"status": False, "variable":controller.setDisableLiveSession}',
+            mainloop_source,
+        )
+
     def test_controller_wrapper_returns_model_readiness_and_restores_device_gate(self):
         controller = _controller_for_activation()
         patches = _transcription_model_patches(PipelineSource.MIC, lambda _callback: True)

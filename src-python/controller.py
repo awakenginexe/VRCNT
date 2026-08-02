@@ -2368,6 +2368,45 @@ class Controller:
             self._releaseCTranslate2()
             return {"status": 200, "result": config.ENABLE_TRANSLATION}
 
+    def _setLiveSession(self, enabled: bool) -> dict:
+        """Apply live pipelines in one deterministic backend command.
+
+        Individual endpoints remain available for hotkeys and advanced controls.
+        Their established run events keep every existing UI consumer synchronized.
+        """
+        operations = (
+            (
+                "translation",
+                "enable_translation",
+                self.setEnableTranslation if enabled else self.setDisableTranslation,
+            ),
+            (
+                "transcription_send",
+                "enable_transcription_send",
+                self.setEnableTranscriptionSend if enabled else self.setDisableTranscriptionSend,
+            ),
+            (
+                "transcription_receive",
+                "enable_transcription_receive",
+                self.setEnableTranscriptionReceive if enabled else self.setDisableTranscriptionReceive,
+            ),
+        )
+        results = {}
+        for operation, event_key, set_operation in operations:
+            response = set_operation()
+            operation_result = response.get("result", False)
+            results[operation] = (
+                operation_result if isinstance(operation_result, bool) else False
+            )
+            self._safeActivationEvent(event_key, response)
+        return {"status": 200, "result": results}
+
+    def setEnableLiveSession(self, *args, **kwargs) -> dict:
+        return self._setLiveSession(True)
+
+    def setDisableLiveSession(self, *args, **kwargs) -> dict:
+        return self._setLiveSession(False)
+
     @staticmethod
     def getCTranslate2AutoFallback(*args, **kwargs) -> dict:
         return {

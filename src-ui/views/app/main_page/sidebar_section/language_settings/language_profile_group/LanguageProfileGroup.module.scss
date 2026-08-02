@@ -315,6 +315,95 @@
     }
 }
 
+.role_card.variant_live_rail {
+    gap: 0.42rem;
+    padding: 0.7rem;
+    border-radius: 0.8rem;
+    background: var(--surface_control_color);
+
+    .role_header {
+        min-height: 1.25rem;
+    }
+
+    .role_identity {
+        gap: 0.42rem;
+    }
+
+    .role_icon {
+        width: 1.1rem;
+    }
+
+    .role_title {
+        color: var(--dark_350_color);
+        font-size: 0.74rem;
+        letter-spacing: 0.07rem;
+        text-transform: uppercase;
+    }
+
+    .language_count {
+        padding: 0.12rem 0.42rem;
+        font-size: 0.7rem;
+    }
+
+    .role_description {
+        display: none;
+    }
+
+    .chip_list {
+        gap: 0.35rem;
+    }
+
+    .language_chip {
+        min-height: 3.15rem;
+        flex-basis: 100%;
+        border-radius: 0.65rem;
+        background: var(--surface_2_color);
+    }
+
+    .language_button {
+        gap: 0.45rem;
+        padding: 0.4rem 0.35rem 0.4rem 0.55rem;
+    }
+
+    .flag {
+        width: 1.65rem;
+        height: 1.2rem;
+    }
+
+    .language_copy strong {
+        font-size: 0.86rem;
+    }
+
+    .language_copy span,
+    .state_label {
+        display: none;
+    }
+
+    .remove_button {
+        width: 2.35rem;
+
+        svg {
+            width: 1rem;
+        }
+    }
+
+    .add_button {
+        min-height: 2.35rem;
+        padding: 0.3rem 0.55rem;
+        border-radius: 0.65rem;
+        font-size: 0.76rem;
+    }
+
+    .helper_text {
+        max-height: 2.1em;
+        overflow: hidden;
+        padding: 0;
+        color: var(--dark_500_color);
+        font-size: 0.69rem;
+        line-height: 1.25;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .language_button,
     .remove_button,
