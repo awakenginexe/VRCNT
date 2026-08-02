@@ -2991,6 +2991,15 @@ class Controller:
         return {"status":200, "result":config.FONT_FAMILY}
 
     @staticmethod
+    def getFontDownloadPolicy(*args, **kwargs) -> dict:
+        return {"status":200, "result":config.FONT_DOWNLOAD_POLICY}
+
+    @staticmethod
+    def setFontDownloadPolicy(data, *args, **kwargs) -> dict:
+        config.FONT_DOWNLOAD_POLICY = data
+        return {"status":200, "result":config.FONT_DOWNLOAD_POLICY}
+
+    @staticmethod
     def getUiLanguage(*args, **kwargs) -> dict:
         return {"status":200, "result":config.UI_LANGUAGE}
 

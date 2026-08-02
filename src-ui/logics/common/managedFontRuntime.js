@@ -41,11 +41,13 @@ export const createManagedFontRuntime = ({
     logger = console,
 } = {}) => {
     const activations = new Map();
+    const facesByPack = new Map();
 
     const activatePack = async (packId) => {
         if (activations.has(packId)) return activations.get(packId);
         const activation = (async () => {
             if (!FONT_PACKS[packId] || !invoke || !convertFileSrc || !document?.fonts?.add || !FontFace) return false;
+            const faces = [];
             try {
                 const assets = await invoke("resolve_managed_font_assets", { packIds: [packId] });
                 if (!Array.isArray(assets) || assets.length === 0) return false;
@@ -56,10 +58,14 @@ export const createManagedFontRuntime = ({
                         ...(PACK_UNICODE_RANGES[asset.packId] ? { unicodeRange: PACK_UNICODE_RANGES[asset.packId] } : {}),
                     };
                     const face = new FontFace(asset.family, `url(${convertFileSrc(asset.path)})`, descriptors);
-                    document.fonts.add(await face.load());
+                    const loadedFace = await face.load();
+                    document.fonts.add(loadedFace);
+                    faces.push(loadedFace);
                 }
+                facesByPack.set(packId, faces);
                 return true;
             } catch (error) {
+                faces.forEach((face) => document?.fonts?.delete?.(face));
                 logger?.warn?.(`Managed font pack ${packId} could not be activated.`, error);
                 return false;
             }
@@ -76,5 +82,14 @@ export const createManagedFontRuntime = ({
 
     const activateAvailablePack = (event) => activatePack(event?.payload?.packId ?? event?.packId);
 
-    return { activatePack, activateLanguageProfiles, activateAvailablePack };
+    const deactivatePack = (packId) => {
+        const faces = facesByPack.get(packId);
+        if (!faces?.length) return false;
+        faces.forEach((face) => document?.fonts?.delete?.(face));
+        facesByPack.delete(packId);
+        activations.delete(packId);
+        return true;
+    };
+
+    return { activatePack, activateLanguageProfiles, activateAvailablePack, deactivatePack };
 };

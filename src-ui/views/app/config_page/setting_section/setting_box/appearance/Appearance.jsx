@@ -17,6 +17,7 @@ import {
     RadioButtonContainer,
     CheckboxContainer,
 } from "../_templates/Templates";
+import { FontPackManagement } from "./FontPackManagement.jsx";
 
 export const Appearance = () => {
     return (
@@ -27,6 +28,7 @@ export const Appearance = () => {
             <SendMessageButtonTypeContainer />
             <ShowResendButtonContainer />
             <FontFamilyContainer />
+            <FontPackManagement />
             <TransparencyContainer />
             <PerformanceModeContainer />
         </>

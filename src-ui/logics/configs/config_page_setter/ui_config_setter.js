@@ -174,6 +174,14 @@ export const SETTINGS_ARRAY = [
     },
     {
         Category: "Appearance",
+        Base_Name: "FontDownloadPolicy",
+        default_value: "ask",
+        ui_template_id: "select",
+        logics_template_id: "get_set",
+        base_endpoint_name: "font_download_policy",
+    },
+    {
+        Category: "Appearance",
         Base_Name: "Transparency",
         default_value: 100,
         ui_template_id: "slider",

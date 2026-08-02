@@ -75,3 +75,23 @@ test("an unavailable pack can activate from the same runtime after installation"
     assert.equal(await runtime.activateAvailablePack({ payload: { packId: "ethiopic" } }), true);
     assert.equal(added.length, 1);
 });
+
+test("removing a cached pack removes its registered FontFace from the live document", async () => {
+    const added = [];
+    const removed = [];
+    const runtime = createManagedFontRuntime({
+        invoke: async () => [{ packId: "ethiopic", family: "VRCNT Noto", path: "C:\\fonts\\ethiopic.ttf" }],
+        convertFileSrc: (path) => path,
+        document: {
+            fonts: {
+                add: (face) => added.push(face),
+                delete: (face) => removed.push(face),
+            },
+        },
+        FontFace: class { async load() { return this; } },
+    });
+
+    assert.equal(await runtime.activatePack("ethiopic"), true);
+    assert.equal(runtime.deactivatePack("ethiopic"), true);
+    assert.deepEqual(removed, added);
+});

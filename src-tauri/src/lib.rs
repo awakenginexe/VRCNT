@@ -83,6 +83,8 @@ pub fn run() {
             font_packs::download_optional_font_pack,
             font_packs::cancel_optional_font_pack,
             font_packs::resolve_managed_font_assets,
+            font_packs::optional_font_pack_catalog,
+            font_packs::remove_optional_font_pack,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

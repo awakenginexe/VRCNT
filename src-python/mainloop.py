@@ -196,6 +196,9 @@ mapping = {
     "/get/data/font_family": {"status": True, "variable":controller.getFontFamily},
     "/set/data/font_family": {"status": True, "variable":controller.setFontFamily},
 
+    "/get/data/font_download_policy": {"status": True, "variable":controller.getFontDownloadPolicy},
+    "/set/data/font_download_policy": {"status": True, "variable":controller.setFontDownloadPolicy},
+
     "/get/data/ui_language": {"status": True, "variable":controller.getUiLanguage},
     "/set/data/ui_language": {"status": True, "variable":controller.setUiLanguage},
 

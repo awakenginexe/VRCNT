@@ -191,6 +191,25 @@ pub struct ManagedFontAsset {
     pub weight_range: Option<[u16; 2]>,
 }
 
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct OptionalFontPackStatus {
+    pub id: String,
+    pub display_name: String,
+    pub scripts: Vec<String>,
+    pub pack_version: String,
+    pub size_bytes: u64,
+    pub installed: bool,
+    pub activation_status: String,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct OptionalFontPackCatalog {
+    pub total_bytes: u64,
+    pub packs: Vec<OptionalFontPackStatus>,
+}
+
 impl FontManifest {
     pub fn parse(json: &str) -> Result<Self, String> {
         let manifest: Self = serde_json::from_str(json)
@@ -492,6 +511,33 @@ impl FontCache {
             }
         }
         Ok(total)
+    }
+
+    pub fn optional_pack_catalog(&self) -> Result<OptionalFontPackCatalog, String> {
+        let mut packs = Vec::new();
+        for (id, pack) in &self.manifest.packs {
+            if pack.bundled {
+                continue;
+            }
+            let installed = self.installed_pack(id)?.is_some();
+            packs.push(OptionalFontPackStatus {
+                id: id.clone(),
+                display_name: pack.display_name.clone(),
+                scripts: pack.scripts.clone(),
+                pack_version: pack.pack_version.clone(),
+                size_bytes: pack.files.iter().map(|file| file.expected_bytes).sum(),
+                activation_status: if installed {
+                    "verified-cache-available".into()
+                } else {
+                    "system-fallback".into()
+                },
+                installed,
+            });
+        }
+        Ok(OptionalFontPackCatalog {
+            total_bytes: self.total_verified_bytes()?,
+            packs,
+        })
     }
 
     pub fn remove_optional_pack(&self, pack_id: &str) -> Result<(), String> {
@@ -825,6 +871,15 @@ impl FontPackDownloadService {
         self.cache.managed_font_assets(&self.bundled_root, pack_ids)
     }
 
+    fn optional_pack_catalog(&self) -> Result<OptionalFontPackCatalog, String> {
+        self.cache.optional_pack_catalog()
+    }
+
+    fn remove_optional_pack(&self, pack_id: &str) -> Result<OptionalFontPackCatalog, String> {
+        self.cache.remove_optional_pack(pack_id)?;
+        self.cache.optional_pack_catalog()
+    }
+
     fn request_download(
         &self,
         app: &tauri::AppHandle,
@@ -885,6 +940,21 @@ pub fn resolve_managed_font_assets(
     pack_ids: Vec<String>,
 ) -> Result<Vec<ManagedFontAsset>, String> {
     state.managed_font_assets(&pack_ids)
+}
+
+#[tauri::command]
+pub fn optional_font_pack_catalog(
+    state: tauri::State<'_, FontPackDownloadService>,
+) -> Result<OptionalFontPackCatalog, String> {
+    state.optional_pack_catalog()
+}
+
+#[tauri::command]
+pub fn remove_optional_font_pack(
+    state: tauri::State<'_, FontPackDownloadService>,
+    pack_id: String,
+) -> Result<OptionalFontPackCatalog, String> {
+    state.remove_optional_pack(&pack_id)
 }
 
 fn download_manifest_file(

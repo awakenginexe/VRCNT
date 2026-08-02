@@ -7,12 +7,21 @@ import { useStore_SelectableFontFamilyList } from "@store";
 import {
     applyManagedFontVariables,
     createManagedFontRuntime,
+    FONT_DOWNLOAD_POLICY,
+    getRequiredOptionalPackIds,
     normalizeManagedFontPreference,
+    normalizeFontDownloadPolicy,
+    requestOptionalFontPack,
+    requestRequiredOptionalFontPack,
 } from "@logics_common";
 import { isTauriRuntime } from "@logics_common/tauriRuntime.js";
 
 export const FontFamilyController = () => {
-    const { currentSelectedFontFamily, setSelectedFontFamily } = useAppearance();
+    const {
+        currentSelectedFontFamily,
+        setSelectedFontFamily,
+        currentFontDownloadPolicy,
+    } = useAppearance();
     const { currentSelectableFontFamilyList } = useStore_SelectableFontFamilyList();
     const {
         currentSelectedYourLanguages,
@@ -22,6 +31,7 @@ export const FontFamilyController = () => {
     const systemFontFamilies = useMemo(() => Object.keys(currentSelectableFontFamilyList.data ?? {})
         .filter((family) => family !== "VRCNT Noto"), [currentSelectableFontFamilyList.data]);
     const selected = normalizeManagedFontPreference(currentSelectedFontFamily.data, systemFontFamilies.length ? systemFontFamilies : null);
+    const fontDownloadPolicy = normalizeFontDownloadPolicy(currentFontDownloadPolicy.data);
 
     useEffect(() => {
         applyManagedFontVariables(document.documentElement, selected);
@@ -42,6 +52,18 @@ export const FontFamilyController = () => {
             ...Object.values(currentSelectedTargetLanguages.data ?? {}).flatMap(Object.values),
         ];
         runtime.activateLanguageProfiles(profiles);
+        const requiredOptionalPackIds = getRequiredOptionalPackIds(profiles);
+        if (fontDownloadPolicy === FONT_DOWNLOAD_POLICY.AUTOMATIC) {
+            requiredOptionalPackIds.forEach((packId) => {
+                requestOptionalFontPack(invoke, packId, fontDownloadPolicy).catch(console.warn);
+            });
+        } else if (fontDownloadPolicy === FONT_DOWNLOAD_POLICY.ASK) {
+            requiredOptionalPackIds.forEach((packId) => {
+                requestRequiredOptionalFontPack(invoke, packId, fontDownloadPolicy, (requiredPackId) => {
+                    globalThis.dispatchEvent(new CustomEvent("vrcnt-font-pack-required", { detail: { packId: requiredPackId } }));
+                }).catch(console.warn);
+            });
+        }
         let unlisten;
         let disposed = false;
         listen("font-pack-download-progress", (event) => {
@@ -50,14 +72,18 @@ export const FontFamilyController = () => {
             if (disposed) dispose();
             else unlisten = dispose;
         });
+        const onPackRemoved = (event) => runtime.deactivatePack(event.detail?.packId);
+        globalThis.addEventListener("vrcnt-font-pack-removed", onPackRemoved);
         return () => {
             disposed = true;
             unlisten?.();
+            globalThis.removeEventListener("vrcnt-font-pack-removed", onPackRemoved);
         };
     }, [
         currentSelectedTargetLanguages.data,
         currentSelectedYourLanguages.data,
         currentSelectedYourTranslationLanguages.data,
+        fontDownloadPolicy,
         selected,
     ]);
 
