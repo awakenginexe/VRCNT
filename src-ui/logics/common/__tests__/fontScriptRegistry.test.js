@@ -101,5 +101,5 @@ test("keeps VRCNT Noto first while preserving the saved system font and final fa
         "--vrcnt-system-fallback": '"Inter", "Segoe UI Variable Text", "Yu Gothic UI", system-ui, sans-serif',
         "--font_family": "var(--vrcnt-script-stack), var(--vrcnt-user-font), var(--vrcnt-system-fallback)",
     });
-    assert.equal(getManagedFontVariables("")["--vrcnt-user-font"], '"Yu Gothic UI"');
+    assert.equal(getManagedFontVariables("")["--vrcnt-user-font"], '"VRCNT Noto"');
 });

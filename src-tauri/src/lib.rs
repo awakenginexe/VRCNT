@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::io;
 use std::path::Path;
+use tauri::Manager;
 
 pub mod font_packs;
 
@@ -48,7 +49,24 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![get_font_list, download_zip_asset])
+        .setup(|app| -> Result<(), Box<dyn std::error::Error>> {
+            let manifest = app
+                .path()
+                .resource_dir()?
+                .join("_internal/fonts/font-packs.v1.json");
+            let service = font_packs::FontPackDownloadService::open(
+                font_packs::FontCache::default_root(),
+                &manifest,
+            )
+            .map_err(io::Error::other)?;
+            app.manage(service);
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            get_font_list,
+            font_packs::download_optional_font_pack,
+            font_packs::cancel_optional_font_pack,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -67,30 +85,6 @@ async fn get_font_list() -> Vec<String> {
     }
 
     font_families.into_iter().collect()
-}
-
-use base64::engine::general_purpose::STANDARD as BASE64;
-use base64::Engine;
-
-#[tauri::command]
-async fn download_zip_asset(url: String) -> Result<String, String> {
-    let client = reqwest::Client::new();
-    let resp = client
-        .get(&url)
-        .header("Accept", "application/octet-stream")
-        .send()
-        .await
-        .map_err(|e| format!("Request error: {}", e))?;
-    if !resp.status().is_success() {
-        return Err(format!("HTTP error: {}", resp.status()));
-    }
-
-    let bytes = resp
-        .bytes()
-        .await
-        .map_err(|e| format!("Reading bytes error: {}", e))?;
-
-    Ok(BASE64.encode(&bytes))
 }
 
 #[cfg(test)]

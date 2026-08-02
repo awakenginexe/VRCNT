@@ -26,8 +26,8 @@ tauri-plugin-fs = "=2.2.1"
 tauri-plugin-http = "=2.4.3"
 tauri-plugin-shell = "2.2.1"
 font-kit = "=0.14.2"
-reqwest = "=0.12.15"
-base64 = "=0.22.1"
+fs2 = "=0.4.3"
+reqwest = { version = "=0.12.15", features = ["blocking"] }
 sha2 = "=0.10.9"
 tauri-plugin-process = "2"
 

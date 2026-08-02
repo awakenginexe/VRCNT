@@ -40,7 +40,8 @@ export const FONT_PACKS = Object.freeze({
     emoji: createPack("emoji", FONT_PACK_DELIVERY.OPTIONAL, "Noto Color Emoji", ["Zsye"]),
 });
 
-const DEFAULT_USER_FONT_FAMILY = '"Yu Gothic UI"';
+export const VRCNT_NOTO_FONT_FAMILY = "VRCNT Noto";
+const DEFAULT_USER_FONT_FAMILY = '"VRCNT Noto"';
 const SYSTEM_FONT_FALLBACK = '"Inter", "Segoe UI Variable Text", "Yu Gothic UI", system-ui, sans-serif';
 const DEFAULT_SCRIPT_STACK = '"VRCNT Noto Core"';
 const MANAGED_FONT_FAMILY = "var(--vrcnt-script-stack), var(--vrcnt-user-font), var(--vrcnt-system-fallback)";
@@ -163,7 +164,7 @@ export const getManagedFontVariables = (selectedFontFamily) => ({
     "--vrcnt-user-font": typeof selectedFontFamily === "string" && selectedFontFamily.trim()
         ? selectedFontFamily.trim()
         : DEFAULT_USER_FONT_FAMILY,
-    "--vrcnt-script-stack": DEFAULT_SCRIPT_STACK,
+    "--vrcnt-script-stack": selectedFontFamily === VRCNT_NOTO_FONT_FAMILY ? '"VRCNT Noto"' : DEFAULT_SCRIPT_STACK,
     "--vrcnt-system-fallback": SYSTEM_FONT_FALLBACK,
     "--font_family": MANAGED_FONT_FAMILY,
 });
