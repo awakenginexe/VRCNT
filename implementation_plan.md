@@ -464,6 +464,17 @@ engine internet requirements in ordinary-user language.
 focused/full UI checks and Vite build; launch and screenshot the current Tauri
 app as the milestone gate requires; commit `docs: clarify VRCNT hardware and model requirements`.
 
+**Completion evidence (2026-08-02)**
+
+- The new README contract first failed because no user-facing hardware section
+  existed. It now passes and protects the exact CPU/NVIDIA guidance plus all
+  required local-runtime, model-download, memory, latency, and cloud-access
+  explanations.
+- `npm run test:ui` passes 206 tests and `npm run vite-build` passes. The real
+  Tauri app was reloaded after the documentation change: the normal startup
+  progress completed into Live with real CPU/GPU/RAM/VRAM telemetry, no startup
+  error notification, and no indefinitely pending backend state.
+
 **Rollback boundary**: documentation-only commit.
 
 ### Milestone 8 — Full regression verification and CUDA build
