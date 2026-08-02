@@ -220,21 +220,22 @@ and message schema.
 
 **Create**
 
-- `src-ui/views/app/main_page/setup/GuidedSetup.jsx`
-- `src-ui/views/app/main_page/setup/GuidedSetup.module.scss`
+- `src-ui/views/app/main_page/guided_setup/GuidedSetup.jsx`
+- `src-ui/views/app/main_page/guided_setup/GuidedSetup.module.scss`
 - `src-ui/views/app/main_page/main_section/__tests__/guidedSetup.test.js`
 
 **Modify**
 
 - `src-ui/views/app/main_page/MainPage.jsx`
-- `src-ui/views/app/main_page/MainPage.module.scss`
+- `src-ui/views/app/main_page/main_section/live_weave_navigation/LiveWeaveNavigation.jsx`
 - locale files listed in Milestone 2
 
 **Implementation**
 
 - Deliver the approved compact stepper for speaking language, translation
-  target, microphone, desktop audio, and VRChat output. It uses the existing
-  searchable language dialog and `useDevice`/`useOthers` setters directly.
+  target, microphone, desktop audio, and VRChat output. It binds direct
+  language selections to `useLanguageSettings` and audio/VRChat values to
+  `useDevice` and `useOthers`; no hardware or device labels are fabricated.
 - Show saved configuration as the initial state; Next/Back never reset data.
 - If OSC availability cannot be verified by the current backend, show the
   truthful availability state and retain the real output toggle rather than
@@ -243,6 +244,15 @@ and message schema.
 **Test-first gate and commit**: assert persisted hook usage and setup route
 semantics; run focused/full/UI build/Tauri/screenshots; commit
 `feat(ui): add guided setup flow`.
+
+**Milestone evidence**: the focused setup test initially failed because the
+route and component did not exist; after implementation it passed 3/3,
+`npm run test:ui` passed 193/193, and `npm run vite-build` passed. The real
+Tauri app completed all four setup steps against saved language, audio, and
+OSC/chatbox values at 1280×720, 1366×768, and the 1920×1080 display. After a
+clean restart it reopened with the same saved English (Singapore), Thai,
+Japanese, device, and VRChat settings; no startup failure or indefinite
+loading state appeared in the application log.
 
 **Rollback boundary**: new route files plus route switch only; configuration
 protocol is unchanged.

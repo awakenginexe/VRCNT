@@ -14,7 +14,7 @@ import styles from "./LiveWeaveNavigation.module.scss";
 
 const NAVIGATION_ITEMS = [
     { id: "live", icon: "⚡", labelKey: "main_page.live_weave.navigation.live" },
-    { id: "setup", icon: "🪄", labelKey: "main_page.live_weave.navigation.setup", configTab: "device" },
+    { id: "setup", icon: "🪄", labelKey: "main_page.live_weave.navigation.setup" },
     { id: "engines", icon: "⚙", labelKey: "main_page.live_weave.navigation.engines", configTab: "model_and_provider" },
     { id: "models", icon: "🧠", labelKey: "main_page.live_weave.navigation.models", configTab: "model_and_provider" },
     { id: "overlay", icon: "🖼", labelKey: "main_page.live_weave.navigation.overlay", configTab: "vr" },
@@ -43,6 +43,11 @@ export const LiveWeaveNavigation = () => {
             return;
         }
 
+        if (item.id === "setup") {
+            setIsOpenedConfigPage(false);
+            return;
+        }
+
         if (item.id === "history") {
             store.log_box_ref?.current?.scrollTo({ top: 0, behavior: "smooth" });
             return;
@@ -59,7 +64,10 @@ export const LiveWeaveNavigation = () => {
             <button
                 type="button"
                 className={styles.wordmark}
-                onClick={() => setIsOpenedConfigPage(false)}
+                onClick={() => {
+                    updateExperienceRoute("live");
+                    setIsOpenedConfigPage(false);
+                }}
                 aria-label={t("main_page.live_weave.navigation.live")}
             >
                 <img className={styles.wordmark_badge} src={logoBadge} alt="" />
