@@ -48,6 +48,11 @@ export const LiveWeaveNavigation = () => {
             return;
         }
 
+        if (item.id === "engines" || item.id === "models") {
+            setIsOpenedConfigPage(false);
+            return;
+        }
+
         if (item.id === "history") {
             store.log_box_ref?.current?.scrollTo({ top: 0, behavior: "smooth" });
             return;

@@ -263,6 +263,7 @@ protocol is unchanged.
 
 - `src-ui/views/app/main_page/engines/EnginesWorkspace.jsx`
 - `src-ui/views/app/main_page/engines/EnginesWorkspace.module.scss`
+- `src-ui/views/app/main_page/engines/engineModelUtils.js`
 - `src-ui/views/app/main_page/models/ModelsHub.jsx`
 - `src-ui/views/app/main_page/models/ModelsHub.module.scss`
 - `src-ui/views/app/main_page/main_section/__tests__/enginesAndModels.test.js`
@@ -275,16 +276,26 @@ protocol is unchanged.
 - `src-python/mainloop.py`
 - `src-python/model.py`
 - `src-ui/logics/configs/config_page_setter/ui_config_setter.js`
-- `src-ui/logics/useReceiveRoutes.js`
-- `src-ui/views/app/config_page/setting_section/setting_box/transcription/Transcription.jsx`
 - `src-ui/views/app/main_page/MainPage.jsx`
-- `src-ui/views/app/main_page/MainPage.module.scss`
+- `src-ui/views/app/main_page/main_section/live_weave_navigation/LiveWeaveNavigation.jsx`
 - locale files listed in Milestone 2
 
 **Implementation**
 
-- Add real paired outgoing/incoming engines and compute settings with the
-  migration described above; preserve legacy fields/endpoints.
+- Add real paired outgoing/incoming engine and compute settings with a
+  migration from `SELECTED_TRANSCRIPTION_ENGINE`,
+  `SELECTED_TRANSCRIPTION_COMPUTE_DEVICE`, and
+  `SELECTED_TRANSCRIPTION_COMPUTE_TYPE`. Preserve the existing global
+  endpoints as an "apply to both" compatibility path, and use the source
+  settings when the microphone and desktop pipelines construct transcribers.
+- Map the approved `EnginesTab` to `EnginesWorkspace`: outgoing microphone
+  and incoming desktop cards use their own persisted engine/device/compute
+  hooks, while the translation-provider and local-fallback controls retain
+  `useLanguageSettings`' real provider selection.
+- Map the approved `ModelHubTab` to `ModelsHub`: its preset cards consume the
+  existing Whisper download-status atom and real selected model/profile hooks.
+  Recommendation selection only chooses a downloaded model; CUDA versus CPU
+  guidance comes from actual selected compute devices and resource telemetry.
 - Display the approved beginner choices: Automatic — Recommended, Fast,
   Balanced, and Best accuracy. Automatic is an explained recommendation based
   on actual selected device/model availability; it never silently chooses an
@@ -297,9 +308,28 @@ protocol is unchanged.
   it; the implementation adds the required backward-compatible backend state
   first.
 
-**Test-first gate and commit**: migration/config/model source tests fail first;
-then run relevant Python tests plus focused/full UI, Vite, Tauri/screenshots;
-commit `feat(engines): add source-aware engine and model controls`.
+**Test-first gate and commit**: per-source migration/runtime and model-source
+tests fail first; then run relevant Python tests plus focused/full UI, Vite,
+Tauri/screenshots; commit `feat(engines): add source-aware engine and model
+controls`.
+
+**Completion evidence (2026-08-02)**
+
+- The focused UI test initially failed because the new Engines and Models
+  modules did not exist; it now passes (2 tests). A second test initially
+  demonstrated that an installed `large-v3-turbo` model would be automatically
+  selected on a CPU-only runtime; the production recommendation now declines
+  that unsafe automatic choice and the test passes.
+- `test_dual_transcription_engine_config.py` covers legacy-config migration,
+  both source-specific engine/device/type paths, and backwards-compatible
+  legacy writes (4 tests). Existing pipeline lifecycle, Whisper runtime,
+  decoding-profile, and progressive-controller tests remain green.
+- The real Tauri app was launched from this worktree with the shared Rust
+  target directory. It reached Live without a startup failure or stuck loading
+  state, then rendered both approved routes. Engines & Audio showed live CPU,
+  GPU, selected device/type, translation-provider state, and independent
+  microphone/desktop settings; Speech Models showed real download-needed
+  status rather than fabricated availability.
 
 **Rollback boundary**: a single backend/UI migration commit. Older config files
 remain accepted; reverting source code leaves legacy global values readable.

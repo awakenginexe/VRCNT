@@ -461,6 +461,24 @@ def _selected_transcription_compute_type_validator(val, inst):
         return val
     return None
 
+
+def _selected_transcription_compute_type_send_validator(val, inst):
+    if not isinstance(val, str):
+        return None
+    compute_types = inst.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_SEND.get("compute_types", [])
+    if val in compute_types:
+        return val
+    return None
+
+
+def _selected_transcription_compute_type_receive_validator(val, inst):
+    if not isinstance(val, str):
+        return None
+    compute_types = inst.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_RECEIVE.get("compute_types", [])
+    if val in compute_types:
+        return val
+    return None
+
 def _whisper_decoding_profile_validator(val, inst):
     profile = str(val).lower()
     if profile in ("fast", "balanced", "accurate"):
@@ -839,6 +857,8 @@ class Config:
 
     # --- Transcription settings ---
     SELECTED_TRANSCRIPTION_COMPUTE_TYPE = ValidatedProperty('SELECTED_TRANSCRIPTION_COMPUTE_TYPE', _selected_transcription_compute_type_validator)
+    SELECTED_TRANSCRIPTION_COMPUTE_TYPE_SEND = ValidatedProperty('SELECTED_TRANSCRIPTION_COMPUTE_TYPE_SEND', _selected_transcription_compute_type_send_validator)
+    SELECTED_TRANSCRIPTION_COMPUTE_TYPE_RECEIVE = ValidatedProperty('SELECTED_TRANSCRIPTION_COMPUTE_TYPE_RECEIVE', _selected_transcription_compute_type_receive_validator)
     WHISPER_DECODING_PROFILE = ValidatedProperty('WHISPER_DECODING_PROFILE', _whisper_decoding_profile_validator)
 
     # --- Overlay settings ---
@@ -876,6 +896,8 @@ class Config:
     # --- Selection properties with validation (ManagedProperty) ---
     SELECTED_TAB_NO = ManagedProperty('SELECTED_TAB_NO', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_TAB_NO_LIST)
     SELECTED_TRANSCRIPTION_ENGINE = ManagedProperty('SELECTED_TRANSCRIPTION_ENGINE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_TRANSCRIPTION_ENGINE_LIST)
+    SELECTED_TRANSCRIPTION_ENGINE_SEND = ManagedProperty('SELECTED_TRANSCRIPTION_ENGINE_SEND', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_TRANSCRIPTION_ENGINE_LIST)
+    SELECTED_TRANSCRIPTION_ENGINE_RECEIVE = ManagedProperty('SELECTED_TRANSCRIPTION_ENGINE_RECEIVE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_TRANSCRIPTION_ENGINE_LIST)
     USE_EXCLUDE_WORDS = ManagedProperty('USE_EXCLUDE_WORDS', type_=bool)
     CTRANSLATE2_WEIGHT_TYPE = ManagedProperty('CTRANSLATE2_WEIGHT_TYPE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_LIST)
     WHISPER_WEIGHT_TYPE = ManagedProperty('WHISPER_WEIGHT_TYPE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_WHISPER_WEIGHT_TYPE_LIST)
@@ -906,6 +928,8 @@ class Config:
     SELECTED_SPEAKER_DEVICE = ValidatedProperty('SELECTED_SPEAKER_DEVICE', _speaker_device_validator)
     SELECTED_TRANSLATION_COMPUTE_DEVICE = ValidatedProperty('SELECTED_TRANSLATION_COMPUTE_DEVICE', _compute_device_validator)
     SELECTED_TRANSCRIPTION_COMPUTE_DEVICE = ValidatedProperty('SELECTED_TRANSCRIPTION_COMPUTE_DEVICE', _compute_device_validator)
+    SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_SEND = ValidatedProperty('SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_SEND', _compute_device_validator)
+    SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_RECEIVE = ValidatedProperty('SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_RECEIVE', _compute_device_validator)
 
     # -- Clipboard control ---
     ENABLE_CLIPBOARD = ManagedProperty('ENABLE_CLIPBOARD', type_=bool)
@@ -1039,6 +1063,10 @@ class Config:
                         "enable": True if tab_target_lang_no == self.SELECTED_TAB_TARGET_LANGUAGES_NO_LIST[0] else False,
                     }
         self._SELECTED_TRANSCRIPTION_ENGINE = "Google"
+        # The legacy selection remains the compatibility value for callers
+        # that intentionally apply one runtime choice to both sources.
+        self._SELECTED_TRANSCRIPTION_ENGINE_SEND = self._SELECTED_TRANSCRIPTION_ENGINE
+        self._SELECTED_TRANSCRIPTION_ENGINE_RECEIVE = self._SELECTED_TRANSCRIPTION_ENGINE
         self._CONVERT_MESSAGE_TO_ROMAJI = False
         self._CONVERT_MESSAGE_TO_HIRAGANA = False
         self._MAIN_WINDOW_SIDEBAR_COMPACT_MODE = False
@@ -1137,6 +1165,8 @@ class Config:
         self._USE_EXCLUDE_WORDS = True
         self._SELECTED_TRANSLATION_COMPUTE_DEVICE = copy.deepcopy(self.SELECTABLE_COMPUTE_DEVICE_LIST[0])
         self._SELECTED_TRANSCRIPTION_COMPUTE_DEVICE = copy.deepcopy(self.SELECTABLE_COMPUTE_DEVICE_LIST[0])
+        self._SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_SEND = copy.deepcopy(self._SELECTED_TRANSCRIPTION_COMPUTE_DEVICE)
+        self._SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_RECEIVE = copy.deepcopy(self._SELECTED_TRANSCRIPTION_COMPUTE_DEVICE)
         self._CTRANSLATE2_WEIGHT_TYPE = "m2m100_418M-ct2-int8"
         self._SELECTED_PLAMO_MODEL = None
         self._SELECTED_GEMINI_MODEL = None
@@ -1155,6 +1185,8 @@ class Config:
         self._PARAKEET_WEIGHT_TYPE = next(iter(self.SELECTABLE_PARAKEET_WEIGHT_TYPE_LIST), "")
         self._SENSEVOICE_WEIGHT_TYPE = next(iter(self.SELECTABLE_SENSEVOICE_WEIGHT_TYPE_LIST), "")
         self._SELECTED_TRANSCRIPTION_COMPUTE_TYPE = "auto"
+        self._SELECTED_TRANSCRIPTION_COMPUTE_TYPE_SEND = self._SELECTED_TRANSCRIPTION_COMPUTE_TYPE
+        self._SELECTED_TRANSCRIPTION_COMPUTE_TYPE_RECEIVE = self._SELECTED_TRANSCRIPTION_COMPUTE_TYPE
         self._WHISPER_DECODING_PROFILE = "balanced"
         self._AUTO_CLEAR_MESSAGE_BOX = True
         self._SEND_ONLY_TRANSLATED_MESSAGES = False
@@ -1293,6 +1325,55 @@ class Config:
                 minimum_enabled=1,
                 maximum_enabled=1,
             )
+
+        # 4.2.x stored one transcription engine and one compute choice. Keep
+        # those fields readable, while materializing source-specific values for
+        # microphone (send) and desktop audio (receive) on first load.
+        legacy_engine = getattr(self, "_SELECTED_TRANSCRIPTION_ENGINE", None)
+        legacy_device = getattr(self, "_SELECTED_TRANSCRIPTION_COMPUTE_DEVICE", None)
+        legacy_compute_type = getattr(self, "_SELECTED_TRANSCRIPTION_COMPUTE_TYPE", None)
+        if "SELECTED_TRANSCRIPTION_ENGINE_SEND" not in self._config_data:
+            if legacy_engine is not None:
+                self.SELECTED_TRANSCRIPTION_ENGINE_SEND = legacy_engine
+        if "SELECTED_TRANSCRIPTION_ENGINE_RECEIVE" not in self._config_data:
+            if legacy_engine is not None:
+                self.SELECTED_TRANSCRIPTION_ENGINE_RECEIVE = legacy_engine
+        if "SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_SEND" not in self._config_data:
+            if legacy_device is not None:
+                self.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_SEND = copy.deepcopy(legacy_device)
+        if "SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_RECEIVE" not in self._config_data:
+            if legacy_device is not None:
+                self.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_RECEIVE = copy.deepcopy(legacy_device)
+        if "SELECTED_TRANSCRIPTION_COMPUTE_TYPE_SEND" not in self._config_data:
+            if legacy_compute_type is not None:
+                self.SELECTED_TRANSCRIPTION_COMPUTE_TYPE_SEND = legacy_compute_type
+        if "SELECTED_TRANSCRIPTION_COMPUTE_TYPE_RECEIVE" not in self._config_data:
+            if legacy_compute_type is not None:
+                self.SELECTED_TRANSCRIPTION_COMPUTE_TYPE_RECEIVE = legacy_compute_type
+
+        # If a future config contains only the source-specific values, expose
+        # the send value through the legacy getter as a stable fallback.
+        if (
+            "SELECTED_TRANSCRIPTION_ENGINE" not in self._config_data
+            and "SELECTED_TRANSCRIPTION_ENGINE_SEND" in self._config_data
+        ):
+            source_engine = getattr(self, "_SELECTED_TRANSCRIPTION_ENGINE_SEND", None)
+            if source_engine is not None:
+                self.SELECTED_TRANSCRIPTION_ENGINE = source_engine
+        if (
+            "SELECTED_TRANSCRIPTION_COMPUTE_DEVICE" not in self._config_data
+            and "SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_SEND" in self._config_data
+        ):
+            source_device = getattr(self, "_SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_SEND", None)
+            if source_device is not None:
+                self.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE = copy.deepcopy(source_device)
+        if (
+            "SELECTED_TRANSCRIPTION_COMPUTE_TYPE" not in self._config_data
+            and "SELECTED_TRANSCRIPTION_COMPUTE_TYPE_SEND" in self._config_data
+        ):
+            source_compute_type = getattr(self, "_SELECTED_TRANSCRIPTION_COMPUTE_TYPE_SEND", None)
+            if source_compute_type is not None:
+                self.SELECTED_TRANSCRIPTION_COMPUTE_TYPE = source_compute_type
 
         self.saveConfigToFile()
 

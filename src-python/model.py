@@ -314,17 +314,71 @@ class Model:
 
         self._inited = True
 
-    def _acquireWhisperRuntimeLease(self) -> Optional[WhisperRuntimeLease]:
-        if config.SELECTED_TRANSCRIPTION_ENGINE != "Whisper":
+    @staticmethod
+    def _sourceTranscriptionRuntimeSettings(source: Optional[PipelineSource] = None) -> tuple[str, dict, str]:
+        """Return persisted runtime settings for one capture source.
+
+        Older configs and focused tests can legitimately expose only the
+        legacy global fields, so each source-specific lookup deliberately
+        falls back to that established setting.
+        """
+        if source is PipelineSource.MIC:
+            return (
+                getattr(
+                    config,
+                    "SELECTED_TRANSCRIPTION_ENGINE_SEND",
+                    config.SELECTED_TRANSCRIPTION_ENGINE,
+                ),
+                getattr(
+                    config,
+                    "SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_SEND",
+                    config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE,
+                ),
+                getattr(
+                    config,
+                    "SELECTED_TRANSCRIPTION_COMPUTE_TYPE_SEND",
+                    config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE,
+                ),
+            )
+        if source is PipelineSource.SPEAKER:
+            return (
+                getattr(
+                    config,
+                    "SELECTED_TRANSCRIPTION_ENGINE_RECEIVE",
+                    config.SELECTED_TRANSCRIPTION_ENGINE,
+                ),
+                getattr(
+                    config,
+                    "SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_RECEIVE",
+                    config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE,
+                ),
+                getattr(
+                    config,
+                    "SELECTED_TRANSCRIPTION_COMPUTE_TYPE_RECEIVE",
+                    config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE,
+                ),
+            )
+        return (
+            config.SELECTED_TRANSCRIPTION_ENGINE,
+            config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE,
+            config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE,
+        )
+
+    def _acquireWhisperRuntimeLease(
+        self,
+        source: Optional[PipelineSource] = None,
+    ) -> Optional[WhisperRuntimeLease]:
+        engine, selected_device, selected_compute_type = self._sourceTranscriptionRuntimeSettings(source)
+        if engine != "Whisper":
             return None
         if checkWhisperWeight(config.PATH_DATA, config.WHISPER_WEIGHT_TYPE) is not True:
             return None
-        device = config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE["device"]
-        device_index = config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE["device_index"]
+        device = selected_device["device"]
+        device_index = selected_device["device_index"]
         compute_type = resolveWhisperComputeType(
             device,
             device_index,
-            config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE,
+            selected_compute_type,
         )
         key = WhisperRuntimeKey(
             weight_type=config.WHISPER_WEIGHT_TYPE,
@@ -1663,22 +1717,25 @@ class Model:
             )
             whisper_runtime_lease = None
             try:
-                whisper_runtime_lease = self._acquireWhisperRuntimeLease()
+                transcription_engine, transcription_device, transcription_compute_type = self._sourceTranscriptionRuntimeSettings(
+                    PipelineSource.MIC
+                )
+                whisper_runtime_lease = self._acquireWhisperRuntimeLease(PipelineSource.MIC)
                 self.mic_whisper_runtime_lease = whisper_runtime_lease
                 self.mic_transcriber = AudioTranscriber(
                     speaker=False,
                     source=self.mic_audio_recorder.source,
                     phrase_timeout=phrase_timeout,
                     max_phrases=config.MIC_MAX_PHRASES,
-                    transcription_engine=config.SELECTED_TRANSCRIPTION_ENGINE,
+                    transcription_engine=transcription_engine,
                     root=config.PATH_DATA,
                     whisper_weight_type=config.WHISPER_WEIGHT_TYPE,
                     vosk_weight_type=config.VOSK_WEIGHT_TYPE,
                     parakeet_weight_type=config.PARAKEET_WEIGHT_TYPE,
                     sensevoice_weight_type=config.SENSEVOICE_WEIGHT_TYPE,
-                    device=config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE["device"],
-                    device_index=config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE["device_index"],
-                    compute_type=config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE,
+                    device=transcription_device["device"],
+                    device_index=transcription_device["device_index"],
+                    compute_type=transcription_compute_type,
                     pipeline_context=self._makeTranscriberPipelineContext(
                         PipelineSource.MIC,
                         whisper_runtime_lease,
@@ -1723,7 +1780,7 @@ class Model:
                 try:
                     selected_your_languages = config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]
                     languages, countries = _runtimeTranscriptionLanguageLists(
-                        config.SELECTED_TRANSCRIPTION_ENGINE,
+                        transcription_engine,
                         selected_your_languages,
                         "microphone",
                     )
@@ -2152,22 +2209,25 @@ class Model:
             )
             whisper_runtime_lease = None
             try:
-                whisper_runtime_lease = self._acquireWhisperRuntimeLease()
+                transcription_engine, transcription_device, transcription_compute_type = self._sourceTranscriptionRuntimeSettings(
+                    PipelineSource.SPEAKER
+                )
+                whisper_runtime_lease = self._acquireWhisperRuntimeLease(PipelineSource.SPEAKER)
                 self.speaker_whisper_runtime_lease = whisper_runtime_lease
                 self.speaker_transcriber = AudioTranscriber(
                     speaker=True,
                     source=self.speaker_audio_recorder.source,
                     phrase_timeout=phrase_timeout,
                     max_phrases=config.SPEAKER_MAX_PHRASES,
-                    transcription_engine=config.SELECTED_TRANSCRIPTION_ENGINE,
+                    transcription_engine=transcription_engine,
                     root=config.PATH_DATA,
                     whisper_weight_type=config.WHISPER_WEIGHT_TYPE,
                     vosk_weight_type=config.VOSK_WEIGHT_TYPE,
                     parakeet_weight_type=config.PARAKEET_WEIGHT_TYPE,
                     sensevoice_weight_type=config.SENSEVOICE_WEIGHT_TYPE,
-                    device=config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE["device"],
-                    device_index=config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE["device_index"],
-                    compute_type=config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE,
+                    device=transcription_device["device"],
+                    device_index=transcription_device["device_index"],
+                    compute_type=transcription_compute_type,
                     pipeline_context=self._makeTranscriberPipelineContext(
                         PipelineSource.SPEAKER,
                         whisper_runtime_lease,
@@ -2211,7 +2271,7 @@ class Model:
                 try:
                     selected_target_languages = config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]
                     languages, countries = _runtimeTranscriptionLanguageLists(
-                        config.SELECTED_TRANSCRIPTION_ENGINE,
+                        transcription_engine,
                         selected_target_languages,
                         "received",
                     )
