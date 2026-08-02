@@ -11,7 +11,6 @@ import { LanguageSelectorOpenButton } from "../../sidebar_section/language_setti
 import { TranscriptionEngineLabel } from "../../sidebar_section/language_settings/transcription_engine_label/TranscriptionEngineLabel";
 import { TranslatorSelectorOpenButton } from "../../sidebar_section/language_settings/translator_selector_open_button/TranslatorSelectorOpenButton";
 import { PipelineStatus } from "../pipeline_status/PipelineStatus";
-import { SessionPrimaryAction } from "./SessionPrimaryAction";
 import styles from "./LiveControlRail.module.scss";
 
 export const LiveControlRail = () => {
@@ -61,7 +60,6 @@ export const LiveControlRail = () => {
                 </span>
             </header>
 
-            <SessionPrimaryAction />
             <MainFunctionSwitch layout="control_rail" includeForeground={false} />
 
             <section className={styles.section} aria-labelledby="live-language-routing-title">

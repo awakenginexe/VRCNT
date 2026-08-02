@@ -4,6 +4,7 @@ import { useTranscription } from "@logics_configs";
 import { useResourceUsage } from "@logics_common";
 import { useStore_ExperienceRoute } from "@store";
 import { TopBar } from "../main_section/top_bar/TopBar";
+import { CustomModernSelect } from "@common_components";
 import {
     findPresetCandidate,
     getPresetForModel,
@@ -90,6 +91,73 @@ export const ModelsHub = () => {
         if (preset && status) applyInstalledPreset(preset, status);
     };
 
+const modelOptions = useMemo(() => {
+        const options = [
+            {
+                id: "auto",
+                title: `⚡ Automatic / Recommended (${recommendation.modelId || "Auto"})`,
+                subtitle: `Optimal for ${hardwareName}`,
+                badge: "Auto",
+                badgeType: "teal",
+                isRecommended: true,
+                size: recommendation.modelId ? (statuses.find((s) => s.id === recommendation.modelId)?.capacity) : undefined,
+                computeTarget: selectedDevice.device === "cuda" ? "GPU (CUDA)" : "CPU",
+            },
+        ];
+
+        WHISPER_PRESETS.forEach((preset) => {
+            const candidate = findPresetCandidate({ presetId: preset.id, statuses, installedOnly: false });
+            if (!candidate) return;
+            const copy = PRESET_COPY[preset.id];
+
+            options.push({
+                id: candidate.id,
+                title: `${preset.id === "fast" ? "⚡ Fast" : preset.id === "balanced" ? "⚖️ Balanced" : "🎯 Best Accuracy"} (${candidate.id})`,
+                subtitle: `${candidate.capacity || ""} · ${t(copy.title)}`,
+                badge: preset.id === "fast" ? "Fast" : preset.id === "balanced" ? "Balanced" : "Accurate",
+                badgeType: preset.id === "fast" ? "teal" : preset.id === "balanced" ? "gold" : "purple",
+                isRecommended: recommendation.presetId === preset.id,
+                isDownloaded: candidate.is_downloaded === true,
+                size: candidate.capacity,
+                computeTarget: "GPU / CPU",
+                presetId: preset.id,
+                decodingProfile: preset.decodingProfile,
+            });
+        });
+
+        statuses.forEach((item) => {
+            if (!options.some((opt) => opt.id === item.id)) {
+                options.push({
+                    id: item.id,
+                    title: `Whisper ${item.id}`,
+                    subtitle: item.capacity ? `Size: ${item.capacity}` : undefined,
+                    isDownloaded: item.is_downloaded === true,
+                    size: item.capacity,
+                    computeTarget: "GPU / CPU",
+                });
+            }
+        });
+
+        return options;
+    }, [statuses, recommendation, hardwareName, selectedDevice, t]);
+
+    const handleModelSelectChange = (selectedId) => {
+        if (selectedId === "auto") {
+            useRecommendation();
+            return;
+        }
+        const selectedOpt = modelOptions.find((opt) => opt.id === selectedId);
+        if (selectedOpt && selectedOpt.decodingProfile) {
+            setWhisperDecodingProfile(selectedOpt.decodingProfile);
+        }
+        const statusItem = statuses.find((s) => s.id === selectedId);
+        if (statusItem?.is_downloaded === true) {
+            setSelectedWhisperWeightType(selectedId);
+        } else if (statusItem) {
+            downloadWhisperWeightTypeStatus(selectedId);
+        }
+    };
+
     return (
         <div className={styles.container}>
             <TopBar />
@@ -118,16 +186,17 @@ export const ModelsHub = () => {
                                     : t("main_page.models_hub.no_installed_reason")}
                         </p>
                     </div>
-                    <button
-                        type="button"
-                        className={styles.recommendation_button}
-                        disabled={!recommendation.modelId || controlsPending}
-                        onClick={useRecommendation}
-                    >
-                        {recommendation.modelId
-                            ? t("main_page.models_hub.use_recommendation")
-                            : t("main_page.models_hub.choose_download")}
-                    </button>
+                    <div style={{ width: "340px", flexShrink: 0 }}>
+                        <CustomModernSelect
+                            id="primary-speech-model-select"
+                            label="Active Speech Recognition Model"
+                            value={selectedModelId || "auto"}
+                            options={modelOptions}
+                            onChange={handleModelSelectChange}
+                            disabled={controlsPending && statuses.length === 0}
+                            variant="model"
+                        />
+                    </div>
                 </section>
 
                 <section className={styles.preset_grid} aria-label={t("main_page.models_hub.presets_label")}>

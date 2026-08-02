@@ -32,6 +32,97 @@
     left: 0;
 }
 
+.container[data-placement="live"] {
+    right: 0;
+    left: 0;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    box-shadow: 0 0.8rem 1.6rem rgba(0, 0, 0, 0.5);
+
+    .parallel_controls {
+        padding: 0.6rem 0.5rem 0.3rem;
+        gap: 0.5rem;
+    }
+
+    .parallel_toggle {
+        font-size: 0.95rem;
+        padding: 0.4rem 0.6rem;
+        gap: 0.6rem;
+    }
+
+    .parallel_checkbox_wrapper {
+        width: 2.8rem;
+        height: 1.5rem;
+
+        .checkbox_slider::before {
+            height: 1rem;
+            width: 1rem;
+            left: 0.25rem;
+            bottom: 0.25rem;
+        }
+
+        .parallel_checkbox:checked + .checkbox_slider::before {
+            transform: translateX(1.3rem);
+        }
+    }
+
+    .second_selector_wrapper {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.4rem;
+        padding: 0.5rem;
+    }
+
+    .second_selector_label {
+        font-size: 0.85rem;
+    }
+
+    .second_selector_container {
+        max-width: 100%;
+    }
+
+    .second_selector {
+        height: 2.4rem;
+        font-size: 0.9rem;
+        padding: 0 2.2rem 0 0.75rem;
+    }
+
+    .local_fallback_control {
+        padding: 0.5rem;
+        gap: 0.3rem;
+    }
+
+    .local_fallback_heading {
+        font-size: 0.9rem;
+        gap: 0.5rem;
+    }
+
+    .local_fallback_description {
+        padding-left: 0;
+        font-size: 0.8rem;
+    }
+
+    .wrapper {
+        padding: 0.45rem;
+        gap: 0.4rem;
+    }
+
+    .column_wrapper {
+        gap: 0.4rem;
+    }
+
+    .box {
+        min-height: 3.4rem;
+        padding: 0.4rem;
+    }
+
+    .translator_name {
+        font-size: 0.9rem;
+        line-height: 1.2;
+    }
+}
+
 .relative_container {
     position: relative;
     width: 100%;

@@ -124,7 +124,7 @@ export const STATIC_ROUTE_META_LIST = [
     { endpoint: "/set/data/hotkeys", ns: configs, hook_name: "useHotkeys", method_name: "setSuccessHotkeys" },
 
     // // Not Implemented.
-    { endpoint: "/get/data/selectable_transcription_engines", ns: null, hook_name: null, method_name: null }, // Not implemented on UI yet. (if ai_models has not been detected, this will be blank array[]. if the ai_models are ok but just network has not connected, it'l be only ["Whisper"])
+    { endpoint: "/get/data/selectable_transcription_engines", ns: configs, hook_name: "useTranscription", method_name: "updateFromBackendSelectableTranscriptionEngineList" },
     { endpoint: "/run/shutdown", ns: null, hook_name: null, method_name: null }, // Not implemented on UI.
 ];
 

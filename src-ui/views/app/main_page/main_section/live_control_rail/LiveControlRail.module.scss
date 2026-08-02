@@ -28,7 +28,7 @@
 .section_label {
     margin: 0;
     color: var(--dark_450_color);
-    font-size: 0.7rem;
+    font-size: 0.82rem;
     font-weight: 900;
     letter-spacing: 0.1rem;
     text-transform: uppercase;
@@ -37,7 +37,7 @@
 .title {
     margin: 0.2rem 0 0;
     color: var(--dark_100_color);
-    font-size: 1.18rem;
+    font-size: 1.35rem;
     font-weight: 900;
     line-height: 1.15;
 }
@@ -46,13 +46,13 @@
 .output_status {
     display: inline-flex;
     align-items: center;
-    min-height: 1.55rem;
-    padding: 0.2rem 0.5rem;
+    min-height: 1.8rem;
+    padding: 0.35rem 0.7rem;
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.16);
     border-radius: 99rem;
     background: var(--surface_control_color);
     color: var(--dark_400_color);
-    font-size: 0.72rem;
+    font-size: 0.85rem;
     font-weight: 850;
     line-height: 1;
     white-space: nowrap;

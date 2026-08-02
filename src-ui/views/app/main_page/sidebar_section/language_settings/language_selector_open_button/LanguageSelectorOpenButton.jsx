@@ -86,7 +86,7 @@ export const LanguageSelectorOpenButton = ({
     const country_text = selectedEntry?.country ?? t("main_page.language_panels.loading");
 
     return (
-        <div className={clsx(styles.container, styles[`variant_${variant}`])}>
+        <div data-selector-key={selector_key} className={clsx(styles.container, styles[`variant_${variant}`])}>
             {show_title && (
                 <div className={styles.title_container}>
                     <TurnedOnSvgComponent className={category_class_names} />

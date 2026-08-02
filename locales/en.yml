@@ -318,7 +318,7 @@ main_page:
         engines_desc: "Quick switches for translation and transcription"
         your_speaking_language: "Your speaking language"
         your_speaking_language_indexed: "Your speaking language {{index}}"
-        your_translation_language: "Your translation language"
+        your_translation_language: "My language"
         engine: "Engine"
         change: "Change"
         device: "Device"

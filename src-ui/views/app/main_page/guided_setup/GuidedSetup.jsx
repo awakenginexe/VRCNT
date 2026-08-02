@@ -7,6 +7,7 @@ import {
     useIsOpenedConfigPage,
     useNotificationStatus,
 } from "@logics_common";
+import { CustomModernSelect } from "@common_components";
 import { useStore_ExperienceRoute } from "@store";
 import { TopBar } from "../main_section/top_bar/TopBar";
 import styles from "./GuidedSetup.module.scss";
@@ -57,62 +58,61 @@ const LanguageSelect = ({
     optional = false,
 }) => {
     const selectedValue = languageOptionValue(selectedLanguage);
-    const hasSelectedOption = languages.some(
-        (language) => languageOptionValue(language) === selectedValue,
-    );
     const isDisabled = languages.length === 0;
 
+    const selectOptions = useMemo(() => {
+        const list = [];
+        if (optional || selectedValue === "") {
+            list.push({ id: "", title: emptyLabel });
+        }
+        languages.forEach((lang) => {
+            const val = languageOptionValue(lang);
+            list.push({
+                id: val,
+                title: lang.language,
+                subtitle: lang.country,
+                country: lang.country,
+            });
+        });
+        return list;
+    }, [emptyLabel, languages, optional, selectedValue]);
+
     return (
-        <label className={styles.field} htmlFor={id}>
-            <span className={styles.field_label}>{label}</span>
-            {description && <span className={styles.field_description}>{description}</span>}
-            <select
+        <div className={styles.field}>
+            <CustomModernSelect
                 id={id}
-                className={styles.select}
+                label={label}
                 value={selectedValue}
+                options={selectOptions}
                 disabled={isDisabled}
-                onChange={(event) => onChange(decodeLanguageOption(event.target.value))}
-            >
-                {(optional || selectedValue === "") && (
-                    <option value="">{emptyLabel}</option>
-                )}
-                {selectedValue !== "" && !hasSelectedOption && (
-                    <option value={selectedValue}>{getLanguageLabel(selectedLanguage, emptyLabel)}</option>
-                )}
-                {languages.map((language) => (
-                    <option
-                        key={`${language.language}-${language.country}`}
-                        value={languageOptionValue(language)}
-                    >
-                        {getLanguageLabel(language, emptyLabel)}
-                    </option>
-                ))}
-            </select>
-        </label>
+                placeholder={emptyLabel}
+                onChange={(val) => onChange(decodeLanguageOption(val))}
+            />
+            {description && <span className={styles.field_description}>{description}</span>}
+        </div>
     );
 };
 
 const DeviceSelect = ({ id, label, values, selectedValue, emptyLabel, disabled, onChange }) => {
-    const options = useMemo(() => {
+    const selectOptions = useMemo(() => {
         const nextValues = [...new Set(values)];
         if (selectedValue && !nextValues.includes(selectedValue)) nextValues.unshift(selectedValue);
-        return nextValues;
-    }, [selectedValue, values]);
+        if (nextValues.length === 0) return [{ id: "", title: emptyLabel }];
+        return nextValues.map((val) => ({ id: val, title: val }));
+    }, [emptyLabel, selectedValue, values]);
 
     return (
-        <label className={styles.field} htmlFor={id}>
-            <span className={styles.field_label}>{label}</span>
-            <select
+        <div className={styles.field}>
+            <CustomModernSelect
                 id={id}
-                className={styles.select}
+                label={label}
                 value={selectedValue ?? ""}
-                disabled={disabled || options.length === 0}
-                onChange={(event) => onChange(event.target.value)}
-            >
-                {options.length === 0 && <option value="">{emptyLabel}</option>}
-                {options.map((value) => <option key={value} value={value}>{value}</option>)}
-            </select>
-        </label>
+                options={selectOptions}
+                disabled={disabled || values.length === 0}
+                placeholder={emptyLabel}
+                onChange={onChange}
+            />
+        </div>
     );
 };
 

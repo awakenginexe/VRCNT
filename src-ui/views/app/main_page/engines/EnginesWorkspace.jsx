@@ -1,12 +1,14 @@
-import { useEffect, useMemo } from "react";
+import { useRef, useEffect, useMemo } from "react";
 import { useI18n } from "@useI18n";
 import { useLanguageSettings } from "@logics_main";
 import { useTranscription } from "@logics_configs";
 import {
     useComputeMode,
+    useIsBackendReady,
     useIsOpenedConfigPage,
     useResourceUsage,
 } from "@logics_common";
+import { CustomModernSelect } from "@common_components";
 import {
     useStore_ExperienceRoute,
     useStore_SelectedConfigTabId,
@@ -23,9 +25,10 @@ const deviceValue = (device) => JSON.stringify({
     device_index: device?.device_index,
 });
 
-const findDevice = (devices, value) => devices.find((device) => (
-    deviceValue(device) === value
-));
+const findDevice = (devices, value) => {
+    if (!value) return null;
+    return devices.find((item) => deviceValue(item) === value) ?? null;
+};
 
 const metricValue = (metric, unavailableLabel) => {
     if (metric?.available !== true || metric.percent === null || metric.percent === undefined) {
@@ -55,14 +58,27 @@ const SourceRuntimeCard = ({
     emptyLabel,
 }) => {
     const deviceOptions = toArray(devices).filter((item) => item && typeof item === "object");
-    const engineOptions = Array.isArray(engines) ? engines : [];
+    const engineOptionsList = Array.isArray(engines) ? engines : [];
     const selectedDeviceValue = device?.device ? deviceValue(device) : "";
-    const hasSelectedEngine = engine && !engineOptions.includes(engine);
-    const hasSelectedDevice = selectedDeviceValue && !deviceOptions.some((item) => (
-        deviceValue(item) === selectedDeviceValue
-    ));
     const computeTypes = Array.isArray(device?.compute_types) ? device.compute_types : [];
-    const hasSelectedComputeType = computeType && !computeTypes.includes(computeType);
+
+    const parsedEngineOptions = useMemo(() => {
+        if (engineOptionsList.length === 0) return [{ id: "", title: emptyLabel }];
+        return engineOptionsList.map((e) => ({ id: e, title: e }));
+    }, [emptyLabel, engineOptionsList]);
+
+    const parsedDeviceOptions = useMemo(() => {
+        if (deviceOptions.length === 0) return [{ id: "", title: emptyLabel }];
+        return deviceOptions.map((item) => ({
+            id: deviceValue(item),
+            title: item.device_name ?? item.device,
+        }));
+    }, [deviceOptions, emptyLabel]);
+
+    const parsedComputeTypeOptions = useMemo(() => {
+        if (computeTypes.length === 0) return [{ id: "", title: emptyLabel }];
+        return computeTypes.map((item) => ({ id: item, title: item }));
+    }, [computeTypes, emptyLabel]);
 
     return (
         <article className={styles.source_card} data-accent={accent}>
@@ -75,49 +91,39 @@ const SourceRuntimeCard = ({
             </header>
 
             <div className={styles.form_grid}>
-                <label className={styles.field}>
-                    <span>{engineLabel}</span>
-                    <select
+                <div className={styles.field}>
+                    <CustomModernSelect
+                        label={engineLabel}
                         value={engine ?? ""}
-                        disabled={pending || engineOptions.length === 0}
-                        onChange={(event) => onEngineChange(event.target.value)}
-                    >
-                        {hasSelectedEngine && <option value={engine}>{engine}</option>}
-                        {engineOptions.length === 0 && <option value="">{emptyLabel}</option>}
-                        {engineOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-                    </select>
-                </label>
-                <label className={styles.field}>
-                    <span>{deviceLabel}</span>
-                    <select
+                        options={parsedEngineOptions}
+                        disabled={pending || engineOptionsList.length === 0}
+                        placeholder={emptyLabel}
+                        onChange={onEngineChange}
+                    />
+                </div>
+                <div className={styles.field}>
+                    <CustomModernSelect
+                        label={deviceLabel}
                         value={selectedDeviceValue}
+                        options={parsedDeviceOptions}
                         disabled={pending || deviceOptions.length === 0}
-                        onChange={(event) => {
-                            const next = findDevice(deviceOptions, event.target.value);
+                        placeholder={emptyLabel}
+                        onChange={(val) => {
+                            const next = findDevice(deviceOptions, val);
                             if (next) onDeviceChange(next);
                         }}
-                    >
-                        {hasSelectedDevice && <option value={selectedDeviceValue}>{device?.device_name ?? device?.device}</option>}
-                        {deviceOptions.length === 0 && <option value="">{emptyLabel}</option>}
-                        {deviceOptions.map((item) => (
-                            <option key={deviceValue(item)} value={deviceValue(item)}>
-                                {item.device_name ?? item.device}
-                            </option>
-                        ))}
-                    </select>
-                </label>
-                <label className={styles.field}>
-                    <span>{computeTypeLabel}</span>
-                    <select
+                    />
+                </div>
+                <div className={styles.field}>
+                    <CustomModernSelect
+                        label={computeTypeLabel}
                         value={computeType ?? ""}
+                        options={parsedComputeTypeOptions}
                         disabled={pending || computeTypes.length === 0}
-                        onChange={(event) => onComputeTypeChange(event.target.value)}
-                    >
-                        {hasSelectedComputeType && <option value={computeType}>{computeType}</option>}
-                        {computeTypes.length === 0 && <option value="">{emptyLabel}</option>}
-                        {computeTypes.map((item) => <option key={item} value={item}>{item}</option>)}
-                    </select>
-                </label>
+                        placeholder={emptyLabel}
+                        onChange={onComputeTypeChange}
+                    />
+                </div>
             </div>
             <p className={styles.pipeline_flow}>{flow}</p>
         </article>
@@ -158,13 +164,26 @@ export const EnginesWorkspace = () => {
         setSelectedTranscriptionComputeTypeReceive,
     } = useTranscription();
 
+    const { currentIsBackendReady } = useIsBackendReady();
+    const isBackendReady = currentIsBackendReady?.data === true;
+    const hasHydratedRef = useRef(false);
+
     useEffect(() => {
-        getSelectableTranscriptionEngineList?.();
-        getSelectableTranscriptionComputeDeviceList?.();
-    // The configuration hooks rebuild their command wrappers on each render;
-    // requesting this static capability data once avoids a request loop.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+        if (!isBackendReady) return;
+        const enginesEmpty = toArray(currentSelectableTranscriptionEngineList?.data).length === 0;
+        const devicesEmpty = toArray(currentSelectableTranscriptionComputeDeviceList?.data).length === 0;
+        if (!hasHydratedRef.current || enginesEmpty || devicesEmpty) {
+            hasHydratedRef.current = true;
+            getSelectableTranscriptionEngineList?.();
+            getSelectableTranscriptionComputeDeviceList?.();
+        }
+    }, [
+        isBackendReady,
+        currentSelectableTranscriptionEngineList?.data,
+        currentSelectableTranscriptionComputeDeviceList?.data,
+        getSelectableTranscriptionEngineList,
+        getSelectableTranscriptionComputeDeviceList,
+    ]);
 
     const presetKey = currentSelectedPresetTabNumber.data ?? "1";
     const availableEngines = useMemo(
@@ -289,36 +308,31 @@ export const EnginesWorkspace = () => {
                         </label>
                     </div>
                     <div className={styles.provider_grid}>
-                        <label className={styles.field}>
-                            <span>{t("main_page.engines_workspace.primary_provider")}</span>
-                            <select
+                        <div className={styles.field}>
+                            <CustomModernSelect
+                                label={t("main_page.engines_workspace.primary_provider")}
                                 value={primaryProvider}
+                                options={translationProviders.length === 0 ? [{ id: "", title: emptyLabel }] : translationProviders.map((p) => ({ id: p.id, title: p.label ?? p.id }))}
                                 disabled={translationProviders.length === 0 || currentSelectedTranslationEngines.state === "pending"}
-                                onChange={(event) => updateProvider(0, event.target.value)}
-                            >
-                                {primaryProvider && !translationProviders.some((item) => item.id === primaryProvider) && (
-                                    <option value={primaryProvider}>{primaryProvider}</option>
-                                )}
-                                {translationProviders.length === 0 && <option value="">{emptyLabel}</option>}
-                                {translationProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.label ?? provider.id}</option>)}
-                            </select>
-                        </label>
-                        <label className={styles.field}>
-                            <span>{t("main_page.engines_workspace.secondary_provider")}</span>
-                            <select
+                                placeholder={emptyLabel}
+                                onChange={(val) => updateProvider(0, val)}
+                            />
+                        </div>
+                        <div className={styles.field}>
+                            <CustomModernSelect
+                                label={t("main_page.engines_workspace.secondary_provider")}
                                 value={secondaryProvider}
+                                options={[
+                                    { id: "", title: t("main_page.engines_workspace.no_secondary_provider") },
+                                    ...translationProviders
+                                        .filter((p) => p.id !== primaryProvider)
+                                        .map((p) => ({ id: p.id, title: p.label ?? p.id })),
+                                ]}
                                 disabled={translationProviders.length === 0 || currentSelectedTranslationEngines.state === "pending"}
-                                onChange={(event) => updateProvider(1, event.target.value)}
-                            >
-                                <option value="">{t("main_page.engines_workspace.no_secondary_provider")}</option>
-                                {secondaryProvider && !translationProviders.some((item) => item.id === secondaryProvider) && (
-                                    <option value={secondaryProvider}>{secondaryProvider}</option>
-                                )}
-                                {translationProviders.filter((provider) => provider.id !== primaryProvider).map((provider) => (
-                                    <option key={provider.id} value={provider.id}>{provider.label ?? provider.id}</option>
-                                ))}
-                            </select>
-                        </label>
+                                placeholder={t("main_page.engines_workspace.no_secondary_provider")}
+                                onChange={(val) => updateProvider(1, val)}
+                            />
+                        </div>
                     </div>
                 </section>
 

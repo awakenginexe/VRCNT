@@ -164,25 +164,26 @@
 }
 
 .container[data-variant="live_compact"] {
-    width: 17rem;
+    width: 100%;
     gap: 0;
 
     .engine_label_button {
-        min-height: 4.2rem;
-        padding: 0.6rem 0.9rem;
-        border-radius: 0.9rem;
+        min-height: 4.8rem;
+        padding: 0.8rem 1.1rem;
+        border-radius: 1rem;
         background: var(--surface_control_color);
     }
 
     .label_heading {
-        font-size: 0.8rem;
+        font-size: 0.95rem;
     }
 
     .label_value {
-        max-width: 12.5rem;
+        max-width: 100%;
         overflow: hidden;
         color: var(--dark_150_color);
-        font-size: 1rem;
+        font-size: 1.18rem;
+        font-weight: 800;
         text-overflow: ellipsis;
         white-space: nowrap;
     }

@@ -245,6 +245,16 @@ textarea {
     outline: none;
 }
 
+select {
+    background-color: #12131a;
+    color: #ffffff;
+}
+
+option {
+    background-color: #12131a !important;
+    color: #ffffff !important;
+}
+
 /**
  * Correct cursors for clickable elements.
  */

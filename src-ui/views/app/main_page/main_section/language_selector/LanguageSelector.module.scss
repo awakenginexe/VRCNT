@@ -56,11 +56,12 @@
     border-radius: 0.9rem;
     background: var(--surface_control_color);
     color: var(--dark_200_color);
+    transition: border-color var(--transition_ui), box-shadow var(--transition_ui);
 
     &:focus-within {
-        border-color: var(--accent_color);
-        outline: 0.2rem solid rgba(var(--accent_color_rgb), 0.18);
-        outline-offset: 0.1rem;
+        border-color: rgba(var(--accent_color_rgb), 0.45);
+        box-shadow: 0 0 16px rgba(var(--accent_color_rgb), 0.15);
+        outline: none;
     }
 
     input {
@@ -69,6 +70,17 @@
         user-select: text;
         font-size: 1.3rem;
         line-height: 1;
+        background: transparent;
+        border: none;
+        outline: none;
+        box-shadow: none;
+
+        &:focus,
+        &:focus-visible {
+            outline: none;
+            border: none;
+            box-shadow: none;
+        }
 
         &::placeholder {
             color: var(--dark_400_color);

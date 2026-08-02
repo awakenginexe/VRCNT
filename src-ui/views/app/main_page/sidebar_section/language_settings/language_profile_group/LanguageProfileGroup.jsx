@@ -70,6 +70,7 @@ export const LanguageProfileGroup = ({
 
     return (
         <section
+            data-group={group}
             className={clsx(styles.role_card, styles[`variant_${variant}`])}
             aria-labelledby={titleId}
             aria-describedby={helperId}
