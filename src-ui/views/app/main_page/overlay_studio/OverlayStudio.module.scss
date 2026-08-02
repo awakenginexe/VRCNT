@@ -58,7 +58,7 @@
 
 .hero h1 {
     margin-top: 0.35rem;
-    font-size: clamp(1.7rem, 2.7vw, 2.6rem);
+    font-size: clamp(1.8rem, 2.7vw, 2.6rem);
     letter-spacing: -0.055rem;
 }
 
@@ -74,13 +74,13 @@
 
 .open_button,
 .secondary_button {
-    min-height: 2.6rem;
+    min-height: 2.75rem;
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.4);
     border-radius: 0.7rem;
     background: rgba(var(--accent_color_rgb), 0.1);
     color: var(--primary_150_color);
     font: inherit;
-    font-size: 0.84rem;
+    font-size: 0.88rem;
     font-weight: 850;
     cursor: pointer;
     transition: var(--transition_ui);
@@ -111,7 +111,7 @@
 
 .desktop_card {
     min-width: 0;
-    padding: clamp(1rem, 1.7vw, 1.5rem);
+    padding: clamp(1.15rem, 1.8vw, 1.6rem);
 }
 
 .card_header,
@@ -126,7 +126,7 @@
 .geometry_card h2,
 .vr_card h2 {
     margin-top: 0.2rem;
-    font-size: 1.1rem;
+    font-size: 1.2rem;
 }
 
 .card_actions {
@@ -138,17 +138,17 @@
 }
 
 .secondary_button {
-    padding: 0 0.8rem;
+    padding: 0 0.9rem;
     background: rgba(255, 255, 255, 0.025);
 }
 
 .preview_canvas {
-    min-height: clamp(22rem, 41vh, 32rem);
+    min-height: clamp(25rem, 48vh, 35rem);
     display: flex;
     align-items: center;
     justify-content: center;
     margin-top: 1.25rem;
-    padding: clamp(1rem, 3vw, 2.25rem);
+    padding: clamp(1.25rem, 3vw, 2.5rem);
     border-radius: 0.85rem;
     background: #040306;
     overflow: hidden;
@@ -163,24 +163,24 @@
 
 .geometry_card,
 .vr_card {
-    padding: 1.2rem;
+    padding: 1.3rem;
 }
 
 .range_control {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    gap: 0.45rem 0.75rem;
+    gap: 0.5rem 0.75rem;
     align-items: center;
     margin-top: 1rem;
     color: var(--dark_300_color);
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     font-weight: 850;
     letter-spacing: 0.045em;
     text-transform: uppercase;
 
     strong {
         color: var(--primary_150_color);
-        font-size: 0.8rem;
+        font-size: 0.85rem;
         letter-spacing: 0;
         text-transform: none;
     }
@@ -205,7 +205,7 @@
     gap: 0.75rem;
     margin-top: 1rem;
     color: var(--dark_250_color);
-    font-size: 0.86rem;
+    font-size: 0.88rem;
     font-weight: 750;
     cursor: pointer;
 
@@ -267,11 +267,11 @@
     grid-template-columns: auto 2.55rem;
     flex: 0 0 auto;
     margin: 0;
-    font-size: 0.76rem;
+    font-size: 0.8rem;
 }
 
 .vr_canvas {
-    min-height: 10rem;
+    min-height: 11.5rem;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -284,10 +284,10 @@
 }
 
 .vr_frame {
-    width: min(100%, 19rem);
+    width: min(100%, 21rem);
     display: grid;
-    gap: 0.45rem;
-    padding: 1rem;
+    gap: 0.5rem;
+    padding: 1.1rem;
     border: 0.1rem solid rgba(var(--vr-accent-rgb), 0.58);
     border-radius: 0.7rem;
     background: rgba(0, 0, 0, calc(0.6 * var(--vr-opacity)));
@@ -302,7 +302,7 @@
     span,
     small {
         color: var(--vr-accent);
-        font-size: 0.7rem;
+        font-size: 0.75rem;
         font-weight: 850;
         letter-spacing: 0.08em;
         text-transform: uppercase;
@@ -310,7 +310,7 @@
 
     strong {
         overflow-wrap: anywhere;
-        font-size: 0.95rem;
+        font-size: 1rem;
         line-height: 1.35;
     }
 
@@ -333,20 +333,20 @@
     gap: 0.4rem;
     margin-top: 0.75rem;
     color: var(--dark_350_color);
-    font-size: 0.74rem;
+    font-size: 0.76rem;
     font-weight: 850;
     letter-spacing: 0.05em;
     text-transform: uppercase;
 
     select {
         width: 100%;
-        min-height: 2.45rem;
+        min-height: 2.65rem;
         border: 0.1rem solid rgba(255, 255, 255, 0.12);
         border-radius: 0.6rem;
         background: rgba(255, 255, 255, 0.035);
         color: var(--dark_150_color);
         font: inherit;
-        font-size: 0.82rem;
+        font-size: 0.86rem;
         font-weight: 750;
         letter-spacing: 0;
         text-transform: none;
@@ -357,7 +357,7 @@
 .feedback {
     margin: 0.75rem 0 0;
     color: var(--dark_450_color);
-    font-size: 0.8rem;
+    font-size: 0.83rem;
     font-weight: 600;
     line-height: 1.4;
 }
@@ -380,7 +380,7 @@
     }
 
     .preview_canvas {
-        min-height: 19rem;
+        min-height: 22rem;
     }
 }
 
