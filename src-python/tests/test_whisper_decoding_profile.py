@@ -281,6 +281,11 @@ class WhisperDecodingConfigTests(unittest.TestCase):
 
         self.assertEqual(instance.WHISPER_DECODING_PROFILE, "balanced")
 
+    def test_partial_config_without_font_preference_uses_vrcnt_noto(self):
+        instance = self._load_profile({})
+
+        self.assertEqual(instance.FONT_FAMILY, "VRCNT Noto")
+
     def test_saved_mixed_case_profile_is_migrated_to_lowercase(self):
         instance = self._load_profile({"WHISPER_DECODING_PROFILE": "ACCURATE"})
 

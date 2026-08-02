@@ -1320,9 +1320,10 @@ class Config:
                         except Exception:
                             errorLogging()
 
-        if not isinstance(self._FONT_FAMILY, str) or not self._FONT_FAMILY.strip():
+        font_family = getattr(self, "_FONT_FAMILY", None)
+        if not isinstance(font_family, str) or not font_family.strip():
             self._FONT_FAMILY = "VRCNT Noto"
-        if self._FONT_DOWNLOAD_POLICY not in {"ask", "automatic", "never"}:
+        if getattr(self, "_FONT_DOWNLOAD_POLICY", None) not in {"ask", "automatic", "never"}:
             self._FONT_DOWNLOAD_POLICY = "ask"
 
         if "SELECTED_YOUR_TRANSLATION_LANGUAGES" not in self._config_data:
