@@ -95,6 +95,9 @@ main_page:
         advanced_diagnostics: "고급 진단"
         advanced_diagnostics_hint: "실시간 파이프라인 상태 표시"
         composer_placeholder: "VRChat으로 번역해 보낼 메시지를 입력하세요…"
+    notifications:
+        label: "알림"
+        dismiss: "알림 닫기"
     guided_setup:
         eyebrow: "빠른 시작"
         title: "VRCNT 설정"

@@ -95,6 +95,9 @@ main_page:
         advanced_diagnostics: "詳細診断"
         advanced_diagnostics_hint: "ライブパイプラインの状態を表示"
         composer_placeholder: "VRChat に翻訳して送るメッセージを入力…"
+    notifications:
+        label: "通知"
+        dismiss: "通知を閉じる"
     guided_setup:
         eyebrow: "クイックスタート"
         title: "VRCNT をセットアップ"

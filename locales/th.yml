@@ -95,6 +95,9 @@ main_page:
         advanced_diagnostics: "การวินิจฉัยขั้นสูง"
         advanced_diagnostics_hint: "แสดงสถานะไปป์ไลน์แบบสด"
         composer_placeholder: "พิมพ์ข้อความเพื่อแปลและส่งไปยัง VRChat…"
+    notifications:
+        label: "การแจ้งเตือน"
+        dismiss: "ปิดการแจ้งเตือน"
     guided_setup:
         eyebrow: "เริ่มต้นด่วน"
         title: "ตั้งค่า VRCNT"

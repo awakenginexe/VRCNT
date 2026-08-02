@@ -95,6 +95,9 @@ main_page:
         advanced_diagnostics: "高级诊断"
         advanced_diagnostics_hint: "显示实时管道运行状况"
         composer_placeholder: "输入要翻译并发送到 VRChat 的消息…"
+    notifications:
+        label: "通知"
+        dismiss: "关闭通知"
     guided_setup:
         eyebrow: "快速开始"
         title: "设置 VRCNT"

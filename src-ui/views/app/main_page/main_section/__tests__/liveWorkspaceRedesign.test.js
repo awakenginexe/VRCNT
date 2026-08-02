@@ -42,7 +42,7 @@ test("slow pipeline state and notifications use the approved warning placement",
     const snackbar = readSource("../../../others/snackbar_controller/SnackbarController.jsx");
 
     assert.match(pipeline, /data-health=\{summary\.health\}/);
-    assert.match(snackbar, /position="top-right"/);
+    assert.match(snackbar, /position="bottom-left"/);
 });
 
 test("the session health pill has centered text without a leading dot", () => {

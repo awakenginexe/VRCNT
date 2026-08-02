@@ -426,6 +426,22 @@ layout so critical content does not become an oversized vertical stack.
 responsive selectors before style changes; run all mandated checks and capture
 real Tauri screenshots; commit `fix(ui): polish notifications and responsive accessibility`.
 
+**Completion evidence (2026-08-02)**
+
+- The new notification and compact-shell checks failed before the notification
+  controller and styles were changed, then pass as part of the focused suite
+  (16 tests). They cover bottom-left placement, hover pausing, persistent
+  `hide_duration: null` errors, a labelled in-bounds close button, motion
+  fallback, localization, and compact desktop breakpoints.
+- `npm run test:ui` passes 205 tests and `npm run vite-build` completes
+  successfully. The Vite output retains only the pre-existing dynamic-import
+  and chunk-size warnings from the overlay integration.
+- In the real Tauri application, completing the real Guided Setup emitted the
+  localized success notification at bottom-left. Its close button was visibly
+  inside the notification boundary and manually dismissed the notification;
+  the Live workspace remained interactive. App logs contain normal Tauri
+  startup only, with no startup-failure, stalled-backend, or telemetry errors.
+
 **Rollback boundary**: presentational and accessibility-only changes.
 
 ### Milestone 7 — README and hardware/performance communication

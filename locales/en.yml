@@ -95,6 +95,9 @@ main_page:
         advanced_diagnostics: "Advanced diagnostics"
         advanced_diagnostics_hint: "Show live pipeline health"
         composer_placeholder: "Type a message to translate and send to VRChat…"
+    notifications:
+        label: "Notifications"
+        dismiss: "Dismiss notification"
     guided_setup:
         eyebrow: "Quick start"
         title: "Set up VRCNT"
