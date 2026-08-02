@@ -620,6 +620,21 @@ config_page:
         select_openai_model:
             label:
 
+        deepseek_auth_key:
+            label: "DeepSeek API 金鑰"
+            desc: "貼上 DeepSeek API 金鑰，即可在現有翻譯提供者順序中啟用 DeepSeek。"
+            placeholder: "貼上新金鑰以儲存或取代"
+            save: "儲存"
+            remove: "移除"
+            test_connection: "測試連線"
+            status_not_configured: "尚未設定"
+            status_configured: "已設定"
+            status_invalid_credentials: "憑證無效"
+            status_insufficient_balance: "餘額不足"
+            status_failed: "連線失敗"
+        select_deepseek_model:
+            label: "選擇 DeepSeek 模型"
+
         groq_auth_key:
             label:
         select_groq_model:

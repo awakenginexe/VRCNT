@@ -9,6 +9,7 @@ import {
 import {
     DownloadModelsContainer,
     AuthKeyContainer,
+    DeepSeekAuthKeyContainer,
     EntryWithSaveButtonContainer,
     DropdownMenuContainer,
     ConnectionCheckButtonContainer,
@@ -21,11 +22,12 @@ import {
     plamo_auth_key_url,
     gemini_auth_key_url,
     openai_auth_key_url,
+    deepseek_auth_key_url,
     groq_auth_key_url,
     openrouter_auth_key_url,
 } from "@ui_configs";
 
-import { useLLMConnection } from "@logics_common";
+import { useDeepSeekConfiguration, useLLMConnection } from "@logics_common";
 
 export const Translation = () => {
     return (
@@ -43,6 +45,9 @@ export const Translation = () => {
 
             <OpenAIAuthKey_Box />
             <OpenAIModelContainer />
+
+            <DeepSeekAuthKey_Box />
+            <DeepSeekModelContainer />
 
             <GroqAuthKey_Box />
             <GroqModelContainer />
@@ -346,6 +351,49 @@ const OpenAIModelContainer = () => {
     );
 };
 
+const DeepSeekAuthKey_Box = () => {
+    const { t } = useI18n();
+
+    return (
+        <DeepSeekAuthKeyContainer
+            label={t("config_page.translation.deepseek_auth_key.label")}
+            desc={t("config_page.translation.deepseek_auth_key.desc")}
+            webpage_url={deepseek_auth_key_url}
+            open_webpage_label={t("config_page.common.open_auth_key_webpage")}
+            remove_border_bottom={true}
+        />
+    );
+};
+
+const DeepSeekModelContainer = () => {
+    const { t } = useI18n();
+    const {
+        currentSelectableDeepSeekModelList,
+        currentSelectedDeepSeekModel,
+        setSelectedDeepSeekModel,
+    } = useTranslation();
+    const { currentDeepSeekAuthStatus } = useDeepSeekConfiguration();
+
+    const selectFunction = (selectedData) => {
+        setSelectedDeepSeekModel(selectedData.selected_id);
+    };
+    const selectedLabel = currentDeepSeekAuthStatus.data.configured
+        ? currentSelectedDeepSeekModel.data
+        : t("config_page.common.correct_auth_key_required");
+
+    return (
+        <DropdownMenuContainer
+            dropdown_id="select_deepseek_model"
+            label={t("config_page.translation.select_deepseek_model.label")}
+            selected_id={selectedLabel}
+            list={currentSelectableDeepSeekModelList.data}
+            selectFunction={selectFunction}
+            state={currentSelectedDeepSeekModel.state}
+            is_disabled={!currentDeepSeekAuthStatus.data.configured}
+        />
+    );
+};
+
 
 const GroqAuthKey_Box = () => {
     const { t } = useI18n();
@@ -592,4 +640,3 @@ const OllamaModelContainer = () => {
         />
     );
 };
-

@@ -27,6 +27,7 @@ export { useIsOscAvailable } from "./useIsOscAvailable";
 export { useIsVrctAvailable } from "./useIsVrctAvailable";
 export { useFetch } from "./useFetch";
 export { useLLMConnection } from "./useLLMConnection";
+export { useDeepSeekConfiguration } from "./useDeepSeekConfiguration";
 export * from "./fontScriptRegistry.js";
 export * from "./fontPackDownloads.js";
 export * from "./managedFontRuntime.js";

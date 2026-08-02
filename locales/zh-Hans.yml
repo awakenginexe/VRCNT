@@ -620,6 +620,21 @@ config_page:
         select_openai_model:
             label:
 
+        deepseek_auth_key:
+            label: "DeepSeek API 密钥"
+            desc: "粘贴 DeepSeek API 密钥即可在现有翻译提供商顺序中启用 DeepSeek。"
+            placeholder: "粘贴新密钥以保存或替换"
+            save: "保存"
+            remove: "移除"
+            test_connection: "测试连接"
+            status_not_configured: "未配置"
+            status_configured: "已配置"
+            status_invalid_credentials: "凭据无效"
+            status_insufficient_balance: "余额不足"
+            status_failed: "连接失败"
+        select_deepseek_model:
+            label: "选择 DeepSeek 模型"
+
         groq_auth_key:
             label:
         select_groq_model:

@@ -28,7 +28,7 @@ const _Entry = forwardRef((props, ref) => {
             <div className={input_wrapper_class_names}>
                 <input
                     ref={inputRef}
-                    text={props.text ? props.text : "text"}
+                    type={props.type ?? "text"}
                     placeholder={props.placeholder ? props.placeholder : ""}
                     className={input_class_names}
                     value={props.ui_variable === null ? "" : props.ui_variable}
@@ -38,6 +38,7 @@ const _Entry = forwardRef((props, ref) => {
                     onKeyDown={(e) => props.onKeyDown?.(e)}
                     onKeyUp={(e) => props.onKeyUp?.(e)}
                     readOnly={props.readOnly === true ? true : false}
+                    disabled={props.is_disabled === true}
                 />
             </div>
         </div>
