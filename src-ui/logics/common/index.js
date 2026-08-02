@@ -28,3 +28,4 @@ export { useIsVrctAvailable } from "./useIsVrctAvailable";
 export { useFetch } from "./useFetch";
 export { useLLMConnection } from "./useLLMConnection";
 export * from "./fontScriptRegistry.js";
+export * from "./managedFontRuntime.js";

@@ -1078,7 +1078,7 @@ class Config:
         self._MESSAGE_BOX_RATIO = 10
         self._SEND_MESSAGE_BUTTON_TYPE = "show"
         self._SHOW_RESEND_BUTTON = False
-        self._FONT_FAMILY = "Yu Gothic UI"
+        self._FONT_FAMILY = "VRCNT Noto"
         self._UI_LANGUAGE = "en"
         self._MAIN_WINDOW_GEOMETRY = {
             "x_pos": 0,
@@ -1317,6 +1317,9 @@ class Config:
                                 continue
                         except Exception:
                             errorLogging()
+
+        if not isinstance(self._FONT_FAMILY, str) or not self._FONT_FAMILY.strip():
+            self._FONT_FAMILY = "VRCNT Noto"
 
         if "SELECTED_YOUR_TRANSLATION_LANGUAGES" not in self._config_data:
             self._SELECTED_YOUR_TRANSLATION_LANGUAGES = normalize_language_profiles(

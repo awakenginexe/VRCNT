@@ -17,7 +17,7 @@ export const DesktopOverlayBridge = () => {
     const { currentTranslationStatus } = useStore_TranslationStatus();
     const { currentTranscriptionSendStatus } = useStore_TranscriptionSendStatus();
     const { currentTranscriptionReceiveStatus } = useStore_TranscriptionReceiveStatus();
-    const { currentUiLanguage } = useAppearance();
+    const { currentUiLanguage, currentSelectedFontFamily } = useAppearance();
 
     useEffect(() => {
         const payload = createDesktopOverlayPayload({
@@ -26,6 +26,7 @@ export const DesktopOverlayBridge = () => {
             speakingEnabled: currentTranscriptionSendStatus.data === true,
             listeningEnabled: currentTranscriptionReceiveStatus.data === true,
             uiLanguage: currentUiLanguage.data,
+            fontFamily: currentSelectedFontFamily.data,
         });
 
         try {
@@ -42,6 +43,7 @@ export const DesktopOverlayBridge = () => {
         currentTranscriptionSendStatus.data,
         currentTranscriptionReceiveStatus.data,
         currentUiLanguage.data,
+        currentSelectedFontFamily.data,
     ]);
 
     return null;

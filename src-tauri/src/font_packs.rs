@@ -182,6 +182,15 @@ pub struct FontPackDownloadOutcome {
     pub result: Option<FontPackDownloadResult>,
 }
 
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedFontAsset {
+    pub pack_id: String,
+    pub family: String,
+    pub path: String,
+    pub weight_range: Option<[u16; 2]>,
+}
+
 impl FontManifest {
     pub fn parse(json: &str) -> Result<Self, String> {
         let manifest: Self = serde_json::from_str(json)
@@ -497,6 +506,46 @@ impl FontCache {
         Ok(())
     }
 
+    pub fn managed_font_assets(
+        &self,
+        bundled_root: &Path,
+        pack_ids: &[String],
+    ) -> Result<Vec<ManagedFontAsset>, String> {
+        let mut assets = Vec::new();
+        let mut seen = HashSet::new();
+        for pack_id in pack_ids {
+            if !seen.insert(pack_id) {
+                continue;
+            }
+            let pack = self.manifest.pack(pack_id)?;
+            let directory = if pack.bundled {
+                bundled_root.join(pack_id)
+            } else {
+                let Some(installed) = self.installed_pack(pack_id)? else {
+                    continue;
+                };
+                self.root
+                    .join("packs")
+                    .join(&installed.pack_id)
+                    .join(&installed.pack_version)
+            };
+            verify_files(pack, &directory)?;
+            verify_font_metadata(pack, &directory)?;
+            for file in pack.files.iter().filter(|file| is_font_file(file)) {
+                assets.push(ManagedFontAsset {
+                    pack_id: pack_id.clone(),
+                    family: "VRCNT Noto".into(),
+                    path: directory
+                        .join(&file.relative_path)
+                        .to_string_lossy()
+                        .into_owned(),
+                    weight_range: file.weight_range,
+                });
+            }
+        }
+        Ok(assets)
+    }
+
     fn optional_pack(&self, pack_id: &str) -> Result<&FontPack, String> {
         let pack = self.manifest.pack(pack_id)?;
         if pack.bundled {
@@ -723,6 +772,7 @@ impl FontPackDownloadManager {
 #[derive(Clone)]
 pub struct FontPackDownloadService {
     cache: Arc<FontCache>,
+    bundled_root: PathBuf,
     manager: FontPackDownloadManager,
     client: Client,
     _cache_lock: Arc<fs::File>,
@@ -730,6 +780,17 @@ pub struct FontPackDownloadService {
 
 impl FontPackDownloadService {
     pub fn open(cache_root: PathBuf, manifest_path: &Path) -> Result<Self, String> {
+        let bundled_root = manifest_path
+            .parent()
+            .ok_or("Font manifest has no parent directory")?;
+        Self::open_with_bundled_root(cache_root, manifest_path, bundled_root)
+    }
+
+    pub fn open_with_bundled_root(
+        cache_root: PathBuf,
+        manifest_path: &Path,
+        bundled_root: &Path,
+    ) -> Result<Self, String> {
         fs::create_dir_all(&cache_root).map_err(io_error)?;
         let cache_lock = fs::OpenOptions::new()
             .read(true)
@@ -753,10 +814,15 @@ impl FontPackDownloadService {
             .map_err(|error| format!("Unable to create font download client: {error}"))?;
         Ok(Self {
             cache,
+            bundled_root: bundled_root.to_path_buf(),
             manager: FontPackDownloadManager::default(),
             client,
             _cache_lock: Arc::new(cache_lock),
         })
+    }
+
+    fn managed_font_assets(&self, pack_ids: &[String]) -> Result<Vec<ManagedFontAsset>, String> {
+        self.cache.managed_font_assets(&self.bundled_root, pack_ids)
     }
 
     fn request_download(
@@ -811,6 +877,14 @@ pub fn cancel_optional_font_pack(
     pack_id: String,
 ) -> bool {
     state.manager.cancel(&pack_id)
+}
+
+#[tauri::command]
+pub fn resolve_managed_font_assets(
+    state: tauri::State<'_, FontPackDownloadService>,
+    pack_ids: Vec<String>,
+) -> Result<Vec<ManagedFontAsset>, String> {
+    state.managed_font_assets(&pack_ids)
 }
 
 fn download_manifest_file(

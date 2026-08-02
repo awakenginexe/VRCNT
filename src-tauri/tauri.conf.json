@@ -33,6 +33,16 @@
         ],
         "security": {
             "csp": null,
+            "assetProtocol": {
+                "enable": true,
+                "scope": [
+                    "$LOCALDATA/VRCNTData/fonts/**",
+                    "$LOCALDATA/VRCNT-NextData/fonts/**",
+                    "$APPDATA/VRCNTData/fonts/**",
+                    "$APPDATA/VRCNT-NextData/fonts/**",
+                    "$RESOURCE/**"
+                ]
+            },
             "capabilities": [
                 "default",
                 "vrct-capability"

@@ -41,9 +41,9 @@ export const FONT_PACKS = Object.freeze({
 });
 
 export const VRCNT_NOTO_FONT_FAMILY = "VRCNT Noto";
+export const VRCNT_NOTO_FONT_LABEL = "VRCNT Noto (Recommended)";
 const DEFAULT_USER_FONT_FAMILY = '"VRCNT Noto"';
 const SYSTEM_FONT_FALLBACK = '"Inter", "Segoe UI Variable Text", "Yu Gothic UI", system-ui, sans-serif';
-const DEFAULT_SCRIPT_STACK = '"VRCNT Noto Core"';
 const MANAGED_FONT_FAMILY = "var(--vrcnt-script-stack), var(--vrcnt-user-font), var(--vrcnt-system-fallback)";
 
 const DISPLAY_LANGUAGE_CODES = Object.freeze({
@@ -160,14 +160,42 @@ export const resolveFontScriptProfile = (input = {}) => {
     };
 };
 
-export const getManagedFontVariables = (selectedFontFamily) => ({
-    "--vrcnt-user-font": typeof selectedFontFamily === "string" && selectedFontFamily.trim()
-        ? selectedFontFamily.trim()
-        : DEFAULT_USER_FONT_FAMILY,
-    "--vrcnt-script-stack": selectedFontFamily === VRCNT_NOTO_FONT_FAMILY ? '"VRCNT Noto"' : DEFAULT_SCRIPT_STACK,
+const stripMatchingQuotes = (value) => {
+    const trimmed = value.trim();
+    return /^(["']).*\1$/.test(trimmed) ? trimmed.slice(1, -1).trim() : trimmed;
+};
+
+export const normalizeManagedFontPreference = (selectedFontFamily, availableFontFamilies = null) => {
+    if (typeof selectedFontFamily !== "string" || !selectedFontFamily.trim()) {
+        return VRCNT_NOTO_FONT_FAMILY;
+    }
+    const normalized = stripMatchingQuotes(selectedFontFamily);
+    if (normalized === VRCNT_NOTO_FONT_FAMILY) return normalized;
+    if (Array.isArray(availableFontFamilies) && !availableFontFamilies.includes(normalized)) {
+        return VRCNT_NOTO_FONT_FAMILY;
+    }
+    return normalized;
+};
+
+export const buildFontFamilyOptions = (systemFontFamilies = []) => {
+    const options = { [VRCNT_NOTO_FONT_FAMILY]: VRCNT_NOTO_FONT_LABEL };
+    for (const fontFamily of systemFontFamilies) {
+        const normalized = normalizeManagedFontPreference(fontFamily);
+        if (normalized !== VRCNT_NOTO_FONT_FAMILY) options[normalized] = normalized;
+    }
+    return options;
+};
+
+export const getManagedFontVariables = (selectedFontFamily) => {
+    const normalized = normalizeManagedFontPreference(selectedFontFamily);
+    const cssFamily = normalized === VRCNT_NOTO_FONT_FAMILY ? DEFAULT_USER_FONT_FAMILY : normalized;
+    return {
+    "--vrcnt-user-font": cssFamily,
+    "--vrcnt-script-stack": normalized === VRCNT_NOTO_FONT_FAMILY ? '"VRCNT Noto"' : cssFamily,
     "--vrcnt-system-fallback": SYSTEM_FONT_FALLBACK,
     "--font_family": MANAGED_FONT_FAMILY,
-});
+    };
+};
 
 export const applyManagedFontVariables = (rootElement, selectedFontFamily) => {
     if (!rootElement?.style) return;

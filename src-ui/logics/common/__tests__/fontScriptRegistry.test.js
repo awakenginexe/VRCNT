@@ -95,9 +95,9 @@ test("marks approved packs as bundled and future packs as optional", () => {
 });
 
 test("keeps VRCNT Noto first while preserving the saved system font and final fallback", () => {
-    assert.deepEqual(getManagedFontVariables("Itim"), {
-        "--vrcnt-user-font": "Itim",
-        "--vrcnt-script-stack": '"VRCNT Noto Core"',
+    assert.deepEqual(getManagedFontVariables("Yu Gothic UI"), {
+        "--vrcnt-user-font": "Yu Gothic UI",
+        "--vrcnt-script-stack": "Yu Gothic UI",
         "--vrcnt-system-fallback": '"Inter", "Segoe UI Variable Text", "Yu Gothic UI", system-ui, sans-serif',
         "--font_family": "var(--vrcnt-script-stack), var(--vrcnt-user-font), var(--vrcnt-system-fallback)",
     });

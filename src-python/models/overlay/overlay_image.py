@@ -4,6 +4,7 @@ from typing import Tuple, List, Optional
 import os
 import unicodedata
 from PIL import Image, ImageDraw, ImageFont
+from .font_registry import ManagedOverlayFontRegistry
 try:
     from utils import errorLogging
 except ImportError:
@@ -25,12 +26,12 @@ OVERLAY_BACKGROUND_ALPHA = {
 
 class OverlayImage:
     LANGUAGES = {
-        "Default": ("NotoSansJP-Regular.ttf",),
-        "Japanese": ("NotoSansJP-Regular.ttf",),
-        "Korean": ("NotoSansKR-Regular.ttf",),
-        "Chinese Simplified": ("NotoSansSC-Regular.ttf",),
-        "Chinese Traditional": ("NotoSansTC-Regular.ttf",),
-        "Thai": ("LeelawUI.ttf", "leelawad.ttf", "Nirmala.ttc", "tahoma.ttf", "NotoSansJP-Regular.ttf"),
+        "Default": ("latin-greek-cyrillic/font.ttf",),
+        "Japanese": ("japanese/font.ttf",),
+        "Korean": ("korean/font.ttf",),
+        "Chinese Simplified": ("cjk-simplified/font.ttf",),
+        "Chinese Traditional": ("cjk-traditional/font.ttf",),
+        "Thai": ("thai/font.ttf",),
     }
 
     def __init__(self, root_path: Optional[str] = None) -> None:
@@ -54,7 +55,9 @@ class OverlayImage:
             raise FileNotFoundError("Font directory not found.")
         # Simple in-memory font cache to avoid repeated truetype loading cost.
         self._font_cache = {}
+        self._system_font_cache = {}
         self._system_font_dir = os_path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts")
+        self.font_registry = ManagedOverlayFontRegistry(self.root_path)
 
     @staticmethod
     def concatenateImagesVertically(img1: Image, img2: Image, margin: int = 0) -> Image:
@@ -135,6 +138,88 @@ class OverlayImage:
         return self._font_cache[key]
 
     @staticmethod
+    def _font_supports_text(font: ImageFont.FreeTypeFont, text: str) -> bool:
+        missing_glyph = bytes(font.getmask("\uffff"))
+        return all(
+            character.isspace() or bytes(font.getmask(character)) != missing_glyph
+            for character in text
+        )
+
+    def _system_font_for_text(self, text: str, size: int) -> ImageFont.FreeTypeFont:
+        cache_key = (text, size)
+        if cache_key in self._system_font_cache:
+            return self._system_font_cache[cache_key]
+        for candidate in ("segoeui.ttf", "arial.ttf", "YuGothR.ttc", "malgun.ttf", "leelawui.ttf", "Nirmala.ttf"):
+            candidate_path = os_path.join(self._system_font_dir, candidate)
+            if not os_path.exists(candidate_path):
+                continue
+            font = self._get_font(candidate_path, size)
+            if self._font_supports_text(font, text):
+                self._system_font_cache[cache_key] = font
+                return font
+        font = self._get_font(self.LANGUAGES["Default"], size)
+        self._system_font_cache[cache_key] = font
+        return font
+
+    def _font_for_run(self, font_path: Optional[str], text: str, size: int) -> ImageFont.FreeTypeFont:
+        if font_path:
+            return self._get_font(font_path, size)
+        return self._system_font_for_text(text, size)
+
+    def _script_font_runs(self, text: str, size: int, language: Optional[str] = None):
+        return [
+            (run.text, self._font_for_run(run.font_path, run.text, size))
+            for run in self.font_registry.resolve_runs(text or "", language)
+        ]
+
+    def _measure_script_text(self, text: str, size: int, language: Optional[str] = None) -> int:
+        return max((sum(self._measure_text(run_text, font) for run_text, font in self._script_font_runs(line, size, language)) for line in (text or "").split("\n")), default=0)
+
+    def _draw_script_text(self, draw: ImageDraw.ImageDraw, position, text: str, fill, size: int, anchor: str = "lt", language: Optional[str] = None) -> None:
+        if "\n" in text:
+            lines = text.split("\n")
+            line_height = max((self._line_height(font) for line in lines for _, font in self._script_font_runs(line, size, language)), default=size)
+            x, y = position
+            if len(anchor) > 1 and anchor[1] == "m":
+                y -= (line_height * len(lines)) // 2
+            elif len(anchor) > 1 and anchor[1] == "b":
+                y -= line_height * len(lines)
+            for index, line in enumerate(lines):
+                self._draw_script_text(draw, (x, y + (index * line_height)), line, fill, size, f"{anchor[0]}t", language)
+            return
+        runs = self._script_font_runs(text, size, language)
+        if not runs:
+            return
+        width = sum(self._measure_text(run_text, font) for run_text, font in runs)
+        line_height = max(self._line_height(font) for _, font in runs)
+        x, y = position
+        if anchor[0] == "m":
+            x -= width // 2
+        elif anchor[0] == "r":
+            x -= width
+        if len(anchor) > 1 and anchor[1] == "m":
+            y -= line_height // 2
+        elif len(anchor) > 1 and anchor[1] == "b":
+            y -= line_height
+        for run_text, font in runs:
+            draw.text((x, y), run_text, fill, anchor="lt", stroke_width=0, font=font)
+            x += self._measure_text(run_text, font)
+
+    def _wrap_script_text_to_width(self, text: str, size: int, max_width: int, language: Optional[str] = None) -> List[str]:
+        lines: List[str] = []
+        for raw_line in (text or "").split("\n"):
+            current = ""
+            for character in raw_line:
+                candidate = current + character
+                if current and self._measure_script_text(candidate, size, language) > max_width:
+                    lines.append(current)
+                    current = character
+                else:
+                    current = candidate
+            lines.append(current)
+        return lines or [""]
+
+    @staticmethod
     def _line_height(font: ImageFont.FreeTypeFont) -> int:
         bbox = font.getbbox("Ay")
         return max(1, bbox[3] - bbox[1])
@@ -202,14 +287,11 @@ class OverlayImage:
     def createTextboxSmallLog(self, text: str, language: str, text_color: Tuple[int, int, int], base_width: int, base_height: int, font_size: int) -> Image:
         if text is None:
             text = ""
-        font_family = self.LANGUAGES.get(language, self.LANGUAGES["Default"])
-        font = self._get_font(font_family, font_size)
-
         # Initial image for width measurement
         img_tmp = Image.new("RGBA", (base_width, base_height), (0, 0, 0, 0))
         draw_tmp = ImageDraw.Draw(img_tmp)
         try:
-            text_width = draw_tmp.textlength(text, font) if len(text) > 0 else 1
+            text_width = self._measure_script_text(text, font_size, language) if len(text) > 0 else 1
             character_width = max(1, text_width // max(1, len(text)))
             character_line_num = int((base_width // character_width) - 12)
             if len(text) > character_line_num and character_line_num > 0:
@@ -222,7 +304,7 @@ class OverlayImage:
         draw = ImageDraw.Draw(img)
         text_x = base_width // 2
         text_y = text_height // 2
-        draw.text((text_x, text_y), text, text_color, anchor="mm", stroke_width=0, font=font, align="center")
+        self._draw_script_text(draw, (text_x, text_y), text, text_color, font_size, anchor="mm", language=language)
         return img
 
     def renderRubyBlock(self, transliteration: List[dict], language: str, base_width: int, base_font_size: int, ruby_font_scale: float, ruby_line_spacing: int, text_color: Tuple[int, int, int]) -> Optional[Image.Image]:
@@ -463,22 +545,20 @@ class OverlayImage:
         ui_size = self.getUiSizeLargeLog()
         font_size = ui_size["font_size_large"] if size == "large" else ui_size["font_size_small"]
         text_color = self.getUiColorLargeLog(accent_color, background_mode)[f"text_color_{size}"]
-        font_family = self.LANGUAGES.get(language, self.LANGUAGES["Default"])
-        font = self._get_font(font_family, font_size)
         outer_padding = ui_size["padding"] * (2 if size == "large" else 1)
         inner_width = ui_size["width"] - (outer_padding * 2)
         line_spacing = max(6, font_size // 4)
-        lines = self._wrap_text_to_width(text or "", font, inner_width)
-        line_height = self._line_height(font)
+        lines = self._wrap_script_text_to_width(text or "", font_size, inner_width, language)
+        line_height = max((self._line_height(font) for _, font in self._script_font_runs(text or "A", font_size, language)), default=font_size)
         text_height = (outer_padding * 2) + (line_height * len(lines)) + (line_spacing * max(0, len(lines) - 1))
         img = Image.new("RGBA", (ui_size["width"], text_height), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
         for index, line in enumerate(lines):
             text_y = outer_padding + (index * (line_height + line_spacing))
             if message_type == "receive":
-                draw.text((outer_padding, text_y), line, text_color, anchor="lt", stroke_width=0, font=font)
+                self._draw_script_text(draw, (outer_padding, text_y), line, text_color, font_size, anchor="lt", language=language)
             else:
-                draw.text((ui_size["width"] - outer_padding, text_y), line, text_color, anchor="rt", stroke_width=0, font=font)
+                self._draw_script_text(draw, (ui_size["width"] - outer_padding, text_y), line, text_color, font_size, anchor="rt", language=language)
         return img
 
     def createTextboxLargeLogWithRubyTokens(self, message_type: str, size: str, message: str, transliteration: List[dict], language: str, ruby_font_scale: float, ruby_line_spacing: int, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black") -> Image:

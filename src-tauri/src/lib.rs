@@ -7,6 +7,23 @@ use tauri::Manager;
 
 pub mod font_packs;
 
+fn managed_font_resource_root(
+    app: &tauri::App,
+) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+    let packaged = app.path().resource_dir()?.join("_internal/fonts");
+    if packaged.join("font-packs.v1.json").is_file() {
+        return Ok(packaged);
+    }
+
+    let development =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../src-python/models/overlay/fonts");
+    if development.join("font-packs.v1.json").is_file() {
+        return Ok(development);
+    }
+
+    Err("Managed font resources are unavailable".into())
+}
+
 fn migrate_directory_if_target_absent(legacy_path: &Path, target_path: &Path) -> io::Result<bool> {
     migrate_directory_with(legacy_path, target_path, |legacy, target| {
         fs::rename(legacy, target)
@@ -50,13 +67,12 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| -> Result<(), Box<dyn std::error::Error>> {
-            let manifest = app
-                .path()
-                .resource_dir()?
-                .join("_internal/fonts/font-packs.v1.json");
-            let service = font_packs::FontPackDownloadService::open(
+            let font_root = managed_font_resource_root(app)?;
+            let manifest = font_root.join("font-packs.v1.json");
+            let service = font_packs::FontPackDownloadService::open_with_bundled_root(
                 font_packs::FontCache::default_root(),
                 &manifest,
+                &font_root,
             )
             .map_err(io::Error::other)?;
             app.manage(service);
@@ -66,6 +82,7 @@ pub fn run() {
             get_font_list,
             font_packs::download_optional_font_pack,
             font_packs::cancel_optional_font_pack,
+            font_packs::resolve_managed_font_assets,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

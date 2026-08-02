@@ -39,7 +39,7 @@ const lastVisibleText = (messageLogs, translationsOnly) => {
 
 export const OverlayStudio = () => {
     const { t } = useI18n();
-    const { currentUiLanguage } = useAppearance();
+    const { currentUiLanguage, currentSelectedFontFamily } = useAppearance();
     const {
         currentIsEnabledOverlaySmallLog,
         toggleIsEnabledOverlaySmallLog,
@@ -74,12 +74,14 @@ export const OverlayStudio = () => {
         speakingEnabled: currentTranscriptionSendStatus.data === true,
         listeningEnabled: currentTranscriptionReceiveStatus.data === true,
         uiLanguage: currentUiLanguage.data,
+        fontFamily: currentSelectedFontFamily.data,
     }), [
         currentMessageLogs.data,
         currentTranslationStatus.data,
         currentTranscriptionSendStatus.data,
         currentTranscriptionReceiveStatus.data,
         currentUiLanguage.data,
+        currentSelectedFontFamily.data,
     ]);
     const vrPreviewText = lastVisibleText(
         currentMessageLogs.data ?? [],
