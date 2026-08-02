@@ -11,8 +11,11 @@ test("the live workspace uses the approved real-data control rail and compact co
     assert.match(source, /<LiveControlRail\s*\/>/);
     assert.match(source, /<MessageContainer[\s\S]*compactComposer/);
     assert.doesNotMatch(source, /<LiveLanguageBar\s*\/>/);
-    assert.match(rail, /<SessionPrimaryAction\s*\/>/);
-    assert.match(rail, /<MainFunctionSwitch\s+layout="control_rail"/);
+    assert.doesNotMatch(rail, /SessionPrimaryAction/);
+    assert.match(
+        rail,
+        /<MainFunctionSwitch\s+layout="control_rail"\s+includeForeground=\{false\}\s*\/>/,
+    );
     assert.match(rail, /<LanguageProfileGroup[\s\S]*group="speaking"/);
     assert.match(rail, /<LanguageProfileGroup[\s\S]*group="target"/);
     assert.match(rail, /<LanguageSelectorOpenButton/);
@@ -92,23 +95,25 @@ test("advanced diagnostics stay collapsed while the rail keeps the real controls
     assert.match(controlRail, /<details/);
     assert.doesNotMatch(controlRail, /<details[^>]*\bopen\b/);
     assert.match(controlRail, /<PipelineStatus\s*\/>/);
-    assert.match(controlRail, /<SessionPrimaryAction\s*\/>/);
+    assert.doesNotMatch(controlRail, /SessionPrimaryAction/);
+    assert.match(
+        controlRail,
+        /<MainFunctionSwitch\s+layout="control_rail"\s+includeForeground=\{false\}\s*\/>/,
+    );
     assert.match(switches, /styles\[`layout_\$\{layout\}`\]/);
     assert.match(switchStyles, /\.container\.layout_control_rail/);
     assert.match(switches, /switch_items\.filter\(\(item\) => item\.switch_id !== "foreground"/);
 });
 
-test("the primary session action asks the backend to sequence all live pipelines", () => {
-    const sessionAction = readSource("../live_control_rail/SessionPrimaryAction.jsx");
+test("the live control rail uses the persisted individual main-function toggles", () => {
+    const switches = readSource("../../sidebar_section/main_function_switch/MainFunctionSwitch.jsx");
     const mainFunction = readSource("../../../../../logics/main/useMainFunction.js");
-    const receiveRoutes = readSource("../../../../../logics/useReceiveRoutes.js");
 
-    assert.match(sessionAction, /setLiveSession/);
-    assert.match(sessionAction, /setLiveSession\(state\.action === "start"\)/);
-    assert.doesNotMatch(sessionAction, /Promise\.all/);
-    assert.match(mainFunction, /`\/set\/\$\{action\}\/live_session`/);
-    assert.match(receiveRoutes, /\/set\/enable\/live_session/);
-    assert.match(receiveRoutes, /\/set\/disable\/live_session/);
+    assert.match(switches, /toggleTranslation/);
+    assert.match(switches, /toggleTranscriptionSend/);
+    assert.match(switches, /toggleTranscriptionReceive/);
+    assert.match(mainFunction, /const createTogglePair/);
+    assert.match(mainFunction, /`\/set\/\$\{action\}\/\$\{endpointName\}`/);
 });
 
 test("message rows put completed translations ahead of the original source text", () => {

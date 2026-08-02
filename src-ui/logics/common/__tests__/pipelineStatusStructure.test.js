@@ -37,7 +37,7 @@ test("pipeline status stays in collapsed rail diagnostics while resources remain
         styles,
         /grid-template-rows:\s*var\(--main_page_topbar_height\)\s+minmax\(0,\s*1fr\)/,
     );
-    assert.match(styles, /grid-template-columns:\s*minmax\(16\.5rem,\s*18\.2rem\)\s+minmax\(0,\s*1fr\)/);
+    assert.match(styles, /grid-template-columns:\s*minmax\(21rem,\s*24rem\)\s+minmax\(0,\s*1fr\)/);
 });
 
 test("the strip uses localized stage/source labels and existing semantic icons", () => {
