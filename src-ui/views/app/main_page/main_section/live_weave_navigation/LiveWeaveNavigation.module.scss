@@ -4,8 +4,9 @@
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: 2.4rem;
-    padding: 0 2.8rem;
+    gap: 1.75rem;
+    padding: 0 2.2rem;
+    background: color-mix(in srgb, var(--canvas_color) 88%, var(--surface_1_color));
 }
 
 .wordmark,
@@ -18,13 +19,23 @@
 
 .wordmark {
     flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.7rem;
     border: 0;
     padding: 0;
     background: transparent;
     color: var(--dark_100_color);
-    font-size: 1.55rem;
+    font-size: 1.5rem;
     font-weight: 900;
-    letter-spacing: -0.07rem;
+    letter-spacing: -0.04rem;
+}
+
+.wordmark_badge {
+    width: 2.4rem;
+    height: 2.4rem;
+    object-fit: contain;
+    filter: drop-shadow(0 0 0.9rem rgba(var(--accent_color_rgb), 0.42));
 }
 
 .navigation {
@@ -37,11 +48,15 @@
 .navigation_item {
     border: 0;
     min-height: 2.8rem;
-    padding: 0 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 0 0.78rem;
     border-radius: 0.7rem;
     background: transparent;
     color: var(--dark_400_color);
-    font-size: 1.05rem;
+    font-size: 0.96rem;
     font-weight: 800;
     white-space: nowrap;
     transition: color var(--transition_ui), background-color var(--transition_ui), transform var(--transition_ui);
@@ -58,8 +73,14 @@
 
     &[data-active="true"] {
         background: rgba(var(--accent_color_rgb), 0.16);
-        color: var(--primary_150_color);
+        color: var(--dark_100_color);
+        box-shadow: inset 0 0 0 0.1rem rgba(var(--accent_color_rgb), 0.18);
     }
+}
+
+.navigation_icon {
+    font-size: 1.05em;
+    line-height: 1;
 }
 
 .update_button {
@@ -141,8 +162,8 @@
 
 @media (max-width: 1440px) {
     .container {
-        gap: 1.2rem;
-        padding-inline: 1.6rem;
+        gap: 1rem;
+        padding-inline: 1.35rem;
     }
 
     .navigation {
@@ -150,8 +171,9 @@
     }
 
     .navigation_item {
-        padding-inline: 0.65rem;
-        font-size: 1rem;
+        gap: 0.35rem;
+        padding-inline: 0.58rem;
+        font-size: 0.88rem;
     }
 
     .session_health {
@@ -162,5 +184,44 @@
     .update_button {
         min-width: 6.2rem;
         padding-inline: 0.72rem;
+    }
+}
+
+@media (max-width: 80rem) {
+    .container {
+        gap: 0.72rem;
+        padding-inline: 1rem;
+    }
+
+    .wordmark {
+        gap: 0.45rem;
+        font-size: 1.3rem;
+    }
+
+    .wordmark_badge {
+        width: 2rem;
+        height: 2rem;
+    }
+
+    .navigation_item {
+        min-height: 2.55rem;
+        padding-inline: 0.46rem;
+        font-size: 0.8rem;
+    }
+
+    .utility_area {
+        gap: 0.45rem;
+    }
+
+    .session_health {
+        min-width: 5.5rem;
+        padding-inline: 0.55rem;
+        font-size: 0.78rem;
+    }
+
+    .update_button {
+        min-width: 5.4rem;
+        padding-inline: 0.56rem;
+        font-size: 0.78rem;
     }
 }

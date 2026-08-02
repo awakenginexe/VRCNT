@@ -63,9 +63,11 @@ about_page:
 main_page:
     live_weave:
         navigation:
-            live: "Live Weave"
+            live: "ライブ"
+            setup: "セットアップ"
+            engines: "エンジンと音声"
             history: "履歴"
-            models: "モデルとプロバイダー"
+            models: "音声モデル"
             overlay: "オーバーレイスタジオ"
             settings: "設定"
         session_live: "セッション接続中"

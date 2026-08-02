@@ -63,9 +63,11 @@ about_page:
 main_page:
     live_weave:
         navigation:
-            live: "Live Weave"
+            live: "สด"
+            setup: "ตั้งค่าเริ่มต้น"
+            engines: "เอนจินและเสียง"
             history: "ประวัติ"
-            models: "โมเดลและผู้ให้บริการ"
+            models: "โมเดลเสียง"
             overlay: "สตูดิโอโอเวอร์เลย์"
             settings: "การตั้งค่า"
         session_live: "เซสชันกำลังทำงาน"

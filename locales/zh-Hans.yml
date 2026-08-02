@@ -63,9 +63,11 @@ about_page:
 main_page:
     live_weave:
         navigation:
-            live: "Live Weave"
+            live: "实时"
+            setup: "引导设置"
+            engines: "引擎和音频"
             history: "历史记录"
-            models: "模型与服务商"
+            models: "语音模型"
             overlay: "叠加层工作室"
             settings: "设置"
         session_live: "会话正常"

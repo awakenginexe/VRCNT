@@ -63,9 +63,11 @@ about_page:
 main_page:
     live_weave:
         navigation:
-            live: "Live Weave"
+            live: "Live"
+            setup: "Guided Setup"
+            engines: "Engines & Audio"
             history: "History"
-            models: "Models & Providers"
+            models: "Speech Models"
             overlay: "Overlay Studio"
             settings: "Settings"
         session_live: "Session live"

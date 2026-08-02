@@ -63,9 +63,11 @@ about_page:
 main_page:
     live_weave:
         navigation:
-            live: "Live Weave"
+            live: "라이브"
+            setup: "초기 설정"
+            engines: "엔진 및 오디오"
             history: "기록"
-            models: "모델 및 제공자"
+            models: "음성 모델"
             overlay: "오버레이 스튜디오"
             settings: "설정"
         session_live: "세션 활성"
