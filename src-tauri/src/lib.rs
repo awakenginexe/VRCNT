@@ -4,6 +4,8 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
+pub mod font_packs;
+
 fn migrate_directory_if_target_absent(legacy_path: &Path, target_path: &Path) -> io::Result<bool> {
     migrate_directory_with(legacy_path, target_path, |legacy, target| {
         fs::rename(legacy, target)
