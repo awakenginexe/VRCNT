@@ -13,6 +13,8 @@ import {
     DESKTOP_OVERLAY_WINDOW_LABEL,
     buildDesktopOverlayRoute,
     buildDesktopOverlayWindowOptions,
+    createDesktopOverlayPayload,
+    getDesktopOverlayLanguageProfiles,
     openDesktopOverlayWindow,
     readDesktopOverlayPayload,
     readMigratedStorageValue,
@@ -51,6 +53,27 @@ test("desktop overlay identifiers use canonical VRCNT names", () => {
         DESKTOP_OVERLAY_SETTINGS_STORAGE_KEY,
         "vrcnt-desktop-overlay-settings",
     );
+});
+
+test("desktop overlay payload persists the one logical managed font selection", () => {
+    assert.equal(
+        createDesktopOverlayPayload({ fontFamily: "VRCNT Noto" }).fontFamily,
+        "VRCNT Noto",
+    );
+    assert.equal(
+        createDesktopOverlayPayload({ fontFamily: "Yu Gothic UI" }).fontFamily,
+        "Yu Gothic UI",
+    );
+});
+
+test("desktop overlay activation receives source and translation languages from normalized logs", () => {
+    assert.deepEqual(getDesktopOverlayLanguageProfiles({
+        uiLanguage: "English",
+        messageLogs: [{
+            source_language: "Thai",
+            messages: { translations: [{ language: "Japanese" }, { language: "Arabic" }] },
+        }],
+    }), ["English", "Thai", "Japanese", "Arabic"]);
 });
 
 test("desktop overlay payload migrates its legacy storage value", () => {

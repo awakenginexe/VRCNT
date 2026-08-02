@@ -186,7 +186,7 @@ const modelOptions = useMemo(() => {
                                     : t("main_page.models_hub.no_installed_reason")}
                         </p>
                     </div>
-                    <div style={{ width: "340px", flexShrink: 0 }}>
+                    <div style={{ width: "min(360px, 100%)", flexShrink: 0 }}>
                         <CustomModernSelect
                             id="primary-speech-model-select"
                             label="Active Speech Recognition Model"

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { PhysicalSize } from "@tauri-apps/api/window";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useI18n } from "@useI18n";
 import {
     DESKTOP_OVERLAY_CHANNEL,
@@ -11,8 +13,11 @@ import {
     readDesktopOverlayPayload,
     readDesktopOverlaySettings,
     createDesktopOverlayPayload,
+    getDesktopOverlayLanguageProfiles,
     normalizeDesktopOverlaySettings,
     writeDesktopOverlaySettings,
+    createManagedFontRuntime,
+    applyManagedFontVariables,
 } from "@logics_common";
 import { store, useStore_MessageLogs } from "@store";
 import ConfigurationSvg from "@images/configuration.svg?react";
@@ -44,6 +49,29 @@ export const DesktopOverlayApp = () => {
             document.body.classList.remove(styles.desktop_overlay_body);
         };
     }, []);
+
+    useEffect(() => {
+        const runtime = createManagedFontRuntime({ invoke, convertFileSrc });
+        const profiles = getDesktopOverlayLanguageProfiles(payload)
+            .map((language) => typeof language === "string" ? { language } : language);
+        runtime.activateLanguageProfiles(profiles);
+        let unlisten;
+        let disposed = false;
+        listen("font-pack-download-progress", (event) => {
+            if (event.payload?.state === "complete") runtime.activateAvailablePack(event);
+        }).then((dispose) => {
+            if (disposed) dispose();
+            else unlisten = dispose;
+        });
+        return () => {
+            disposed = true;
+            unlisten?.();
+        };
+    }, [payload]);
+
+    useEffect(() => {
+        applyManagedFontVariables(document.documentElement, payload?.fontFamily);
+    }, [payload?.fontFamily]);
 
     useEffect(() => {
         writeDesktopOverlaySettings(settings);

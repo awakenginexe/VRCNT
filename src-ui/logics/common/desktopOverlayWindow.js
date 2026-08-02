@@ -173,6 +173,7 @@ export const createDesktopOverlayPayload = ({
     speakingEnabled = false,
     listeningEnabled = false,
     uiLanguage = "en",
+    fontFamily = "VRCNT Noto",
 } = {}) => ({
     messageLogs,
     statuses: {
@@ -181,8 +182,17 @@ export const createDesktopOverlayPayload = ({
         listeningEnabled,
     },
     uiLanguage,
+    fontFamily,
     updatedAt: Date.now(),
 });
+
+export const getDesktopOverlayLanguageProfiles = (payload = {}) => [
+    payload?.uiLanguage,
+    ...(payload?.messageLogs ?? []).flatMap((log) => [
+        log?.source_language,
+        ...(log?.messages?.translations ?? []).map((translation) => translation?.language),
+    ]),
+].filter(Boolean);
 
 export const readMigratedStorageValue = (
     storage,

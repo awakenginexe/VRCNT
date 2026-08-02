@@ -804,6 +804,7 @@ class Config:
     SEND_MESSAGE_BUTTON_TYPE = ManagedProperty('SEND_MESSAGE_BUTTON_TYPE', type_=str, allowed=lambda v, inst: v in inst.SEND_MESSAGE_BUTTON_TYPE_LIST)
     SHOW_RESEND_BUTTON = ManagedProperty('SHOW_RESEND_BUTTON', type_=bool)
     FONT_FAMILY = ManagedProperty('FONT_FAMILY', type_=str)
+    FONT_DOWNLOAD_POLICY = ManagedProperty('FONT_DOWNLOAD_POLICY', type_=str, allowed=lambda v, inst: v in {"ask", "automatic", "never"})
     UI_LANGUAGE = ManagedProperty('UI_LANGUAGE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_UI_LANGUAGE_LIST)
     MAIN_WINDOW_GEOMETRY = ValidatedProperty('MAIN_WINDOW_GEOMETRY', _main_window_geometry_validator, immediate_save=True)
 
@@ -1078,7 +1079,8 @@ class Config:
         self._MESSAGE_BOX_RATIO = 10
         self._SEND_MESSAGE_BUTTON_TYPE = "show"
         self._SHOW_RESEND_BUTTON = False
-        self._FONT_FAMILY = "Yu Gothic UI"
+        self._FONT_FAMILY = "VRCNT Noto"
+        self._FONT_DOWNLOAD_POLICY = "ask"
         self._UI_LANGUAGE = "en"
         self._MAIN_WINDOW_GEOMETRY = {
             "x_pos": 0,
@@ -1317,6 +1319,11 @@ class Config:
                                 continue
                         except Exception:
                             errorLogging()
+
+        if not isinstance(self._FONT_FAMILY, str) or not self._FONT_FAMILY.strip():
+            self._FONT_FAMILY = "VRCNT Noto"
+        if self._FONT_DOWNLOAD_POLICY not in {"ask", "automatic", "never"}:
+            self._FONT_DOWNLOAD_POLICY = "ask"
 
         if "SELECTED_YOUR_TRANSLATION_LANGUAGES" not in self._config_data:
             self._SELECTED_YOUR_TRANSLATION_LANGUAGES = normalize_language_profiles(

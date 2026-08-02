@@ -85,6 +85,14 @@ export const AboutVrct = () => {
                 <h2>{t("about_page.independence_title")}</h2>
                 <p>{t("about_page.independence_description")}</p>
             </section>
+
+            <section className={styles.disclaimer} aria-labelledby="about-fonts">
+                <h2 id="about-fonts">Third-party fonts</h2>
+                <p>
+                    VRCNT Noto uses Google Fonts Noto assets under OFL-1.1. The exact source revision is
+                    {" "}2796410152d4f9524b68ed46e69c1b60f8e0f7c3; see the bundled NOTICE.md and each pack’s OFL.txt.
+                </p>
+            </section>
         </div>
     );
 };

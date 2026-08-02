@@ -20,7 +20,7 @@
     height: 100%;
     font-size: 1.35rem;
     resize: none;
-    font-family: Arial, sans-serif;
+    font-family: var(--font_family);
     &.is_disabled {
         color: var(--dark_500_color);
         pointer-events: none;

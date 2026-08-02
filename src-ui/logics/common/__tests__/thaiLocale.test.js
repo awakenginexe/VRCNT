@@ -5,11 +5,8 @@ import test from "node:test";
 import yaml from "js-yaml";
 import { ui_configs } from "../../ui_configs.js";
 import {
-    getThaiPreferredFontFamily,
-    shouldApplyThaiPreferredFont,
-    THAI_PREFERRED_FONT_FAMILY,
     THAI_UI_LANGUAGE_ID,
-} from "../thaiFontPreference.js";
+} from "../fontScriptRegistry.js";
 
 const rootDir = path.resolve(import.meta.dirname, "../../../..");
 
@@ -39,34 +36,6 @@ test("Thai is selectable as a UI language", () => {
     );
 });
 
-test("Thai UI prefers Itim when the font is installed", () => {
-    const fontFamilyList = {
-        "Segoe UI": "Segoe UI",
-        Itim: THAI_PREFERRED_FONT_FAMILY,
-    };
-
-    assert.equal(getThaiPreferredFontFamily(fontFamilyList), THAI_PREFERRED_FONT_FAMILY);
-    assert.equal(shouldApplyThaiPreferredFont({
-        uiLanguage: THAI_UI_LANGUAGE_ID,
-        selectedFontFamily: "Yu Gothic UI",
-        fontFamilyList,
-    }), true);
-});
-
-test("Thai UI keeps the current font when Itim is missing", () => {
-    assert.equal(getThaiPreferredFontFamily({ "Yu Gothic UI": "Yu Gothic UI" }), null);
-    assert.equal(shouldApplyThaiPreferredFont({
-        uiLanguage: THAI_UI_LANGUAGE_ID,
-        selectedFontFamily: "Yu Gothic UI",
-        fontFamilyList: { "Yu Gothic UI": "Yu Gothic UI" },
-    }), false);
-});
-
-test("Thai UI handles an unloaded font list", () => {
-    assert.equal(getThaiPreferredFontFamily(null), null);
-    assert.equal(shouldApplyThaiPreferredFont({
-        uiLanguage: THAI_UI_LANGUAGE_ID,
-        selectedFontFamily: "Yu Gothic UI",
-        fontFamilyList: null,
-    }), false);
+test("Thai UI language remains a locale choice rather than a system-font mutation", () => {
+    assert.equal(THAI_UI_LANGUAGE_ID, "th");
 });

@@ -16,6 +16,7 @@ import {
 import { useMainFunction } from "@logics_main";
 import { useLanguageSettings } from "@logics_main";
 import { isBenignSidecarStderr } from "@logics_common/sidecarStderrUtils.js";
+import { buildFontFamilyOptions } from "@logics_common";
 
 export const StartPythonController = () => {
     const { asyncStartPython } = useStartPython();
@@ -130,7 +131,7 @@ const useAsyncFetchFonts = () => {
         try {
             let fonts = await invoke("get_font_list");
             fonts = fonts.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-            updateSelectableFontFamilyList(arrayToObject(fonts));
+            updateSelectableFontFamilyList(buildFontFamilyOptions(fonts));
         } catch (error) {
             console.error("Error fetching fonts:", error);
         }

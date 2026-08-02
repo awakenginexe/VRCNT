@@ -124,7 +124,10 @@
     --config_page_sidebar_width: 16.8rem;
     --config_page_topbar_height: 8rem;
 
-    --font_family: "Inter", "Segoe UI Variable Text", "Yu Gothic UI", system-ui, sans-serif;
+    --vrcnt-script-stack: "VRCNT Noto";
+    --vrcnt-user-font: "VRCNT Noto";
+    --vrcnt-system-fallback: "Inter", "Segoe UI Variable Text", "Yu Gothic UI", system-ui, sans-serif;
+    --font_family: var(--vrcnt-script-stack), var(--vrcnt-user-font), var(--vrcnt-system-fallback);
 }
 
 .performance_mode {

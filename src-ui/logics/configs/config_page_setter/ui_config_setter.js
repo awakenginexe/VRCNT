@@ -167,10 +167,18 @@ export const SETTINGS_ARRAY = [
     {
         Category: "Appearance",
         Base_Name: "SelectedFontFamily",
-        default_value: "Yu Gothic UI",
+        default_value: "VRCNT Noto",
         ui_template_id: "select",
         logics_template_id: "get_set",
         base_endpoint_name: "font_family",
+    },
+    {
+        Category: "Appearance",
+        Base_Name: "FontDownloadPolicy",
+        default_value: "ask",
+        ui_template_id: "select",
+        logics_template_id: "get_set",
+        base_endpoint_name: "font_download_policy",
     },
     {
         Category: "Appearance",
