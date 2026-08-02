@@ -733,6 +733,7 @@ class MainFunctionActivationTests(unittest.TestCase):
                 patch.multiple(
                     controller_module.config,
                     _ENABLE_TRANSLATION=True,
+                    _ENABLE_CTRANSLATE2_AUTO_FALLBACK=False,
                     _SELECTED_TAB_NO="1",
                     _SELECTED_TRANSLATION_ENGINES={"1": "CTranslate2"},
                 ),
@@ -1099,6 +1100,7 @@ class MainFunctionActivationTests(unittest.TestCase):
             patch.multiple(
                 controller_module.config,
                 _ENABLE_TRANSLATION=True,
+                _ENABLE_CTRANSLATE2_AUTO_FALLBACK=False,
                 _SELECTED_TAB_NO="1",
                 _SELECTED_TRANSLATION_ENGINES={"1": "Bing"},
             ),
