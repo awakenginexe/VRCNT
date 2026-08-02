@@ -972,6 +972,45 @@ class TranslationSchedulerTests(unittest.TestCase):
         )
         self.assertEqual(internal_final_readings, ["original-reading"])
 
+    def test_invalidated_deepseek_completion_is_not_published(self):
+        recorder = Recorder()
+        translator = ScriptedTranslator()
+        translator.block_message = "deepseek-in-flight"
+        generation_is_current = {"value": True}
+        pipeline = SourcePipeline(
+            PipelineSource.MIC,
+            translator,
+            lambda *_: (),
+            recorder.emit_initial,
+            recorder.emit_update,
+            recorder.emit_metric,
+            recorder.emit_final,
+            lambda generation: generation == 7 and generation_is_current["value"],
+        )
+        pipeline.start(7)
+        self.addCleanup(lambda: pipeline.stop(7, discard_pending=True))
+
+        pipeline.submit_trace(
+            make_trace(
+                "deepseek-stale",
+                message="deepseek-in-flight",
+                providers=("DeepSeek_API", "Google"),
+            )
+        )
+        self.assertTrue(translator.entered.wait(timeout=1.0))
+        generation_is_current["value"] = False
+        translator.release.set()
+
+        self.assertFalse(recorder.wait_for(lambda: recorder.finals, timeout=0.2))
+        self.assertEqual(
+            [call["translator_name"] for call in translator.calls],
+            ["DeepSeek_API"],
+        )
+        self.assertNotIn(
+            TranslationStatus.SUCCESS,
+            [item.status for item in recorder.updates],
+        )
+
     def test_stop_during_starting_waits_until_both_threads_have_started(self):
         recorder = Recorder()
         ControlledStartThread.reset()

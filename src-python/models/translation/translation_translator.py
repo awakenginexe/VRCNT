@@ -80,6 +80,8 @@ class Translator:
         self.plamo_client: Any = None
         self.gemini_client: Any = None
         self.openai_client: Any = None
+        self.deepseek_client: Any = None
+        self.deepseek_last_error: Any = None
         self.groq_client: Any = None
         self.openrouter_client: Any = None
         self.lmstudio_client: Any = None
@@ -113,6 +115,7 @@ class Translator:
                 "Plamo_API",
                 "Gemini_API",
                 "OpenAI_API",
+                "DeepSeek_API",
                 "Groq_API",
                 "OpenRouter_API",
                 "LMStudio",
@@ -474,6 +477,35 @@ class Translator:
     def updateOpenAIClient(self) -> None:
         """Update the OpenAI client (fetch available models)."""
         self.openai_client.updateClient()
+
+    def authenticationDeepSeekAuthKey(self, auth_key: str, root_path: str = None) -> bool:
+        client = _getRelativeClientModule("translation_deepseek").DeepSeekClient(
+            root_path=root_path,
+        )
+        if client.setAuthKey(auth_key):
+            self.deepseek_client = client
+            self.deepseek_last_error = None
+            return True
+        self.deepseek_client = None
+        self.deepseek_last_error = client.last_error
+        return False
+
+    def getDeepSeekModelList(self) -> list[str]:
+        if self.deepseek_client is not None:
+            return self.deepseek_client.getModelList()
+        return list(_getRelativeClientModule("translation_deepseek").DEEPSEEK_MODELS)
+
+    def getDeepSeekLastError(self) -> Any:
+        return self.deepseek_last_error
+
+    def setDeepSeekModel(self, model: str) -> bool:
+        if self.deepseek_client is not None:
+            return self.deepseek_client.setModel(model)
+        return model in _getRelativeClientModule("translation_deepseek").DEEPSEEK_MODELS
+
+    def updateDeepSeekClient(self) -> None:
+        if self.deepseek_client is not None:
+            self.deepseek_client.updateClient()
 
     def authenticationGroqAuthKey(self, auth_key: str, root_path: str = None) -> bool:
         """Authenticate Groq API with the provided key.
@@ -854,6 +886,15 @@ class Translator:
                     result = self._translate_context_provider(
                         name, self.openai_client, message, source, target, context
                     )
+            case "DeepSeek_API":
+                if self.deepseek_client is not None:
+                    with self._context_provider_locks[name]:
+                        result = self.deepseek_client.translate(
+                            message,
+                            input_lang=source,
+                            output_lang=target,
+                            timeout_seconds=timeout_seconds,
+                        )
             case "Groq_API":
                 if self.groq_client is not None:
                     result = self._translate_context_provider(
@@ -989,6 +1030,16 @@ class Translator:
                 retry_after_seconds=retry_after_seconds,
             )
         except Exception as error:
+            if getattr(error, "category", None) == "timeout":
+                retry_after_seconds = self.rememberProviderTimeout(translator_name)
+                return TranslationAttempt(
+                    status=TranslationStatus.TIMEOUT,
+                    engine=translator_name,
+                    message=None,
+                    duration_ms=max(0, round((perf_counter() - started_at) * 1000)),
+                    error_code="provider_timeout",
+                    retry_after_seconds=retry_after_seconds,
+                )
             error_code, retry_after_seconds = self._classifyProviderError(error)
             if error_code == "provider_rate_limited":
                 retry_after_seconds = self._rememberProviderCooldown(

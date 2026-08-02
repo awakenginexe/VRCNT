@@ -89,6 +89,7 @@ class ManualTranslationRetryTests(unittest.TestCase):
         recorder,
         *,
         fallback=False,
+        providers=("Google", "Bing"),
         prepare_local_fallback=lambda: None,
     ):
         return ManualTranslationRetryCoordinator(
@@ -97,7 +98,7 @@ class ManualTranslationRetryTests(unittest.TestCase):
             transliterate=lambda message, _language: (
                 {"text": message, "reading": ""},
             ),
-            get_providers=lambda: ("Google", "Bing"),
+            get_providers=lambda: providers,
             get_weight_type=lambda: "Small",
             get_context_history=lambda: (),
             local_fallback_enabled=lambda: fallback,
@@ -176,6 +177,48 @@ class ManualTranslationRetryTests(unittest.TestCase):
         self.assertEqual(terminal.trace_id, "trace-1")
         self.assertEqual(terminal.target_slot, "1")
         self.assertEqual(terminal.retry_generation, 1)
+
+    def test_missing_deepseek_attempt_falls_through_to_the_next_provider(self):
+        translator = FakeTranslator(
+            attempts=[
+                TranslationAttempt(
+                    TranslationStatus.ERROR,
+                    "DeepSeek_API",
+                    None,
+                    1,
+                    "empty_provider_result",
+                ),
+                TranslationAttempt(
+                    TranslationStatus.SUCCESS,
+                    "Google",
+                    "translated",
+                    1,
+                    None,
+                ),
+            ]
+        )
+        recorder = UpdateRecorder()
+        coordinator = self.make_coordinator(
+            translator,
+            recorder,
+            fallback=False,
+            providers=("DeepSeek_API", "Google"),
+        )
+
+        admission = coordinator.submit(self.request())
+
+        self.assertTrue(admission.accepted)
+        self.assertTrue(
+            recorder.wait_for(
+                lambda: recorder.updates
+                and recorder.updates[-1].status is TranslationStatus.SUCCESS
+            )
+        )
+        self.assertEqual(
+            [call["translator_name"] for call in translator.calls],
+            ["DeepSeek_API", "Google"],
+        )
+        self.assertEqual(recorder.updates[-1].engine, "Google")
 
     def test_duplicate_active_retry_is_rejected_and_later_retry_increments_generation(self):
         entered = threading.Event()
