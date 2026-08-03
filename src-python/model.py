@@ -922,6 +922,33 @@ class Model:
         self.ensure_initialized()
         self.translator.updateOpenAIClient()
 
+    def authenticationTranslatorDeepSeekAuthKey(self, auth_key: str) -> bool:
+        self.ensure_initialized()
+        return self.translator.authenticationDeepSeekAuthKey(
+            auth_key,
+            root_path=config.PATH_LOCAL,
+        )
+
+    def getTranslatorDeepSeekModelList(self) -> list[str]:
+        self.ensure_initialized()
+        return self.translator.getDeepSeekModelList()
+
+    def getTranslatorDeepSeekLastError(self):
+        self.ensure_initialized()
+        return self.translator.getDeepSeekLastError()
+
+    def setTranslatorDeepSeekModel(self, model: str) -> bool:
+        self.ensure_initialized()
+        return self.translator.setDeepSeekModel(model=model)
+
+    def updateTranslatorDeepSeekClient(self) -> None:
+        self.ensure_initialized()
+        self.translator.updateDeepSeekClient()
+
+    def clearTranslatorDeepSeekClient(self) -> None:
+        self.ensure_initialized()
+        self.translator.clearDeepSeekClient()
+
     def authenticationTranslatorGroqAuthKey(self, auth_key: str) -> bool:
         result = self.translator.authenticationGroqAuthKey(auth_key, root_path=config.PATH_LOCAL)
         return result

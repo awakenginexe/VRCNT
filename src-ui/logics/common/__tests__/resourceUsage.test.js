@@ -3,7 +3,14 @@ import assert from "node:assert/strict";
 import {
     formatResourceMetric,
     normalizeGpuMonitorSelection,
+    shouldPollResourceUsage,
 } from "../resourceUsageUtils.js";
+
+test("resource usage polling starts only after backend readiness", () => {
+    assert.equal(shouldPollResourceUsage(false), false);
+    assert.equal(shouldPollResourceUsage(undefined), false);
+    assert.equal(shouldPollResourceUsage(true), true);
+});
 
 test("formatResourceMetric renders current percentage when available", () => {
     assert.equal(formatResourceMetric({ available: true, percent: 42.34 }), "42.3%");

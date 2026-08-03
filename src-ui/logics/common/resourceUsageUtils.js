@@ -10,6 +10,8 @@ export const EMPTY_RESOURCE_USAGE = {
 export const GPU_MONITOR_SELECTION_STORAGE_KEY = "vrcnt_next.resource_monitor.gpu_selection";
 export const DEFAULT_GPU_MONITOR_SELECTION = { mode: "auto", device_index: null };
 
+export const shouldPollResourceUsage = (isBackendReady) => isBackendReady === true;
+
 export const formatResourceMetric = (metric) => {
     if (!metric?.available || metric.percent === null || metric.percent === undefined) return "Unavailable";
     const value = Number(metric.percent);

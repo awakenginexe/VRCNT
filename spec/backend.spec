@@ -30,6 +30,7 @@ a = Analysis(
         'models.translation.translation_plamo',
         'models.translation.translation_gemini',
         'models.translation.translation_openai',
+        'models.translation.translation_deepseek',
         'models.translation.translation_groq',
         'models.translation.translation_openrouter',
         'models.translation.translation_lmstudio',

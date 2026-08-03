@@ -763,6 +763,10 @@ OpenAI_API:
     Welsh: Welsh
   target: *openai_langs
 
+DeepSeek_API:
+  source: *openai_langs
+  target: *openai_langs
+
 LMStudio:
   source: *openai_langs
   target: *openai_langs

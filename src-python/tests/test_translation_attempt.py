@@ -16,6 +16,7 @@ from models.pipeline.pipeline_types import (
     TranslationUpdate,
 )
 from models.translation import translation_translator
+from models.translation.translation_deepseek import DeepSeekProviderError
 from models.translation.translation_translator import Translator
 import controller as controller_module
 import model as model_module
@@ -94,6 +95,37 @@ class RecordingContextClient:
 
     def translate(self, message, input_lang, output_lang):
         return self.context
+
+
+class BlockingDeepSeekClient:
+    def __init__(self):
+        self.first_translate_entered = threading.Event()
+        self.release_first_translate = threading.Event()
+        self.second_translate_entered = threading.Event()
+        self.active_calls = 0
+        self.calls_overlapped = False
+        self.calls = []
+        self._active_lock = threading.Lock()
+
+    def setContextHistory(self, _context):
+        raise AssertionError("DeepSeek must not receive conversation history")
+
+    def translate(self, message, input_lang, output_lang, timeout_seconds):
+        with self._active_lock:
+            self.active_calls += 1
+            if self.active_calls > 1:
+                self.calls_overlapped = True
+        try:
+            self.calls.append((message, input_lang, output_lang, timeout_seconds))
+            if message == "A":
+                self.first_translate_entered.set()
+                self.release_first_translate.wait(WAIT_SECONDS)
+            else:
+                self.second_translate_entered.set()
+            return message
+        finally:
+            with self._active_lock:
+                self.active_calls -= 1
 
 
 class FakeCTranslate2Tokenizer:
@@ -504,6 +536,141 @@ class TranslationAttemptTests(unittest.TestCase):
         self.assertFalse(client.calls_overlapped)
         self.assertEqual(results["A"].message, "A")
         self.assertEqual(results["B"].message, "B")
+
+    def test_deepseek_uses_normalized_languages_without_context_history(self):
+        client = Mock()
+        client.translate.return_value = "translated"
+        self.translator.deepseek_client = client
+
+        with patch.object(
+            self.translator,
+            "getLanguageCode",
+            return_value=("normalized-source", "normalized-target"),
+        ):
+            attempt = self._attempt(
+                translator_name="DeepSeek_API",
+                source_language="English",
+                target_language="Japanese",
+                context_history=[{"text": "previous message"}],
+                timeout_seconds=4.5,
+            )
+
+        self.assertEqual(attempt.status, TranslationStatus.SUCCESS)
+        self.assertEqual(attempt.message, "translated")
+        client.translate.assert_called_once_with(
+            "message",
+            input_lang="normalized-source",
+            output_lang="normalized-target",
+            timeout_seconds=4.5,
+        )
+        client.setContextHistory.assert_not_called()
+
+    def test_deepseek_same_provider_calls_are_locked_without_history(self):
+        client = BlockingDeepSeekClient()
+        self.translator.deepseek_client = client
+        self.translator._web_translator = Mock()
+        results = {}
+
+        def run_attempt(message):
+            results[message] = self._attempt(
+                translator_name="DeepSeek_API",
+                message=message,
+            )
+
+        with patch.object(self.translator, "getLanguageCode", return_value=("ja", "en")):
+            first = threading.Thread(target=run_attempt, args=("A",), daemon=True)
+            second = threading.Thread(target=run_attempt, args=("B",), daemon=True)
+            first.start()
+            self.assertTrue(client.first_translate_entered.wait(WAIT_SECONDS))
+            second.start()
+            self.assertFalse(client.second_translate_entered.wait(0.1))
+            client.release_first_translate.set()
+            first.join(WAIT_SECONDS)
+            second.join(WAIT_SECONDS)
+
+        self.assertFalse(first.is_alive())
+        self.assertFalse(second.is_alive())
+        self.assertFalse(client.calls_overlapped)
+        self.assertEqual([results["A"].message, results["B"].message], ["A", "B"])
+
+    def test_deepseek_429_enters_existing_cooldown_without_affecting_google(self):
+        client = Mock()
+        client.translate.side_effect = DeepSeekProviderError(
+            "rate_limited",
+            status_code=429,
+            retry_after=12,
+        )
+        self.translator.deepseek_client = client
+        self.translator._provider_cooldowns["Google"] = 100.0
+
+        with patch.object(self.translator, "getLanguageCode", return_value=("ja", "en")):
+            attempt = self._attempt(translator_name="DeepSeek_API")
+
+        self.assertEqual(attempt.error_code, "provider_rate_limited")
+        self.assertEqual(attempt.retry_after_seconds, 12)
+        self.assertIn("DeepSeek_API", self.translator._provider_cooldowns)
+        self.assertEqual(self.translator._provider_cooldowns["Google"], 100.0)
+
+    def test_deepseek_timeout_uses_existing_timeout_quarantine(self):
+        client = Mock()
+        client.translate.side_effect = DeepSeekProviderError("timeout")
+        self.translator.deepseek_client = client
+
+        with patch.object(self.translator, "getLanguageCode", return_value=("ja", "en")):
+            attempt = self._attempt(translator_name="DeepSeek_API")
+
+        self.assertEqual(attempt.status, TranslationStatus.TIMEOUT)
+        self.assertEqual(attempt.error_code, "provider_timeout")
+        self.assertEqual(
+            self.translator.getProviderCooldownSnapshot(["DeepSeek_API"])[
+                "DeepSeek_API"
+            ]["reason"],
+            "timeout",
+        )
+
+    def test_model_facade_exposes_deepseek_client_methods(self):
+        instance = object.__new__(model_module.Model)
+        instance._inited = True
+        instance.translator = Mock()
+        instance.translator.authenticationDeepSeekAuthKey.return_value = True
+        instance.translator.getDeepSeekModelList.return_value = [
+            "deepseek-v4-flash",
+            "deepseek-v4-pro",
+        ]
+
+        self.assertTrue(hasattr(instance, "authenticationTranslatorDeepSeekAuthKey"))
+        self.assertTrue(instance.authenticationTranslatorDeepSeekAuthKey("not-a-real-secret"))
+        self.assertEqual(
+            instance.getTranslatorDeepSeekModelList(),
+            ["deepseek-v4-flash", "deepseek-v4-pro"],
+        )
+        self.assertTrue(instance.setTranslatorDeepSeekModel("deepseek-v4-pro"))
+        instance.updateTranslatorDeepSeekClient()
+
+        instance.translator.authenticationDeepSeekAuthKey.assert_called_once()
+        instance.translator.setDeepSeekModel.assert_called_once_with(
+            model="deepseek-v4-pro"
+        )
+        instance.translator.updateDeepSeekClient.assert_called_once_with()
+
+    def test_first_deepseek_auth_call_initializes_the_model_facade(self):
+        instance = object.__new__(model_module.Model)
+        translator = Mock()
+        translator.authenticationDeepSeekAuthKey.return_value = True
+
+        def initialize():
+            instance.translator = translator
+
+        instance.ensure_initialized = Mock(side_effect=initialize)
+
+        self.assertTrue(
+            instance.authenticationTranslatorDeepSeekAuthKey("not-a-real-secret")
+        )
+        instance.ensure_initialized.assert_called_once_with()
+        translator.authenticationDeepSeekAuthKey.assert_called_once_with(
+            "not-a-real-secret",
+            root_path=model_module.config.PATH_LOCAL,
+        )
 
     def test_same_provider_empty_context_clears_stale_history(self):
         client = RecordingContextClient()

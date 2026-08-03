@@ -1,4 +1,5 @@
 import { useI18n } from "@useI18n";
+import { useStore_DeepSeekAuthStatus } from "@store";
 
 import {
     useNotificationStatus,
@@ -48,6 +49,8 @@ export const _useBackendErrorHandling = () => {
         updateOpenAIAuthKey,
         updateSelectedOpenAIModel,
 
+        updateSelectedDeepSeekModel,
+
         updateGroqAuthKey,
         updateSelectedGroqModel,
 
@@ -61,6 +64,8 @@ export const _useBackendErrorHandling = () => {
 
         downloadFailedCTranslate2WeightTypeStatus,
     } = useTranslation();
+
+    const { updateDeepSeekAuthStatus } = useStore_DeepSeekAuthStatus();
 
     const { updateEnableVrcMicMuteSync } = useOthers();
 
@@ -225,6 +230,12 @@ export const _useBackendErrorHandling = () => {
                 updateOpenAIAuthKey(data);
                 showNotification_Error(message, { category_id: error_code });
                 return;
+            case "AUTH_DEEPSEEK_INVALID":
+            case "AUTH_DEEPSEEK_INSUFFICIENT_BALANCE":
+            case "AUTH_DEEPSEEK_FAILED":
+                updateDeepSeekAuthStatus(data);
+                showNotification_Error(message, { category_id: error_code });
+                return;
             case "AUTH_GROQ_INVALID":
             case "AUTH_GROQ_FAILED":
                 updateGroqAuthKey(data);
@@ -249,6 +260,10 @@ export const _useBackendErrorHandling = () => {
                 return;
             case "MODEL_OPENAI_INVALID":
                 updateSelectedOpenAIModel(data);
+                showNotification_Error(message, { category_id: error_code });
+                return;
+            case "MODEL_DEEPSEEK_INVALID":
+                updateSelectedDeepSeekModel(data);
                 showNotification_Error(message, { category_id: error_code });
                 return;
             case "MODEL_GROQ_INVALID":

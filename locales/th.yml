@@ -620,6 +620,21 @@ config_page:
         select_openai_model:
             label: "เลือกโมเดล OpenAI"
 
+        deepseek_auth_key:
+            label: "DeepSeek API Key"
+            desc: "วาง DeepSeek API key เพื่อเปิดใช้ DeepSeek ในลำดับผู้ให้บริการแปลภาษาที่มีอยู่"
+            placeholder: "วางคีย์ใหม่เพื่อบันทึกหรือแทนที่"
+            save: "บันทึก"
+            remove: "ลบ"
+            test_connection: "ทดสอบการเชื่อมต่อ"
+            status_not_configured: "ยังไม่ได้ตั้งค่า"
+            status_configured: "ตั้งค่าแล้ว"
+            status_invalid_credentials: "ข้อมูลรับรองไม่ถูกต้อง"
+            status_insufficient_balance: "ยอดคงเหลือไม่เพียงพอ"
+            status_failed: "การเชื่อมต่อล้มเหลว"
+        select_deepseek_model:
+            label: "เลือกโมเดล DeepSeek"
+
         groq_auth_key:
             label: "Groq Auth Key"
         select_groq_model:

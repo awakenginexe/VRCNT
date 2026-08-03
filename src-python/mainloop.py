@@ -74,6 +74,8 @@ run_mapping = {
     "selected_gemini_model":"/run/selected_gemini_model",
     "selectable_openai_model_list":"/run/selectable_openai_model_list",
     "selected_openai_model":"/run/selected_openai_model",
+    "selectable_deepseek_model_list":"/run/selectable_deepseek_model_list",
+    "selected_deepseek_model":"/run/selected_deepseek_model",
     "selectable_groq_model_list":"/run/selectable_groq_model_list",
     "selected_groq_model":"/run/selected_groq_model",
     "selectable_openrouter_model_list":"/run/selectable_openrouter_model_list",
@@ -254,6 +256,14 @@ mapping = {
     "/get/data/openai_auth_key": {"status": True, "variable":controller.getOpenAIAuthKey},
     "/set/data/openai_auth_key": {"status": True, "variable":controller.setOpenAIAuthKey},
     "/delete/data/openai_auth_key": {"status": True, "variable":controller.delOpenAIAuthKey},
+
+    "/get/data/selectable_deepseek_model_list": {"status": True, "variable":controller.getDeepSeekModelList},
+    "/get/data/selected_deepseek_model": {"status": True, "variable":controller.getDeepSeekModel},
+    "/set/data/selected_deepseek_model": {"status": True, "variable":controller.setDeepSeekModel},
+    "/get/data/deepseek_auth_key": {"status": True, "variable":controller.getDeepSeekAuthKey},
+    "/set/data/deepseek_auth_key": {"status": True, "variable":controller.setDeepSeekAuthKey},
+    "/delete/data/deepseek_auth_key": {"status": True, "variable":controller.delDeepSeekAuthKey},
+    "/run/deepseek_connection": {"status": True, "variable":controller.checkDeepSeekConnection},
 
     "/get/data/selectable_groq_model_list": {"status": True, "variable":controller.getGroqModelList},
     "/get/data/selected_groq_model": {"status": True, "variable":controller.getGroqModel},
@@ -539,7 +549,10 @@ class Main:
                     endpoint = received_data.get("endpoint")
                     data = received_data.get("data")
                     data = encodeBase64(data) if data is not None else None
-                    printLog(endpoint, {"receive_data": data})
+                    if endpoint == "/set/data/deepseek_auth_key":
+                        printLog(endpoint, {"receive_data": "[redacted]"})
+                    else:
+                        printLog(endpoint, {"receive_data": data})
                     self.queue.put((endpoint, data))
             except json.JSONDecodeError:
                 # malformed input; log and continue

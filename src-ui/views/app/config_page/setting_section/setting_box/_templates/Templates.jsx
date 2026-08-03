@@ -2,6 +2,7 @@ import clsx from "clsx";
 
 import styles from "./Templates.module.scss";
 import { useStore_IsOpenedDropdownMenu, useStore_IsBreakPoint } from "@store";
+import { DeepSeekAuthKey } from "../_components/auth_key/DeepSeekAuthKey";
 import {
     LabelComponent,
     DropdownMenu,
@@ -153,6 +154,10 @@ export const AuthKeyContainer = (props) => {
         <CommonContainer Component={AuthKey} {...props} {...webpage_settings} />
     );
 };
+
+export const DeepSeekAuthKeyContainer = (props) => (
+    <CommonContainer Component={DeepSeekAuthKey} {...props} />
+);
 
 export const ActionButtonContainer = (props) => (
     <CommonContainer Component={ActionButton} {...props} add_break_point={false}/>

@@ -620,6 +620,21 @@ config_page:
         select_openai_model:
             label: "OpenAI モデルを選択"
 
+        deepseek_auth_key:
+            label: "DeepSeek APIキー"
+            desc: "DeepSeek APIキーを登録すると、既存の翻訳プロバイダー順序でDeepSeekを使用できます。"
+            placeholder: "新しいキーを貼り付けて保存または置き換え"
+            save: "保存"
+            remove: "削除"
+            test_connection: "接続を確認"
+            status_not_configured: "未設定"
+            status_configured: "設定済み"
+            status_invalid_credentials: "認証情報が無効です"
+            status_insufficient_balance: "残高が不足しています"
+            status_failed: "接続に失敗しました"
+        select_deepseek_model:
+            label: "DeepSeek モデルを選択"
+
         groq_auth_key:
             label: "Groq 認証キー"
         select_groq_model:

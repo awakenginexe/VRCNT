@@ -20,6 +20,10 @@ export const STATIC_ROUTE_META_LIST = [
     { endpoint: "/get/data/translation_provider_cooldowns", ns: common, hook_name: "useTranslationProviderCooldowns", method_name: "updateProviderCooldowns" },
     { endpoint: "/run/translation_provider_cooldowns", ns: common, hook_name: "useTranslationProviderCooldowns", method_name: "updateProviderCooldowns" },
     { endpoint: "/run/retry_translation", ns: common, hook_name: "useMessage", method_name: "handleManualTranslationRetryAdmission" },
+    { endpoint: "/get/data/deepseek_auth_key", ns: common, hook_name: "useDeepSeekConfiguration", method_name: "updateStatus" },
+    { endpoint: "/set/data/deepseek_auth_key", ns: common, hook_name: "useDeepSeekConfiguration", method_name: "updateStatus" },
+    { endpoint: "/delete/data/deepseek_auth_key", ns: common, hook_name: "useDeepSeekConfiguration", method_name: "updateStatus" },
+    { endpoint: "/run/deepseek_connection", ns: common, hook_name: "useDeepSeekConfiguration", method_name: "updateStatus" },
 
     { endpoint: "/run/update_software", ns: null, hook_name: null, method_name: null },
 

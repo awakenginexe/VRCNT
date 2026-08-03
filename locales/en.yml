@@ -620,6 +620,21 @@ config_page:
         select_openai_model:
             label: "Select OpenAI Model"
 
+        deepseek_auth_key:
+            label: "DeepSeek API Key"
+            desc: "Paste a DeepSeek API key to enable DeepSeek in the existing translation provider order."
+            placeholder: "Paste a new key to save or replace it"
+            save: "Save"
+            remove: "Remove"
+            test_connection: "Test connection"
+            status_not_configured: "Not configured"
+            status_configured: "Configured"
+            status_invalid_credentials: "Invalid credentials"
+            status_insufficient_balance: "Insufficient balance"
+            status_failed: "Connection failed"
+        select_deepseek_model:
+            label: "Select DeepSeek Model"
+
         groq_auth_key:
             label: "Groq Auth Key"
         select_groq_model:

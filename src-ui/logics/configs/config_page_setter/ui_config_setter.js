@@ -326,6 +326,26 @@ export const SETTINGS_ARRAY = [
         add_endpoint_run_array: ["from_backend"],
         base_endpoint_name: "selected_openai_model",
     },
+    // DeepSeek
+    {
+        Category: "Translation",
+        Base_Name: "SelectableDeepSeekModelList",
+        default_value: [],
+        ui_template_id: "list",
+        logics_template_id: "get_set",
+        add_endpoint_run_array: ["from_backend"],
+        base_endpoint_name: "selectable_deepseek_model_list",
+        response_transform: "arrayToObject",
+    },
+    {
+        Category: "Translation",
+        Base_Name: "SelectedDeepSeekModel",
+        default_value: "deepseek-v4-flash",
+        ui_template_id: "select",
+        logics_template_id: "get_set",
+        add_endpoint_run_array: ["from_backend"],
+        base_endpoint_name: "selected_deepseek_model",
+    },
     // Groq
     {
         Category: "Translation",

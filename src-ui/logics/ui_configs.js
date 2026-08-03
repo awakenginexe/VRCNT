@@ -75,6 +75,7 @@ export const translator_status = [
     { id: "Plamo_API", label: `Plamo API`, is_available: false },
     { id: "Gemini_API", label: `Gemini API`, is_available: false },
     { id: "OpenAI_API", label: `OpenAI API`, is_available: false },
+    { id: "DeepSeek_API", label: `DeepSeek API`, is_available: false },
     { id: "Groq_API", label: `Groq API`, is_available: false },
     { id: "OpenRouter_API", label: `OpenRouter API`, is_available: false },
     { id: "LMStudio", label: `LMStudio`, is_available: false },
@@ -179,6 +180,7 @@ export const deepl_auth_key_url = "https://www.deepl.com/ja/your-account/keys";
 export const plamo_auth_key_url = "https://plamo.preferredai.jp/api";
 export const gemini_auth_key_url = "https://aistudio.google.com/api-keys";
 export const openai_auth_key_url = "https://platform.openai.com/api-keys";
+export const deepseek_auth_key_url = "https://platform.deepseek.com/api_keys";
 export const groq_auth_key_url = "https://console.groq.com/keys";
 export const openrouter_auth_key_url = "https://openrouter.ai/keys";
 

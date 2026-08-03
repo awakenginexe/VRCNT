@@ -620,6 +620,21 @@ config_page:
         select_openai_model:
             label:
 
+        deepseek_auth_key:
+            label: "DeepSeek API 키"
+            desc: "DeepSeek API 키를 붙여넣어 기존 번역 제공자 순서에서 DeepSeek를 사용합니다."
+            placeholder: "새 키를 붙여넣어 저장 또는 교체"
+            save: "저장"
+            remove: "삭제"
+            test_connection: "연결 테스트"
+            status_not_configured: "설정되지 않음"
+            status_configured: "설정됨"
+            status_invalid_credentials: "인증 정보가 올바르지 않음"
+            status_insufficient_balance: "잔액 부족"
+            status_failed: "연결 실패"
+        select_deepseek_model:
+            label: "DeepSeek 모델 선택"
+
         groq_auth_key:
             label:
         select_groq_model:
