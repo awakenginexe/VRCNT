@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo/VRCNT.png" alt="VRCNT" width="420" />
+  <img src="../logo/VRCNT.png" alt="VRCNT" width="420" />
 </p>
 
 <p align="center">
@@ -16,11 +16,11 @@
   <font size="4">
     🌐 <strong>Select Language / เลือกภาษา</strong><br />
     <font color="#FFFFFF"><strong>English</strong></font> |
-    <a href="Readme/Readme.th.md">ภาษาไทย</a> |
-    <a href="Readme/Readme.jp.md">日本語</a> |
-    <a href="Readme/Readme.scn.md">简体中文</a> |
-    <a href="Readme/Readme.tcn.md">繁體中文</a> |
-    <a href="Readme/Readme.kr.md">한국어</a>
+    <a href="Readme.th.md">ภาษาไทย</a> |
+    <a href="Readme.jp.md">日本語</a> |
+    <a href="Readme.scn.md">简体中文</a> |
+    <a href="Readme.tcn.md">繁體中文</a> |
+    <a href="Readme.kr.md">한국어</a>
   </font>
 </p>
 
@@ -35,7 +35,7 @@ session.
 ## VRCNT 5.0.0 preview
 
 <p align="center">
-  <img src="preview/Preview.png" alt="VRCNT 5.0.0 application preview" width="960" />
+  <img src="../preview/Preview.png" alt="VRCNT 5.0.0 application preview" width="960" />
 </p>
 
 ## What's new in VRCNT 5.0.0
@@ -117,6 +117,6 @@ not the upstream VRCT tracker.
 
 ## License and disclaimer
 
-See [LICENSE](LICENSE) and [NOTICE.md](NOTICE.md). VRCNT is unofficial software;
+See [LICENSE](../LICENSE) and [NOTICE.md](../NOTICE.md). VRCNT is unofficial software;
 it is not endorsed by VRChat. VRChat and its associated properties are
 trademarks or registered trademarks of VRChat Inc.
