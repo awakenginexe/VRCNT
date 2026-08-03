@@ -77,6 +77,27 @@ test("legacy overwrite warning is required only when complete profiles differ", 
     assert.equal(shouldWarnLegacyOverwrite(outgoing, { ...outgoing, engine: "Google" }), true);
 });
 
+test("legacy controls retain hydrated values until a profile field arrives", async () => {
+    const profileUi = await import(utilsUrl);
+
+    assert.equal(typeof profileUi.resolveProfileBackedState, "function");
+    const legacyDevice = { device: "cpu", device_index: 0, device_name: "CPU" };
+    const legacyState = { state: "ok", data: legacyDevice };
+
+    assert.deepEqual(
+        profileUi.resolveProfileBackedState(legacyState, undefined),
+        legacyState,
+    );
+    assert.deepEqual(
+        profileUi.resolveProfileBackedState(legacyState, { device: "cuda", device_index: 1 }),
+        { state: "ok", data: { device: "cuda", device_index: 1 } },
+    );
+    assert.deepEqual(
+        profileUi.resolveProfileBackedState(undefined, undefined),
+        { data: {} },
+    );
+});
+
 test("legacy Model and Provider controls guard every apply-to-both setter", async () => {
     const source = await readFile(path.join(
         root,

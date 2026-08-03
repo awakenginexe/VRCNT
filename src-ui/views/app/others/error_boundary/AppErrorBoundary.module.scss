@@ -16,6 +16,10 @@
     background-color: var(--surface_1_color);
 }
 
+.fatal_close_button {
+    z-index: 1;
+}
+
 .wrapper {
     width: 100%;
     height: 100vh;

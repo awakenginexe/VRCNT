@@ -23,7 +23,10 @@ import {
     filterDeviceMapByEngine,
     getAllowedTranscriptionComputeTypes,
 } from "../../../../main_page/sidebar_section/language_settings/transcriptionRuntimeUtils.js";
-import { shouldWarnLegacyOverwrite } from "../../../../main_page/engines/transcriptionProfileUi.js";
+import {
+    resolveProfileBackedState,
+    shouldWarnLegacyOverwrite,
+} from "../../../../main_page/engines/transcriptionProfileUi.js";
 
 const useLegacyApplyToBothGuard = () => {
     const { t } = useI18n();
@@ -43,8 +46,6 @@ const useLegacyApplyToBothGuard = () => {
         setter(...args);
     };
 };
-
-const profileBackedState = (state, data) => ({ ...state, data });
 
 export const Transcription = () => {
     return (
@@ -259,7 +260,7 @@ const TranscriptionEngine_Box = () => {
                 { id: "Vosk", label: "Vosk (CPU, 0 GB VRAM)" },
                 { id: "SenseVoice", label: "SenseVoice-Small (CPU, zh/en/ja/ko/yue)" },
             ]}
-            checked_variable={profileBackedState(
+            checked_variable={resolveProfileBackedState(
                 currentSelectedTranscriptionEngine,
                 currentTranscriptionProfileSend.data?.engine,
             )}
@@ -298,7 +299,7 @@ const VoskWeightType_Box = () => {
             desc="CPU-only offline STT. One model = one language."
             name="vosk_weight_type"
             options={items}
-            checked_variable={profileBackedState(
+            checked_variable={resolveProfileBackedState(
                 currentSelectedVoskWeightType,
                 currentTranscriptionProfileSend.data?.models?.Vosk,
             )}
@@ -339,7 +340,7 @@ const ParakeetWeightType_Box = () => {
             desc="GPU-accelerated STT via ONNX Runtime. Use parakeet-tdt-0.6b-v3 for the runnable multilingual model."
             name="parakeet_weight_type"
             options={items}
-            checked_variable={profileBackedState(
+            checked_variable={resolveProfileBackedState(
                 currentSelectedParakeetWeightType,
                 currentTranscriptionProfileSend.data?.models?.Parakeet,
             )}
@@ -380,7 +381,7 @@ const SenseVoiceWeightType_Box = () => {
             desc="CPU-only multi-lingual STT (zh, yue, en, ja, ko) via sherpa-onnx. INT8 is recommended for lower RAM usage."
             name="sensevoice_weight_type"
             options={items}
-            checked_variable={profileBackedState(
+            checked_variable={resolveProfileBackedState(
                 currentSelectedSenseVoiceWeightType,
                 currentTranscriptionProfileSend.data?.models?.SenseVoice,
             )}
@@ -443,7 +444,7 @@ const WhisperWeightType_Box = () => {
                 )}
                 name="whisper_weight_type"
                 options={whisper_weight_types}
-                checked_variable={profileBackedState(
+                checked_variable={resolveProfileBackedState(
                     currentSelectedWhisperWeightType,
                     currentTranscriptionProfileSend.data?.models?.Whisper,
                 )}
@@ -525,9 +526,9 @@ const TranscriptionComputeDevice_Box = () => {
                 ...currentSelectableTranscriptionComputeDeviceList,
                 data: filteredDeviceList,
             }}
-            currentSelectedDevice={profileBackedState(currentSelectedTranscriptionComputeDevice, profileDevice)}
+            currentSelectedDevice={resolveProfileBackedState(currentSelectedTranscriptionComputeDevice, profileDevice)}
             setSelectedDevice={(value) => applyToBoth(setSelectedTranscriptionComputeDevice, value)}
-            currentSelectedComputeType={profileBackedState(
+            currentSelectedComputeType={resolveProfileBackedState(
                 currentSelectedTranscriptionComputeType,
                 currentTranscriptionProfileSend.data?.compute_type,
             )}

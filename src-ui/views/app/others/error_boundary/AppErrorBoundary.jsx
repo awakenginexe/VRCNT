@@ -7,9 +7,10 @@ import CheckMarkSvg from "@images/check_mark.svg?react";
 import { ContactsContainer } from "./contacts_container/ContactsContainer";
 
 import {
-    useWindow,
     useSoftwareVersion,
 } from "@logics_common";
+import { closeWindowAfterFatalError } from "@logics_common/tauriRuntime.js";
+import { store } from "@store";
 import { CloseButton } from "@common_components";
 
 import styles from "./AppErrorBoundary.module.scss";
@@ -30,7 +31,6 @@ export const AppErrorBoundary = ({children}) => {
 };
 
 const ErrorContainer = ({error, errorInfo}) => {
-    const { asyncCloseApp } = useWindow();
     const { currentSoftwareVersion } = useSoftwareVersion();
     const [is_copied, setIsCopied] = useState(false);
 
@@ -62,7 +62,11 @@ const ErrorContainer = ({error, errorInfo}) => {
     return (
         <div className={styles.container}>
             <div className={styles.drag_able_area} data-tauri-drag-region></div>
-            <CloseButton variant="active_error" onClick={asyncCloseApp} />
+            <CloseButton
+                variant="active_error"
+                className={styles.fatal_close_button}
+                onClick={() => closeWindowAfterFatalError(store.appWindow)}
+            />
             <div className={styles.wrapper}>
                 <p className={styles.error_message}>An error occurred. Please restart VRCNT or contact the developers.</p>
                 <SafeActionButtons />

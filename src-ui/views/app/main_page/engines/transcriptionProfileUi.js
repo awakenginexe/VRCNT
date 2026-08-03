@@ -47,3 +47,8 @@ export const transcriptionProfilesMatch = (outgoing, incoming) => (
 export const shouldWarnLegacyOverwrite = (outgoing, incoming) => (
     !transcriptionProfilesMatch(outgoing, incoming)
 );
+
+export const resolveProfileBackedState = (legacyState = {}, profileValue) => ({
+    ...legacyState,
+    data: profileValue ?? legacyState?.data ?? {},
+});

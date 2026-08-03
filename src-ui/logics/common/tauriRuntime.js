@@ -35,3 +35,9 @@ export const createBrowserPreviewWindow = () => ({
         return () => window.removeEventListener("resize", callback);
     },
 });
+
+export const closeWindowAfterFatalError = async (appWindow) => {
+    if (typeof appWindow?.close !== "function") return false;
+    await appWindow.close();
+    return true;
+};
