@@ -143,7 +143,7 @@ test("the exact profile options render once, next to compute settings, and only 
     );
     assert.match(
         transcriptionSource,
-        /WHISPER_DECODING_PROFILE_IDS\.includes\(selected_data\.selected_id\)[\s\S]*?setWhisperDecodingProfile\(selected_data\.selected_id\)/,
+        /WHISPER_DECODING_PROFILE_IDS\.includes\(selected_data\.selected_id\)[\s\S]*?applyToBoth\(setWhisperDecodingProfile, selected_data\.selected_id\)/,
     );
     assert.match(transcriptionSource, /dropdown_id="whisper_decoding_profile"/);
     for (const option of ["fast", "balanced", "accurate"]) {

@@ -23,6 +23,28 @@ import {
     filterDeviceMapByEngine,
     getAllowedTranscriptionComputeTypes,
 } from "../../../../main_page/sidebar_section/language_settings/transcriptionRuntimeUtils.js";
+import { shouldWarnLegacyOverwrite } from "../../../../main_page/engines/transcriptionProfileUi.js";
+
+const useLegacyApplyToBothGuard = () => {
+    const { t } = useI18n();
+    const {
+        currentTranscriptionProfileSend,
+        currentTranscriptionProfileReceive,
+    } = useTranscription();
+
+    return (setter, ...args) => {
+        const differs = shouldWarnLegacyOverwrite(
+            currentTranscriptionProfileSend.data,
+            currentTranscriptionProfileReceive.data,
+        );
+        if (differs && !window.confirm(t("config_page.transcription.apply_to_both_warning"))) {
+            return;
+        }
+        setter(...args);
+    };
+};
+
+const profileBackedState = (state, data) => ({ ...state, data });
 
 export const Transcription = () => {
     return (
@@ -200,8 +222,8 @@ const SpeakerMaxWords_Box = () => {
 
 const TranscriptionEngine_Container = () => {
     const { t } = useI18n();
-    const { currentSelectedTranscriptionEngine } = useTranscription();
-    const engine = currentSelectedTranscriptionEngine?.data ?? currentSelectedTranscriptionEngine;
+    const { currentTranscriptionProfileSend } = useTranscription();
+    const engine = currentTranscriptionProfileSend.data?.engine ?? "Google";
     return (
         <div>
             <SectionLabelComponent label={t("config_page.transcription.section_label_transcription_engines")} />
@@ -218,12 +240,17 @@ const TranscriptionEngine_Container = () => {
 
 const TranscriptionEngine_Box = () => {
     const { t } = useI18n();
-    const { currentSelectedTranscriptionEngine, setSelectedTranscriptionEngine } = useTranscription();
+    const {
+        currentSelectedTranscriptionEngine,
+        setSelectedTranscriptionEngine,
+        currentTranscriptionProfileSend,
+    } = useTranscription();
+    const applyToBoth = useLegacyApplyToBothGuard();
 
     return (
         <RadioButtonContainer
             label={t("config_page.transcription.select_transcription_engine.label")}
-            selectFunction={setSelectedTranscriptionEngine}
+            selectFunction={(value) => applyToBoth(setSelectedTranscriptionEngine, value)}
             name="select_transcription_engine"
             options={[
                 { id: "Google", label: "Google (Cloud, 0 GB VRAM)" },
@@ -232,7 +259,10 @@ const TranscriptionEngine_Box = () => {
                 { id: "Vosk", label: "Vosk (CPU, 0 GB VRAM)" },
                 { id: "SenseVoice", label: "SenseVoice-Small (CPU, zh/en/ja/ko/yue)" },
             ]}
-            checked_variable={currentSelectedTranscriptionEngine}
+            checked_variable={profileBackedState(
+                currentSelectedTranscriptionEngine,
+                currentTranscriptionProfileSend.data?.engine,
+            )}
         />
     );
 };
@@ -245,11 +275,13 @@ const VoskWeightType_Box = () => {
         downloadVoskWeightTypeStatus,
         currentSelectedVoskWeightType,
         setSelectedVoskWeightType,
+        currentTranscriptionProfileSend,
     } = useTranscription();
+    const applyToBoth = useLegacyApplyToBothGuard();
 
     if (!currentVoskWeightTypeStatus) return null;
 
-    const selectFunction = (id) => setSelectedVoskWeightType(id);
+    const selectFunction = (id) => applyToBoth(setSelectedVoskWeightType, id);
     const downloadStartFunction = (id) => {
         pendingVoskWeightTypeStatus(id);
         downloadVoskWeightTypeStatus(id);
@@ -266,7 +298,10 @@ const VoskWeightType_Box = () => {
             desc="CPU-only offline STT. One model = one language."
             name="vosk_weight_type"
             options={items}
-            checked_variable={currentSelectedVoskWeightType}
+            checked_variable={profileBackedState(
+                currentSelectedVoskWeightType,
+                currentTranscriptionProfileSend.data?.models?.Vosk,
+            )}
             selectFunction={selectFunction}
             downloadStartFunction={downloadStartFunction}
         />
@@ -281,11 +316,13 @@ const ParakeetWeightType_Box = () => {
         downloadParakeetWeightTypeStatus,
         currentSelectedParakeetWeightType,
         setSelectedParakeetWeightType,
+        currentTranscriptionProfileSend,
     } = useTranscription();
+    const applyToBoth = useLegacyApplyToBothGuard();
 
     if (!currentParakeetWeightTypeStatus) return null;
 
-    const selectFunction = (id) => setSelectedParakeetWeightType(id);
+    const selectFunction = (id) => applyToBoth(setSelectedParakeetWeightType, id);
     const downloadStartFunction = (id) => {
         pendingParakeetWeightTypeStatus(id);
         downloadParakeetWeightTypeStatus(id);
@@ -302,7 +339,10 @@ const ParakeetWeightType_Box = () => {
             desc="GPU-accelerated STT via ONNX Runtime. Use parakeet-tdt-0.6b-v3 for the runnable multilingual model."
             name="parakeet_weight_type"
             options={items}
-            checked_variable={currentSelectedParakeetWeightType}
+            checked_variable={profileBackedState(
+                currentSelectedParakeetWeightType,
+                currentTranscriptionProfileSend.data?.models?.Parakeet,
+            )}
             selectFunction={selectFunction}
             downloadStartFunction={downloadStartFunction}
         />
@@ -317,11 +357,13 @@ const SenseVoiceWeightType_Box = () => {
         downloadSenseVoiceWeightTypeStatus,
         currentSelectedSenseVoiceWeightType,
         setSelectedSenseVoiceWeightType,
+        currentTranscriptionProfileSend,
     } = useTranscription();
+    const applyToBoth = useLegacyApplyToBothGuard();
 
     if (!currentSenseVoiceWeightTypeStatus) return null;
 
-    const selectFunction = (id) => setSelectedSenseVoiceWeightType(id);
+    const selectFunction = (id) => applyToBoth(setSelectedSenseVoiceWeightType, id);
     const downloadStartFunction = (id) => {
         pendingSenseVoiceWeightTypeStatus(id);
         downloadSenseVoiceWeightTypeStatus(id);
@@ -338,7 +380,10 @@ const SenseVoiceWeightType_Box = () => {
             desc="CPU-only multi-lingual STT (zh, yue, en, ja, ko) via sherpa-onnx. INT8 is recommended for lower RAM usage."
             name="sensevoice_weight_type"
             options={items}
-            checked_variable={currentSelectedSenseVoiceWeightType}
+            checked_variable={profileBackedState(
+                currentSelectedSenseVoiceWeightType,
+                currentTranscriptionProfileSend.data?.models?.SenseVoice,
+            )}
             selectFunction={selectFunction}
             downloadStartFunction={downloadStartFunction}
         />
@@ -352,10 +397,15 @@ const WhisperWeightType_Box = () => {
         pendingWhisperWeightTypeStatus,
         downloadWhisperWeightTypeStatus,
     } = useTranscription();
-    const { currentSelectedWhisperWeightType, setSelectedWhisperWeightType } = useTranscription();
+    const {
+        currentSelectedWhisperWeightType,
+        setSelectedWhisperWeightType,
+        currentTranscriptionProfileSend,
+    } = useTranscription();
+    const applyToBoth = useLegacyApplyToBothGuard();
 
     const selectFunction = (id) => {
-        setSelectedWhisperWeightType(id);
+        applyToBoth(setSelectedWhisperWeightType, id);
     };
 
     const downloadStartFunction = (id) => {
@@ -393,7 +443,10 @@ const WhisperWeightType_Box = () => {
                 )}
                 name="whisper_weight_type"
                 options={whisper_weight_types}
-                checked_variable={currentSelectedWhisperWeightType}
+                checked_variable={profileBackedState(
+                    currentSelectedWhisperWeightType,
+                    currentTranscriptionProfileSend.data?.models?.Whisper,
+                )}
                 selectFunction={selectFunction}
                 downloadStartFunction={downloadStartFunction}
             />
@@ -408,11 +461,13 @@ const WhisperDecodingProfile_Box = () => {
     const {
         currentWhisperDecodingProfile,
         setWhisperDecodingProfile,
+        currentTranscriptionProfileSend,
     } = useTranscription();
+    const applyToBoth = useLegacyApplyToBothGuard();
 
     const selectFunction = (selected_data) => {
         if (WHISPER_DECODING_PROFILE_IDS.includes(selected_data.selected_id)) {
-            setWhisperDecodingProfile(selected_data.selected_id);
+            applyToBoth(setWhisperDecodingProfile, selected_data.selected_id);
         }
     };
 
@@ -421,7 +476,7 @@ const WhisperDecodingProfile_Box = () => {
             dropdown_id="whisper_decoding_profile"
             label={t("config_page.transcription.whisper_decoding_profile.label")}
             desc={t("config_page.transcription.whisper_decoding_profile.desc")}
-            selected_id={currentWhisperDecodingProfile.data}
+            selected_id={currentTranscriptionProfileSend.data?.whisper_decoding_profile ?? "balanced"}
             list={{
                 fast: t("config_page.transcription.whisper_decoding_profile.fast"),
                 balanced: t("config_page.transcription.whisper_decoding_profile.balanced"),
@@ -442,18 +497,21 @@ const TranscriptionComputeDevice_Box = () => {
         setSelectedTranscriptionComputeDevice,
         currentSelectedTranscriptionComputeType,
         setSelectedTranscriptionComputeType,
+        currentTranscriptionProfileSend,
     } = useTranscription();
+    const applyToBoth = useLegacyApplyToBothGuard();
 
-    const engine = currentSelectedTranscriptionEngine?.data ?? "Whisper";
+    const engine = currentTranscriptionProfileSend.data?.engine ?? "Google";
+    const profileDevice = currentTranscriptionProfileSend.data?.device;
     const filteredDeviceList = filterDeviceMapByEngine(
         currentSelectableTranscriptionComputeDeviceList.data ?? {},
         engine,
     );
     const effectiveDevice =
         Object.values(filteredDeviceList).find((device) =>
-            device.device === currentSelectedTranscriptionComputeDevice.data?.device &&
-            device.device_index === currentSelectedTranscriptionComputeDevice.data?.device_index
-        ) ?? Object.values(filteredDeviceList)[0] ?? currentSelectedTranscriptionComputeDevice.data;
+            device.device === profileDevice?.device &&
+            device.device_index === profileDevice?.device_index
+        ) ?? Object.values(filteredDeviceList)[0] ?? profileDevice;
     const computeTypesOverride = getAllowedTranscriptionComputeTypes({
         engine,
         device: effectiveDevice,
@@ -467,10 +525,13 @@ const TranscriptionComputeDevice_Box = () => {
                 ...currentSelectableTranscriptionComputeDeviceList,
                 data: filteredDeviceList,
             }}
-            currentSelectedDevice={currentSelectedTranscriptionComputeDevice}
-            setSelectedDevice={setSelectedTranscriptionComputeDevice}
-            currentSelectedComputeType={currentSelectedTranscriptionComputeType}
-            setSelectedComputeType={setSelectedTranscriptionComputeType}
+            currentSelectedDevice={profileBackedState(currentSelectedTranscriptionComputeDevice, profileDevice)}
+            setSelectedDevice={(value) => applyToBoth(setSelectedTranscriptionComputeDevice, value)}
+            currentSelectedComputeType={profileBackedState(
+                currentSelectedTranscriptionComputeType,
+                currentTranscriptionProfileSend.data?.compute_type,
+            )}
+            setSelectedComputeType={(value) => applyToBoth(setSelectedTranscriptionComputeType, value)}
             computeTypesOverride={computeTypesOverride}
         />
     );

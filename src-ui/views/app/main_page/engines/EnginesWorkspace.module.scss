@@ -181,6 +181,40 @@
     opacity: 0.68;
 }
 
+.model_status_row {
+    min-height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+    color: var(--dark_400_color);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.model_status_row span[data-status="installed"],
+.model_status_row span[data-status="cloud"] {
+    color: #5be2b5;
+}
+
+.model_status_row span[data-status="download_required"],
+.model_status_row span[data-status="unavailable"] {
+    color: #f8c36a;
+}
+
+.model_status_row button {
+    border: 0;
+    padding: 0.35rem 0;
+    color: var(--accent_color);
+    background: transparent;
+    font: inherit;
+    font-weight: 800;
+    text-decoration: underline;
+    text-underline-offset: 0.2rem;
+    cursor: pointer;
+}
+
 .pipeline_flow {
     margin: 1rem 0 0;
     border-radius: 0.65rem;

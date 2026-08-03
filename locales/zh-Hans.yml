@@ -158,6 +158,17 @@ main_page:
         engine_label: "语音识别引擎"
         device_label: "计算设备"
         compute_type_label: "计算类型"
+        model_label: "模型"
+        decoding_label: "Whisper 解码"
+        decoding_fast: "快速"
+        decoding_balanced: "均衡"
+        decoding_accurate: "准确"
+        manage_models: "管理模型"
+        availability_cloud: "云服务 — 无需本地模型"
+        availability_installed: "模型已安装"
+        availability_downloading: "模型下载中"
+        availability_download_required: "需要下载模型"
+        availability_unavailable: "模型不可用"
         outgoing_flow: "麦克风 → {{engine}} → 翻译 → VRChat 聊天框"
         desktop_badge: "桌面音频 → 覆盖层"
         incoming_title: "接收 / 其他人"
@@ -658,6 +669,7 @@ config_page:
             connection_required:
 
     transcription:
+        apply_to_both_warning: "“我的声音”和“其他人”当前使用不同的转录配置。继续将同时更改两个方向的转录设置。要将此设置应用到两者吗？"
         section_label_mic: "麦克风"
         section_label_speaker: "扬声器"
         section_label_transcription_engines: "语音识别引擎"

@@ -7,7 +7,6 @@ import { TopBar } from "../main_section/top_bar/TopBar";
 import { CustomModernSelect } from "@common_components";
 import {
     findPresetCandidate,
-    getPresetForModel,
     resolveWhisperRecommendation,
     WHISPER_PRESETS,
 } from "../engines/engineModelUtils";
@@ -40,34 +39,38 @@ export const ModelsHub = () => {
     const {
         currentWhisperWeightTypeStatus,
         downloadWhisperWeightTypeStatus,
-        currentSelectedWhisperWeightType,
-        setSelectedWhisperWeightType,
-        currentWhisperDecodingProfile,
-        setWhisperDecodingProfile,
-        currentSelectedTranscriptionComputeDeviceSend,
+        currentVoskWeightTypeStatus,
+        downloadVoskWeightTypeStatus,
+        currentParakeetWeightTypeStatus,
+        downloadParakeetWeightTypeStatus,
+        currentSenseVoiceWeightTypeStatus,
+        downloadSenseVoiceWeightTypeStatus,
+        currentTranscriptionProfileSend,
     } = useTranscription();
 
     const statuses = currentWhisperWeightTypeStatus.data ?? [];
-    const selectedDevice = currentSelectedTranscriptionComputeDeviceSend.data ?? {};
+    const modelGroups = [
+        { id: "Whisper", statuses, download: downloadWhisperWeightTypeStatus },
+        { id: "Vosk", statuses: currentVoskWeightTypeStatus.data ?? [], download: downloadVoskWeightTypeStatus },
+        { id: "Parakeet", statuses: currentParakeetWeightTypeStatus.data ?? [], download: downloadParakeetWeightTypeStatus },
+        { id: "SenseVoice", statuses: currentSenseVoiceWeightTypeStatus.data ?? [], download: downloadSenseVoiceWeightTypeStatus },
+    ];
+    const selectedDevice = currentTranscriptionProfileSend.data?.device ?? {};
     const recommendation = useMemo(() => resolveWhisperRecommendation({
         statuses,
         selectedDevice,
     }), [selectedDevice, statuses]);
-    const selectedModelId = currentSelectedWhisperWeightType.data;
-    const selectedPreset = getPresetForModel(selectedModelId);
     const selectedGpu = currentResourceUsage.data?.gpu_devices?.find((gpu) => (
         gpu.device_index === currentResourceUsage.data?.selected_gpu_index
     ));
     const hardwareName = selectedDevice.device_name
         ?? selectedGpu?.device_name
         ?? t("main_page.models_hub.hardware_not_detected");
-    const controlsPending = currentSelectedWhisperWeightType.state === "pending"
-        || currentWhisperDecodingProfile.state === "pending";
+    const controlsPending = statuses.some((status) => status?.is_pending === true);
 
-    const applyInstalledPreset = (preset, status) => {
+    const applyInstalledPreset = (_preset, status) => {
         if (status?.is_downloaded !== true || controlsPending) return;
-        setWhisperDecodingProfile(preset.decodingProfile);
-        setSelectedWhisperWeightType(status.id);
+        updateExperienceRoute("engines");
     };
 
     const handlePresetAction = (preset) => {
@@ -146,13 +149,9 @@ const modelOptions = useMemo(() => {
             useRecommendation();
             return;
         }
-        const selectedOpt = modelOptions.find((opt) => opt.id === selectedId);
-        if (selectedOpt && selectedOpt.decodingProfile) {
-            setWhisperDecodingProfile(selectedOpt.decodingProfile);
-        }
         const statusItem = statuses.find((s) => s.id === selectedId);
         if (statusItem?.is_downloaded === true) {
-            setSelectedWhisperWeightType(selectedId);
+            updateExperienceRoute("engines");
         } else if (statusItem) {
             downloadWhisperWeightTypeStatus(selectedId);
         }
@@ -189,8 +188,8 @@ const modelOptions = useMemo(() => {
                     <div style={{ width: "min(360px, 100%)", flexShrink: 0 }}>
                         <CustomModernSelect
                             id="primary-speech-model-select"
-                            label="Active Speech Recognition Model"
-                            value={selectedModelId || "auto"}
+                            label="Model download management"
+                            value="auto"
                             options={modelOptions}
                             onChange={handleModelSelectChange}
                             disabled={controlsPending && statuses.length === 0}
@@ -208,8 +207,7 @@ const modelOptions = useMemo(() => {
                             installedOnly: false,
                         });
                         const progress = getProgress(candidate);
-                        const isActive = selectedPreset === preset.id
-                            && selectedModelId === candidate?.id;
+                        const isActive = false;
                         const isRecommended = recommendation.presetId === preset.id;
                         const actionLabel = candidate?.is_downloaded === true
                             ? isActive
@@ -259,41 +257,43 @@ const modelOptions = useMemo(() => {
                     })}
                 </section>
 
-                <details className={styles.advanced_models}>
-                    <summary>{t("main_page.models_hub.advanced_models")}</summary>
-                    <p>{t("main_page.models_hub.advanced_models_detail")}</p>
-                    <div className={styles.model_list}>
-                        {statuses.map((status) => (
-                            <div key={status.id} className={styles.model_row}>
-                                <div>
-                                    <strong>{status.id}</strong>
-                                    <span>{status.capacity ?? t("main_page.models_hub.size_not_available")}</span>
+                {modelGroups.map((group) => (
+                    <details key={group.id} className={styles.advanced_models}>
+                        <summary>{group.id} · {t("main_page.models_hub.advanced_models")}</summary>
+                        <p>{t("main_page.models_hub.advanced_models_detail")}</p>
+                        <div className={styles.model_list}>
+                            {group.statuses.map((status) => (
+                                <div key={status.id} className={styles.model_row}>
+                                    <div>
+                                        <strong>{status.id}</strong>
+                                        <span>{status.capacity ?? t("main_page.models_hub.size_not_available")}</span>
+                                    </div>
+                                    <span data-ready={status.is_downloaded === true}>
+                                        {status.is_downloaded === true
+                                            ? t("main_page.models_hub.installed")
+                                            : status.is_pending === true
+                                                ? t("main_page.models_hub.downloading")
+                                                : status.downloadable === false
+                                                    ? t("main_page.models_hub.model_unavailable")
+                                                    : t("main_page.models_hub.download_needed")}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        disabled={status.is_pending === true || status.downloadable === false}
+                                        onClick={() => {
+                                            if (status.is_downloaded === true) updateExperienceRoute("engines");
+                                            else group.download(status.id);
+                                        }}
+                                    >
+                                        {status.is_downloaded === true
+                                            ? t("main_page.models_hub.select_model")
+                                            : t("main_page.models_hub.download")}
+                                    </button>
                                 </div>
-                                <span data-ready={status.is_downloaded === true}>
-                                    {status.is_downloaded === true
-                                        ? t("main_page.models_hub.installed")
-                                        : status.is_pending === true
-                                            ? t("main_page.models_hub.downloading")
-                                            : t("main_page.models_hub.download_needed")}
-                                </span>
-                                <button
-                                    type="button"
-                                    disabled={status.is_pending === true || controlsPending}
-                                    onClick={() => {
-                                        if (status.is_downloaded === true) setSelectedWhisperWeightType(status.id);
-                                        else downloadWhisperWeightTypeStatus(status.id);
-                                    }}
-                                >
-                                    {status.is_downloaded === true
-                                        ? selectedModelId === status.id
-                                            ? t("main_page.models_hub.active_model")
-                                            : t("main_page.models_hub.select_model")
-                                        : t("main_page.models_hub.download")}
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                </details>
+                            ))}
+                        </div>
+                    </details>
+                ))}
             </main>
         </div>
     );

@@ -158,6 +158,17 @@ main_page:
         engine_label: "음성 인식 엔진"
         device_label: "연산 장치"
         compute_type_label: "연산 형식"
+        model_label: "모델"
+        decoding_label: "Whisper 디코딩"
+        decoding_fast: "빠름"
+        decoding_balanced: "균형"
+        decoding_accurate: "정확"
+        manage_models: "모델 관리"
+        availability_cloud: "클라우드 서비스 — 로컬 모델 없음"
+        availability_installed: "모델 설치됨"
+        availability_downloading: "모델 다운로드 중"
+        availability_download_required: "모델 다운로드 필요"
+        availability_unavailable: "모델 사용 불가"
         outgoing_flow: "마이크 → {{engine}} → 번역 → VRChat 채팅창"
         desktop_badge: "데스크톱 오디오 → 오버레이"
         incoming_title: "수신 / 다른 사람"
@@ -658,6 +669,7 @@ config_page:
             connection_required:
 
     transcription:
+        apply_to_both_warning: "내 목소리와 다른 사람은 현재 서로 다른 음성 인식 프로필을 사용합니다. 계속하면 양쪽의 음성 인식 설정이 모두 변경됩니다. 이 설정을 양쪽에 적용할까요?"
         section_label_mic: "마이크"
         section_label_speaker: "스피커"
         section_label_transcription_engines: "음성 인식 엔진"
