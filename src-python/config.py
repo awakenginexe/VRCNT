@@ -38,6 +38,7 @@ from models.transcription.transcription_language_policy import (
     normalize_language_profiles,
 )
 from models.transcription.transcription_profile import (
+    TRANSCRIPTION_ENGINES,
     make_transcription_profile,
     normalize_transcription_profile,
 )
@@ -1000,12 +1001,10 @@ class Config:
         self._SELECTABLE_SENSEVOICE_WEIGHT_TYPE_LIST = getattr(sensevoice_models, 'keys', lambda: [])()
         translation_lang = loadTranslationLanguages(self.PATH_LOCAL)
         self._SELECTABLE_TRANSLATION_ENGINE_LIST = getattr(translation_lang, 'keys', lambda: [])()
-        try:
-            # transcription_lang is nested dict; attempt to extract keys defensively
-            first_key = next(iter(transcription_lang))
-            self._SELECTABLE_TRANSCRIPTION_ENGINE_LIST = list(transcription_lang[first_key].values())[0].keys()
-        except Exception:
-            self._SELECTABLE_TRANSCRIPTION_ENGINE_LIST = []
+        # Engine availability and language support are separate concerns. The
+        # direction-profile UI must always be able to select every implemented
+        # provider, including a local provider whose model still needs download.
+        self._SELECTABLE_TRANSCRIPTION_ENGINE_LIST = list(TRANSCRIPTION_ENGINES)
         self._SELECTABLE_UI_LANGUAGE_LIST = ["en", "ja", "ko", "th", "zh-Hant", "zh-Hans"]
         torch = _getTorch()
         self._COMPUTE_MODE = "cuda" if (torch is not None and torch.cuda.is_available()) else "cpu"

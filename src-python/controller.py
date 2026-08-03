@@ -2900,8 +2900,10 @@ class Controller:
 
     @staticmethod
     def getTranscriptionEngines(*args, **kwargs) -> dict:
-        engines = [key for key, value in config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS.items() if value is True]
-        return {"status":200, "result":engines}
+        return {
+            "status": 200,
+            "result": list(config.SELECTABLE_TRANSCRIPTION_ENGINE_LIST),
+        }
 
     @staticmethod
     def getTranscriptionLanguageCapabilities(*args, **kwargs) -> dict:
@@ -5403,29 +5405,9 @@ class Controller:
         return tuple(selected)
 
     def updateTranscriptionEngine(self):
-        weight_type = config.WHISPER_WEIGHT_TYPE
-        weight_type_dict = config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT
-        weight_available = bool(weight_type_dict.get(weight_type))
-        selected_engines = [key for key, value in config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS.items() if value is True]
-
-        for source in (PipelineSource.MIC, PipelineSource.SPEAKER):
-            current_engine = self._getSourceTranscriptionEngine(source)
-            if current_engine in selected_engines:
-                continue
-            if weight_available and "Whisper" in selected_engines:
-                fallback_engine = "Whisper"
-            elif "Google" in selected_engines:
-                fallback_engine = "Google"
-            elif selected_engines:
-                fallback_engine = selected_engines[0]
-            else:
-                fallback_engine = "Whisper"
-            profile = self._getSourceTranscriptionProfile(source)
-            profile["engine"] = fallback_engine
-            setattr(config, self._sourceTranscriptionProfileName(source), profile)
-            self._syncSourceTranscriptionCompatibilityFields(source)
-        self._syncLegacyTranscriptionSettingsFromSend()
-
+        # Availability is runtime state, not configuration. Preserve the
+        # selected provider so the UI can report/download a missing model
+        # instead of silently replacing either direction's profile.
         self._normalizeAllSourceTranscriptionRuntimeSelections()
         self._normalizeSelectedYourLanguageForTranscription()
 

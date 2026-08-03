@@ -102,10 +102,6 @@ const PARAKEET_MODEL_LANGUAGES = {
         "bg", "hr", "cs", "da", "nl", "en", "et", "fi", "fr", "de", "el", "hu", "it",
         "lv", "lt", "mt", "pl", "pt", "ro", "sk", "sl", "es", "sv", "ru", "uk",
     ],
-    "parakeet-tdt-0.6b": ["en"],
-    "parakeet-tdt-ctc-0.6b": ["ja"],
-    "parakeet-tdt-1.1b": ["en"],
-    "canary-1b": ["en", "de", "es", "fr"],
 };
 
 const SENSEVOICE_MODEL_LANGUAGES = {

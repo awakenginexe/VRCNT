@@ -669,7 +669,11 @@ config_page:
             connection_required:
 
     transcription:
+        apply_to_both_eyebrow: "兼容设置"
+        apply_to_both_title: "覆盖两个转录配置吗？"
         apply_to_both_warning: "“我的声音”和“其他人”当前使用不同的转录配置。继续将同时更改两个方向的转录设置。要将此设置应用到两者吗？"
+        apply_to_both_cancel: "保留独立设置"
+        apply_to_both_confirm: "应用到两者"
         section_label_mic: "麦克风"
         section_label_speaker: "扬声器"
         section_label_transcription_engines: "语音识别引擎"

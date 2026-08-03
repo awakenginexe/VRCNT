@@ -669,7 +669,11 @@ config_page:
             connection_required: "Ollama Connection Required"
 
     transcription:
+        apply_to_both_eyebrow: "Compatibility setting"
+        apply_to_both_title: "Replace both transcription profiles?"
         apply_to_both_warning: "My voice and Other people currently use different transcription profiles. Continuing will change transcription for both directions. Apply this setting to both?"
+        apply_to_both_cancel: "Keep separate"
+        apply_to_both_confirm: "Apply to both"
         section_label_mic: "Mic"
         section_label_speaker: "Speaker"
         section_label_transcription_engines: "Transcription Engines"

@@ -38,6 +38,18 @@ const canonicalProfile = (profile) => ({
     },
     compute_type: profile?.compute_type ?? "auto",
     whisper_decoding_profile: profile?.whisper_decoding_profile ?? "balanced",
+    runtime_preferences: {
+        Whisper: {
+            device: profile?.runtime_preferences?.Whisper?.device?.device ?? "",
+            device_index: profile?.runtime_preferences?.Whisper?.device?.device_index ?? 0,
+            compute_type: profile?.runtime_preferences?.Whisper?.compute_type ?? "auto",
+        },
+        Parakeet: {
+            device: profile?.runtime_preferences?.Parakeet?.device?.device ?? "",
+            device_index: profile?.runtime_preferences?.Parakeet?.device?.device_index ?? 0,
+            compute_type: profile?.runtime_preferences?.Parakeet?.compute_type ?? "auto",
+        },
+    },
 });
 
 export const transcriptionProfilesMatch = (outgoing, incoming) => (
@@ -47,6 +59,20 @@ export const transcriptionProfilesMatch = (outgoing, incoming) => (
 export const shouldWarnLegacyOverwrite = (outgoing, incoming) => (
     !transcriptionProfilesMatch(outgoing, incoming)
 );
+
+export const requestLegacyApplyToBoth = ({
+    outgoing,
+    incoming,
+    action,
+    requestConfirmation,
+}) => {
+    if (shouldWarnLegacyOverwrite(outgoing, incoming)) {
+        requestConfirmation(action);
+        return "confirmation_required";
+    }
+    action();
+    return "applied";
+};
 
 export const resolveProfileBackedState = (legacyState = {}, profileValue) => ({
     ...legacyState,

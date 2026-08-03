@@ -2,7 +2,7 @@ import os
 import sys
 import unittest
 from copy import deepcopy
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 
 SRC_PYTHON = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -15,6 +15,10 @@ from controller import Controller
 from model import Model
 from models.pipeline.pipeline_types import PipelineSource
 from models.transcription.whisper_runtime import WhisperRuntimeManager
+from models.transcription.transcription_profile import (
+    merge_transcription_profile,
+    normalize_transcription_profile,
+)
 
 
 CPU = {
@@ -22,6 +26,13 @@ CPU = {
     "device_index": 0,
     "device_name": "CPU",
     "compute_types": ["auto", "int8", "float32"],
+}
+
+CUDA = {
+    "device": "cuda",
+    "device_index": 0,
+    "device_name": "NVIDIA GPU",
+    "compute_types": ["auto", "float16", "int8_float16"],
 }
 
 
@@ -68,6 +79,112 @@ class TranscriptionProfileControllerTests(unittest.TestCase):
         self.assertEqual(controller_module.config.TRANSCRIPTION_PROFILE_RECEIVE["engine"], "Google")
         self.controller._requestTranscriptionSourcesRestartLocked.assert_called_once_with(
             (PipelineSource.MIC,)
+        )
+
+    def test_engine_catalog_exposes_cloud_and_every_local_provider(self):
+        response = self.controller.getTranscriptionEngines()
+
+        self.assertEqual(response["status"], 200)
+        self.assertEqual(
+            response["result"],
+            ["Google", "Whisper", "Vosk", "Parakeet", "SenseVoice"],
+        )
+
+    def test_whisper_cuda_preference_survives_cloud_quick_switch(self):
+        selectable_models = self.controller._selectableTranscriptionModels()
+        whisper = profile("Whisper")
+        whisper["device"] = deepcopy(CUDA)
+        whisper["compute_type"] = "float16"
+        whisper = normalize_transcription_profile(
+            whisper,
+            fallback=whisper,
+            selectable_engines=("Google", "Whisper", "Vosk", "Parakeet", "SenseVoice"),
+            selectable_models=selectable_models,
+            selectable_devices=(CPU, CUDA),
+        )
+
+        cloud = normalize_transcription_profile(
+            merge_transcription_profile(whisper, {"engine": "Google"}),
+            fallback=whisper,
+            selectable_engines=("Google", "Whisper", "Vosk", "Parakeet", "SenseVoice"),
+            selectable_models=selectable_models,
+            selectable_devices=(CPU, CUDA),
+        )
+        restored = normalize_transcription_profile(
+            merge_transcription_profile(cloud, {"engine": "Whisper"}),
+            fallback=cloud,
+            selectable_engines=("Google", "Whisper", "Vosk", "Parakeet", "SenseVoice"),
+            selectable_models=selectable_models,
+            selectable_devices=(CPU, CUDA),
+        )
+
+        self.assertEqual(cloud["device"]["device"], "cpu")
+        self.assertEqual(restored["device"]["device"], "cuda")
+        self.assertEqual(restored["compute_type"], "float16")
+
+    def test_explicit_whisper_runtime_change_replaces_saved_preference(self):
+        selectable_models = self.controller._selectableTranscriptionModels()
+        whisper = profile("Whisper")
+        whisper["device"] = deepcopy(CUDA)
+        whisper["compute_type"] = "float16"
+        whisper = normalize_transcription_profile(
+            whisper,
+            fallback=whisper,
+            selectable_engines=("Google", "Whisper", "Vosk", "Parakeet", "SenseVoice"),
+            selectable_models=selectable_models,
+            selectable_devices=(CPU, CUDA),
+        )
+        cpu_whisper = normalize_transcription_profile(
+            merge_transcription_profile(
+                whisper,
+                {"device": deepcopy(CPU), "compute_type": "int8"},
+            ),
+            fallback=whisper,
+            selectable_engines=("Google", "Whisper", "Vosk", "Parakeet", "SenseVoice"),
+            selectable_models=selectable_models,
+            selectable_devices=(CPU, CUDA),
+        )
+        cloud = normalize_transcription_profile(
+            merge_transcription_profile(cpu_whisper, {"engine": "Google"}),
+            fallback=cpu_whisper,
+            selectable_engines=("Google", "Whisper", "Vosk", "Parakeet", "SenseVoice"),
+            selectable_models=selectable_models,
+            selectable_devices=(CPU, CUDA),
+        )
+        restored = normalize_transcription_profile(
+            merge_transcription_profile(cloud, {"engine": "Whisper"}),
+            fallback=cloud,
+            selectable_engines=("Google", "Whisper", "Vosk", "Parakeet", "SenseVoice"),
+            selectable_models=selectable_models,
+            selectable_devices=(CPU, CUDA),
+        )
+
+        self.assertEqual(restored["device"]["device"], "cpu")
+        self.assertEqual(restored["compute_type"], "int8")
+
+    def test_live_global_quick_switch_restores_cuda_and_restarts_each_source_once(self):
+        whisper = profile("Whisper")
+        whisper["device"] = deepcopy(CUDA)
+        whisper["compute_type"] = "float16"
+        controller_module.config._TRANSCRIPTION_PROFILE_SEND = deepcopy(whisper)
+        controller_module.config._TRANSCRIPTION_PROFILE_RECEIVE = deepcopy(whisper)
+
+        self.controller.setSelectedTranscriptionEngine("Google")
+        response = self.controller.setSelectedTranscriptionEngine("Whisper")
+
+        self.assertEqual(response, {"status": 200, "result": "Whisper"})
+        for saved in (
+            controller_module.config.TRANSCRIPTION_PROFILE_SEND,
+            controller_module.config.TRANSCRIPTION_PROFILE_RECEIVE,
+        ):
+            self.assertEqual(saved["device"]["device"], "cuda")
+            self.assertEqual(saved["compute_type"], "float16")
+        self.assertEqual(
+            self.controller._requestTranscriptionSourcesRestartLocked.call_args_list,
+            [
+                call((PipelineSource.MIC, PipelineSource.SPEAKER)),
+                call((PipelineSource.MIC, PipelineSource.SPEAKER)),
+            ],
         )
 
     def test_effective_no_op_does_not_restart_or_reload(self):
@@ -222,7 +339,7 @@ class TranscriptionProfileControllerTests(unittest.TestCase):
             ["outgoing-vosk", "incoming-vosk"],
         )
 
-    def test_startup_engine_fallback_updates_profile_source_of_truth(self):
+    def test_startup_availability_refresh_preserves_profile_source_of_truth(self):
         controller_module.config._TRANSCRIPTION_PROFILE_SEND = profile("Vosk")
         controller_module.config._TRANSCRIPTION_PROFILE_RECEIVE = profile("SenseVoice")
 
@@ -233,8 +350,8 @@ class TranscriptionProfileControllerTests(unittest.TestCase):
         ):
             self.controller.updateTranscriptionEngine()
 
-        self.assertEqual(controller_module.config.TRANSCRIPTION_PROFILE_SEND["engine"], "Google")
-        self.assertEqual(controller_module.config.TRANSCRIPTION_PROFILE_RECEIVE["engine"], "Google")
+        self.assertEqual(controller_module.config.TRANSCRIPTION_PROFILE_SEND["engine"], "Vosk")
+        self.assertEqual(controller_module.config.TRANSCRIPTION_PROFILE_RECEIVE["engine"], "SenseVoice")
 
     def test_resource_monitor_can_follow_incoming_gpu_profile(self):
         send = profile("Google")

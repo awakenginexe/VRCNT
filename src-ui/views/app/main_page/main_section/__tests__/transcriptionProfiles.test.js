@@ -63,7 +63,11 @@ test("availability is resolved from the active provider model only", async () =>
 });
 
 test("legacy overwrite warning is required only when complete profiles differ", async () => {
-    const { transcriptionProfilesMatch, shouldWarnLegacyOverwrite } = await import(utilsUrl);
+    const {
+        requestLegacyApplyToBoth,
+        transcriptionProfilesMatch,
+        shouldWarnLegacyOverwrite,
+    } = await import(utilsUrl);
     const outgoing = {
         engine: "Whisper",
         models: { Whisper: "tiny" },
@@ -75,6 +79,25 @@ test("legacy overwrite warning is required only when complete profiles differ", 
     assert.equal(transcriptionProfilesMatch(outgoing, structuredClone(outgoing)), true);
     assert.equal(shouldWarnLegacyOverwrite(outgoing, structuredClone(outgoing)), false);
     assert.equal(shouldWarnLegacyOverwrite(outgoing, { ...outgoing, engine: "Google" }), true);
+
+    const calls = [];
+    const action = () => calls.push("apply");
+    requestLegacyApplyToBoth({
+        outgoing,
+        incoming: structuredClone(outgoing),
+        action,
+        requestConfirmation: () => calls.push("confirm"),
+    });
+    requestLegacyApplyToBoth({
+        outgoing,
+        incoming: { ...outgoing, engine: "Google" },
+        action,
+        requestConfirmation: (pendingAction) => {
+            calls.push("confirm");
+            pendingAction();
+        },
+    });
+    assert.deepEqual(calls, ["apply", "confirm", "apply"]);
 });
 
 test("legacy controls retain hydrated values until a profile field arrives", async () => {
@@ -98,16 +121,18 @@ test("legacy controls retain hydrated values until a profile field arrives", asy
     );
 });
 
-test("legacy Model and Provider controls guard every apply-to-both setter", async () => {
+test("legacy Model and Provider controls use the styled apply-to-both confirmation", async () => {
     const source = await readFile(path.join(
         root,
         "src-ui", "views", "app", "config_page", "setting_section", "setting_box",
         "transcription", "Transcription.jsx",
     ), "utf8");
 
-    assert.match(source, /shouldWarnLegacyOverwrite/);
-    assert.match(source, /window\.confirm/);
-    assert.match(source, /apply_to_both_warning/);
+    assert.doesNotMatch(source, /window\.confirm/);
+    assert.match(source, /LegacyApplyToBothConfirmation/);
+    assert.match(source, /getProfileControlVisibility\(engine\)/);
+    assert.match(source, /visibility\.device && \([\s\S]*?<TranscriptionComputeDevice_Box/);
+    assert.match(source, /showComputeType=\{visibility\.computeType\}/);
     assert.match(source, /applyToBoth\(setSelectedTranscriptionEngine/);
     assert.match(source, /applyToBoth\(setSelectedWhisperWeightType/);
     assert.match(source, /applyToBoth\(setSelectedTranscriptionComputeDevice/);

@@ -1,3 +1,4 @@
+import { createContext, useCallback, useContext, useState } from "react";
 import { useI18n } from "@useI18n";
 import styles from "./Transcription.module.scss";
 import { genNumObjArray } from "@utils";
@@ -24,37 +25,54 @@ import {
     getAllowedTranscriptionComputeTypes,
 } from "../../../../main_page/sidebar_section/language_settings/transcriptionRuntimeUtils.js";
 import {
+    getProfileControlVisibility,
+    requestLegacyApplyToBoth,
     resolveProfileBackedState,
-    shouldWarnLegacyOverwrite,
 } from "../../../../main_page/engines/transcriptionProfileUi.js";
+import { LegacyApplyToBothConfirmation } from "./LegacyApplyToBothConfirmation";
+
+const LegacyApplyToBothContext = createContext(null);
 
 const useLegacyApplyToBothGuard = () => {
-    const { t } = useI18n();
+    const applyToBoth = useContext(LegacyApplyToBothContext);
+    if (!applyToBoth) throw new Error("Legacy apply-to-both controls require their confirmation provider");
+    return applyToBoth;
+};
+
+export const Transcription = () => {
     const {
         currentTranscriptionProfileSend,
         currentTranscriptionProfileReceive,
     } = useTranscription();
+    const [pendingAction, setPendingAction] = useState(null);
+    const applyToBoth = useCallback((setter, ...args) => requestLegacyApplyToBoth({
+        outgoing: currentTranscriptionProfileSend.data,
+        incoming: currentTranscriptionProfileReceive.data,
+        action: () => setter(...args),
+        requestConfirmation: (action) => setPendingAction(() => action),
+    }), [currentTranscriptionProfileReceive.data, currentTranscriptionProfileSend.data]);
+    const cancelPendingAction = useCallback(() => setPendingAction(null), []);
+    const confirmPendingAction = useCallback(() => {
+        const action = pendingAction;
+        setPendingAction(null);
+        action?.();
+    }, [pendingAction]);
 
-    return (setter, ...args) => {
-        const differs = shouldWarnLegacyOverwrite(
-            currentTranscriptionProfileSend.data,
-            currentTranscriptionProfileReceive.data,
-        );
-        if (differs && !window.confirm(t("config_page.transcription.apply_to_both_warning"))) {
-            return;
-        }
-        setter(...args);
-    };
-};
-
-export const Transcription = () => {
     return (
-        <div className={styles.container}>
-            <Mic_Container />
-            <Speaker_Container />
-            <TranscriptionEngine_Container />
-            <Advanced_Container />
-        </div>
+        <LegacyApplyToBothContext.Provider value={applyToBoth}>
+            <div className={styles.container}>
+                <Mic_Container />
+                <Speaker_Container />
+                <TranscriptionEngine_Container />
+                <Advanced_Container />
+            </div>
+            {pendingAction && (
+                <LegacyApplyToBothConfirmation
+                    onConfirm={confirmPendingAction}
+                    onCancel={cancelPendingAction}
+                />
+            )}
+        </LegacyApplyToBothContext.Provider>
     );
 };
 
@@ -225,6 +243,7 @@ const TranscriptionEngine_Container = () => {
     const { t } = useI18n();
     const { currentTranscriptionProfileSend } = useTranscription();
     const engine = currentTranscriptionProfileSend.data?.engine ?? "Google";
+    const visibility = getProfileControlVisibility(engine);
     return (
         <div>
             <SectionLabelComponent label={t("config_page.transcription.section_label_transcription_engines")} />
@@ -233,7 +252,9 @@ const TranscriptionEngine_Container = () => {
             {engine === "Vosk" && <VoskWeightType_Box />}
             {engine === "Parakeet" && <ParakeetWeightType_Box />}
             {engine === "SenseVoice" && <SenseVoiceWeightType_Box />}
-            <TranscriptionComputeDevice_Box />
+            {visibility.device && (
+                <TranscriptionComputeDevice_Box showComputeType={visibility.computeType} />
+            )}
             {engine === "Whisper" && <WhisperDecodingProfile_Box />}
         </div>
     );
@@ -489,7 +510,7 @@ const WhisperDecodingProfile_Box = () => {
     );
 };
 
-const TranscriptionComputeDevice_Box = () => {
+const TranscriptionComputeDevice_Box = ({ showComputeType }) => {
     const { t } = useI18n();
     const {
         currentSelectedTranscriptionEngine,
@@ -534,6 +555,7 @@ const TranscriptionComputeDevice_Box = () => {
             )}
             setSelectedComputeType={(value) => applyToBoth(setSelectedTranscriptionComputeType, value)}
             computeTypesOverride={computeTypesOverride}
+            showComputeType={showComputeType}
         />
     );
 };

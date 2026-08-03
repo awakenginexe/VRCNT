@@ -669,7 +669,11 @@ config_page:
             connection_required: "ต้องเชื่อมต่อ Ollama"
 
     transcription:
+        apply_to_both_eyebrow: "การตั้งค่าแบบเดิม"
+        apply_to_both_title: "แทนที่โปรไฟล์ถอดเสียงทั้งสองรายการหรือไม่"
         apply_to_both_warning: "เสียงของฉันและเสียงของผู้อื่นกำลังใช้โปรไฟล์การถอดเสียงที่ต่างกัน การดำเนินการต่อจะเปลี่ยนการถอดเสียงทั้งสองทิศทาง ต้องการใช้การตั้งค่านี้กับทั้งสองหรือไม่?"
+        apply_to_both_cancel: "แยกการตั้งค่าไว้"
+        apply_to_both_confirm: "ใช้กับทั้งสอง"
         section_label_mic: "ไมโครโฟน"
         section_label_speaker: "ลำโพง"
         section_label_transcription_engines: "เอนจินถอดเสียง"

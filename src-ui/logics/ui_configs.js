@@ -145,10 +145,6 @@ export const parakeet_weight_type_status = [
         downloadable: true,
         unavailable_reason: "",
     },
-    { id: "parakeet-tdt-0.6b", capacity: "620 MB / ~2 GB VRAM" },
-    { id: "parakeet-tdt-ctc-0.6b", capacity: "620 MB / ~2 GB VRAM" },
-    { id: "parakeet-tdt-1.1b", capacity: "1.1 GB / ~3 GB VRAM" },
-    { id: "canary-1b", capacity: "1.1 GB / ~3 GB VRAM" },
 ].map(item => ({
     ...item,
     is_downloaded: false,

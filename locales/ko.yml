@@ -669,7 +669,11 @@ config_page:
             connection_required:
 
     transcription:
+        apply_to_both_eyebrow: "호환 설정"
+        apply_to_both_title: "두 음성 인식 프로필을 덮어쓸까요?"
         apply_to_both_warning: "내 목소리와 다른 사람은 현재 서로 다른 음성 인식 프로필을 사용합니다. 계속하면 양쪽의 음성 인식 설정이 모두 변경됩니다. 이 설정을 양쪽에 적용할까요?"
+        apply_to_both_cancel: "개별 설정 유지"
+        apply_to_both_confirm: "둘 다 적용"
         section_label_mic: "마이크"
         section_label_speaker: "스피커"
         section_label_transcription_engines: "음성 인식 엔진"

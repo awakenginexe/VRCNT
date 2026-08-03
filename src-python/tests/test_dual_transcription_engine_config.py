@@ -87,6 +87,16 @@ class DualTranscriptionEngineContractTests(unittest.TestCase):
                     "device": cpu_device,
                     "compute_type": "float32",
                     "whisper_decoding_profile": "accurate",
+                    "runtime_preferences": {
+                        "Whisper": {
+                            "device": cpu_device,
+                            "compute_type": "float32",
+                        },
+                        "Parakeet": {
+                            "device": cpu_device,
+                            "compute_type": "auto",
+                        },
+                    },
                 }
                 self.assertEqual(instance.TRANSCRIPTION_PROFILE_SEND, expected_profile)
                 self.assertEqual(instance.TRANSCRIPTION_PROFILE_RECEIVE, expected_profile)

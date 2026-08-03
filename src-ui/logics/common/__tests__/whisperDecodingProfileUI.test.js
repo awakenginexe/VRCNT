@@ -131,7 +131,7 @@ test("the exact profile options render once, next to compute settings, and only 
     assert.equal([...transcriptionSource.matchAll(invocation)].length, 1);
     assert.match(
         transcriptionSource,
-        /<TranscriptionComputeDevice_Box \/>[\s\S]*?\{engine === "Whisper" && <WhisperDecodingProfile_Box \/>\}/,
+        /<TranscriptionComputeDevice_Box showComputeType=\{visibility\.computeType\} \/>[\s\S]*?\{engine === "Whisper" && <WhisperDecodingProfile_Box \/>\}/,
     );
     assert.match(
         transcriptionSource,
