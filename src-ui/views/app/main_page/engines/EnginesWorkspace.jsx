@@ -14,6 +14,15 @@ import {
     useStore_SelectedConfigTabId,
 } from "@store";
 import { TopBar } from "../main_section/top_bar/TopBar";
+import {
+    filterDeviceMapByEngine,
+    getAllowedTranscriptionComputeTypes,
+} from "../sidebar_section/language_settings/transcriptionRuntimeUtils.js";
+import {
+    getActiveModel,
+    getActiveModelAvailability,
+    getProfileControlVisibility,
+} from "./transcriptionProfileUi.js";
 import styles from "./EnginesWorkspace.module.scss";
 
 const toArray = (value) => (
@@ -45,22 +54,34 @@ const SourceRuntimeCard = ({
     engineLabel,
     deviceLabel,
     computeTypeLabel,
-    engine,
-    device,
-    computeType,
+    profile,
     engines,
     devices,
+    modelStatuses,
     pending,
-    onEngineChange,
-    onDeviceChange,
-    onComputeTypeChange,
+    onProfileChange,
+    onManageModels,
     flow,
     emptyLabel,
+    labels,
 }) => {
-    const deviceOptions = toArray(devices).filter((item) => item && typeof item === "object");
+    const engine = profile?.engine ?? "";
+    const visibility = getProfileControlVisibility(engine);
+    const filteredDevices = filterDeviceMapByEngine(devices ?? {}, engine);
+    const deviceOptions = toArray(filteredDevices).filter((item) => item && typeof item === "object");
     const engineOptionsList = Array.isArray(engines) ? engines : [];
-    const selectedDeviceValue = device?.device ? deviceValue(device) : "";
-    const computeTypes = Array.isArray(device?.compute_types) ? device.compute_types : [];
+    const selectedDeviceValue = profile?.device?.device ? deviceValue(profile.device) : "";
+    const selectedDevice = findDevice(deviceOptions, selectedDeviceValue) ?? profile?.device;
+    const computeTypes = getAllowedTranscriptionComputeTypes({
+        engine,
+        device: selectedDevice,
+    });
+    const activeModel = getActiveModel(profile);
+    const activeStatuses = modelStatuses?.[engine] ?? [];
+    const modelOptions = activeStatuses
+        .filter((item) => item?.is_downloaded === true || item?.id === activeModel)
+        .map((item) => ({ id: item.id, title: item.label ?? item.id }));
+    const availability = getActiveModelAvailability(profile, modelStatuses);
 
     const parsedEngineOptions = useMemo(() => {
         if (engineOptionsList.length === 0) return [{ id: "", title: emptyLabel }];
@@ -98,10 +119,20 @@ const SourceRuntimeCard = ({
                         options={parsedEngineOptions}
                         disabled={pending || engineOptionsList.length === 0}
                         placeholder={emptyLabel}
-                        onChange={onEngineChange}
+                        onChange={(value) => onProfileChange({ engine: value })}
                     />
                 </div>
-                <div className={styles.field}>
+                {visibility.model && <div className={styles.field}>
+                    <CustomModernSelect
+                        label={labels.model}
+                        value={activeModel}
+                        options={modelOptions.length > 0 ? modelOptions : [{ id: activeModel, title: activeModel || emptyLabel }]}
+                        disabled={pending || modelOptions.length === 0}
+                        placeholder={emptyLabel}
+                        onChange={(value) => onProfileChange({ models: { [engine]: value } })}
+                    />
+                </div>}
+                {visibility.device && <div className={styles.field}>
                     <CustomModernSelect
                         label={deviceLabel}
                         value={selectedDeviceValue}
@@ -110,20 +141,39 @@ const SourceRuntimeCard = ({
                         placeholder={emptyLabel}
                         onChange={(val) => {
                             const next = findDevice(deviceOptions, val);
-                            if (next) onDeviceChange(next);
+                            if (next) onProfileChange({ device: next });
                         }}
                     />
-                </div>
-                <div className={styles.field}>
+                </div>}
+                {visibility.computeType && <div className={styles.field}>
                     <CustomModernSelect
                         label={computeTypeLabel}
-                        value={computeType ?? ""}
+                        value={profile?.compute_type ?? ""}
                         options={parsedComputeTypeOptions}
                         disabled={pending || computeTypes.length === 0}
                         placeholder={emptyLabel}
-                        onChange={onComputeTypeChange}
+                        onChange={(value) => onProfileChange({ compute_type: value })}
                     />
-                </div>
+                </div>}
+                {visibility.whisperDecoding && <div className={styles.field}>
+                    <CustomModernSelect
+                        label={labels.decoding}
+                        value={profile?.whisper_decoding_profile ?? "balanced"}
+                        options={[
+                            { id: "fast", title: labels.fast },
+                            { id: "balanced", title: labels.balanced },
+                            { id: "accurate", title: labels.accurate },
+                        ]}
+                        disabled={pending}
+                        onChange={(value) => onProfileChange({ whisper_decoding_profile: value })}
+                    />
+                </div>}
+            </div>
+            <div className={styles.model_status_row}>
+                <span data-status={availability}>{labels.availability[availability] ?? availability}</span>
+                {visibility.model && (
+                    <button type="button" onClick={onManageModels}>{labels.manageModels}</button>
+                )}
             </div>
             <p className={styles.pipeline_flow}>{flow}</p>
         </article>
@@ -150,18 +200,14 @@ export const EnginesWorkspace = () => {
         getSelectableTranscriptionEngineList,
         currentSelectableTranscriptionComputeDeviceList,
         getSelectableTranscriptionComputeDeviceList,
-        currentSelectedTranscriptionEngineSend,
-        currentSelectedTranscriptionEngineReceive,
-        setSelectedTranscriptionEngineSend,
-        setSelectedTranscriptionEngineReceive,
-        currentSelectedTranscriptionComputeDeviceSend,
-        currentSelectedTranscriptionComputeDeviceReceive,
-        setSelectedTranscriptionComputeDeviceSend,
-        setSelectedTranscriptionComputeDeviceReceive,
-        currentSelectedTranscriptionComputeTypeSend,
-        currentSelectedTranscriptionComputeTypeReceive,
-        setSelectedTranscriptionComputeTypeSend,
-        setSelectedTranscriptionComputeTypeReceive,
+        currentTranscriptionProfileSend,
+        currentTranscriptionProfileReceive,
+        setTranscriptionProfileSend,
+        setTranscriptionProfileReceive,
+        currentWhisperWeightTypeStatus,
+        currentVoskWeightTypeStatus,
+        currentParakeetWeightTypeStatus,
+        currentSenseVoiceWeightTypeStatus,
     } = useTranscription();
 
     const { currentIsBackendReady } = useIsBackendReady();
@@ -191,14 +237,17 @@ export const EnginesWorkspace = () => {
         [currentSelectableTranscriptionEngineList.data],
     );
     const computeDevices = currentSelectableTranscriptionComputeDeviceList.data ?? [];
-    const sourcePending = [
-        currentSelectedTranscriptionEngineSend,
-        currentSelectedTranscriptionEngineReceive,
-        currentSelectedTranscriptionComputeDeviceSend,
-        currentSelectedTranscriptionComputeDeviceReceive,
-        currentSelectedTranscriptionComputeTypeSend,
-        currentSelectedTranscriptionComputeTypeReceive,
-    ].some((state) => state?.state === "pending");
+    const modelStatuses = useMemo(() => ({
+        Whisper: currentWhisperWeightTypeStatus.data ?? [],
+        Vosk: currentVoskWeightTypeStatus.data ?? [],
+        Parakeet: currentParakeetWeightTypeStatus.data ?? [],
+        SenseVoice: currentSenseVoiceWeightTypeStatus.data ?? [],
+    }), [
+        currentWhisperWeightTypeStatus.data,
+        currentVoskWeightTypeStatus.data,
+        currentParakeetWeightTypeStatus.data,
+        currentSenseVoiceWeightTypeStatus.data,
+    ]);
     const translationProviders = useMemo(() => (
         toArray(currentTranslationEngines.data).filter((provider) => provider?.is_available === true)
     ), [currentTranslationEngines.data]);
@@ -209,7 +258,7 @@ export const EnginesWorkspace = () => {
     const primaryProvider = selectedProviders[0] ?? "";
     const secondaryProvider = selectedProviders[1] ?? "";
     const resourceUsage = currentResourceUsage.data ?? {};
-    const selectedDevice = currentSelectedTranscriptionComputeDeviceSend.data;
+    const selectedDevice = currentTranscriptionProfileSend.data?.device;
     const selectedGpu = resourceUsage.gpu_devices?.find((gpu) => (
         gpu.device_index === resourceUsage.selected_gpu_index
     ));
@@ -229,6 +278,22 @@ export const EnginesWorkspace = () => {
     const openAdvanced = () => {
         updateSelectedConfigTabId("model_and_provider");
         setIsOpenedConfigPage(true);
+    };
+    const openModels = () => updateExperienceRoute("models");
+    const profileLabels = {
+        model: t("main_page.engines_workspace.model_label"),
+        decoding: t("main_page.engines_workspace.decoding_label"),
+        fast: t("main_page.engines_workspace.decoding_fast"),
+        balanced: t("main_page.engines_workspace.decoding_balanced"),
+        accurate: t("main_page.engines_workspace.decoding_accurate"),
+        manageModels: t("main_page.engines_workspace.manage_models"),
+        availability: {
+            cloud: t("main_page.engines_workspace.availability_cloud"),
+            installed: t("main_page.engines_workspace.availability_installed"),
+            downloading: t("main_page.engines_workspace.availability_downloading"),
+            download_required: t("main_page.engines_workspace.availability_download_required"),
+            unavailable: t("main_page.engines_workspace.availability_unavailable"),
+        },
     };
 
     return (
@@ -255,17 +320,16 @@ export const EnginesWorkspace = () => {
                         engineLabel={t("main_page.engines_workspace.engine_label")}
                         deviceLabel={t("main_page.engines_workspace.device_label")}
                         computeTypeLabel={t("main_page.engines_workspace.compute_type_label")}
-                        engine={currentSelectedTranscriptionEngineSend.data}
-                        device={currentSelectedTranscriptionComputeDeviceSend.data}
-                        computeType={currentSelectedTranscriptionComputeTypeSend.data}
+                        profile={currentTranscriptionProfileSend.data}
                         engines={availableEngines}
                         devices={computeDevices}
-                        pending={sourcePending}
-                        onEngineChange={setSelectedTranscriptionEngineSend}
-                        onDeviceChange={setSelectedTranscriptionComputeDeviceSend}
-                        onComputeTypeChange={setSelectedTranscriptionComputeTypeSend}
-                        flow={t("main_page.engines_workspace.outgoing_flow", { engine: currentSelectedTranscriptionEngineSend.data || emptyLabel })}
+                        modelStatuses={modelStatuses}
+                        pending={currentTranscriptionProfileSend.state === "pending"}
+                        onProfileChange={setTranscriptionProfileSend}
+                        onManageModels={openModels}
+                        flow={t("main_page.engines_workspace.outgoing_flow", { engine: currentTranscriptionProfileSend.data?.engine || emptyLabel })}
                         emptyLabel={emptyLabel}
+                        labels={profileLabels}
                     />
                     <SourceRuntimeCard
                         accent="teal"
@@ -275,17 +339,16 @@ export const EnginesWorkspace = () => {
                         engineLabel={t("main_page.engines_workspace.engine_label")}
                         deviceLabel={t("main_page.engines_workspace.device_label")}
                         computeTypeLabel={t("main_page.engines_workspace.compute_type_label")}
-                        engine={currentSelectedTranscriptionEngineReceive.data}
-                        device={currentSelectedTranscriptionComputeDeviceReceive.data}
-                        computeType={currentSelectedTranscriptionComputeTypeReceive.data}
+                        profile={currentTranscriptionProfileReceive.data}
                         engines={availableEngines}
                         devices={computeDevices}
-                        pending={sourcePending}
-                        onEngineChange={setSelectedTranscriptionEngineReceive}
-                        onDeviceChange={setSelectedTranscriptionComputeDeviceReceive}
-                        onComputeTypeChange={setSelectedTranscriptionComputeTypeReceive}
-                        flow={t("main_page.engines_workspace.incoming_flow", { engine: currentSelectedTranscriptionEngineReceive.data || emptyLabel })}
+                        modelStatuses={modelStatuses}
+                        pending={currentTranscriptionProfileReceive.state === "pending"}
+                        onProfileChange={setTranscriptionProfileReceive}
+                        onManageModels={openModels}
+                        flow={t("main_page.engines_workspace.incoming_flow", { engine: currentTranscriptionProfileReceive.data?.engine || emptyLabel })}
                         emptyLabel={emptyLabel}
+                        labels={profileLabels}
                     />
                 </section>
 

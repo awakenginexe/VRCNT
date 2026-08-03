@@ -1,0 +1,97 @@
+.backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    background: color-mix(in srgb, var(--canvas_color) 72%, transparent);
+    backdrop-filter: blur(0.6rem);
+}
+
+.dialog {
+    width: min(100%, 48rem);
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 1.4rem 1.6rem;
+    padding: 2.4rem;
+    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.38);
+    border-radius: 1.2rem;
+    background: var(--surface_overlay_color);
+    box-shadow: 0 2.8rem 7rem rgba(0, 0, 0, 0.52), inset 0 0.1rem 0 #ffffff10;
+}
+
+.icon {
+    width: 3.4rem;
+    height: 3.4rem;
+    display: grid;
+    place-items: center;
+    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.48);
+    border-radius: 50%;
+    color: rgb(var(--accent_color_rgb));
+    background: rgba(var(--accent_color_rgb), 0.14);
+    font-size: 1.8rem;
+    font-weight: 700;
+}
+
+.copy {
+    min-width: 0;
+}
+
+.eyebrow {
+    margin-bottom: 0.5rem;
+    color: rgb(var(--accent_color_rgb));
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+}
+
+.title {
+    font-size: 1.9rem;
+    font-weight: 650;
+    line-height: 1.25;
+}
+
+.detail {
+    margin-top: 1rem;
+    color: var(--dark_350_color);
+    font-size: 1.35rem;
+    line-height: 1.6;
+}
+
+.actions {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 0.5rem;
+}
+
+.cancel_button,
+.confirm_button {
+    min-height: 3.8rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.9rem 1.4rem;
+    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.3);
+    border-radius: 0.8rem;
+    font-size: 1.3rem;
+    font-weight: 600;
+    transition: var(--transition_ui);
+}
+
+.cancel_button {
+    background: rgba(255, 255, 255, 0.05);
+
+    &:hover { background: rgba(255, 255, 255, 0.1); }
+}
+
+.confirm_button {
+    color: var(--dark_100_color);
+    background: rgb(var(--accent_color_rgb));
+
+    &:hover { filter: brightness(1.1); }
+}

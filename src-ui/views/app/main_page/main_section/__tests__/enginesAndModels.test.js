@@ -23,16 +23,22 @@ test("Engines and Models are first-class production routes wired to persisted so
     assert.match(mainPage, /<ModelsHub\s*\/>/);
     assert.match(navigation, /\{ id: "engines"/);
     assert.match(navigation, /\{ id: "models"/);
-    assert.match(engines, /currentSelectedTranscriptionEngineSend/);
-    assert.match(engines, /currentSelectedTranscriptionEngineReceive/);
-    assert.match(engines, /setSelectedTranscriptionComputeDeviceSend/);
-    assert.match(engines, /setSelectedTranscriptionComputeDeviceReceive/);
+    assert.match(engines, /currentTranscriptionProfileSend/);
+    assert.match(engines, /currentTranscriptionProfileReceive/);
+    assert.match(engines, /setTranscriptionProfileSend/);
+    assert.match(engines, /setTranscriptionProfileReceive/);
     assert.match(engines, /currentCTranslate2AutoFallback/);
     assert.match(models, /currentWhisperWeightTypeStatus/);
     assert.match(models, /downloadWhisperWeightTypeStatus/);
-    assert.match(models, /setSelectedWhisperWeightType/);
+    assert.match(models, /downloadVoskWeightTypeStatus/);
+    assert.match(models, /downloadParakeetWeightTypeStatus/);
+    assert.match(models, /downloadSenseVoiceWeightTypeStatus/);
+    assert.doesNotMatch(models, /setSelectedWhisperWeightType/);
+    assert.match(models, /updateExperienceRoute\("engines"\)/);
     assert.match(configSetter, /Base_Name: "SelectedTranscriptionEngineSend"/);
     assert.match(configSetter, /Base_Name: "SelectedTranscriptionEngineReceive"/);
+    assert.match(configSetter, /Base_Name: "TranscriptionProfileSend"/);
+    assert.match(configSetter, /Base_Name: "TranscriptionProfileReceive"/);
     assert.doesNotMatch(`${engines}\n${models}`, /RTX 5090|mock telemetry|fake latency/i);
 });
 

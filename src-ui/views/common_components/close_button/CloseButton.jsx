@@ -5,6 +5,8 @@ import styles from "./CloseButton.module.scss";
 export const CloseButton = ({ onClick, size = "large", variant = "default", className }) => {
     return (
         <button
+            type="button"
+            aria-label="Close VRCNT"
             className={clsx(
                 styles.close_button_wrapper,
                 styles[`size_${size}`],

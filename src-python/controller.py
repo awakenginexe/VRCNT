@@ -45,6 +45,12 @@ from models.transcription.transcription_language_policy import (
     runtime_language_slots,
     transcription_language_capabilities,
 )
+from models.transcription.transcription_profile import (
+    effective_transcription_profile,
+    make_transcription_profile,
+    merge_transcription_profile,
+    normalize_transcription_profile,
+)
 from models.transcription.transcription_whisper import DEFAULT_WHISPER_WEIGHT_TYPE
 from models.transcription.transcription_vosk import getVoskModelMeta
 from models.transcription.transcription_parakeet import getParakeetModelMeta
@@ -1203,10 +1209,28 @@ class Controller:
     def _fallbackSelectedWhisperWeight(self, fallback_weight_type: str, fallback_available: bool) -> None:
         if fallback_available is False or not fallback_weight_type:
             return
-        selected_weight_type = config.WHISPER_WEIGHT_TYPE
-        if selected_weight_type == fallback_weight_type:
+        profiles_available = all(
+            isinstance(getattr(config, name, None), dict)
+            for name in ("TRANSCRIPTION_PROFILE_SEND", "TRANSCRIPTION_PROFILE_RECEIVE")
+        )
+        if profiles_available:
+            for source in (PipelineSource.MIC, PipelineSource.SPEAKER):
+                profile = self._getSourceTranscriptionProfile(source)
+                selected = profile["models"]["Whisper"]
+                if (
+                    selected != fallback_weight_type
+                    and model.checkTranscriptionWhisperModelWeight(selected) is False
+                ):
+                    profile["models"]["Whisper"] = fallback_weight_type
+                    setattr(config, self._sourceTranscriptionProfileName(source), profile)
+                    self._syncSourceTranscriptionCompatibilityFields(source)
+            self._syncLegacyTranscriptionSettingsFromSend()
             return
-        if model.checkTranscriptionWhisperModelWeight(selected_weight_type) is False:
+        selected_weight_type = config.WHISPER_WEIGHT_TYPE
+        if (
+            selected_weight_type != fallback_weight_type
+            and model.checkTranscriptionWhisperModelWeight(selected_weight_type) is False
+        ):
             config.WHISPER_WEIGHT_TYPE = fallback_weight_type
 
     def _is_overlay_available(self) -> bool:
@@ -1234,13 +1258,22 @@ class Controller:
         except Exception:
             return ""
 
-    def _transcriptionSupportedLanguageCodes(self, engine: str) -> Optional[set]:
+    def _transcriptionSupportedLanguageCodes(
+        self,
+        engine: str,
+        source: Optional[PipelineSource] = None,
+    ) -> Optional[set]:
+        models = (
+            self._getSourceTranscriptionProfile(source)["models"]
+            if source is not None
+            else self._legacyTranscriptionProfile()["models"]
+        )
         if engine == "Vosk":
-            meta = getVoskModelMeta(config.VOSK_WEIGHT_TYPE)
+            meta = getVoskModelMeta(models["Vosk"])
         elif engine == "Parakeet":
-            meta = getParakeetModelMeta(config.PARAKEET_WEIGHT_TYPE)
+            meta = getParakeetModelMeta(models["Parakeet"])
         elif engine == "SenseVoice":
-            meta = getSenseVoiceModelMeta(config.SENSEVOICE_WEIGHT_TYPE)
+            meta = getSenseVoiceModelMeta(models["SenseVoice"])
         else:
             return None
 
@@ -1249,13 +1282,18 @@ class Controller:
             languages = [meta["language"]]
         return set(languages or [])
 
-    def _isTranscriptionLanguageSupported(self, language_data: dict, engine: Optional[str] = None) -> bool:
+    def _isTranscriptionLanguageSupported(
+        self,
+        language_data: dict,
+        engine: Optional[str] = None,
+        source: Optional[PipelineSource] = None,
+    ) -> bool:
         engine = engine or config.SELECTED_TRANSCRIPTION_ENGINE
         if engine not in {"Vosk", "Parakeet", "SenseVoice"}:
             return True
 
         language_code = self._transcriptionLanguageCode(engine, language_data)
-        supported_codes = self._transcriptionSupportedLanguageCodes(engine)
+        supported_codes = self._transcriptionSupportedLanguageCodes(engine, source)
         return bool(language_code and supported_codes and language_code in supported_codes)
 
     def _selectedTabLanguagesSupported(
@@ -1279,7 +1317,7 @@ class Controller:
         for language_data in language_values:
             if only_enabled and language_data.get("enable") is not True:
                 continue
-            if self._isTranscriptionLanguageSupported(language_data, engine) is False:
+            if self._isTranscriptionLanguageSupported(language_data, engine, source) is False:
                 return False
         return True
 
@@ -1305,25 +1343,6 @@ class Controller:
                 if self._isTranscriptionLanguageSupported(language_data):
                     return language_data
         return None
-
-    def _findSelectableComputeDevice(self, device_kind: Optional[str] = None) -> Optional[dict]:
-        try:
-            selectable_devices = list(config.SELECTABLE_COMPUTE_DEVICE_LIST)
-        except Exception:
-            selectable_devices = []
-
-        for device in selectable_devices:
-            if device_kind is None or device.get("device") == device_kind:
-                return device
-        return selectable_devices[0] if selectable_devices else None
-
-    def _getTranscriptionRuntimeRule(self, engine: Optional[str] = None) -> dict:
-        engine = engine or config.SELECTED_TRANSCRIPTION_ENGINE
-        if engine == "Parakeet":
-            return {"device_kind": "cuda", "compute_types": ["auto"]}
-        if engine in {"Google", "Vosk", "SenseVoice"}:
-            return {"device_kind": "cpu", "compute_types": ["auto"]}
-        return {"device_kind": None, "compute_types": None}
 
     @staticmethod
     def _sourceTranscriptionRuntimeSettingNames(
@@ -1354,32 +1373,73 @@ class Controller:
         )
 
     def _getSourceTranscriptionEngine(self, source: PipelineSource) -> str:
-        engine_name, _device_name, _type_name, _device_endpoint, _type_endpoint = (
+        return self._getSourceTranscriptionProfile(source)["engine"]
+
+    @staticmethod
+    def _sourceTranscriptionProfileName(source: PipelineSource) -> str:
+        return (
+            "TRANSCRIPTION_PROFILE_SEND"
+            if source is PipelineSource.MIC
+            else "TRANSCRIPTION_PROFILE_RECEIVE"
+        )
+
+    @staticmethod
+    def _legacyTranscriptionProfile() -> dict:
+        return make_transcription_profile(
+            engine=config.SELECTED_TRANSCRIPTION_ENGINE,
+            models={
+                "Whisper": config.WHISPER_WEIGHT_TYPE,
+                "Vosk": config.VOSK_WEIGHT_TYPE,
+                "Parakeet": config.PARAKEET_WEIGHT_TYPE,
+                "SenseVoice": config.SENSEVOICE_WEIGHT_TYPE,
+            },
+            device=config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE,
+            compute_type=config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE,
+            whisper_decoding_profile=config.WHISPER_DECODING_PROFILE,
+        )
+
+    def _getSourceTranscriptionProfile(self, source: PipelineSource) -> dict:
+        stored = getattr(config, self._sourceTranscriptionProfileName(source), None)
+        if isinstance(stored, dict):
+            return deepcopy(stored)
+        engine_name, device_name, compute_name, _device_endpoint, _type_endpoint = (
             self._sourceTranscriptionRuntimeSettingNames(source)
         )
-        return str(getattr(config, engine_name, config.SELECTED_TRANSCRIPTION_ENGINE))
+        fallback = self._legacyTranscriptionProfile()
+        fallback.update({
+            "engine": getattr(config, engine_name, fallback["engine"]),
+            "device": deepcopy(getattr(config, device_name, fallback["device"])),
+            "compute_type": getattr(config, compute_name, fallback["compute_type"]),
+        })
+        return fallback
+
+    @staticmethod
+    def _selectableTranscriptionModels() -> dict:
+        return {
+            "Whisper": config.SELECTABLE_WHISPER_WEIGHT_TYPE_LIST,
+            "Vosk": config.SELECTABLE_VOSK_WEIGHT_TYPE_LIST,
+            "Parakeet": config.SELECTABLE_PARAKEET_WEIGHT_TYPE_LIST,
+            "SenseVoice": config.SELECTABLE_SENSEVOICE_WEIGHT_TYPE_LIST,
+        }
+
+    def _normalizeTranscriptionProfile(self, value, fallback: dict) -> dict:
+        return normalize_transcription_profile(
+            value,
+            fallback=fallback,
+            selectable_engines=config.SELECTABLE_TRANSCRIPTION_ENGINE_LIST,
+            selectable_models=self._selectableTranscriptionModels(),
+            selectable_devices=config.SELECTABLE_COMPUTE_DEVICE_LIST,
+        )
 
     def _getSourceTranscriptionRuntimeSettings(
         self,
         source: Optional[PipelineSource],
     ) -> tuple[str, dict, str]:
-        engine_name, device_name, compute_type_name, _device_endpoint, _type_endpoint = (
-            self._sourceTranscriptionRuntimeSettingNames(source)
-        )
+        profile = self._getSourceTranscriptionProfile(source)
         return (
-            str(getattr(config, engine_name, config.SELECTED_TRANSCRIPTION_ENGINE)),
-            getattr(
-                config,
-                device_name,
-                config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE,
-            ),
-            str(
-                getattr(
-                    config,
-                    compute_type_name,
-                    config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE,
-                )
-            ),
+            profile["engine"],
+            deepcopy(profile["device"]),
+            profile["compute_type"],
         )
 
     def _publishTranscriptionRuntimeSetting(
@@ -1392,63 +1452,55 @@ class Controller:
             self.run(200, endpoint, value)
 
     def _syncLegacyTranscriptionSettingsFromSend(self) -> None:
-        """Keep the pre-4.3 global settings available to legacy clients."""
-        engine, device, compute_type = self._getSourceTranscriptionRuntimeSettings(
-            PipelineSource.MIC
+        """Mirror the outgoing profile for legacy clients without owning runtime."""
+        profile = self._getSourceTranscriptionProfile(PipelineSource.MIC)
+        config.SELECTED_TRANSCRIPTION_ENGINE = profile["engine"]
+        config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE = deepcopy(profile["device"])
+        config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE = profile["compute_type"]
+        config.WHISPER_WEIGHT_TYPE = profile["models"]["Whisper"]
+        config.VOSK_WEIGHT_TYPE = profile["models"]["Vosk"]
+        config.PARAKEET_WEIGHT_TYPE = profile["models"]["Parakeet"]
+        config.SENSEVOICE_WEIGHT_TYPE = profile["models"]["SenseVoice"]
+        config.WHISPER_DECODING_PROFILE = profile["whisper_decoding_profile"]
+
+    def _syncSourceTranscriptionCompatibilityFields(self, source: PipelineSource) -> None:
+        profile = self._getSourceTranscriptionProfile(source)
+        engine_name, device_name, compute_name, _device_endpoint, _type_endpoint = (
+            self._sourceTranscriptionRuntimeSettingNames(source)
         )
-        config.SELECTED_TRANSCRIPTION_ENGINE = engine
-        config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE = deepcopy(device)
-        config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE = compute_type
+        setattr(config, engine_name, profile["engine"])
+        setattr(config, device_name, deepcopy(profile["device"]))
+        setattr(config, compute_name, profile["compute_type"])
+
+    def _publishSourceTranscriptionProfile(self, source: PipelineSource) -> None:
+        profile = self._getSourceTranscriptionProfile(source)
+        suffix = "send" if source is PipelineSource.MIC else "receive"
+        self._publishTranscriptionRuntimeSetting(f"transcription_profile_{suffix}", profile)
+        self._publishTranscriptionRuntimeSetting(
+            f"selected_transcription_engine_{suffix}", profile["engine"]
+        )
+        self._publishTranscriptionRuntimeSetting(
+            f"selected_transcription_compute_device_{suffix}", deepcopy(profile["device"])
+        )
+        self._publishTranscriptionRuntimeSetting(
+            f"selected_transcription_compute_type_{suffix}", profile["compute_type"]
+        )
 
     def _normalizeTranscriptionRuntimeSelection(
         self,
         notify: bool = False,
         source: Optional[PipelineSource] = None,
     ) -> bool:
-        changed = False
-        engine_name, device_name, compute_type_name, device_endpoint, type_endpoint = (
-            self._sourceTranscriptionRuntimeSettingNames(source)
-        )
-        selected_engine = getattr(config, engine_name, config.SELECTED_TRANSCRIPTION_ENGINE)
-        rule = self._getTranscriptionRuntimeRule(selected_engine)
-        selected_device = getattr(
-            config,
-            device_name,
-            config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE,
-        )
-        target_device_kind = rule.get("device_kind")
-
-        if target_device_kind is not None and selected_device.get("device") != target_device_kind:
-            replacement = self._findSelectableComputeDevice(target_device_kind)
-            if replacement is not None:
-                setattr(config, device_name, replacement)
-                selected_device = replacement
-                changed = True
-                if notify is True:
-                    self._publishTranscriptionRuntimeSetting(
-                        device_endpoint,
-                        deepcopy(selected_device),
-                    )
-
-        allowed_compute_types = rule.get("compute_types")
-        if allowed_compute_types is None:
-            allowed_compute_types = selected_device.get("compute_types", []) or ["auto"]
-
-        selected_compute_type = getattr(
-            config,
-            compute_type_name,
-            config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE,
-        )
-        fallback_compute_type = "auto" if "auto" in allowed_compute_types else allowed_compute_types[0]
-        if selected_compute_type not in allowed_compute_types:
-            setattr(config, compute_type_name, fallback_compute_type)
-            changed = True
-            if notify is True:
-                self._publishTranscriptionRuntimeSetting(
-                    type_endpoint,
-                    fallback_compute_type,
-                )
-
+        if source is None:
+            return self._normalizeAllSourceTranscriptionRuntimeSelections(notify=notify)
+        current = self._getSourceTranscriptionProfile(source)
+        normalized = self._normalizeTranscriptionProfile(current, current)
+        changed = normalized != current
+        if changed:
+            setattr(config, self._sourceTranscriptionProfileName(source), normalized)
+            self._syncSourceTranscriptionCompatibilityFields(source)
+            if notify:
+                self._publishSourceTranscriptionProfile(source)
         return changed
 
     def _normalizeAllSourceTranscriptionRuntimeSelections(
@@ -2131,10 +2183,17 @@ class Controller:
             except (TypeError, ValueError):
                 return None
 
-        for selected_device in (
-            config.SELECTED_TRANSLATION_COMPUTE_DEVICE,
-            config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE,
+        selected_devices = [config.SELECTED_TRANSLATION_COMPUTE_DEVICE]
+        for profile_name in (
+            "TRANSCRIPTION_PROFILE_SEND",
+            "TRANSCRIPTION_PROFILE_RECEIVE",
         ):
+            profile = getattr(config, profile_name, None)
+            if isinstance(profile, dict):
+                selected_devices.append(profile.get("device", {}))
+        selected_devices.append(config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE)
+
+        for selected_device in selected_devices:
             if selected_device.get("device") == "cuda":
                 try:
                     return int(selected_device.get("device_index"))
@@ -2197,6 +2256,107 @@ class Controller:
     def getSelectedTranscriptionComputeDevice(*args, **kwargs) -> dict:
         return {"status":200, "result":config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE}
 
+    def getTranscriptionProfileSend(self, *args, **kwargs) -> dict:
+        return {
+            "status": 200,
+            "result": self._getSourceTranscriptionProfile(PipelineSource.MIC),
+        }
+
+    def getTranscriptionProfileReceive(self, *args, **kwargs) -> dict:
+        return {
+            "status": 200,
+            "result": self._getSourceTranscriptionProfile(PipelineSource.SPEAKER),
+        }
+
+    def getTranscriptionProfileAll(self, *args, **kwargs) -> dict:
+        return self.getTranscriptionProfileSend()
+
+    def _setTranscriptionProfileForSourceLocked(
+        self,
+        source: PipelineSource,
+        data,
+    ) -> dict:
+        current = self._getSourceTranscriptionProfile(source)
+        target = self._normalizeTranscriptionProfile(
+            merge_transcription_profile(current, data),
+            current,
+        )
+        if target == current:
+            return self._transcriptionRuntimeSettingResponse(target, True)
+
+        runtime_changed = (
+            effective_transcription_profile(target)
+            != effective_transcription_profile(current)
+        )
+        setattr(config, self._sourceTranscriptionProfileName(source), target)
+        self._syncSourceTranscriptionCompatibilityFields(source)
+        if source is PipelineSource.MIC:
+            self._syncLegacyTranscriptionSettingsFromSend()
+        self._publishSourceTranscriptionProfile(source)
+        restart_outcome = True
+        if runtime_changed:
+            restart_outcome = self._requestTranscriptionSourcesRestartLocked((source,))
+        return self._transcriptionRuntimeSettingResponse(target, restart_outcome)
+
+    def _setTranscriptionProfileForSource(self, source: PipelineSource, data) -> dict:
+        with self._transcription_restart_lock:
+            current = self._getSourceTranscriptionProfile(source)
+            if not self._transcriptionRuntimeSettingAllowedLocked():
+                return self._transcriptionRuntimeSettingShutdownResponse(current)
+            return self._setTranscriptionProfileForSourceLocked(source, data)
+
+    def setTranscriptionProfileSend(self, data, *args, **kwargs) -> dict:
+        return self._setTranscriptionProfileForSource(PipelineSource.MIC, data)
+
+    def setTranscriptionProfileReceive(self, data, *args, **kwargs) -> dict:
+        return self._setTranscriptionProfileForSource(PipelineSource.SPEAKER, data)
+
+    def setTranscriptionProfileAll(self, data, *args, **kwargs) -> dict:
+        with self._transcription_restart_lock:
+            current_send = self._getSourceTranscriptionProfile(PipelineSource.MIC)
+            current_receive = self._getSourceTranscriptionProfile(PipelineSource.SPEAKER)
+            if not self._transcriptionRuntimeSettingAllowedLocked():
+                return self._transcriptionRuntimeSettingShutdownResponse(current_send)
+
+            target = self._normalizeTranscriptionProfile(
+                merge_transcription_profile(current_send, data),
+                current_send,
+            )
+            if target == current_send and target == current_receive:
+                return self._transcriptionRuntimeSettingResponse(target, True)
+            changed_sources = tuple(
+                source
+                for source, current in (
+                    (PipelineSource.MIC, current_send),
+                    (PipelineSource.SPEAKER, current_receive),
+                )
+                if effective_transcription_profile(current)
+                != effective_transcription_profile(target)
+            )
+            send_changed = target != current_send
+            receive_changed = target != current_receive
+            if send_changed:
+                config.TRANSCRIPTION_PROFILE_SEND = deepcopy(target)
+                self._syncSourceTranscriptionCompatibilityFields(PipelineSource.MIC)
+            if receive_changed:
+                config.TRANSCRIPTION_PROFILE_RECEIVE = deepcopy(target)
+                self._syncSourceTranscriptionCompatibilityFields(PipelineSource.SPEAKER)
+            self._syncLegacyTranscriptionSettingsFromSend()
+
+            # Publish only after both profiles and their compatibility mirrors
+            # have committed, so observers never see a half-applied global edit.
+            if send_changed:
+                self._publishSourceTranscriptionProfile(PipelineSource.MIC)
+            if receive_changed:
+                self._publishSourceTranscriptionProfile(PipelineSource.SPEAKER)
+
+            restart_outcome = True
+            if changed_sources:
+                restart_outcome = self._requestTranscriptionSourcesRestartLocked(
+                    changed_sources
+                )
+            return self._transcriptionRuntimeSettingResponse(target, restart_outcome)
+
     def _getSelectedTranscriptionComputeDeviceForSource(
         self,
         source: PipelineSource,
@@ -2217,13 +2377,6 @@ class Controller:
             self._transcription_shutdown_state == "running"
             and not self._transcription_shutdown_requested.is_set()
         )
-
-    def _requestTranscriptionRuntimeSettingRestartLocked(self) -> Optional[bool]:
-        try:
-            return self._requestCoordinatedTranscriptionRestart()
-        except Exception:
-            errorLogging()
-            return False
 
     @staticmethod
     def _transcriptionRuntimeSettingResponse(
@@ -2255,71 +2408,34 @@ class Controller:
             "error_code": "transcription_shutdown",
         }
 
-    def _setSelectedTranscriptionComputeDeviceForSource(
-        self,
-        source: PipelineSource,
-        device: dict,
-        notify: bool = True,
-    ) -> dict:
-        _engine_name, device_name, compute_type_name, _device_endpoint, type_endpoint = (
-            self._sourceTranscriptionRuntimeSettingNames(source)
-        )
-        setattr(config, device_name, device)
-        setattr(config, compute_type_name, "auto")
-        if notify:
-            self._publishTranscriptionRuntimeSetting(type_endpoint, "auto")
-        self._normalizeTranscriptionRuntimeSelection(notify=notify, source=source)
-        _engine, applied_device, _compute_type = self._getSourceTranscriptionRuntimeSettings(source)
-        return deepcopy(applied_device)
+    @staticmethod
+    def _transcriptionProfileScalarResponse(response: dict, selector) -> dict:
+        result = response.get("result")
+        scalar = selector(result) if isinstance(result, dict) else result
+        transformed = dict(response)
+        transformed["result"] = deepcopy(scalar)
+        return transformed
 
     def setSelectedTranscriptionComputeDevice(self, device:dict, *args, **kwargs) -> dict:
-        with self._transcription_restart_lock:
-            if not self._transcriptionRuntimeSettingAllowedLocked():
-                return self._transcriptionRuntimeSettingShutdownResponse(
-                    config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE
-                )
-            printLog("setSelectedTranscriptionComputeDevice", device)
-            self._setSelectedTranscriptionComputeDeviceForSource(
-                PipelineSource.MIC,
-                device,
-            )
-            self._setSelectedTranscriptionComputeDeviceForSource(
-                PipelineSource.SPEAKER,
-                device,
-            )
-            self._syncLegacyTranscriptionSettingsFromSend()
-            self._publishTranscriptionRuntimeSetting(
-                "selected_transcription_compute_type",
-                config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE,
-            )
-            applied_value = deepcopy(config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE)
-            restart_outcome = self._requestTranscriptionRuntimeSettingRestartLocked()
-            return self._transcriptionRuntimeSettingResponse(
-                applied_value,
-                restart_outcome,
-            )
+        response = self.setTranscriptionProfileAll(
+            {"device": device, "compute_type": "auto"}
+        )
+        return self._transcriptionProfileScalarResponse(
+            response, lambda profile: profile["device"]
+        )
 
     def _setSelectedTranscriptionComputeDeviceForOneSource(
         self,
         source: PipelineSource,
         device: dict,
     ) -> dict:
-        with self._transcription_restart_lock:
-            _engine, current_device, _compute_type = self._getSourceTranscriptionRuntimeSettings(
-                source
-            )
-            if not self._transcriptionRuntimeSettingAllowedLocked():
-                return self._transcriptionRuntimeSettingShutdownResponse(current_device)
-            applied_value = self._setSelectedTranscriptionComputeDeviceForSource(
-                source,
-                device,
-            )
-            self._syncLegacyTranscriptionSettingsFromSend()
-            restart_outcome = self._requestTranscriptionRuntimeSettingRestartLocked()
-            return self._transcriptionRuntimeSettingResponse(
-                applied_value,
-                restart_outcome,
-            )
+        response = self._setTranscriptionProfileForSource(
+            source,
+            {"device": device, "compute_type": "auto"},
+        )
+        return self._transcriptionProfileScalarResponse(
+            response, lambda profile: profile["device"]
+        )
 
     def setSelectedTranscriptionComputeDeviceSend(self, device: dict, *args, **kwargs) -> dict:
         return self._setSelectedTranscriptionComputeDeviceForOneSource(
@@ -2784,8 +2900,10 @@ class Controller:
 
     @staticmethod
     def getTranscriptionEngines(*args, **kwargs) -> dict:
-        engines = [key for key, value in config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS.items() if value is True]
-        return {"status":200, "result":engines}
+        return {
+            "status": 200,
+            "result": list(config.SELECTABLE_TRANSCRIPTION_ENGINE_LIST),
+        }
 
     @staticmethod
     def getTranscriptionLanguageCapabilities(*args, **kwargs) -> dict:
@@ -2807,53 +2925,24 @@ class Controller:
     def getSelectedTranscriptionEngineReceive(self, *args, **kwargs) -> dict:
         return self._getSelectedTranscriptionEngineForSource(PipelineSource.SPEAKER)
 
-    def _setSelectedTranscriptionEngineForSource(
-        self,
-        source: PipelineSource,
-        data,
-    ) -> str:
-        engine_name, _device_name, _compute_type_name, _device_endpoint, _type_endpoint = (
-            self._sourceTranscriptionRuntimeSettingNames(source)
-        )
-        setattr(config, engine_name, str(data))
-        self._normalizeTranscriptionRuntimeSelection(notify=True, source=source)
-        return self._getSourceTranscriptionEngine(source)
-
     def setSelectedTranscriptionEngine(self, data, *args, **kwargs) -> dict:
-        with self._transcription_restart_lock:
-            if not self._transcriptionRuntimeSettingAllowedLocked():
-                return self._transcriptionRuntimeSettingShutdownResponse(
-                    config.SELECTED_TRANSCRIPTION_ENGINE
-                )
-            config.SELECTED_TRANSCRIPTION_ENGINE = str(data)
-            self._setSelectedTranscriptionEngineForSource(PipelineSource.MIC, data)
-            self._setSelectedTranscriptionEngineForSource(PipelineSource.SPEAKER, data)
-            self._syncLegacyTranscriptionSettingsFromSend()
-            self._normalizeSelectedYourLanguageForTranscription()
-            applied_value = str(config.SELECTED_TRANSCRIPTION_ENGINE)
-            restart_outcome = self._requestTranscriptionRuntimeSettingRestartLocked()
-            return self._transcriptionRuntimeSettingResponse(
-                applied_value,
-                restart_outcome,
-            )
+        response = self.setTranscriptionProfileAll({"engine": str(data)})
+        return self._transcriptionProfileScalarResponse(
+            response, lambda profile: profile["engine"]
+        )
 
     def _setSelectedTranscriptionEngineForOneSource(
         self,
         source: PipelineSource,
         data,
     ) -> dict:
-        with self._transcription_restart_lock:
-            current_engine = self._getSourceTranscriptionEngine(source)
-            if not self._transcriptionRuntimeSettingAllowedLocked():
-                return self._transcriptionRuntimeSettingShutdownResponse(current_engine)
-            applied_value = self._setSelectedTranscriptionEngineForSource(source, data)
-            self._syncLegacyTranscriptionSettingsFromSend()
-            self._normalizeSelectedYourLanguageForTranscription()
-            restart_outcome = self._requestTranscriptionRuntimeSettingRestartLocked()
-            return self._transcriptionRuntimeSettingResponse(
-                applied_value,
-                restart_outcome,
-            )
+        response = self._setTranscriptionProfileForSource(
+            source,
+            {"engine": str(data)},
+        )
+        return self._transcriptionProfileScalarResponse(
+            response, lambda profile: profile["engine"]
+        )
 
     def setSelectedTranscriptionEngineSend(self, data, *args, **kwargs) -> dict:
         return self._setSelectedTranscriptionEngineForOneSource(PipelineSource.MIC, data)
@@ -4315,95 +4404,60 @@ class Controller:
         return {"status":200, "result":config.WHISPER_WEIGHT_TYPE}
 
     def setWhisperWeightType(self, data, *args, **kwargs) -> dict:
-        with self._transcription_restart_lock:
-            if not self._transcriptionRuntimeSettingAllowedLocked():
-                return self._transcriptionRuntimeSettingShutdownResponse(
-                    config.WHISPER_WEIGHT_TYPE
-                )
-            config.WHISPER_WEIGHT_TYPE = str(data)
-            applied_value = str(config.WHISPER_WEIGHT_TYPE)
-            restart_outcome = self._requestTranscriptionRuntimeSettingRestartLocked()
-            return self._transcriptionRuntimeSettingResponse(
-                applied_value,
-                restart_outcome,
-            )
+        response = self.setTranscriptionProfileAll(
+            {"models": {"Whisper": str(data)}}
+        )
+        return self._transcriptionProfileScalarResponse(
+            response, lambda profile: profile["models"]["Whisper"]
+        )
 
     @staticmethod
     def getWhisperDecodingProfile(*args, **kwargs) -> dict:
         return {"status": 200, "result": config.WHISPER_DECODING_PROFILE}
 
     def setWhisperDecodingProfile(self, data, *args, **kwargs) -> dict:
-        with self._transcription_restart_lock:
-            if not self._transcriptionRuntimeSettingAllowedLocked():
-                return self._transcriptionRuntimeSettingShutdownResponse(
-                    config.WHISPER_DECODING_PROFILE
-                )
-            config.WHISPER_DECODING_PROFILE = str(data).lower()
-            applied_value = str(config.WHISPER_DECODING_PROFILE)
-            restart_outcome = self._requestTranscriptionRuntimeSettingRestartLocked()
-            return self._transcriptionRuntimeSettingResponse(
-                applied_value,
-                restart_outcome,
-            )
+        response = self.setTranscriptionProfileAll(
+            {"whisper_decoding_profile": str(data).lower()}
+        )
+        return self._transcriptionProfileScalarResponse(
+            response, lambda profile: profile["whisper_decoding_profile"]
+        )
 
     @staticmethod
     def getVoskWeightType(*args, **kwargs) -> dict:
         return {"status":200, "result":config.VOSK_WEIGHT_TYPE}
 
     def setVoskWeightType(self, data, *args, **kwargs) -> dict:
-        with self._transcription_restart_lock:
-            if not self._transcriptionRuntimeSettingAllowedLocked():
-                return self._transcriptionRuntimeSettingShutdownResponse(
-                    config.VOSK_WEIGHT_TYPE
-                )
-            config.VOSK_WEIGHT_TYPE = str(data)
-            self._normalizeSelectedYourLanguageForTranscription()
-            applied_value = str(config.VOSK_WEIGHT_TYPE)
-            restart_outcome = self._requestTranscriptionRuntimeSettingRestartLocked()
-            return self._transcriptionRuntimeSettingResponse(
-                applied_value,
-                restart_outcome,
-            )
+        response = self.setTranscriptionProfileAll(
+            {"models": {"Vosk": str(data)}}
+        )
+        return self._transcriptionProfileScalarResponse(
+            response, lambda profile: profile["models"]["Vosk"]
+        )
 
     @staticmethod
     def getParakeetWeightType(*args, **kwargs) -> dict:
         return {"status":200, "result":config.PARAKEET_WEIGHT_TYPE}
 
     def setParakeetWeightType(self, data, *args, **kwargs) -> dict:
-        with self._transcription_restart_lock:
-            if not self._transcriptionRuntimeSettingAllowedLocked():
-                return self._transcriptionRuntimeSettingShutdownResponse(
-                    config.PARAKEET_WEIGHT_TYPE
-                )
-            config.PARAKEET_WEIGHT_TYPE = str(data)
-            self._normalizeAllSourceTranscriptionRuntimeSelections(notify=True)
-            self._normalizeSelectedYourLanguageForTranscription()
-            applied_value = str(config.PARAKEET_WEIGHT_TYPE)
-            restart_outcome = self._requestTranscriptionRuntimeSettingRestartLocked()
-            return self._transcriptionRuntimeSettingResponse(
-                applied_value,
-                restart_outcome,
-            )
+        response = self.setTranscriptionProfileAll(
+            {"models": {"Parakeet": str(data)}}
+        )
+        return self._transcriptionProfileScalarResponse(
+            response, lambda profile: profile["models"]["Parakeet"]
+        )
 
     @staticmethod
     def getSenseVoiceWeightType(*args, **kwargs) -> dict:
         return {"status":200, "result":config.SENSEVOICE_WEIGHT_TYPE}
 
     def setSenseVoiceWeightType(self, data, *args, **kwargs) -> dict:
-        with self._transcription_restart_lock:
-            if not self._transcriptionRuntimeSettingAllowedLocked():
-                return self._transcriptionRuntimeSettingShutdownResponse(
-                    config.SENSEVOICE_WEIGHT_TYPE
-                )
-            config.SENSEVOICE_WEIGHT_TYPE = str(data)
-            self._normalizeAllSourceTranscriptionRuntimeSelections(notify=True)
-            self._normalizeSelectedYourLanguageForTranscription()
-            applied_value = str(config.SENSEVOICE_WEIGHT_TYPE)
-            restart_outcome = self._requestTranscriptionRuntimeSettingRestartLocked()
-            return self._transcriptionRuntimeSettingResponse(
-                applied_value,
-                restart_outcome,
-            )
+        response = self.setTranscriptionProfileAll(
+            {"models": {"SenseVoice": str(data)}}
+        )
+        return self._transcriptionProfileScalarResponse(
+            response, lambda profile: profile["models"]["SenseVoice"]
+        )
 
     @staticmethod
     def getSelectedTranscriptionComputeType(*args, **kwargs) -> dict:
@@ -4424,61 +4478,24 @@ class Controller:
     def getSelectedTranscriptionComputeTypeReceive(self, *args, **kwargs) -> dict:
         return self._getSelectedTranscriptionComputeTypeForSource(PipelineSource.SPEAKER)
 
-    def _setSelectedTranscriptionComputeTypeForSource(
-        self,
-        source: PipelineSource,
-        data,
-    ) -> str:
-        _engine_name, _device_name, compute_type_name, _device_endpoint, _type_endpoint = (
-            self._sourceTranscriptionRuntimeSettingNames(source)
-        )
-        setattr(config, compute_type_name, str(data))
-        self._normalizeTranscriptionRuntimeSelection(notify=True, source=source)
-        _engine, _device, applied_compute_type = self._getSourceTranscriptionRuntimeSettings(
-            source
-        )
-        return applied_compute_type
-
     def setSelectedTranscriptionComputeType(self, data, *args, **kwargs) -> dict:
-        with self._transcription_restart_lock:
-            if not self._transcriptionRuntimeSettingAllowedLocked():
-                return self._transcriptionRuntimeSettingShutdownResponse(
-                    config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE
-                )
-            config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE = str(data)
-            self._setSelectedTranscriptionComputeTypeForSource(PipelineSource.MIC, data)
-            self._setSelectedTranscriptionComputeTypeForSource(PipelineSource.SPEAKER, data)
-            self._syncLegacyTranscriptionSettingsFromSend()
-            applied_value = str(config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE)
-            restart_outcome = self._requestTranscriptionRuntimeSettingRestartLocked()
-            return self._transcriptionRuntimeSettingResponse(
-                applied_value,
-                restart_outcome,
-            )
+        response = self.setTranscriptionProfileAll({"compute_type": str(data)})
+        return self._transcriptionProfileScalarResponse(
+            response, lambda profile: profile["compute_type"]
+        )
 
     def _setSelectedTranscriptionComputeTypeForOneSource(
         self,
         source: PipelineSource,
         data,
     ) -> dict:
-        with self._transcription_restart_lock:
-            _engine, _device, current_compute_type = self._getSourceTranscriptionRuntimeSettings(
-                source
-            )
-            if not self._transcriptionRuntimeSettingAllowedLocked():
-                return self._transcriptionRuntimeSettingShutdownResponse(
-                    current_compute_type
-                )
-            applied_value = self._setSelectedTranscriptionComputeTypeForSource(
-                source,
-                data,
-            )
-            self._syncLegacyTranscriptionSettingsFromSend()
-            restart_outcome = self._requestTranscriptionRuntimeSettingRestartLocked()
-            return self._transcriptionRuntimeSettingResponse(
-                applied_value,
-                restart_outcome,
-            )
+        response = self._setTranscriptionProfileForSource(
+            source,
+            {"compute_type": str(data)},
+        )
+        return self._transcriptionProfileScalarResponse(
+            response, lambda profile: profile["compute_type"]
+        )
 
     def setSelectedTranscriptionComputeTypeSend(self, data, *args, **kwargs) -> dict:
         return self._setSelectedTranscriptionComputeTypeForOneSource(
@@ -4872,6 +4889,62 @@ class Controller:
         """
         self._requestCoordinatedTranscriptionRestart()
 
+    def _requestTranscriptionSourcesRestartLocked(
+        self,
+        sources: tuple[PipelineSource, ...],
+    ) -> Optional[bool]:
+        """Restart each requested active source once, stopping before loading."""
+        if (
+            self._transcription_shutdown_state != "running"
+            or self._transcription_shutdown_requested.is_set()
+        ):
+            return None
+        is_active = getattr(model, "isTranscriptionSourceActive", None)
+        selected = []
+        for source in dict.fromkeys(sources):
+            active = (
+                bool(is_active(source))
+                if callable(is_active)
+                else (
+                    config.ENABLE_TRANSCRIPTION_SEND is True
+                    if source is PipelineSource.MIC
+                    else config.ENABLE_TRANSCRIPTION_RECEIVE is True
+                )
+            )
+            if not active:
+                continue
+            if source is PipelineSource.MIC:
+                selected.append(
+                    (source, self.stopTranscriptionSendMessage, self.startTranscriptionSendMessage)
+                )
+            else:
+                selected.append(
+                    (source, self.stopTranscriptionReceiveMessage, self.startTranscriptionReceiveMessage)
+                )
+
+        for _source, stop, _start in selected:
+            try:
+                stop()
+            except Exception:
+                errorLogging()
+                return False
+
+        all_established = True
+        for source, _stop, start in selected:
+            try:
+                established = start() is True
+            except Exception:
+                errorLogging()
+                established = False
+            if established and callable(is_active):
+                try:
+                    established = bool(is_active(source))
+                except Exception:
+                    errorLogging()
+                    established = False
+            all_established = all_established and established
+        return all_established
+
     def _requestCoordinatedTranscriptionRestart(
         self,
         reason: str = "configuration_changed",
@@ -4922,55 +4995,9 @@ class Controller:
                 if not still_current or not still_active:
                     return None
 
-            if callable(is_active):
-                active_mic = is_active(PipelineSource.MIC)
-                active_speaker = is_active(PipelineSource.SPEAKER)
-            else:
-                active_mic = config.ENABLE_TRANSCRIPTION_SEND is True
-                active_speaker = config.ENABLE_TRANSCRIPTION_RECEIVE is True
-            selected = []
-            if active_mic:
-                selected.append(
-                    (
-                        PipelineSource.MIC,
-                        self.stopTranscriptionSendMessage,
-                        self.startTranscriptionSendMessage,
-                    )
-                )
-            if active_speaker:
-                selected.append(
-                    (
-                        PipelineSource.SPEAKER,
-                        self.stopTranscriptionReceiveMessage,
-                        self.startTranscriptionReceiveMessage,
-                    )
-                )
-
-            stopped_cleanly = True
-            for _source, stop, _start in selected:
-                try:
-                    stop()
-                except Exception:
-                    stopped_cleanly = False
-                    errorLogging()
-            if not stopped_cleanly:
-                return False
-
-            all_established = True
-            for source, _stop, start in selected:
-                try:
-                    established = start() is True
-                except Exception:
-                    errorLogging()
-                    established = False
-                if established and callable(is_active):
-                    try:
-                        established = bool(is_active(source))
-                    except Exception:
-                        errorLogging()
-                        established = False
-                all_established = all_established and established
-            return all_established
+            return self._requestTranscriptionSourcesRestartLocked(
+                (PipelineSource.MIC, PipelineSource.SPEAKER)
+            )
 
     def swapYourLanguageAndTargetLanguage(self, *args, **kwargs) -> dict:
         selected_tab = config.SELECTED_TAB_NO
@@ -5314,14 +5341,17 @@ class Controller:
 
     def updateDownloadedWhisperModelWeight(self, scan_all: bool = False) -> None:
         # キャッシュされた結果を使用（起動時の重複チェックを回避）
+        checked_weight_types = set()
         if hasattr(self, '_whisper_available_cache'):
             # 起動時のキャッシュを使用: 起動に必要な最小ウェイトのみ設定
             cached_weight_type = getattr(self, '_whisper_available_cache_key', config.WHISPER_WEIGHT_TYPE)
             config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT[cached_weight_type] = self._whisper_available_cache
+            checked_weight_types.add(cached_weight_type)
 
-            selected_weight_type = config.WHISPER_WEIGHT_TYPE
-            if selected_weight_type != cached_weight_type:
+        for selected_weight_type in self._selectedTranscriptionModelWeights("Whisper"):
+            if selected_weight_type not in checked_weight_types:
                 config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT[selected_weight_type] = model.checkTranscriptionWhisperModelWeight(selected_weight_type)
+                checked_weight_types.add(selected_weight_type)
 
         if scan_all is False:
             return
@@ -5329,63 +5359,55 @@ class Controller:
         # すべての重みタイプをチェック（キャッシュされていないものだけ）
         for weight_type in config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT.keys():
             # 起動時に確認済みのウェイトはキャッシュで設定済みなのでスキップ
-            if hasattr(self, '_whisper_available_cache') and weight_type == getattr(self, '_whisper_available_cache_key', config.WHISPER_WEIGHT_TYPE):
+            if weight_type in checked_weight_types:
                 continue
             config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT[weight_type] = model.checkTranscriptionWhisperModelWeight(weight_type)
 
     def updateDownloadedVoskModelWeight(self, scan_all: bool = False) -> None:
-        selected_weight_type = config.VOSK_WEIGHT_TYPE
-        config.SELECTABLE_VOSK_WEIGHT_TYPE_DICT[selected_weight_type] = model.checkTranscriptionVoskModelWeight(selected_weight_type)
+        selected_weight_types = self._selectedTranscriptionModelWeights("Vosk")
+        for selected_weight_type in selected_weight_types:
+            config.SELECTABLE_VOSK_WEIGHT_TYPE_DICT[selected_weight_type] = model.checkTranscriptionVoskModelWeight(selected_weight_type)
         if scan_all is False:
             return
         for weight_type in config.SELECTABLE_VOSK_WEIGHT_TYPE_DICT.keys():
-            if weight_type == selected_weight_type:
+            if weight_type in selected_weight_types:
                 continue
             config.SELECTABLE_VOSK_WEIGHT_TYPE_DICT[weight_type] = model.checkTranscriptionVoskModelWeight(weight_type)
 
     def updateDownloadedParakeetModelWeight(self, scan_all: bool = False) -> None:
-        selected_weight_type = config.PARAKEET_WEIGHT_TYPE
-        config.SELECTABLE_PARAKEET_WEIGHT_TYPE_DICT[selected_weight_type] = model.checkTranscriptionParakeetModelWeight(selected_weight_type)
+        selected_weight_types = self._selectedTranscriptionModelWeights("Parakeet")
+        for selected_weight_type in selected_weight_types:
+            config.SELECTABLE_PARAKEET_WEIGHT_TYPE_DICT[selected_weight_type] = model.checkTranscriptionParakeetModelWeight(selected_weight_type)
         if scan_all is False:
             return
         for weight_type in config.SELECTABLE_PARAKEET_WEIGHT_TYPE_DICT.keys():
-            if weight_type == selected_weight_type:
+            if weight_type in selected_weight_types:
                 continue
             config.SELECTABLE_PARAKEET_WEIGHT_TYPE_DICT[weight_type] = model.checkTranscriptionParakeetModelWeight(weight_type)
 
     def updateDownloadedSenseVoiceModelWeight(self, scan_all: bool = False) -> None:
-        selected_weight_type = config.SENSEVOICE_WEIGHT_TYPE
-        config.SELECTABLE_SENSEVOICE_WEIGHT_TYPE_DICT[selected_weight_type] = model.checkTranscriptionSenseVoiceModelWeight(selected_weight_type)
+        selected_weight_types = self._selectedTranscriptionModelWeights("SenseVoice")
+        for selected_weight_type in selected_weight_types:
+            config.SELECTABLE_SENSEVOICE_WEIGHT_TYPE_DICT[selected_weight_type] = model.checkTranscriptionSenseVoiceModelWeight(selected_weight_type)
         if scan_all is False:
             return
         for weight_type in config.SELECTABLE_SENSEVOICE_WEIGHT_TYPE_DICT.keys():
-            if weight_type == selected_weight_type:
+            if weight_type in selected_weight_types:
                 continue
             config.SELECTABLE_SENSEVOICE_WEIGHT_TYPE_DICT[weight_type] = model.checkTranscriptionSenseVoiceModelWeight(weight_type)
 
-    def updateTranscriptionEngine(self):
-        weight_type = config.WHISPER_WEIGHT_TYPE
-        weight_type_dict = config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT
-        weight_available = bool(weight_type_dict.get(weight_type))
-        selected_engines = [key for key, value in config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS.items() if value is True]
-
+    def _selectedTranscriptionModelWeights(self, provider: str) -> tuple[str, ...]:
+        selected = []
         for source in (PipelineSource.MIC, PipelineSource.SPEAKER):
-            current_engine = self._getSourceTranscriptionEngine(source)
-            if current_engine in selected_engines:
-                continue
+            weight_type = self._getSourceTranscriptionProfile(source)["models"].get(provider, "")
+            if weight_type and weight_type not in selected:
+                selected.append(weight_type)
+        return tuple(selected)
 
-            engine_name, _device_name, _type_name, _device_endpoint, _type_endpoint = (
-                self._sourceTranscriptionRuntimeSettingNames(source)
-            )
-            if weight_available and "Whisper" in selected_engines:
-                setattr(config, engine_name, "Whisper")
-            elif "Google" in selected_engines:
-                setattr(config, engine_name, "Google")
-            elif selected_engines:
-                setattr(config, engine_name, selected_engines[0])
-            else:
-                setattr(config, engine_name, "Whisper")
-
+    def updateTranscriptionEngine(self):
+        # Availability is runtime state, not configuration. Preserve the
+        # selected provider so the UI can report/download a missing model
+        # instead of silently replacing either direction's profile.
         self._normalizeAllSourceTranscriptionRuntimeSelections()
         self._normalizeSelectedYourLanguageForTranscription()
 

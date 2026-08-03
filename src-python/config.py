@@ -37,6 +37,11 @@ except Exception:  # pragma: no cover - optional runtime
 from models.transcription.transcription_language_policy import (
     normalize_language_profiles,
 )
+from models.transcription.transcription_profile import (
+    TRANSCRIPTION_ENGINES,
+    make_transcription_profile,
+    normalize_transcription_profile,
+)
 
 try:
     from models.transcription.transcription_whisper import _MODELS as whisper_models, DEFAULT_WHISPER_WEIGHT_TYPE
@@ -880,6 +885,8 @@ class Config:
     SELECTED_TRANSCRIPTION_COMPUTE_TYPE_SEND = ValidatedProperty('SELECTED_TRANSCRIPTION_COMPUTE_TYPE_SEND', _selected_transcription_compute_type_send_validator)
     SELECTED_TRANSCRIPTION_COMPUTE_TYPE_RECEIVE = ValidatedProperty('SELECTED_TRANSCRIPTION_COMPUTE_TYPE_RECEIVE', _selected_transcription_compute_type_receive_validator)
     WHISPER_DECODING_PROFILE = ValidatedProperty('WHISPER_DECODING_PROFILE', _whisper_decoding_profile_validator)
+    TRANSCRIPTION_PROFILE_SEND = ManagedProperty('TRANSCRIPTION_PROFILE_SEND', type_=dict)
+    TRANSCRIPTION_PROFILE_RECEIVE = ManagedProperty('TRANSCRIPTION_PROFILE_RECEIVE', type_=dict)
 
     # --- Overlay settings ---
     OVERLAY_SMALL_LOG_SETTINGS = ValidatedProperty('OVERLAY_SMALL_LOG_SETTINGS', _overlay_small_validator)
@@ -957,7 +964,7 @@ class Config:
 
     def init_config(self):
         # Read Only
-        self._VERSION = "4.2.5"
+        self._VERSION = "5.0.0"
         if getattr(sys, 'frozen', False):
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
@@ -994,12 +1001,10 @@ class Config:
         self._SELECTABLE_SENSEVOICE_WEIGHT_TYPE_LIST = getattr(sensevoice_models, 'keys', lambda: [])()
         translation_lang = loadTranslationLanguages(self.PATH_LOCAL)
         self._SELECTABLE_TRANSLATION_ENGINE_LIST = getattr(translation_lang, 'keys', lambda: [])()
-        try:
-            # transcription_lang is nested dict; attempt to extract keys defensively
-            first_key = next(iter(transcription_lang))
-            self._SELECTABLE_TRANSCRIPTION_ENGINE_LIST = list(transcription_lang[first_key].values())[0].keys()
-        except Exception:
-            self._SELECTABLE_TRANSCRIPTION_ENGINE_LIST = []
+        # Engine availability and language support are separate concerns. The
+        # direction-profile UI must always be able to select every implemented
+        # provider, including a local provider whose model still needs download.
+        self._SELECTABLE_TRANSCRIPTION_ENGINE_LIST = list(TRANSCRIPTION_ENGINES)
         self._SELECTABLE_UI_LANGUAGE_LIST = ["en", "ja", "ko", "th", "zh-Hant", "zh-Hans"]
         torch = _getTorch()
         self._COMPUTE_MODE = "cuda" if (torch is not None and torch.cuda.is_available()) else "cpu"
@@ -1216,6 +1221,20 @@ class Config:
         self._SELECTED_TRANSCRIPTION_COMPUTE_TYPE_SEND = self._SELECTED_TRANSCRIPTION_COMPUTE_TYPE
         self._SELECTED_TRANSCRIPTION_COMPUTE_TYPE_RECEIVE = self._SELECTED_TRANSCRIPTION_COMPUTE_TYPE
         self._WHISPER_DECODING_PROFILE = "balanced"
+        default_transcription_profile = make_transcription_profile(
+            engine=self._SELECTED_TRANSCRIPTION_ENGINE,
+            models={
+                "Whisper": self._WHISPER_WEIGHT_TYPE,
+                "Vosk": self._VOSK_WEIGHT_TYPE,
+                "Parakeet": self._PARAKEET_WEIGHT_TYPE,
+                "SenseVoice": self._SENSEVOICE_WEIGHT_TYPE,
+            },
+            device=self._SELECTED_TRANSCRIPTION_COMPUTE_DEVICE,
+            compute_type=self._SELECTED_TRANSCRIPTION_COMPUTE_TYPE,
+            whisper_decoding_profile=self._WHISPER_DECODING_PROFILE,
+        )
+        self._TRANSCRIPTION_PROFILE_SEND = copy.deepcopy(default_transcription_profile)
+        self._TRANSCRIPTION_PROFILE_RECEIVE = copy.deepcopy(default_transcription_profile)
         self._AUTO_CLEAR_MESSAGE_BOX = True
         self._SEND_ONLY_TRANSLATED_MESSAGES = False
         self._OVERLAY_SMALL_LOG = False
@@ -1385,6 +1404,72 @@ class Config:
             if legacy_compute_type is not None:
                 self.SELECTED_TRANSCRIPTION_COMPUTE_TYPE_RECEIVE = legacy_compute_type
 
+        selectable_models = {
+            "Whisper": getattr(self, "_SELECTABLE_WHISPER_WEIGHT_TYPE_LIST", ()),
+            "Vosk": getattr(self, "_SELECTABLE_VOSK_WEIGHT_TYPE_LIST", ()),
+            "Parakeet": getattr(self, "_SELECTABLE_PARAKEET_WEIGHT_TYPE_LIST", ()),
+            "SenseVoice": getattr(self, "_SELECTABLE_SENSEVOICE_WEIGHT_TYPE_LIST", ()),
+        }
+        legacy_models = {
+            "Whisper": getattr(self, "_WHISPER_WEIGHT_TYPE", ""),
+            "Vosk": getattr(self, "_VOSK_WEIGHT_TYPE", ""),
+            "Parakeet": getattr(self, "_PARAKEET_WEIGHT_TYPE", ""),
+            "SenseVoice": getattr(self, "_SENSEVOICE_WEIGHT_TYPE", ""),
+        }
+
+        def migrated_profile(engine, device, compute_type):
+            return make_transcription_profile(
+                engine=engine,
+                models=legacy_models,
+                device=device,
+                compute_type=compute_type,
+                whisper_decoding_profile=getattr(self, "_WHISPER_DECODING_PROFILE", "balanced"),
+            )
+
+        send_fallback = migrated_profile(
+            getattr(self, "_SELECTED_TRANSCRIPTION_ENGINE_SEND", legacy_engine or "Google"),
+            getattr(self, "_SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_SEND", legacy_device or {}),
+            getattr(self, "_SELECTED_TRANSCRIPTION_COMPUTE_TYPE_SEND", legacy_compute_type or "auto"),
+        )
+        receive_fallback = migrated_profile(
+            getattr(self, "_SELECTED_TRANSCRIPTION_ENGINE_RECEIVE", legacy_engine or "Google"),
+            getattr(self, "_SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_RECEIVE", legacy_device or {}),
+            getattr(self, "_SELECTED_TRANSCRIPTION_COMPUTE_TYPE_RECEIVE", legacy_compute_type or "auto"),
+        )
+        send_value = (
+            self._TRANSCRIPTION_PROFILE_SEND
+            if "TRANSCRIPTION_PROFILE_SEND" in self._config_data
+            else send_fallback
+        )
+        receive_value = (
+            self._TRANSCRIPTION_PROFILE_RECEIVE
+            if "TRANSCRIPTION_PROFILE_RECEIVE" in self._config_data
+            else receive_fallback
+        )
+        self._TRANSCRIPTION_PROFILE_SEND = normalize_transcription_profile(
+            send_value,
+            fallback=send_fallback,
+            selectable_engines=getattr(self, "_SELECTABLE_TRANSCRIPTION_ENGINE_LIST", ("Google", "Whisper")),
+            selectable_models=selectable_models,
+            selectable_devices=getattr(self, "_SELECTABLE_COMPUTE_DEVICE_LIST", ()),
+        )
+        self._TRANSCRIPTION_PROFILE_RECEIVE = normalize_transcription_profile(
+            receive_value,
+            fallback=receive_fallback,
+            selectable_engines=getattr(self, "_SELECTABLE_TRANSCRIPTION_ENGINE_LIST", ("Google", "Whisper")),
+            selectable_models=selectable_models,
+            selectable_devices=getattr(self, "_SELECTABLE_COMPUTE_DEVICE_LIST", ()),
+        )
+
+        # The profiles own runtime selection. Older fields remain serialized
+        # mirrors so older clients and downgrade paths retain compatible data.
+        self._SELECTED_TRANSCRIPTION_ENGINE_SEND = self._TRANSCRIPTION_PROFILE_SEND["engine"]
+        self._SELECTED_TRANSCRIPTION_ENGINE_RECEIVE = self._TRANSCRIPTION_PROFILE_RECEIVE["engine"]
+        self._SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_SEND = copy.deepcopy(self._TRANSCRIPTION_PROFILE_SEND["device"])
+        self._SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_RECEIVE = copy.deepcopy(self._TRANSCRIPTION_PROFILE_RECEIVE["device"])
+        self._SELECTED_TRANSCRIPTION_COMPUTE_TYPE_SEND = self._TRANSCRIPTION_PROFILE_SEND["compute_type"]
+        self._SELECTED_TRANSCRIPTION_COMPUTE_TYPE_RECEIVE = self._TRANSCRIPTION_PROFILE_RECEIVE["compute_type"]
+
         # If a future config contains only the source-specific values, expose
         # the send value through the legacy getter as a stable fallback.
         if (
@@ -1408,6 +1493,16 @@ class Config:
             source_compute_type = getattr(self, "_SELECTED_TRANSCRIPTION_COMPUTE_TYPE_SEND", None)
             if source_compute_type is not None:
                 self.SELECTED_TRANSCRIPTION_COMPUTE_TYPE = source_compute_type
+
+        send_profile = self._TRANSCRIPTION_PROFILE_SEND
+        self._SELECTED_TRANSCRIPTION_ENGINE = send_profile["engine"]
+        self._SELECTED_TRANSCRIPTION_COMPUTE_DEVICE = copy.deepcopy(send_profile["device"])
+        self._SELECTED_TRANSCRIPTION_COMPUTE_TYPE = send_profile["compute_type"]
+        self._WHISPER_WEIGHT_TYPE = send_profile["models"]["Whisper"]
+        self._VOSK_WEIGHT_TYPE = send_profile["models"]["Vosk"]
+        self._PARAKEET_WEIGHT_TYPE = send_profile["models"]["Parakeet"]
+        self._SENSEVOICE_WEIGHT_TYPE = send_profile["models"]["SenseVoice"]
+        self._WHISPER_DECODING_PROFILE = send_profile["whisper_decoding_profile"]
 
         self.saveConfigToFile()
 

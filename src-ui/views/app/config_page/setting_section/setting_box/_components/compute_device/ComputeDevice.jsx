@@ -112,6 +112,7 @@ export const ComputeDevice = ({
     currentSelectedComputeType,
     setSelectedComputeType,
     computeTypesOverride = null,
+    showComputeType = true,
 }) => {
     const { t } = useI18n();
 
@@ -135,32 +136,37 @@ export const ComputeDevice = ({
         setSelectedComputeType(selected_data.selected_id);
     };
 
-    const is_disabled_selector = currentSelectedDevice.state === "pending" || currentSelectedComputeType.state === "pending";
+    const is_disabled_selector = currentSelectedDevice.state === "pending"
+        || (showComputeType && currentSelectedComputeType.state === "pending");
+
+    const dropdownSettings = [
+        {
+            dropdown_id: `${dropdownIdPrefix}_compute_device`,
+            secondary_label: t("config_page.common.compute_device.label_device"),
+            selected_id: target_index,
+            list: list_for_ui,
+            selectFunction: selectFunction_ComputeDevice,
+            state: currentSelectedDevice.state,
+            is_disabled: is_disabled_selector,
+        },
+    ];
+    if (showComputeType) {
+        dropdownSettings.push({
+            dropdown_id: `${dropdownIdPrefix}_compute_type`,
+            secondary_label: t("config_page.common.compute_device.label_type"),
+            selected_id: currentSelectedComputeType.data,
+            list: new_compute_types_labels,
+            selectFunction: selectFunction_ComputeType,
+            state: currentSelectedComputeType.state,
+            is_disabled: is_disabled_selector,
+        });
+    }
 
     return (
         <MultiDropdownMenuContainer
             label={label}
             desc={t("config_page.common.compute_device.desc")}
-            dropdown_settings={[
-                {
-                    dropdown_id: `${dropdownIdPrefix}_compute_device`,
-                    secondary_label: t("config_page.common.compute_device.label_device"),
-                    selected_id: target_index,
-                    list: list_for_ui,
-                    selectFunction: selectFunction_ComputeDevice,
-                    state: currentSelectedDevice.state,
-                    is_disabled: is_disabled_selector,
-                },
-                {
-                    dropdown_id: `${dropdownIdPrefix}_compute_type`,
-                    secondary_label: t("config_page.common.compute_device.label_type"),
-                    selected_id: currentSelectedComputeType.data,
-                    list: new_compute_types_labels,
-                    selectFunction: selectFunction_ComputeType,
-                    state: currentSelectedComputeType.state,
-                    is_disabled: is_disabled_selector,
-                }
-            ]}
+            dropdown_settings={dropdownSettings}
         />
     );
 };

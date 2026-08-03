@@ -1,9 +1,8 @@
 """NVIDIA Parakeet speech-to-text backend.
 
 NVIDIA publishes Parakeet TDT v3 as NeMo/safetensors, while this app needs a
-runtime that can load quickly inside the bundled Python sidecar. The runnable
-entry below uses the ONNX conversion supported by onnx-asr; older friend-added
-entries stay visible but unavailable until a matching runtime exists.
+runtime that can load quickly inside the bundled Python sidecar. The catalog
+only exposes the ONNX conversion that this runtime can actually execute.
 """
 
 from os import path as os_path, makedirs as os_makedirs
@@ -33,7 +32,6 @@ logger.setLevel(logging.CRITICAL)
 
 
 # capacity_mb is download size; vram_mb is approximate VRAM at fp16.
-_UNAVAILABLE_REASON = "This entry is published as .nemo/safetensors and is not wired to this ONNX backend."
 _PARAKEET_TDT_V3_LANGUAGES = [
     "bg", "hr", "cs", "da", "nl", "en", "et", "fi", "fr", "de", "el", "hu", "it",
     "lv", "lt", "mt", "pl", "pt", "ro", "sk", "sl", "es", "sv", "ru", "uk",
@@ -57,49 +55,11 @@ _MODELS: Dict[str, Dict[str, Any]] = {
         "downloadable": True,
         "unavailable_reason": "",
     },
-    "parakeet-tdt-0.6b": {
-        "repo": "nvidia/parakeet-tdt-0.6b-v2",
-        "files": ["parakeet-tdt-0.6b-v2.nemo"],
-        "capacity_mb": 620,
-        "vram_mb": 2048,
-        "languages": ["en"],
-        "downloadable": False,
-        "unavailable_reason": _UNAVAILABLE_REASON,
-    },
-    "parakeet-tdt-ctc-0.6b": {
-        "repo": "nvidia/parakeet-tdt_ctc-0.6b-ja",
-        "files": ["parakeet-tdt_ctc-0.6b-ja.nemo"],
-        "capacity_mb": 620,
-        "vram_mb": 2048,
-        "languages": ["ja"],
-        "downloadable": False,
-        "unavailable_reason": _UNAVAILABLE_REASON,
-    },
-    "parakeet-tdt-1.1b": {
-        "repo": "nvidia/parakeet-tdt-1.1b",
-        "files": ["parakeet-tdt-1.1b.nemo"],
-        "capacity_mb": 1100,
-        "vram_mb": 3072,
-        "languages": ["en"],
-        "downloadable": False,
-        "unavailable_reason": _UNAVAILABLE_REASON,
-    },
-    "canary-1b": {
-        "repo": "nvidia/canary-1b",
-        "files": ["canary-1b.nemo"],
-        "capacity_mb": 1100,
-        "vram_mb": 3072,
-        "languages": ["en", "de", "es", "fr"],
-        "downloadable": False,
-        "unavailable_reason": _UNAVAILABLE_REASON,
-    },
 }
 
 
-# Language → known Parakeet language code. This is the union of the languages
-# documented for NVIDIA Parakeet RNNT 1.1B multilingual and Parakeet TDT 0.6B v3.
+# Language → code supported by the runnable Parakeet TDT 0.6B v3 model.
 SUPPORTED_LANGUAGES: Dict[str, str] = {
-    "Arabic": "ar",
     "Bulgarian": "bg",
     "Croatian": "hr",
     "Czech": "cs",
@@ -111,16 +71,11 @@ SUPPORTED_LANGUAGES: Dict[str, str] = {
     "French": "fr",
     "German": "de",
     "Greek": "el",
-    "Hebrew": "he",
-    "Hindi": "hi",
     "Hungarian": "hu",
     "Italian": "it",
-    "Japanese": "ja",
-    "Korean": "ko",
     "Latvian": "lv",
     "Lithuanian": "lt",
     "Maltese": "mt",
-    "Norwegian": "nb",
     "Polish": "pl",
     "Portuguese": "pt",
     "Romanian": "ro",
@@ -129,8 +84,6 @@ SUPPORTED_LANGUAGES: Dict[str, str] = {
     "Slovenian": "sl",
     "Spanish": "es",
     "Swedish": "sv",
-    "Thai": "th",
-    "Turkish": "tr",
     "Ukrainian": "uk",
 }
 

@@ -42,6 +42,7 @@ from models.transcription.whisper_runtime import (
 from models.translation.translation_languages import translation_lang
 from models.transcription.transcription_languages import transcription_lang
 from models.transcription.transcription_language_policy import runtime_language_slots
+from models.transcription.transcription_profile import make_transcription_profile
 from models.translation.translation_utils import checkCTranslate2Weight, checkCTranslate2Tokenizer, downloadCTranslate2Weight, downloadCTranslate2Tokenizer, backwardCompatibleRenameWeightsDir
 from models.transcription.transcription_whisper import (
     checkWhisperWeight,
@@ -315,63 +316,54 @@ class Model:
         self._inited = True
 
     @staticmethod
-    def _sourceTranscriptionRuntimeSettings(source: Optional[PipelineSource] = None) -> tuple[str, dict, str]:
-        """Return persisted runtime settings for one capture source.
-
-        Older configs and focused tests can legitimately expose only the
-        legacy global fields, so each source-specific lookup deliberately
-        falls back to that established setting.
-        """
+    def _sourceTranscriptionProfile(source: Optional[PipelineSource] = None) -> dict:
+        profile_name = None
         if source is PipelineSource.MIC:
-            return (
-                getattr(
-                    config,
-                    "SELECTED_TRANSCRIPTION_ENGINE_SEND",
-                    config.SELECTED_TRANSCRIPTION_ENGINE,
-                ),
-                getattr(
-                    config,
-                    "SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_SEND",
-                    config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE,
-                ),
-                getattr(
-                    config,
-                    "SELECTED_TRANSCRIPTION_COMPUTE_TYPE_SEND",
-                    config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE,
-                ),
-            )
-        if source is PipelineSource.SPEAKER:
-            return (
-                getattr(
-                    config,
-                    "SELECTED_TRANSCRIPTION_ENGINE_RECEIVE",
-                    config.SELECTED_TRANSCRIPTION_ENGINE,
-                ),
-                getattr(
-                    config,
-                    "SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_RECEIVE",
-                    config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE,
-                ),
-                getattr(
-                    config,
-                    "SELECTED_TRANSCRIPTION_COMPUTE_TYPE_RECEIVE",
-                    config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE,
-                ),
-            )
-        return (
-            config.SELECTED_TRANSCRIPTION_ENGINE,
-            config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE,
-            config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE,
+            profile_name = "TRANSCRIPTION_PROFILE_SEND"
+            engine_name = "SELECTED_TRANSCRIPTION_ENGINE_SEND"
+            device_name = "SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_SEND"
+            compute_type_name = "SELECTED_TRANSCRIPTION_COMPUTE_TYPE_SEND"
+        elif source is PipelineSource.SPEAKER:
+            profile_name = "TRANSCRIPTION_PROFILE_RECEIVE"
+            engine_name = "SELECTED_TRANSCRIPTION_ENGINE_RECEIVE"
+            device_name = "SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_RECEIVE"
+            compute_type_name = "SELECTED_TRANSCRIPTION_COMPUTE_TYPE_RECEIVE"
+        else:
+            engine_name = "SELECTED_TRANSCRIPTION_ENGINE"
+            device_name = "SELECTED_TRANSCRIPTION_COMPUTE_DEVICE"
+            compute_type_name = "SELECTED_TRANSCRIPTION_COMPUTE_TYPE"
+        if profile_name is not None:
+            stored = getattr(config, profile_name, None)
+            if isinstance(stored, dict):
+                return copy.deepcopy(stored)
+        return make_transcription_profile(
+            engine=getattr(config, engine_name, config.SELECTED_TRANSCRIPTION_ENGINE),
+            models={
+                "Whisper": getattr(config, "WHISPER_WEIGHT_TYPE", ""),
+                "Vosk": getattr(config, "VOSK_WEIGHT_TYPE", ""),
+                "Parakeet": getattr(config, "PARAKEET_WEIGHT_TYPE", ""),
+                "SenseVoice": getattr(config, "SENSEVOICE_WEIGHT_TYPE", ""),
+            },
+            device=getattr(config, device_name, config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE),
+            compute_type=getattr(config, compute_type_name, config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE),
+            whisper_decoding_profile=getattr(config, "WHISPER_DECODING_PROFILE", "balanced"),
         )
+
+    @classmethod
+    def _sourceTranscriptionRuntimeSettings(cls, source: Optional[PipelineSource] = None) -> tuple[str, dict, str]:
+        profile = cls._sourceTranscriptionProfile(source)
+        return profile["engine"], profile["device"], profile["compute_type"]
 
     def _acquireWhisperRuntimeLease(
         self,
         source: Optional[PipelineSource] = None,
     ) -> Optional[WhisperRuntimeLease]:
         engine, selected_device, selected_compute_type = self._sourceTranscriptionRuntimeSettings(source)
+        profile = self._sourceTranscriptionProfile(source)
         if engine != "Whisper":
             return None
-        if checkWhisperWeight(config.PATH_DATA, config.WHISPER_WEIGHT_TYPE) is not True:
+        whisper_weight_type = profile["models"]["Whisper"]
+        if checkWhisperWeight(config.PATH_DATA, whisper_weight_type) is not True:
             return None
         device = selected_device["device"]
         device_index = selected_device["device_index"]
@@ -381,7 +373,7 @@ class Model:
             selected_compute_type,
         )
         key = WhisperRuntimeKey(
-            weight_type=config.WHISPER_WEIGHT_TYPE,
+            weight_type=whisper_weight_type,
             device=device,
             device_index=device_index,
             compute_type=compute_type,
@@ -760,7 +752,7 @@ class Model:
         return TranscriberPipelineContext(
             source=source,
             whisper_runtime_lease=lease,
-            whisper_decoding_profile=config.WHISPER_DECODING_PROFILE,
+            whisper_decoding_profile=self._sourceTranscriptionProfile(source)["whisper_decoding_profile"],
             generation=generation,
             is_generation_current=lambda candidate: (
                 self.isSourcePipelineGenerationCurrent(source, candidate)
@@ -1747,6 +1739,8 @@ class Model:
                 transcription_engine, transcription_device, transcription_compute_type = self._sourceTranscriptionRuntimeSettings(
                     PipelineSource.MIC
                 )
+                transcription_profile = self._sourceTranscriptionProfile(PipelineSource.MIC)
+                transcription_models = transcription_profile["models"]
                 whisper_runtime_lease = self._acquireWhisperRuntimeLease(PipelineSource.MIC)
                 self.mic_whisper_runtime_lease = whisper_runtime_lease
                 self.mic_transcriber = AudioTranscriber(
@@ -1756,10 +1750,10 @@ class Model:
                     max_phrases=config.MIC_MAX_PHRASES,
                     transcription_engine=transcription_engine,
                     root=config.PATH_DATA,
-                    whisper_weight_type=config.WHISPER_WEIGHT_TYPE,
-                    vosk_weight_type=config.VOSK_WEIGHT_TYPE,
-                    parakeet_weight_type=config.PARAKEET_WEIGHT_TYPE,
-                    sensevoice_weight_type=config.SENSEVOICE_WEIGHT_TYPE,
+                    whisper_weight_type=transcription_models["Whisper"],
+                    vosk_weight_type=transcription_models["Vosk"],
+                    parakeet_weight_type=transcription_models["Parakeet"],
+                    sensevoice_weight_type=transcription_models["SenseVoice"],
                     device=transcription_device["device"],
                     device_index=transcription_device["device_index"],
                     compute_type=transcription_compute_type,
@@ -2239,6 +2233,8 @@ class Model:
                 transcription_engine, transcription_device, transcription_compute_type = self._sourceTranscriptionRuntimeSettings(
                     PipelineSource.SPEAKER
                 )
+                transcription_profile = self._sourceTranscriptionProfile(PipelineSource.SPEAKER)
+                transcription_models = transcription_profile["models"]
                 whisper_runtime_lease = self._acquireWhisperRuntimeLease(PipelineSource.SPEAKER)
                 self.speaker_whisper_runtime_lease = whisper_runtime_lease
                 self.speaker_transcriber = AudioTranscriber(
@@ -2248,10 +2244,10 @@ class Model:
                     max_phrases=config.SPEAKER_MAX_PHRASES,
                     transcription_engine=transcription_engine,
                     root=config.PATH_DATA,
-                    whisper_weight_type=config.WHISPER_WEIGHT_TYPE,
-                    vosk_weight_type=config.VOSK_WEIGHT_TYPE,
-                    parakeet_weight_type=config.PARAKEET_WEIGHT_TYPE,
-                    sensevoice_weight_type=config.SENSEVOICE_WEIGHT_TYPE,
+                    whisper_weight_type=transcription_models["Whisper"],
+                    vosk_weight_type=transcription_models["Vosk"],
+                    parakeet_weight_type=transcription_models["Parakeet"],
+                    sensevoice_weight_type=transcription_models["SenseVoice"],
                     device=transcription_device["device"],
                     device_index=transcription_device["device_index"],
                     compute_type=transcription_compute_type,

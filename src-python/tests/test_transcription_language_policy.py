@@ -225,17 +225,19 @@ class LanguageProfileIntegrationTests(unittest.TestCase):
         controller.updateTranslationEngineAndEngineList = Mock()
         controller._normalizeSelectedYourLanguageForTranscription = Mock(return_value=False)
         controller._isTranscriptionLanguageSupported = Mock(
-            side_effect=lambda slot, engine=None: (
+            side_effect=lambda slot, engine=None, source=None: (
                 engine == "Vosk" and slot["language"] == "English"
             )
         )
         old_profiles = {"1": copy.deepcopy(DEFAULT_SLOTS)}
         proposed_profiles = {"1": copy.deepcopy(THREE_LANGUAGE_SLOTS)}
+        send_profile = copy.deepcopy(controller_module.config.TRANSCRIPTION_PROFILE_SEND)
+        send_profile["engine"] = "Vosk"
 
         with (
             patch.object(controller_module.config, "_SELECTED_TAB_NO", "1"),
             patch.object(controller_module.config, "_SELECTED_TRANSCRIPTION_ENGINE", "Google"),
-            patch.object(controller_module.config, "_SELECTED_TRANSCRIPTION_ENGINE_SEND", "Vosk"),
+            patch.object(controller_module.config, "_TRANSCRIPTION_PROFILE_SEND", send_profile),
             patch.object(controller_module.config, "_SELECTED_YOUR_LANGUAGES", old_profiles),
         ):
             response = controller.setSelectedYourLanguages(proposed_profiles)
@@ -246,17 +248,19 @@ class LanguageProfileIntegrationTests(unittest.TestCase):
         controller = object.__new__(Controller)
         controller.updateTranslationEngineAndEngineList = Mock()
         controller._isTranscriptionLanguageSupported = Mock(
-            side_effect=lambda slot, engine=None: (
+            side_effect=lambda slot, engine=None, source=None: (
                 engine == "Vosk" and slot["language"] == "English"
             )
         )
         old_profiles = {"1": copy.deepcopy(DEFAULT_SLOTS)}
         proposed_profiles = {"1": copy.deepcopy(THREE_LANGUAGE_SLOTS)}
+        receive_profile = copy.deepcopy(controller_module.config.TRANSCRIPTION_PROFILE_RECEIVE)
+        receive_profile["engine"] = "Vosk"
 
         with (
             patch.object(controller_module.config, "_SELECTED_TAB_NO", "1"),
             patch.object(controller_module.config, "_SELECTED_TRANSCRIPTION_ENGINE", "Google"),
-            patch.object(controller_module.config, "_SELECTED_TRANSCRIPTION_ENGINE_RECEIVE", "Vosk"),
+            patch.object(controller_module.config, "_TRANSCRIPTION_PROFILE_RECEIVE", receive_profile),
             patch.object(controller_module.config, "_SELECTED_TARGET_LANGUAGES", old_profiles),
             patch.object(controller_module.config, "_ENABLE_TRANSCRIPTION_RECEIVE", True),
         ):
