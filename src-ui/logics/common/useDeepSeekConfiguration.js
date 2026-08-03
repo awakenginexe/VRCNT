@@ -1,7 +1,9 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useStore_DeepSeekAuthStatus } from "@store";
 import { useStdoutToPython } from "@useStdoutToPython";
 import { useLanguageSettings } from "@logics_main";
+import { refreshDeepSeekStatusOnce } from "./deepSeekRefreshGuard.js";
+import { useIsBackendReady } from "./useIsBackendReady.js";
 
 const HEALTH_VALUES = new Set([
     "not_configured",
@@ -22,6 +24,8 @@ const normalizeStatus = (payload) => {
 };
 
 export const useDeepSeekConfiguration = () => {
+    const statusRefreshStateRef = useRef(false);
+    const { currentIsBackendReady } = useIsBackendReady();
     const { asyncStdoutToPython } = useStdoutToPython();
     const {
         currentDeepSeekAuthStatus,
@@ -57,8 +61,12 @@ export const useDeepSeekConfiguration = () => {
     }, [asyncStdoutToPython, pendingDeepSeekAuthStatus]);
 
     useEffect(() => {
-        refreshStatus();
-    }, [refreshStatus]);
+        refreshDeepSeekStatusOnce(
+            statusRefreshStateRef,
+            currentIsBackendReady.data === true,
+            refreshStatus,
+        );
+    }, [currentIsBackendReady.data, refreshStatus]);
 
     return {
         currentDeepSeekAuthStatus,

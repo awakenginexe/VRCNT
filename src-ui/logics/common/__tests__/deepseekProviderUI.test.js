@@ -4,6 +4,8 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { refreshDeepSeekStatusOnce } from "../deepSeekRefreshGuard.js";
+
 const repositoryRoot = path.resolve(
     path.dirname(fileURLToPath(import.meta.url)),
     "..",
@@ -16,6 +18,19 @@ const readSource = (...parts) => fs.readFileSync(
     path.join(repositoryRoot, ...parts),
     "utf8",
 );
+
+test("DeepSeek status refresh waits for backend readiness and then runs once", () => {
+    const refreshState = { current: false };
+    let refreshCount = 0;
+    const refreshStatus = () => {
+        refreshCount += 1;
+    };
+
+    assert.equal(refreshDeepSeekStatusOnce(refreshState, false, refreshStatus), false);
+    assert.equal(refreshDeepSeekStatusOnce(refreshState, true, refreshStatus), true);
+    assert.equal(refreshDeepSeekStatusOnce(refreshState, true, refreshStatus), false);
+    assert.equal(refreshCount, 1);
+});
 
 test("DeepSeek settings accept only a typed password and hydrate status without a key", () => {
     const entry = readSource(

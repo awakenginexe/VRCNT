@@ -5,7 +5,9 @@ import {
     DEFAULT_GPU_MONITOR_SELECTION,
     GPU_MONITOR_SELECTION_STORAGE_KEY,
     normalizeGpuMonitorSelection,
+    shouldPollResourceUsage,
 } from "./resourceUsageUtils.js";
+import { useIsBackendReady } from "./useIsBackendReady.js";
 
 const readInitialGpuMonitorSelection = () => {
     if (typeof window === "undefined") return DEFAULT_GPU_MONITOR_SELECTION;
@@ -20,6 +22,7 @@ const readInitialGpuMonitorSelection = () => {
 };
 
 export const useResourceUsage = () => {
+    const { currentIsBackendReady } = useIsBackendReady();
     const { currentResourceUsage, updateResourceUsage } = useStore_ResourceUsage();
     const { asyncStdoutToPython } = useStdoutToPython();
     const [gpuMonitorSelection, setGpuMonitorSelectionState] = useState(readInitialGpuMonitorSelection);
@@ -48,10 +51,12 @@ export const useResourceUsage = () => {
     }, [requestResourceUsage]);
 
     useEffect(() => {
+        if (!shouldPollResourceUsage(currentIsBackendReady.data)) return undefined;
+
         requestResourceUsage();
         const timer = setInterval(requestResourceUsage, 2500);
         return () => clearInterval(timer);
-    }, [requestResourceUsage]);
+    }, [currentIsBackendReady.data, requestResourceUsage]);
 
     return {
         currentResourceUsage,
