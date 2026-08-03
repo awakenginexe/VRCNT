@@ -86,3 +86,8 @@ error.txt
 *.local
 .qoder/
 .worktrees/
+
+# Agent-generated local artifacts
+.codex/
+.codex-*.log
+docs/superpowers/
