@@ -30,6 +30,11 @@ class DualTranscriptionEngineContractTests(unittest.TestCase):
             "SELECTED_TRANSCRIPTION_ENGINE": "Whisper",
             "SELECTED_TRANSCRIPTION_COMPUTE_DEVICE": cpu_device,
             "SELECTED_TRANSCRIPTION_COMPUTE_TYPE": "float32",
+            "WHISPER_WEIGHT_TYPE": "small",
+            "VOSK_WEIGHT_TYPE": "vosk-en",
+            "PARAKEET_WEIGHT_TYPE": "parakeet-v3",
+            "SENSEVOICE_WEIGHT_TYPE": "sensevoice-int8",
+            "WHISPER_DECODING_PROFILE": "accurate",
         }
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -44,9 +49,18 @@ class DualTranscriptionEngineContractTests(unittest.TestCase):
                 instance._timer = None
                 instance._SELECTABLE_TRANSCRIPTION_ENGINE_LIST = ["Google", "Whisper"]
                 instance._SELECTABLE_COMPUTE_DEVICE_LIST = [cpu_device]
+                instance._SELECTABLE_WHISPER_WEIGHT_TYPE_LIST = ["tiny", "small"]
+                instance._SELECTABLE_VOSK_WEIGHT_TYPE_LIST = ["vosk-en"]
+                instance._SELECTABLE_PARAKEET_WEIGHT_TYPE_LIST = ["parakeet-v3"]
+                instance._SELECTABLE_SENSEVOICE_WEIGHT_TYPE_LIST = ["sensevoice-int8"]
                 instance._SELECTED_TRANSCRIPTION_ENGINE = "Google"
                 instance._SELECTED_TRANSCRIPTION_COMPUTE_DEVICE = dict(cpu_device)
                 instance._SELECTED_TRANSCRIPTION_COMPUTE_TYPE = "auto"
+                instance._WHISPER_WEIGHT_TYPE = "tiny"
+                instance._VOSK_WEIGHT_TYPE = "vosk-en"
+                instance._PARAKEET_WEIGHT_TYPE = "parakeet-v3"
+                instance._SENSEVOICE_WEIGHT_TYPE = "sensevoice-int8"
+                instance._WHISPER_DECODING_PROFILE = "balanced"
                 instance._SELECTED_YOUR_LANGUAGES = {}
                 instance._SELECTED_YOUR_TRANSLATION_LANGUAGES = {}
                 instance.saveConfig = lambda key, value, immediate_save=False: instance._config_data.update({key: value})
@@ -62,6 +76,20 @@ class DualTranscriptionEngineContractTests(unittest.TestCase):
                 self.assertEqual(instance.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_RECEIVE, cpu_device)
                 self.assertEqual(instance.SELECTED_TRANSCRIPTION_COMPUTE_TYPE_SEND, "float32")
                 self.assertEqual(instance.SELECTED_TRANSCRIPTION_COMPUTE_TYPE_RECEIVE, "float32")
+                expected_profile = {
+                    "engine": "Whisper",
+                    "models": {
+                        "Whisper": "small",
+                        "Vosk": "vosk-en",
+                        "Parakeet": "parakeet-v3",
+                        "SenseVoice": "sensevoice-int8",
+                    },
+                    "device": cpu_device,
+                    "compute_type": "float32",
+                    "whisper_decoding_profile": "accurate",
+                }
+                self.assertEqual(instance.TRANSCRIPTION_PROFILE_SEND, expected_profile)
+                self.assertEqual(instance.TRANSCRIPTION_PROFILE_RECEIVE, expected_profile)
             finally:
                 sys.modules.pop("config", None)
                 if previous_config_module is not None:
@@ -111,6 +139,12 @@ class DualTranscriptionEngineContractTests(unittest.TestCase):
             "/set/data/selected_transcription_compute_type_send",
             "/get/data/selected_transcription_compute_type_receive",
             "/set/data/selected_transcription_compute_type_receive",
+            "/get/data/transcription_profile_send",
+            "/set/data/transcription_profile_send",
+            "/get/data/transcription_profile_receive",
+            "/set/data/transcription_profile_receive",
+            "/get/data/transcription_profile_all",
+            "/set/data/transcription_profile_all",
         ):
             self.assertIn(endpoint, mainloop_source)
 
@@ -118,6 +152,9 @@ class DualTranscriptionEngineContractTests(unittest.TestCase):
         self.assertIn("setSelectedTranscriptionEngineReceive", controller_source)
         self.assertIn("getSelectedTranscriptionComputeDeviceSend", controller_source)
         self.assertIn("setSelectedTranscriptionComputeTypeReceive", controller_source)
+        self.assertIn("setTranscriptionProfileSend", controller_source)
+        self.assertIn("setTranscriptionProfileReceive", controller_source)
+        self.assertIn("setTranscriptionProfileAll", controller_source)
         self.assertRegex(model_source, r"PipelineSource\.MIC[\s\S]{0,180}SELECTED_TRANSCRIPTION_ENGINE_SEND")
         self.assertRegex(model_source, r"PipelineSource\.SPEAKER[\s\S]{0,180}SELECTED_TRANSCRIPTION_ENGINE_RECEIVE")
 

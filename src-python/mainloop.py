@@ -67,6 +67,10 @@ run_mapping = {
     "selected_transcription_compute_type_receive":"/run/selected_transcription_compute_type_receive",
     "selected_transcription_compute_device_send":"/run/selected_transcription_compute_device_send",
     "selected_transcription_compute_device_receive":"/run/selected_transcription_compute_device_receive",
+    "selected_transcription_engine_send":"/run/selected_transcription_engine_send",
+    "selected_transcription_engine_receive":"/run/selected_transcription_engine_receive",
+    "transcription_profile_send":"/run/transcription_profile_send",
+    "transcription_profile_receive":"/run/transcription_profile_receive",
 
     "selectable_plamo_model_list":"/run/selectable_plamo_model_list",
     "selected_plamo_model":"/run/selected_plamo_model",
@@ -155,6 +159,12 @@ mapping = {
     "/set/data/selected_transcription_engine_send": {"status": False, "variable":controller.setSelectedTranscriptionEngineSend},
     "/get/data/selected_transcription_engine_receive": {"status": False, "variable":controller.getSelectedTranscriptionEngineReceive},
     "/set/data/selected_transcription_engine_receive": {"status": False, "variable":controller.setSelectedTranscriptionEngineReceive},
+    "/get/data/transcription_profile_send": {"status": True, "variable":controller.getTranscriptionProfileSend},
+    "/set/data/transcription_profile_send": {"status": True, "variable":controller.setTranscriptionProfileSend},
+    "/get/data/transcription_profile_receive": {"status": True, "variable":controller.getTranscriptionProfileReceive},
+    "/set/data/transcription_profile_receive": {"status": True, "variable":controller.setTranscriptionProfileReceive},
+    "/get/data/transcription_profile_all": {"status": True, "variable":controller.getTranscriptionProfileAll},
+    "/set/data/transcription_profile_all": {"status": True, "variable":controller.setTranscriptionProfileAll},
 
     "/run/send_message_box": {"status": False, "variable":controller.sendMessageBox},
     "/run/typing_message_box": {"status": False, "variable":controller.typingMessageBox},

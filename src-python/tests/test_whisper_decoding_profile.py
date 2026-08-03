@@ -302,11 +302,23 @@ class WhisperDecodingConfigTests(unittest.TestCase):
 class WhisperDecodingControllerTests(unittest.TestCase):
     def setUp(self):
         self.controller = controller_module.Controller()
+        self.original_send = dict(config_module.config.TRANSCRIPTION_PROFILE_SEND)
+        self.original_receive = dict(config_module.config.TRANSCRIPTION_PROFILE_RECEIVE)
+        send = dict(self.original_send)
+        send["engine"] = "Whisper"
+        send["whisper_decoding_profile"] = "balanced"
+        config_module.config._TRANSCRIPTION_PROFILE_SEND = dict(send)
+        config_module.config._TRANSCRIPTION_PROFILE_RECEIVE = dict(send)
         config_module.config._WHISPER_DECODING_PROFILE = "balanced"
+
+    def tearDown(self):
+        config_module.config._TRANSCRIPTION_PROFILE_SEND = self.original_send
+        config_module.config._TRANSCRIPTION_PROFILE_RECEIVE = self.original_receive
+        self.controller.shutdown()
 
     def test_get_and_set_profile_routes_exchange_lowercase_and_restart(self):
         restart = Mock()
-        self.controller._requestCoordinatedTranscriptionRestart = restart
+        self.controller._requestTranscriptionSourcesRestartLocked = restart
 
         self.assertEqual(
             self.controller.getWhisperDecodingProfile(),
@@ -316,15 +328,20 @@ class WhisperDecodingControllerTests(unittest.TestCase):
             self.controller.setWhisperDecodingProfile("ACCURATE"),
             {"status": 200, "result": "accurate"},
         )
-        restart.assert_called_once_with()
+        restart.assert_called_once_with(
+            (
+                controller_module.PipelineSource.MIC,
+                controller_module.PipelineSource.SPEAKER,
+            )
+        )
 
-    def test_invalid_route_value_returns_balanced_and_requests_restart(self):
-        self.controller._requestCoordinatedTranscriptionRestart = Mock()
+    def test_invalid_route_value_normalizes_to_effective_no_op(self):
+        self.controller._requestTranscriptionSourcesRestartLocked = Mock()
 
         result = self.controller.setWhisperDecodingProfile("not-a-profile")
 
         self.assertEqual(result, {"status": 200, "result": "balanced"})
-        self.controller._requestCoordinatedTranscriptionRestart.assert_called_once_with()
+        self.controller._requestTranscriptionSourcesRestartLocked.assert_not_called()
 
     def test_coordinated_restart_delegates_to_existing_restart_sequence(self):
         config_module.config._ENABLE_TRANSCRIPTION_SEND = True

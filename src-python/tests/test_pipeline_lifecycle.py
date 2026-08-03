@@ -595,13 +595,13 @@ class PipelineLifecycleTests(unittest.TestCase):
         self.assertNotIn(PipelineSource.MIC, instance._source_pipeline_generations)
         self.assertEqual(order[-3:], ["lease", "runtime", "telemetry"])
 
-    def test_all_transcription_runtime_setters_route_exactly_one_restart(self):
+    def test_effective_no_op_transcription_setters_do_not_restart(self):
         controller = Controller()
         controller.run_mapping = {
             "selected_transcription_compute_type": "/compute-type",
         }
-        restart = Mock()
-        controller._requestCoordinatedTranscriptionRestart = restart
+        restart = Mock(return_value=True)
+        controller._requestTranscriptionSourcesRestartLocked = restart
         with (
             patch.object(
                 controller,
@@ -644,7 +644,7 @@ class PipelineLifecycleTests(unittest.TestCase):
                 with self.subTest(setter=invoke):
                     restart.reset_mock()
                     invoke()
-                    restart.assert_called_once_with()
+                    restart.assert_not_called()
         controller.shutdown()
 
     def test_recorder_recovery_preserves_pipeline_worker_queue_and_lease(self):
@@ -1209,9 +1209,6 @@ class PipelineLifecycleTests(unittest.TestCase):
 
     def test_runtime_setting_transactions_are_serialized_and_report_restart_failure(self):
         controller = Controller()
-        controller.run_mapping = {
-            "selected_transcription_compute_type": "/compute-type",
-        }
         first_restart_entered = threading.Event()
         release_first_restart = threading.Event()
         second_setter_done = threading.Event()
@@ -1219,130 +1216,73 @@ class PipelineLifecycleTests(unittest.TestCase):
         responses = {}
         restart_call_lock = threading.Lock()
         restart_call_count = 0
-        original_device = dict(
-            controller_module.config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE
-        )
-        original_compute_type = (
-            controller_module.config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE
-        )
-        original_profile = controller_module.config.WHISPER_DECODING_PROFILE
-        cpu_device = next(
-            device
-            for device in controller_module.config.SELECTABLE_COMPUTE_DEVICE_LIST
-            if device.get("device") == "cpu"
-        )
+        original_send = dict(controller_module.config.TRANSCRIPTION_PROFILE_SEND)
+        original_receive = dict(controller_module.config.TRANSCRIPTION_PROFILE_RECEIVE)
+        starting = dict(original_send)
+        starting["engine"] = "Google"
+        controller_module.config._TRANSCRIPTION_PROFILE_SEND = dict(starting)
+        controller_module.config._TRANSCRIPTION_PROFILE_RECEIVE = dict(starting)
         self.addCleanup(controller.shutdown)
 
-        def restart():
+        def restart(sources):
             nonlocal restart_call_count
             with restart_call_lock:
                 call_index = restart_call_count
                 restart_call_count += 1
             before = (
-                controller_module.config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE[
-                    "device"
-                ],
-                controller_module.config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE[
-                    "device_index"
-                ],
-                controller_module.config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE,
+                controller_module.config.TRANSCRIPTION_PROFILE_SEND["engine"],
+                controller_module.config.TRANSCRIPTION_PROFILE_RECEIVE["engine"],
+                sources,
             )
             if call_index == 0:
                 first_restart_entered.set()
                 release_first_restart.wait()
-            after = (
-                controller_module.config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE[
-                    "device"
-                ],
-                controller_module.config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE[
-                    "device_index"
-                ],
-                controller_module.config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE,
-            )
             with restart_call_lock:
-                snapshots.append((call_index, before, after))
+                snapshots.append((call_index, before))
             return True
 
         try:
-            with patch.object(
-                controller,
-                "_normalizeTranscriptionRuntimeSelection",
-                return_value=False,
-            ):
-                controller._requestCoordinatedTranscriptionRestart = restart
+            controller._requestTranscriptionSourcesRestartLocked = restart
+            first = threading.Thread(
+                target=lambda: responses.setdefault(
+                    "first", controller.setTranscriptionProfileAll({"engine": "Whisper"})
+                )
+            )
+            second = threading.Thread(
+                target=lambda: (
+                    responses.setdefault(
+                        "second", controller.setTranscriptionProfileAll({"engine": "SenseVoice"})
+                    ),
+                    second_setter_done.set(),
+                )
+            )
+            first.start()
+            self.addCleanup(release_first_restart.set)
+            self.addCleanup(first.join, WAIT_SECONDS)
+            self.assertTrue(first_restart_entered.wait(WAIT_SECONDS))
+            second.start()
+            self.addCleanup(second.join, WAIT_SECONDS)
+            self.assertFalse(second_setter_done.wait(0.1))
+            release_first_restart.set()
+            first.join()
+            second.join()
 
-                first = threading.Thread(
-                    target=lambda: responses.setdefault(
-                        "device",
-                        controller.setSelectedTranscriptionComputeDevice(
-                            cpu_device
-                        ),
-                    )
-                )
-                second = threading.Thread(
-                    target=lambda: (
-                        responses.setdefault(
-                            "compute_type",
-                            controller.setSelectedTranscriptionComputeType("int8"),
-                        ),
-                        second_setter_done.set(),
-                    )
-                )
-                first.start()
-                self.addCleanup(release_first_restart.set)
-                self.addCleanup(first.join, WAIT_SECONDS)
-                self.assertTrue(first_restart_entered.wait(WAIT_SECONDS))
-                second.start()
-                self.addCleanup(second.join, WAIT_SECONDS)
-                self.assertFalse(second_setter_done.wait(0.1))
-                release_first_restart.set()
-                first.join()
-                second.join()
+            self.assertEqual([item[1][:2] for item in snapshots], [
+                ("Whisper", "Whisper"),
+                ("SenseVoice", "SenseVoice"),
+            ])
+            self.assertEqual(responses["first"]["status"], 200)
+            self.assertEqual(responses["second"]["status"], 200)
 
-                self.assertEqual(
-                    sorted(snapshots),
-                    [
-                        (0, ("cpu", 0, "auto"), ("cpu", 0, "auto")),
-                        (1, ("cpu", 0, "int8"), ("cpu", 0, "int8")),
-                    ],
-                )
-                self.assertEqual(responses["device"]["status"], 200)
-                self.assertEqual(
-                    responses["device"]["result"]["device"],
-                    "cpu",
-                )
-                self.assertEqual(
-                    responses["device"]["result"]["device_index"],
-                    0,
-                )
-                self.assertEqual(
-                    responses["compute_type"],
-                    {"status": 200, "result": "int8"},
-                )
-
-                controller._requestCoordinatedTranscriptionRestart = lambda: False
-                failure = controller.setWhisperDecodingProfile("accurate")
-                self.assertEqual(
-                    controller_module.config.WHISPER_DECODING_PROFILE,
-                    "accurate",
-                )
-                self.assertEqual(
-                    failure,
-                    {
-                        "status": 500,
-                        "result": "accurate",
-                        "error_code": "transcription_restart_failed",
-                    },
-                )
+            controller._requestTranscriptionSourcesRestartLocked = lambda _sources: False
+            failure = controller.setTranscriptionProfileAll({"engine": "Google"})
+            self.assertEqual(failure["status"], 500)
+            self.assertEqual(failure["error_code"], "transcription_restart_failed")
+            self.assertEqual(failure["result"]["engine"], "Google")
         finally:
             release_first_restart.set()
-            controller_module.config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE = (
-                original_device
-            )
-            controller_module.config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE = (
-                original_compute_type
-            )
-            controller_module.config.WHISPER_DECODING_PROFILE = original_profile
+            controller_module.config._TRANSCRIPTION_PROFILE_SEND = original_send
+            controller_module.config._TRANSCRIPTION_PROFILE_RECEIVE = original_receive
 
     def test_shutdown_waits_for_inflight_start_then_rejects_resurrection(self):
         fake_model = _RecoveryModel()
