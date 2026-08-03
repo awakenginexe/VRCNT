@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
@@ -41,6 +42,19 @@ def completion_with(content):
 
 
 class DeepSeekClientTests(unittest.TestCase):
+    def test_pyinstaller_specs_bundle_the_dynamically_loaded_client(self):
+        repository_root = Path(__file__).resolve().parents[2]
+
+        for spec_name in ("backend.spec", "backend_cuda.spec"):
+            with self.subTest(spec_name=spec_name):
+                spec_source = (repository_root / "spec" / spec_name).read_text(
+                    encoding="utf-8"
+                )
+                self.assertIn(
+                    "'models.translation.translation_deepseek'",
+                    spec_source,
+                )
+
     def test_redaction_removes_bearer_tokens_and_api_key_values(self):
         marker = "not-a-real-secret"
         result = redactDeepSeekDiagnostic(
@@ -304,6 +318,23 @@ class DeepSeekSettingsBackendTests(unittest.TestCase):
                 self.assertEqual(fake_config.AUTH_KEYS["DeepSeek_API"], "existing-not-a-real-secret")
                 self.assertEqual(fake_config.AUTH_KEYS["OpenAI_API"], "other-provider-key")
                 self.assertNotIn("replacement-not-a-real-secret", repr(response))
+
+    def test_unexpected_auth_initialization_failure_is_logged(self):
+        fake_config = self._config()
+        fake_model = self._model()
+        fake_model.authenticationTranslatorDeepSeekAuthKey.side_effect = RuntimeError(
+            "client initialization failed"
+        )
+        controller = self._controller()
+
+        with patch.object(controller_module, "config", fake_config), patch.object(
+            controller_module, "model", fake_model
+        ), patch.object(controller_module, "errorLogging") as log_error:
+            response = controller.setDeepSeekAuthKey("not-a-real-secret")
+
+        self.assertEqual(response["status"], 400)
+        self.assertEqual(response["result"]["error_code"], "AUTH_DEEPSEEK_FAILED")
+        log_error.assert_called_once_with()
 
     def test_connection_failure_is_status_only_and_preserves_provider_order(self):
         fake_config = self._config(deepseek_key="existing-not-a-real-secret")

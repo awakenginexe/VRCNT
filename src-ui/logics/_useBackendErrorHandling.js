@@ -1,4 +1,5 @@
 import { useI18n } from "@useI18n";
+import { useStore_DeepSeekAuthStatus } from "@store";
 
 import {
     useNotificationStatus,
@@ -48,7 +49,6 @@ export const _useBackendErrorHandling = () => {
         updateOpenAIAuthKey,
         updateSelectedOpenAIModel,
 
-        updateDeepSeekAuthStatus,
         updateSelectedDeepSeekModel,
 
         updateGroqAuthKey,
@@ -64,6 +64,8 @@ export const _useBackendErrorHandling = () => {
 
         downloadFailedCTranslate2WeightTypeStatus,
     } = useTranslation();
+
+    const { updateDeepSeekAuthStatus } = useStore_DeepSeekAuthStatus();
 
     const { updateEnableVrcMicMuteSync } = useOthers();
 

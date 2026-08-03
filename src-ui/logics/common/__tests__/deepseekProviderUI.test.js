@@ -32,6 +32,24 @@ test("DeepSeek status refresh waits for backend readiness and then runs once", (
     assert.equal(refreshCount, 1);
 });
 
+test("DeepSeek auth errors update the dedicated status store", () => {
+    const errorHandler = readSource(
+        "src-ui",
+        "logics",
+        "_useBackendErrorHandling.js",
+    );
+
+    assert.match(
+        errorHandler,
+        /useStore_DeepSeekAuthStatus/,
+        "the auth-error path must use the store that owns DeepSeek pending state",
+    );
+    assert.match(
+        errorHandler,
+        /const\s*\{\s*updateDeepSeekAuthStatus\s*\}\s*=\s*useStore_DeepSeekAuthStatus\(\)/,
+    );
+});
+
 test("DeepSeek settings accept only a typed password and hydrate status without a key", () => {
     const entry = readSource(
         "src-ui",

@@ -653,6 +653,25 @@ class TranslationAttemptTests(unittest.TestCase):
         )
         instance.translator.updateDeepSeekClient.assert_called_once_with()
 
+    def test_first_deepseek_auth_call_initializes_the_model_facade(self):
+        instance = object.__new__(model_module.Model)
+        translator = Mock()
+        translator.authenticationDeepSeekAuthKey.return_value = True
+
+        def initialize():
+            instance.translator = translator
+
+        instance.ensure_initialized = Mock(side_effect=initialize)
+
+        self.assertTrue(
+            instance.authenticationTranslatorDeepSeekAuthKey("not-a-real-secret")
+        )
+        instance.ensure_initialized.assert_called_once_with()
+        translator.authenticationDeepSeekAuthKey.assert_called_once_with(
+            "not-a-real-secret",
+            root_path=model_module.config.PATH_LOCAL,
+        )
+
     def test_same_provider_empty_context_clears_stale_history(self):
         client = RecordingContextClient()
         self.translator._web_translator = Mock()

@@ -923,6 +923,7 @@ class Model:
         self.translator.updateOpenAIClient()
 
     def authenticationTranslatorDeepSeekAuthKey(self, auth_key: str) -> bool:
+        self.ensure_initialized()
         return self.translator.authenticationDeepSeekAuthKey(
             auth_key,
             root_path=config.PATH_LOCAL,

@@ -3710,6 +3710,7 @@ class Controller:
         try:
             authenticated = model.authenticationTranslatorDeepSeekAuthKey(auth_key=data)
         except Exception:
+            errorLogging()
             authenticated = False
 
         if not authenticated:
