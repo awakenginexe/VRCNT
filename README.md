@@ -20,6 +20,29 @@ for conversations where latency matters: speech should become readable
 translation quickly, without a slow cloud provider freezing the rest of the
 session.
 
+## VRCNT 5.0.0 preview
+
+<p align="center">
+  <img src="preview/Preview.png" alt="VRCNT 5.0.0 application preview" width="960" />
+</p>
+
+## What's new in VRCNT 5.0.0
+
+- Improved UX/UI.
+- Selectable transcription models for Speaking and Listening.
+- DeepSeek API translation (experimental; not guaranteed to work).
+- Fixed in-app notification behavior and desktop overlays.
+- Desktop and VR overlay customization.
+- New Guided Setup.
+- New Engines & Audio model settings; the legacy Model & Provider settings remain available.
+- Machine translation support for all supported languages.
+
+## Translation quality and contributions
+
+Translations for languages other than English are machine-generated. We are
+planning improved Thai translation quality in the next build, and contributions
+that improve any language are very welcome.
+
 ## Highlights
 
 - Realtime microphone and speaker transcription.
@@ -43,7 +66,7 @@ VRCNT includes local AI runtime dependencies, which is why the application packa
 - CPU-only mode is supported but may have higher latency, especially with larger speech models.
 - Cloud engines can help weaker computers but require internet access.
 
-## Preview
+## Additional previews
 
 The current preview images are retained for now and will be refreshed for the
 new VRCNT interface later.
