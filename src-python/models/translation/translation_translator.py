@@ -6,6 +6,7 @@ from email.utils import parsedate_to_datetime
 from threading import Condition, Lock, RLock
 from math import ceil
 from time import monotonic, perf_counter, sleep, time
+import os
 
 from deepl import DeepLClient
 import requests
@@ -49,7 +50,14 @@ def _getTransformers():
 
 
 def _getWebTranslator():
+    """Get the web translator function with region compatibility.
+
+    Sets a default translators server region before lazy-importing the
+    translators package to avoid automatic server-region detection failures.
+    Uses setdefault so explicitly configured values (e.g., 'CN') are preserved.
+    """
     try:
+        os.environ.setdefault("translators_default_region", "EN")
         return importlib.import_module("translators").translate_text
     except Exception:
         errorLogging()
