@@ -24,7 +24,7 @@ common_error:
     no_device_mic: "マイクデバイスが検出されませんでした。"
     no_device_speaker: "スピーカーデバイスが検出されませんでした。"
     threshold_invalid_value: "{{min}} から {{max}} までの数値で設定できます。"
-    failed_download_weight_ctranslate2: "CTranslate2 モデルを完了できませんでした。もう一度ダウンロードしてください。再び失敗する場合は、VRCNT を再起動してください。"
+    failed_download_weight_ctranslate2: "オフライン翻訳モデルのダウンロードが完了しませんでした。もう一度ダウンロードしてください。再び失敗する場合は、VRCNT を再起動してください。"
     failed_download_weight_whisper: "Whisper モデルのダウンロードに失敗しました。"
     failed_download_weight_sensevoice: "SenseVoice モデルのダウンロードに失敗しました。"
     translation_limit: "翻訳エンジンの使用制限に達したか、一時的に利用制限がかけられています。"
@@ -61,6 +61,19 @@ about_page:
     independence_description: "VRCNTはVRChat Inc.と提携しておらず、同社の承認も受けていません。VRChatおよび関連する名称は各権利者の商標です。"
 
 main_page:
+    preset:
+        fast: "Fast"
+        balanced: "Balanced"
+        good: "Good"
+        precise: "Precise"
+    offline_translation:
+        advanced_models: "Advanced Models"
+        all_models: "All Available Models (6)"
+        preset:
+            fast_description: "Smallest and fastest. Recommended for most users."
+            balanced_description: "Balanced speed and translation quality."
+            good_description: "Higher translation quality with increased resource usage."
+            precise_description: "Highest quality offline option. Requires significantly more memory and storage."
     live_weave:
         navigation:
             live: "ライブ"
@@ -68,6 +81,7 @@ main_page:
             engines: "エンジンと音声"
             history: "履歴"
             models: "音声モデル"
+            translation_models: "翻訳モデル"
             overlay: "オーバーレイスタジオ"
             settings: "設定"
         session_live: "セッション接続中"
@@ -366,7 +380,7 @@ main_page:
         is_selected_same_language: "「{{your_language}}」と「{{target_language}}」に同じ言語が選択がされているため、「{{ctranslate2}}」のみが使用できます。"
         use_parallel_service: "並列サービスを使用"
         second_translator: "2つ目の翻訳エンジン"
-        local_fallback: "CTranslate2へ自動フォールバック"
+        local_fallback: "オフライン翻訳へ自動フォールバック"
         local_fallback_desc: "既定ではオフです。有効にすると準備済みのローカルモデルがクラウドの待機分を処理し、すべてのクラウドサービスが制限中または失敗した場合に引き継ぎます。クラウドへの送信間隔を調整し、表示された待機時間の後に自動再試行します。"
         primary_badge: "1st"
         secondary_badge: "2nd"
@@ -446,6 +460,14 @@ main_page:
     update_available_detail: "VRCNT {{version}} を利用できます。Update を開くとダウンロードして再起動します。"
     updating: "アップデート中..."
 
+    translation_models:
+        eyebrow: "オフライン翻訳"
+        title: "翻訳モデル"
+        detail: "オフライン翻訳用の既成品質プロファイルを選択します。高度なモデルは設定から引き続き利用できます。"
+        back_to_live: "ライブに戻る"
+        advanced_models: "高度なモデルを開く"
+        advanced_models_detail: "設定 → モデルとプロバイダーで完全なモデルカタログを開きます。"
+
 update_modal:
     cpu_desc: "処理デバイスとしてCPUのみを使用"
     cuda_desc: "VRCNTにはCUDAサポートが含まれており、対応するNVIDIA GPUがない場合でもCPUで実行できます。"
@@ -483,6 +505,9 @@ config_page:
             required: "ダウンロードが必要"
             unavailable: "利用できません"
             finalizing: "モデルを準備しています..."
+            failed: "ダウンロードに失敗しました"
+            retry: "再試行"
+            download: "モデルをダウンロード"
         correct_auth_key_required: "正しい認証キーが必要"
         open_auth_key_webpage: "認証キー管理ページを開く"
         connection_check:
@@ -499,6 +524,12 @@ config_page:
             type_template_high: "{{type_name}} （精度が良く、処理は遅い）"
         warning_labels:
             unable_to_use_osc_query: "OSC IP Address の設定によりOSCデータの受信ができないため、現在この機能は使用できません。"
+
+    model_and_provider:
+        speech_models: "音声モデル"
+        cloud_translation_providers:
+            title: "クラウド翻訳プロバイダー"
+            description: "クラウドおよびLLM翻訳用のAPIキーとローカルプロバイダー接続を設定します。"
 
     side_menu_labels:
         device: "デバイス"
@@ -667,6 +698,36 @@ config_page:
         select_ollama_model:
             label: "Ollama モデルを選択"
             connection_required: "Ollama との接続が必要"
+
+    translation_models:
+        title: "翻訳モデル"
+        description: "システムに適した翻訳品質を選択してください。"
+        preparing: "ダウンロードを準備しています..."
+        downloading: "ダウンロード中... {{progress}}%"
+        ready: "準備完了"
+        current_selection: "現在の選択"
+        install_status: "インストール状態"
+        select_model: "モデルを選択"
+        download_model: "モデルをダウンロード"
+        retry: "再試行"
+        technical_id: "技術ID"
+        advanced_description: "高度なモデルでは完全な技術IDを確認して手動で選択できます。"
+        model_not_ready: "翻訳モデルがインストールされていません"
+        model_not_ready_detail: "翻訳を有効にする前に {{preset_name}} をダウンロードする必要があります。"
+        model_downloading: "翻訳モデルはまだダウンロード中です（{{progress}}%）"
+        model_failed: "翻訳モデルの準備ができていません。ダウンロードを再試行してください。"
+        active_model: "現在のモデル"
+        model_active_translation_change: "翻訳モデルを変更する前に翻訳を停止してください。"
+
+    model_download_error:
+        tokenizer: "トークナイザーのダウンロードに失敗しました。もう一度お試しください。"
+        weight_type_tokenizer: "モデルファイルを検証できませんでした。ダウンロードを再試行してください。"
+        weight_type_verification: "ダウンロードされたファイルを検証できませんでした。ダウンロードを再試行してください。"
+        retryable: "ダウンロードが中断されました。ダウンロードを再試行してください。"
+        preset_balanced_failed: "バランスモデルのダウンロードに失敗しました。もう一度お試しください。"
+        preset_fast_failed: "高速モデルのダウンロードに失敗しました。もう一度お試しください。"
+        preset_good_failed: "良好モデルのダウンロードに失敗しました。もう一度お試しください。"
+        preset_precise_failed: "精密モデルのダウンロードに失敗しました。もう一度お試しください。"
 
     transcription:
         apply_to_both_eyebrow: "互換設定"

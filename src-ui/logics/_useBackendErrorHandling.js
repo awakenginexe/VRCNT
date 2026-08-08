@@ -19,7 +19,11 @@ import {
 
     useAdvancedSettings,
 } from "@logics_configs";
-import { ui_configs } from "./ui_configs";
+import {
+    getPresetForWeightType,
+    getWeightDisplayName,
+    ui_configs,
+} from "./ui_configs";
 
 export const _useBackendErrorHandling = () => {
     const { t } = useI18n();
@@ -126,6 +130,20 @@ export const _useBackendErrorHandling = () => {
                 updateTranslationStatus(data);
                 showNotification_Error(message, { category_id: error_code });
                 return;
+            case "TRANSLATION_MODEL_NOT_READY":
+                showNotification_Error(
+                    t("config_page.translation_models.model_not_ready_detail", {
+                        preset_name: getWeightDisplayName(data?.weight_type),
+                    }),
+                    { category_id: error_code },
+                );
+                return;
+            case "TRANSLATION_MODEL_CHANGE_ACTIVE":
+                showNotification_Error(
+                    t("config_page.translation_models.model_active_translation_change"),
+                    { category_id: error_code },
+                );
+                return;
 
             // ============================================================================
             // 音声認識関連エラー (TRANSCRIPTION_*)
@@ -156,7 +174,16 @@ export const _useBackendErrorHandling = () => {
                     result,
                 });
                 downloadFailedCTranslate2WeightTypeStatus(data?.weight_type);
-                showNotification_Error(t("common_error.failed_download_weight_ctranslate2"), { category_id: error_code });
+                const preset = getPresetForWeightType(data?.weight_type);
+                const failureKey = preset
+                    ? `config_page.model_download_error.preset_${preset}_failed`
+                    : "config_page.model_download_error.weight_type_verification";
+                showNotification_Error(
+                    t(failureKey, {
+                        weight_type: getWeightDisplayName(data?.weight_type),
+                    }),
+                    { category_id: error_code },
+                );
                 return;
             case "WEIGHT_WHISPER_DOWNLOAD":
                 showNotification_Error(t("common_error.failed_download_weight_whisper"), { category_id: error_code });

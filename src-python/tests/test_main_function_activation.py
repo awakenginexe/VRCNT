@@ -883,7 +883,7 @@ class MainFunctionActivationTests(unittest.TestCase):
         self.assertEqual(response, {"status": 200, "result": "2"})
         self.assertTrue(loaded)
 
-    def test_active_fallback_weight_change_reloads_before_returning(self):
+    def test_active_fallback_weight_change_is_rejected_without_reload(self):
         controller = _controller_for_activation()
         parameter_changed = False
         loads = []
@@ -926,8 +926,10 @@ class MainFunctionActivationTests(unittest.TestCase):
                 "nllb-200-distilled-1.3B-ct2-int8"
             )
 
-        self.assertEqual(response["status"], 200)
-        self.assertEqual(loads, ["loaded"])
+        self.assertEqual(response["status"], 400)
+        self.assertEqual(response["result"]["error_code"], "TRANSLATION_MODEL_CHANGE_ACTIVE")
+        self.assertEqual(loads, [])
+        self.assertEqual(controller_module.config.CTRANSLATE2_WEIGHT_TYPE, "m2m100_418M-ct2-int8")
         self.assertFalse(parameter_changed)
 
     def test_active_fallback_device_change_reloads_before_returning(self):
@@ -1145,6 +1147,38 @@ class MainFunctionActivationTests(unittest.TestCase):
             )
             load.assert_not_called()
 
+    def test_language_refresh_preserves_an_unready_selected_ctranslate2(self):
+        controller = _controller_for_activation()
+        controller.run_mapping.update({
+            "selected_translation_engines": "/run/selected_translation_engines",
+            "translation_engines": "/run/translation_engines",
+        })
+        with (
+            patch.multiple(
+                controller_module.config,
+                _ENABLE_TRANSLATION=False,
+                _SELECTED_TAB_NO="1",
+                _SELECTED_TRANSLATION_ENGINES={"1": "CTranslate2"},
+                _SELECTABLE_TRANSLATION_ENGINE_STATUS={"CTranslate2": False},
+            ),
+            patch.object(
+                controller,
+                "getTranslationEngines",
+                return_value={"status": 200, "result": []},
+            ),
+            patch.object(
+                model_module.model,
+                "findTranslationEngines",
+                return_value=["CTranslate2"],
+            ),
+        ):
+            controller.updateTranslationEngineAndEngineList()
+
+        self.assertEqual(
+            controller_module.config.SELECTED_TRANSLATION_ENGINES,
+            {"1": "CTranslate2"},
+        )
+
     def test_ctranslate2_translation_enable_waits_for_model_readiness(self):
         controller = _controller_for_activation()
         start_entered = threading.Event()
@@ -1162,6 +1196,16 @@ class MainFunctionActivationTests(unittest.TestCase):
                     _ENABLE_TRANSLATION=False,
                     _SELECTED_TAB_NO="1",
                     _SELECTED_TRANSLATION_ENGINES={"1": "CTranslate2"},
+                ),
+                patch.object(
+                    model_module.model,
+                    "checkTranslatorCTranslate2ModelWeight",
+                    return_value=True,
+                ),
+                patch.object(
+                    model_module.model,
+                    "checkTranslatorCTranslate2ModelTokenizer",
+                    return_value=True,
                 ),
                 patch.object(model_module.model, "isLoadedCTranslate2Model", return_value=False),
                 patch.object(model_module.model, "isChangedTranslatorParameters", return_value=False),

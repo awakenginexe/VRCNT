@@ -66,7 +66,7 @@ export const ui_configs = {
 };
 
 export const translator_status = [
-    { id: "CTranslate2", label: `AI\nCTranslate2`, is_available: false, is_default: true },
+    { id: "CTranslate2", label: `Offline\nTranslation`, is_available: false, is_default: true },
     { id: "Google", label: "Google", is_available: false },
     { id: "Bing", label: "Bing", is_available: false },
     { id: "Papago", label: "Papago", is_available: false },
@@ -83,11 +83,86 @@ export const translator_status = [
 ];
 
 export const ctranslate2_weight_type_status = [
-    { id: "m2m100_418M-ct2-int8", capacity: "418MB"},
-    { id: "m2m100_1.2B-ct2-int8", capacity: "1.2GB"},
-    { id: "nllb-200-distilled-1.3B-ct2-int8", capacity: "1.3GB"},
-    { id: "nllb-200-3.3B-ct2-int8", capacity: "3.3GB"},
-].map(item => ({ ...item, is_downloaded: false, progress: null }));
+    {
+        id: "m2m100_418M-ct2-int8",
+        display_name: "M2M100 418M",
+        family: "m2m100",
+        capacity: "418MB",
+        size_mb: 450,
+        license: "MIT",
+        quantization: "INT8",
+        language_coverage: "75+ languages",
+        is_preset: true,
+        preset: "fast"
+    },
+    {
+        id: "m2m100_1.2B-ct2-int8",
+        display_name: "M2M100 1.2B",
+        family: "m2m100",
+        capacity: "1.2GB",
+        size_mb: 1300,
+        license: "MIT",
+        quantization: "INT8",
+        language_coverage: "75+ languages",
+        is_preset: false,
+        preset: null
+    },
+    {
+        id: "nllb-200-distilled-600M-ct2-int8",
+        display_name: "NLLB-200 Distilled 600M",
+        family: "nllb",
+        capacity: "600MB",
+        size_mb: 630,
+        license: "CC-BY-NC-4.0",
+        quantization: "INT8",
+        language_coverage: "200+ languages",
+        is_preset: true,
+        preset: "balanced"
+    },
+    {
+        id: "nllb-200-distilled-1.3B-ct2-int8",
+        display_name: "NLLB-200 Distilled 1.3B",
+        family: "nllb",
+        capacity: "1.3GB",
+        size_mb: 1400,
+        license: "CC-BY-NC-4.0",
+        quantization: "INT8",
+        language_coverage: "200+ languages",
+        is_preset: true,
+        preset: "good"
+    },
+    {
+        id: "nllb-200-3.3B-ct2-int8",
+        display_name: "NLLB-200 3.3B",
+        family: "nllb",
+        capacity: "3.3GB",
+        size_mb: 3500,
+        license: "CC-BY-NC-4.0",
+        quantization: "INT8",
+        language_coverage: "200+ languages",
+        is_preset: false,
+        preset: null
+    },
+    {
+        id: "madlad400-3b-mt-ct2-int8",
+        display_name: "MADLAD-400 3B MT",
+        family: "madlad400",
+        capacity: "3.2GB",
+        size_mb: 3200,
+        license: "Apache-2.0",
+        quantization: "INT8",
+        language_coverage: "190+ languages",
+        is_preset: true,
+        preset: "precise"
+    },
+].map(item => ({
+    ...item,
+    is_downloaded: false,
+    tokenizer_valid: false,
+    is_pending: false,
+    download_failed: false,
+    progress: null,
+}));
 
 export const whisper_weight_type_status = [
     { id: "tiny", capacity: "74.5MB"},
@@ -100,6 +175,48 @@ export const whisper_weight_type_status = [
     { id: "large-v3-turbo-int8", capacity: "794MB"},
     { id: "large-v3-turbo", capacity: "1.58GB"},
 ].map(item => ({ ...item, is_downloaded: false, progress: null }));
+
+/**
+ * Get preset name for a CTranslate2 weight type.
+ * Returns the preset name (fast, balanced, good, precise) or null if not a preset.
+ */
+export const getPresetForWeightType = (weight_type) => {
+    const model = ctranslate2_weight_type_status.find(m => m.id === weight_type);
+    if (model && model.is_preset) {
+        return model.preset;
+    }
+    return null;
+};
+
+/**
+ * Get display name for a CTranslate2 weight type.
+ * Returns the friendly display name or the original ID if not found.
+ */
+export const getWeightDisplayName = (weight_type) => {
+    const model = ctranslate2_weight_type_status.find(m => m.id === weight_type);
+    return model ? model.display_name : weight_type;
+};
+
+/**
+ * Get preset metadata for UI display.
+ * Returns object with preset info including description and size.
+ */
+export const getPresetMetadata = (preset_name) => {
+    const model = ctranslate2_weight_type_status.find(m => m.is_preset && m.preset === preset_name);
+    if (!model) return null;
+
+    const descriptions = {
+        fast: "Smallest and fastest. Recommended for most users.",
+        balanced: "Balanced speed and translation quality.",
+        good: "Higher translation quality with increased resource usage.",
+        precise: "Highest quality offline option. Requires significantly more memory and storage."
+    };
+
+    return {
+        ...model,
+        description: descriptions[preset_name] || "Custom model configuration."
+    };
+};
 
 export const vosk_weight_type_status = [
     { id: "small-en", capacity: "40 MB / ~300 MB RAM" },

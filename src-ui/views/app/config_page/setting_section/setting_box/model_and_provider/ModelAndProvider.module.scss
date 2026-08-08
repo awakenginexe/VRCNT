@@ -45,6 +45,43 @@
     background: rgba(var(--accent_color_rgb), 0.15);
 }
 
+.provider_section {
+    grid-column: 1 / -1;
+    min-width: 0;
+    margin-top: 1.2rem;
+    padding-top: 1.8rem;
+    border-top: 0.1rem solid rgba(var(--accent_color_rgb), 0.18);
+}
+
+.provider_header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    margin-bottom: 1rem;
+}
+
+.provider_header h2,
+.provider_header p {
+    margin: 0;
+}
+
+.provider_header h2 {
+    color: var(--dark_100_color);
+    font-size: 1.45rem;
+    font-weight: 850;
+}
+
+.provider_header p {
+    max-width: 70ch;
+    color: var(--dark_300_color);
+    font-size: 1.15rem;
+    line-height: 1.5;
+}
+
+.provider_content {
+    min-width: 0;
+}
+
 /*
  * The context panel consumes part of the window, so viewport queries switch too
  * late. Reflow from the width the settings canvas can actually offer both panes.
@@ -63,5 +100,9 @@
 
     .column_header {
         padding-inline: 0.2rem;
+    }
+
+    .provider_section {
+        margin-top: 2.4rem;
     }
 }

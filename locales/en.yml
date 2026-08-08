@@ -61,6 +61,19 @@ about_page:
     independence_description: "VRCNT is not affiliated with or endorsed by VRChat Inc. VRChat and related properties are trademarks of their respective owners."
 
 main_page:
+    preset:
+        fast: "Fast"
+        balanced: "Balanced"
+        good: "Good"
+        precise: "Precise"
+    offline_translation:
+        advanced_models: "Advanced Models"
+        all_models: "All Available Models (6)"
+        preset:
+            fast_description: "Smallest and fastest. Recommended for most users."
+            balanced_description: "Balanced speed and translation quality."
+            good_description: "Higher translation quality with increased resource usage."
+            precise_description: "Highest quality offline option. Requires significantly more memory and storage."
     live_weave:
         navigation:
             live: "Live"
@@ -68,6 +81,7 @@ main_page:
             engines: "Engines & Audio"
             history: "History"
             models: "Speech Models"
+            translation_models: "Translation Models"
             overlay: "Overlay Studio"
             settings: "Settings"
         session_live: "Session live"
@@ -446,6 +460,14 @@ main_page:
     update_available_detail: "VRCNT {{version}} is ready. Open Update to download and restart."
     updating: "Now updating..."
 
+    translation_models:
+        eyebrow: "Offline translation"
+        title: "Translation Models"
+        detail: "Choose a ready-made quality profile for offline translation. Advanced models stay available in Settings."
+        back_to_live: "Back to Live"
+        advanced_models: "Open advanced models"
+        advanced_models_detail: "Open the full model catalog in Settings → Model & Provider."
+
 update_modal:
     cpu_desc: "Use CPU only as the compute device."
     cuda_desc: "VRCNT includes CUDA support and can still run on CPU when no supported NVIDIA GPU is available."
@@ -483,6 +505,9 @@ config_page:
             required: "Download required"
             unavailable: "Unavailable"
             finalizing: "Finalizing model..."
+            failed: "Download failed"
+            retry: "Retry"
+            download: "Download Model"
         correct_auth_key_required: "Correct Auth Key Required"
         open_auth_key_webpage: "Open Auth Key Management Webpage"
         connection_check:
@@ -499,6 +524,12 @@ config_page:
             type_template_high: "{{type_name}} (Higher accuracy, slower processing)"
         warning_labels:
             unable_to_use_osc_query: "Due to the OSC IP Address settings, OSC data cannot be received, so this feature is currently unavailable."
+
+    model_and_provider:
+        speech_models: "Speech Models"
+        cloud_translation_providers:
+            title: "Cloud Translation Providers"
+            description: "Configure API keys and local provider connections for cloud and LLM translation."
 
     side_menu_labels:
         device: "Device"
@@ -667,6 +698,36 @@ config_page:
         select_ollama_model:
             label: "Select Ollama Model"
             connection_required: "Ollama Connection Required"
+
+    translation_models:
+        title: "Translation Models"
+        description: "Choose the translation quality that fits your system."
+        preparing: "Preparing download..."
+        downloading: "Downloading... {{progress}}%"
+        ready: "Ready"
+        current_selection: "Current selection"
+        install_status: "Install status"
+        select_model: "Select model"
+        download_model: "Download Model"
+        retry: "Retry"
+        technical_id: "Technical ID"
+        advanced_description: "Advanced models retain the full technical identifiers and are available for manual selection."
+        model_not_ready: "Translation model not installed"
+        model_not_ready_detail: "{{preset_name}} must be downloaded before Translation can be enabled."
+        model_downloading: "Translation model is still downloading ({{progress}}%)"
+        model_failed: "Translation model is not ready. Retry the download before enabling Translation."
+        active_model: "Active Model"
+        model_active_translation_change: "Stop Translation before changing the translation model."
+
+    model_download_error:
+        tokenizer: "Tokenizer download failed. Please try again."
+        weight_type_tokenizer: "Model files could not be verified. Retry the download."
+        weight_type_verification: "Downloaded files could not be verified. Retry the download."
+        retryable: "Download interrupted. Retry the download."
+        preset_balanced_failed: "Balanced model download failed. Please try again."
+        preset_fast_failed: "Fast model download failed. Please try again."
+        preset_good_failed: "Good model download failed. Please try again."
+        preset_precise_failed: "Precise model download failed. Please try again."
 
     transcription:
         apply_to_both_eyebrow: "Compatibility setting"

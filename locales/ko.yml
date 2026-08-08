@@ -61,6 +61,19 @@ about_page:
     independence_description: "VRCNT는 VRChat Inc.와 제휴하거나 보증받지 않았습니다. VRChat 및 관련 자산은 각 소유자의 상표입니다."
 
 main_page:
+    preset:
+        fast: "빠름"
+        balanced: "균형"
+        good: "고품질"
+        precise: "정밀"
+    offline_translation:
+        advanced_models: "고급 모델"
+        all_models: "사용 가능한 모든 모델 (6)"
+        preset:
+            fast_description: "가장 작고 빠릅니다. 대부분의 사용자에게 권장됩니다."
+            balanced_description: "속도와 번역 품질의 균형을 제공합니다."
+            good_description: "더 높은 번역 품질을 제공하지만 더 많은 리소스가 필요합니다."
+            precise_description: "가장 높은 품질의 오프라인 옵션입니다. 더 많은 메모리와 저장 공간이 필요합니다."
     live_weave:
         navigation:
             live: "라이브"
@@ -68,6 +81,7 @@ main_page:
             engines: "엔진 및 오디오"
             history: "기록"
             models: "음성 모델"
+            translation_models: "번역 모델"
             overlay: "오버레이 스튜디오"
             settings: "설정"
         session_live: "세션 활성"
@@ -446,6 +460,14 @@ main_page:
     update_available_detail: "VRCNT {{version}}을(를) 사용할 수 있습니다. Update를 열어 다운로드하고 재시작하세요."
     updating: "업데이트 중..."
 
+    translation_models:
+        eyebrow: "오프라인 번역"
+        title: "번역 모델"
+        detail: "오프라인 번역을 위한 미리 구성된 품질 프로필을 선택하세요. 고급 모델은 설정에서 계속 사용할 수 있습니다."
+        back_to_live: "라이브로 돌아가기"
+        advanced_models: "고급 모델 열기"
+        advanced_models_detail: "설정 → 모델 및 제공자에서 전체 모델 카탈로그를 엽니다."
+
 update_modal:
     cpu_desc: "처리 장치로 CPU만을 사용합니다."
     cuda_desc: "VRCNT에는 CUDA 지원이 포함되어 있으며, 지원되는 NVIDIA GPU가 없어도 CPU로 실행할 수 있습니다."
@@ -483,6 +505,9 @@ config_page:
             required: "다운로드 필요"
             unavailable: "사용할 수 없음"
             finalizing: "모델을 준비하는 중..."
+            failed: "다운로드 실패"
+            retry: "다시 시도"
+            download: "모델 다운로드"
         correct_auth_key_required:
         open_auth_key_webpage:
         connection_check:
@@ -499,6 +524,12 @@ config_page:
             type_template_high:
         warning_labels:
             unable_to_use_osc_query:
+
+    model_and_provider:
+        speech_models: "음성 모델"
+        cloud_translation_providers:
+            title: "클라우드 번역 제공업체"
+            description: "클라우드 및 LLM 번역을 위한 API 키와 로컬 제공업체 연결을 설정합니다."
 
     side_menu_labels:
         device: "장치"
@@ -667,6 +698,36 @@ config_page:
         select_ollama_model:
             label:
             connection_required:
+
+    translation_models:
+        title: "번역 모델"
+        description: "시스템에 맞는 번역 품질을 선택하세요."
+        preparing: "다운로드 준비 중..."
+        downloading: "다운로드 중... {{progress}}%"
+        ready: "준비됨"
+        current_selection: "현재 선택"
+        install_status: "설치 상태"
+        select_model: "모델 선택"
+        download_model: "모델 다운로드"
+        retry: "다시 시도"
+        technical_id: "기술 ID"
+        advanced_description: "고급 모델은 전체 기술 ID를 표시하며 수동으로 선택할 수 있습니다."
+        model_not_ready: "번역 모델이 설치되지 않았습니다"
+        model_not_ready_detail: "번역을 활성화하기 전에 {{preset_name}}을(를) 다운로드해야 합니다."
+        model_downloading: "번역 모델을 아직 다운로드하는 중입니다 ({{progress}}%)"
+        model_failed: "번역 모델을 사용할 수 없습니다. 번역을 활성화하기 전에 다운로드를 다시 시도하세요."
+        active_model: "활성 모델"
+        model_active_translation_change: "번역 모델을 변경하기 전에 번역을 중지하세요."
+
+    model_download_error:
+        tokenizer: "토크나이저 다운로드에 실패했습니다. 다시 시도하세요."
+        weight_type_tokenizer: "모델 파일을 확인할 수 없습니다. 다운로드를 다시 시도하세요."
+        weight_type_verification: "다운로드한 파일을 확인할 수 없습니다. 다운로드를 다시 시도하세요."
+        retryable: "다운로드가 중단되었습니다. 다시 시도하세요."
+        preset_balanced_failed: "Balanced 모델 다운로드에 실패했습니다. 다시 시도하세요."
+        preset_fast_failed: "Fast 모델 다운로드에 실패했습니다. 다시 시도하세요."
+        preset_good_failed: "Good 모델 다운로드에 실패했습니다. 다시 시도하세요."
+        preset_precise_failed: "Precise 모델 다운로드에 실패했습니다. 다시 시도하세요."
 
     transcription:
         apply_to_both_eyebrow: "호환 설정"

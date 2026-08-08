@@ -12,8 +12,18 @@ test("a failed CTranslate2 download is visible in DevTools and leaves the model 
     const categoryApi = read("src-ui/logics/configs/config_page_setter/ui_config_setter.js");
 
     assert.match(errorHandler, /\[VRCNT\] CTranslate2 model download failed\./);
+    assert.match(errorHandler, /getWeightDisplayName/);
     assert.match(errorHandler, /downloadFailedCTranslate2WeightTypeStatus\(data\?\.weight_type\)/);
     assert.match(settingsLogic, /downloadFailed\$\{base\}/);
-    assert.match(settingsLogic, /is_pending: false, progress: null/);
+    assert.match(settingsLogic, /is_pending: false,[\s\S]*progress: null/);
+    assert.match(settingsLogic, /download_failed: true/);
+    assert.match(settingsLogic, /typeof downloaded_weight_type_status === "string"/);
     assert.match(categoryApi, /downloadFailedKey/);
+});
+
+test("model readiness errors are handled before generic translation activation errors", () => {
+    const errorHandler = read("src-ui/logics/_useBackendErrorHandling.js");
+
+    assert.match(errorHandler, /TRANSLATION_MODEL_NOT_READY/);
+    assert.match(errorHandler, /TRANSLATION_MODEL_CHANGE_ACTIVE/);
 });

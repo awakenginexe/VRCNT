@@ -705,7 +705,7 @@ def _auth_keys_validator(val, inst):
         return None
 
     return {
-        key: value if isinstance(value, str) else current.get(key)
+        key: value if value is None or isinstance(value, str) else current.get(key)
         for key, value in val.items()
     }
 
@@ -964,7 +964,7 @@ class Config:
 
     def init_config(self):
         # Read Only
-        self._VERSION = "5.0.1"
+        self._VERSION = "5.1.0"
         if getattr(sys, 'frozen', False):
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:

@@ -30,6 +30,8 @@ class ErrorCode(str, Enum):
     TRANSLATION_VRAM_ENABLE = "TRANSLATION_VRAM_ENABLE"
     TRANSLATION_DISABLED_VRAM = "TRANSLATION_DISABLED_VRAM"
     TRANSLATION_ENABLE_FAILED = "TRANSLATION_ENABLE_FAILED"
+    TRANSLATION_MODEL_NOT_READY = "TRANSLATION_MODEL_NOT_READY"
+    TRANSLATION_MODEL_CHANGE_ACTIVE = "TRANSLATION_MODEL_CHANGE_ACTIVE"
     
     # ============================================================================
     # 音声認識関連エラー (TRANSCRIPTION_*)
@@ -205,6 +207,18 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
         "message": "",
         "severity": "error",
         "user_action_required": False,
+    },
+    ErrorCode.TRANSLATION_MODEL_NOT_READY: {
+        "category": ErrorCategory.TRANSLATION,
+        "message": "Offline Translation model is not ready",
+        "severity": "warning",
+        "user_action_required": True,
+    },
+    ErrorCode.TRANSLATION_MODEL_CHANGE_ACTIVE: {
+        "category": ErrorCategory.TRANSLATION,
+        "message": "Stop Translation before changing the translation model",
+        "severity": "warning",
+        "user_action_required": True,
     },
     
     # 音声認識エラー

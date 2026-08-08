@@ -32,3 +32,4 @@ export * from "./fontScriptRegistry.js";
 export * from "./fontPackDownloads.js";
 export * from "./managedFontRuntime.js";
 export * from "./fontPackManagement.js";
+export * from "./translationModelPolicy.js";

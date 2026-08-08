@@ -27,7 +27,13 @@ import {
     openrouter_auth_key_url,
 } from "@ui_configs";
 
-import { useDeepSeekConfiguration, useLLMConnection } from "@logics_common";
+import {
+    useDeepSeekConfiguration,
+    useLLMConnection,
+    useNotificationStatus,
+} from "@logics_common";
+import { useMainFunction } from "@logics_main";
+import styles from "./CloudTranslationProviders.module.scss";
 
 export const Translation = () => {
     return (
@@ -35,33 +41,59 @@ export const Translation = () => {
             <CTranslate2WeightType_Box />
             <TranslationComputeDevice_Box />
 
-            <DeepLAuthKey_Box />
-
-            <PlamoAuthKey_Box />
-            <PlamoModelContainer />
-
-            <GeminiAuthKey_Box />
-            <GeminiModelContainer />
-
-            <OpenAIAuthKey_Box />
-            <OpenAIModelContainer />
-
-            <DeepSeekAuthKey_Box />
-            <DeepSeekModelContainer />
-
-            <GroqAuthKey_Box />
-            <GroqModelContainer />
-
-            <OpenRouterAuthKey_Box />
-            <OpenRouterModelContainer />
-
-            <LMStudioConnectionCheck_Box />
-            <LMStudioURL_Box />
-            <LMStudioModelContainer />
-
-            <OllamaConnectionCheck_Box />
-            <OllamaModelContainer />
+            <CloudTranslationProviders />
         </>
+    );
+};
+
+export const CloudTranslationProviders = () => {
+    return (
+        <div className={styles.provider_grid}>
+            <div className={styles.provider_group} data-provider="deepl">
+                <DeepLAuthKey_Box />
+            </div>
+
+            <div className={styles.provider_group} data-provider="plamo">
+                <PlamoAuthKey_Box />
+                <PlamoModelContainer />
+            </div>
+
+            <div className={styles.provider_group} data-provider="gemini">
+                <GeminiAuthKey_Box />
+                <GeminiModelContainer />
+            </div>
+
+            <div className={styles.provider_group} data-provider="openai">
+                <OpenAIAuthKey_Box />
+                <OpenAIModelContainer />
+            </div>
+
+            <div className={styles.provider_group} data-provider="deepseek">
+                <DeepSeekAuthKey_Box />
+                <DeepSeekModelContainer />
+            </div>
+
+            <div className={styles.provider_group} data-provider="groq">
+                <GroqAuthKey_Box />
+                <GroqModelContainer />
+            </div>
+
+            <div className={styles.provider_group} data-provider="openrouter">
+                <OpenRouterAuthKey_Box />
+                <OpenRouterModelContainer />
+            </div>
+
+            <div className={styles.provider_group} data-provider="lmstudio">
+                <LMStudioConnectionCheck_Box />
+                <LMStudioURL_Box />
+                <LMStudioModelContainer />
+            </div>
+
+            <div className={styles.provider_group} data-provider="ollama">
+                <OllamaConnectionCheck_Box />
+                <OllamaModelContainer />
+            </div>
+        </div>
     );
 };
 
@@ -75,8 +107,17 @@ const CTranslate2WeightType_Box = () => {
         currentSelectedCTranslate2WeightType,
         setSelectedCTranslate2WeightType,
     } = useTranslation();
+    const { currentTranslationStatus } = useMainFunction();
+    const { showNotification_Error } = useNotificationStatus();
 
     const selectFunction = (id) => {
+        if (currentTranslationStatus?.data === true) {
+            showNotification_Error(
+                t("config_page.translation_models.model_active_translation_change"),
+                { category_id: "TRANSLATION_MODEL_CHANGE_ACTIVE" },
+            );
+            return;
+        }
         setSelectedCTranslate2WeightType(id);
     };
 
@@ -99,17 +140,18 @@ const CTranslate2WeightType_Box = () => {
             <DownloadModelsContainer
                 label={t(
                     "config_page.translation.ctranslate2_weight_type.label",
-                    {ctranslate2: "CTranslate2"}
+                    {ctranslate2: "Offline Translation"}
                 )}
                 desc={t(
                     "config_page.translation.ctranslate2_weight_type.desc",
-                    {ctranslate2: "CTranslate2"}
+                    {ctranslate2: "Offline Translation"}
                 )}
                 name="ctranslate2_weight_type"
                 options={c_translate2_weight_types_object}
                 checked_variable={currentSelectedCTranslate2WeightType}
                 selectFunction={selectFunction}
                 downloadStartFunction={downloadStartFunction}
+                allow_uninstalled_selection={true}
             />
         </>
     );

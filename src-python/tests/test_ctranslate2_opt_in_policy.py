@@ -15,6 +15,11 @@ from models.translation import translation_utils
 
 
 class CTranslate2OptInPolicyTests(unittest.TestCase):
+    def test_initialization_does_not_auto_download_ctranslate2(self):
+        source = Path(controller.__file__).read_text(encoding="utf-8")
+        init_start = source.index("    def init(")
+        self.assertNotIn("downloadCtranslate2Weight", source[init_start:])
+
     def test_translation_limit_does_not_advertise_automatic_local_fallback(self):
         metadata = ERROR_METADATA[ErrorCode.TRANSLATION_ENGINE_LIMIT]
 

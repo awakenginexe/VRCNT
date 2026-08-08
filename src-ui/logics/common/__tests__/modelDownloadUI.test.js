@@ -22,6 +22,9 @@ const modelDownloadKeys = [
     "required",
     "unavailable",
     "finalizing",
+    "failed",
+    "retry",
+    "download",
 ];
 const readSource = (relativePath) => (
     fs.readFileSync(path.join(repoRoot, relativePath), "utf8")

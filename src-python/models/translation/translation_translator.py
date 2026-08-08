@@ -13,11 +13,21 @@ import requests
 
 try:
     from .translation_languages import translation_lang
-    from .translation_utils import ctranslate2_weights, _prepareCtrTranslate2Runtime, loadCTranslate2Tokenizer
+    from .translation_utils import (
+        ctranslate2_weights,
+        _prepareCtrTranslate2Runtime,
+        loadCTranslate2Tokenizer,
+    )
 except Exception:
-    sys.path.append(os_path.dirname(os_path.dirname(os_path.dirname(os_path.abspath(__file__)))))
+    sys.path.append(
+        os_path.dirname(os_path.dirname(os_path.dirname(os_path.abspath(__file__))))
+    )
     from translation_languages import translation_lang
-    from translation_utils import ctranslate2_weights, _prepareCtrTranslate2Runtime, loadCTranslate2Tokenizer
+    from translation_utils import (
+        ctranslate2_weights,
+        _prepareCtrTranslate2Runtime,
+        loadCTranslate2Tokenizer,
+    )
 
 from utils import errorLogging, getBestComputeType
 from models.pipeline.pipeline_types import TranslationAttempt, TranslationStatus
@@ -713,12 +723,7 @@ class Translator:
                 )
             except Exception:
                 errorLogging()
-                new_tokenizer = loadCTranslate2Tokenizer(
-                    path,
-                    model_type,
-                    local_files_only=False,
-                    repair_cache=True,
-                )
+                raise RuntimeError(f"Tokenizer not available locally for {model_type}. Please download the model via the Download Model button.")
             with self._ctranslate2_condition:
                 self.ctranslate2_translator = new_translator
                 self.ctranslate2_tokenizer = new_tokenizer
@@ -767,10 +772,25 @@ class Translator:
     def setChangedTranslatorParameters(self, is_changed: bool) -> None:
         self.is_changed_translator_parameters = is_changed
 
+    @staticmethod
+    def get_ctranslate2_model_family(weight_type: str) -> str | None:
+        """Get the model family for a CTranslate2 weight type.
+
+        Returns 'm2m100', 'nllb', 'madlad400', or None if unknown.
+        """
+        if weight_type not in ctranslate2_weights:
+            return None
+        return ctranslate2_weights[weight_type].get("family", None)
+
     def translateCTranslate2(self, message: str, source_language: str, target_language, weight_type: str) -> Any:
         """Translate using a loaded CTranslate2 model.
 
         Returns a string on success or False on failure (keeps legacy behavior).
+
+        Supports three model families:
+        - M2M100: Uses lang_code_to_token for target prefix
+        - NLLB: Uses target language code directly as prefix token
+        - MADLAD-400: Prepends <2{target_lang_code}> instruction to source text
         """
         with self._ctranslate2_condition:
             if (
@@ -787,28 +807,60 @@ class Translator:
         result: Any = False
         try:
             with self._ctranslate2_tokenizer_lock:
-                tokenizer.src_lang = source_language
-                source = tokenizer.convert_ids_to_tokens(
-                    tokenizer.encode(message)
-                )
-                match weight_type:
-                    case "m2m100_418M-ct2-int8" | "m2m100_1.2B-ct2-int8":
-                        target_prefix = [
-                            tokenizer.lang_code_to_token[target_language]
-                        ]
-                    case "nllb-200-distilled-1.3B-ct2-int8" | "nllb-200-3.3B-ct2-int8":
-                        target_prefix = [target_language]
-                    case _:
-                        return False
-            results = native_translator.translate_batch(
-                [source],
-                target_prefix=[target_prefix],
-            )
-            target = results[0].hypotheses[0][1:]
-            with self._ctranslate2_tokenizer_lock:
-                result = tokenizer.decode(
-                    tokenizer.convert_tokens_to_ids(target)
-                )
+                # Get model family to determine encoding strategy
+                family = self.get_ctranslate2_model_family(weight_type)
+
+                if family == "m2m100":
+                    # Original M2M100 behavior: use lang_code_to_token for target prefix
+                    tokenizer.src_lang = source_language
+                    source_tokens = tokenizer.convert_ids_to_tokens(tokenizer.encode(message))
+                    target_prefix = [tokenizer.lang_code_to_token[target_language]]
+
+                    results = native_translator.translate_batch(
+                        [source_tokens],
+                        target_prefix=[target_prefix],
+                    )
+                    # M2M100 output starts with target token; remove it
+                    decoded_hypothesis = results[0].hypotheses[0][1:]
+                    result = tokenizer.decode(tokenizer.convert_tokens_to_ids(decoded_hypothesis))
+
+                elif family == "nllb":
+                    # NLLB behavior: prepend target language code as prefix
+                    tokenizer.src_lang = source_language
+                    source_tokens = tokenizer.convert_ids_to_tokens(tokenizer.encode(message))
+                    target_prefix = [target_language]
+
+                    results = native_translator.translate_batch(
+                        [source_tokens],
+                        target_prefix=[target_prefix],
+                    )
+                    # NLLB output includes target token at start; remove it
+                    decoded_hypothesis = results[0].hypotheses[0][1:]
+                    result = tokenizer.decode(tokenizer.convert_tokens_to_ids(decoded_hypothesis))
+
+                elif family == "madlad400":
+                    # MADLAD-400 uses instruction prefix: <2{target_lang_code}> before text
+                    madlad_target_token = f"<2{target_language}>"
+                    instruction_text = f"{madlad_target_token} {message}"
+
+                    source_tokens = tokenizer.convert_ids_to_tokens(
+                        tokenizer.encode(instruction_text)
+                    )
+
+                    # No target prefix for MADLAD - it's embedded in source instruction
+                    results = native_translator.translate_batch([source_tokens])
+
+                    # MADLAD outputs full translated sequence (no [1:] slicing)
+                    target = results[0].hypotheses[0]
+                    result = tokenizer.decode(
+                        tokenizer.convert_tokens_to_ids(target)
+                    )
+
+                else:
+                    # Unknown family
+                    errorLogging()
+                    result = False
+
         except Exception:
             errorLogging()
         finally:

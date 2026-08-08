@@ -24,7 +24,7 @@ common_error:
     no_device_mic: "未偵測到麥克風裝置。"
     no_device_speaker: "未偵測到喇叭裝置。"
     threshold_invalid_value: "可以設置 {{min}} 到 {{max}} 之間的值。"
-    failed_download_weight_ctranslate2: "無法完成 CTranslate2 模型下載。請重試；若仍失敗，請重新啟動 VRCNT。"
+    failed_download_weight_ctranslate2: "無法完成離線翻譯模型下載。請重試；若仍失敗，請重新啟動 VRCNT。"
     failed_download_weight_whisper: "Whisper 模型下載失敗。"
     failed_download_weight_sensevoice: "SenseVoice 模型下載失敗。"
     translation_limit: "已達到翻譯引擎使用限制或臨時受到使用限制。"
@@ -61,6 +61,19 @@ about_page:
     independence_description: "VRCNT 與 VRChat Inc. 無關聯，也未獲得其認可。VRChat 及相關內容為各自所有者的商標。"
 
 main_page:
+    preset:
+        fast: "Fast"
+        balanced: "Balanced"
+        good: "Good"
+        precise: "Precise"
+    offline_translation:
+        advanced_models: "Advanced Models"
+        all_models: "All Available Models (6)"
+        preset:
+            fast_description: "Smallest and fastest. Recommended for most users."
+            balanced_description: "Balanced speed and translation quality."
+            good_description: "Higher translation quality with increased resource usage."
+            precise_description: "Highest quality offline option. Requires significantly more memory and storage."
     live_weave:
         navigation:
             live: "即時"
@@ -68,6 +81,7 @@ main_page:
             engines: "引擎與音效"
             history: "歷史紀錄"
             models: "語音模型"
+            translation_models: "翻譯模型"
             overlay: "覆蓋層工作室"
             settings: "設定"
         session_live: "工作階段正常"
@@ -446,6 +460,14 @@ main_page:
     update_available_detail: "VRCNT {{version}} 已準備好。開啟 Update 即可下載並重新啟動。"
     updating: "正在更新..."
 
+    translation_models:
+        eyebrow: "離線翻譯"
+        title: "翻譯模型"
+        detail: "為離線翻譯選擇預設品質設定檔。進階模型仍可在「設定」中使用。"
+        back_to_live: "返回即時"
+        advanced_models: "開啟進階模型"
+        advanced_models_detail: "在「設定」→「模型與提供者」中開啟完整模型目錄。"
+
 update_modal:
     cpu_desc: "僅使用 CPU 作為處理裝置"
     cuda_desc: "VRCNT 已包含 CUDA 支援；沒有支援的 NVIDIA GPU 時仍可使用 CPU 執行。"
@@ -483,13 +505,16 @@ config_page:
             required: "需要下載"
             unavailable: "無法使用"
             finalizing: "正在準備模型..."
+            failed: "下載失敗"
+            retry: "重試"
+            download: "下載模型"
         correct_auth_key_required:
-        open_auth_key_webpage:
+        open_auth_key_webpage: "開啟金鑰管理頁面"
         connection_check:
-            button_label:
-            checking:
-            connected:
-            disconnected:
+            button_label: "連線檢查"
+            checking: "檢查中..."
+            connected: "已連線"
+            disconnected: "未連線"
         compute_device:
             desc: "各處理類型的精度和速度會因機器規格不同而有所差異，可能與顯示順序不同，請作為大致參考。"
             label_device: "處理裝置"
@@ -499,6 +524,12 @@ config_page:
             type_template_high: "{{type_name}}（精度較高，處理較慢）"
         warning_labels:
             unable_to_use_osc_query: "由於 OSC IP Address 的設定無法接收 OSC 資料，目前無法使用此功能。"
+
+    model_and_provider:
+        speech_models: "語音模型"
+        cloud_translation_providers:
+            title: "雲端翻譯服務商"
+            description: "設定雲端與 LLM 翻譯所需的 API 金鑰及本機服務商連線。"
 
     side_menu_labels:
         device: "裝置"
@@ -663,10 +694,40 @@ config_page:
             connection_required:
 
         ollama_connection_check:
-            label:
+            label: "檢查 Ollama 連線"
         select_ollama_model:
-            label:
-            connection_required:
+            label: "選擇 Ollama 模型"
+            connection_required: "需要 Ollama 連線"
+
+    translation_models:
+        title: "翻譯模型"
+        description: "選擇適合您系統的翻譯品質。"
+        preparing: "正在準備下載..."
+        downloading: "正在下載... {{progress}}%"
+        ready: "就緒"
+        current_selection: "目前選擇"
+        install_status: "安裝狀態"
+        select_model: "選擇模型"
+        download_model: "下載模型"
+        retry: "重試"
+        technical_id: "技術 ID"
+        advanced_description: "進階模型保留完整技術識別碼，可手動選擇。"
+        model_not_ready: "翻譯模型未安裝"
+        model_not_ready_detail: "必須在啟用翻譯之前下載 {{preset_name}}。"
+        model_downloading: "翻譯模型仍在下載中 ({{progress}}%)"
+        model_failed: "翻譯模型尚未就緒。請在啟用翻譯之前重新下載。"
+        active_model: "活動模型"
+        model_active_translation_change: "更改翻譯模型前請先停止翻譯。"
+
+    model_download_error:
+        tokenizer: "Tokenizers 下載失敗。請重試。"
+        weight_type_tokenizer: "無法驗證模型檔案。請重新下載。"
+        weight_type_verification: "無法驗證已下載的檔案。請重新下載。"
+        retryable: "下載中斷。請重新下載。"
+        preset_balanced_failed: "平衡模式模型下載失敗。請重試。"
+        preset_fast_failed: "快速模式模型下載失敗。請重試。"
+        preset_good_failed: "良好模式模型下載失敗。請重試。"
+        preset_precise_failed: "精確模式模型下載失敗。請重試。"
 
     transcription:
         apply_to_both_eyebrow: "相容設定"

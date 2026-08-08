@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+from unittest.mock import Mock
 
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -42,6 +43,26 @@ class DeepSeekConfigTests(unittest.TestCase):
                 "OpenRouter_API": None,
                 "DeepSeek_API": None,
             },
+        )
+
+    def test_auth_key_validator_allows_explicit_none_to_clear_a_saved_key(self):
+        instance = self._new_config_with_defaults()
+        instance.saveConfig = Mock()
+
+        instance.AUTH_KEYS = {
+            **instance.AUTH_KEYS,
+            "DeepSeek_API": "existing-not-a-real-secret",
+        }
+        instance.AUTH_KEYS = {
+            **instance.AUTH_KEYS,
+            "DeepSeek_API": None,
+        }
+
+        self.assertIsNone(instance.AUTH_KEYS["DeepSeek_API"])
+        instance.saveConfig.assert_called_with(
+            "AUTH_KEYS",
+            instance.AUTH_KEYS,
+            immediate_save=False,
         )
 
     def test_auth_key_validator_rejects_unknown_or_unrelated_missing_keys(self):

@@ -40,9 +40,18 @@
 
 .navigation {
     min-width: 0;
+    flex: 1 1 auto;
     display: flex;
     align-items: center;
     gap: 0.4rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+        display: none;
+    }
 }
 
 .navigation_item {
@@ -126,6 +135,7 @@
 
 .utility_area {
     margin-left: auto;
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     gap: 0.9rem;

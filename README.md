@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-5.0.1-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-5.1.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>

@@ -1,0 +1,116 @@
+.container {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: var(--main_page_topbar_height) minmax(0, 1fr);
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 82% 3%, rgba(var(--accent_color_rgb), 0.13), transparent 31%),
+        var(--canvas_color);
+}
+
+.content {
+    width: min(78rem, 100%);
+    min-height: 0;
+    margin: 0 auto;
+    padding: clamp(1rem, 2vw, 2rem);
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+}
+
+.hero,
+.catalog {
+    border: 0.1rem solid rgba(255, 255, 255, 0.1);
+    border-radius: 1rem;
+    background: rgba(12, 10, 21, 0.82);
+    box-shadow: 0 1.35rem 3.75rem rgba(0, 0, 0, 0.18);
+}
+
+.hero {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: clamp(1.25rem, 2.3vw, 2rem);
+}
+
+.eyebrow {
+    margin: 0;
+    color: var(--accent_color);
+    font-size: 0.72rem;
+    font-weight: 850;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.hero h1 {
+    margin: 0.35rem 0 0;
+    color: var(--dark_100_color);
+    font-size: clamp(1.7rem, 2.7vw, 2.6rem);
+    letter-spacing: -0.04em;
+    text-wrap: balance;
+}
+
+.hero p:not(.eyebrow) {
+    max-width: 47rem;
+    margin: 0.5rem 0 0;
+    color: var(--dark_400_color);
+    font-size: 0.95rem;
+    font-weight: 600;
+    line-height: 1.45;
+}
+
+.back_button {
+    min-height: 2.65rem;
+    flex: 0 0 auto;
+    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.38);
+    border-radius: 0.7rem;
+    padding: 0 0.95rem;
+    background: rgba(var(--accent_color_rgb), 0.1);
+    color: var(--dark_100_color);
+    font: inherit;
+    font-size: 0.87rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: transform var(--transition_ui), background-color var(--transition_ui);
+}
+
+.back_button:hover {
+    transform: translateY(-0.1rem);
+    background: rgba(var(--accent_color_rgb), 0.18);
+}
+
+.back_button:focus-visible {
+    outline: 0.2rem solid rgba(var(--accent_color_rgb), 0.9);
+    outline-offset: 0.18rem;
+}
+
+.catalog {
+    margin-top: 1rem;
+    padding: clamp(1rem, 2vw, 1.5rem);
+}
+
+@media (max-width: 48rem) {
+    .hero {
+        flex-direction: column;
+    }
+}
+
+@media (max-height: 48rem) {
+    .content {
+        padding: 0.8rem;
+    }
+
+    .hero,
+    .catalog {
+        border-radius: 0.85rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .back_button {
+        transition: none;
+    }
+}

@@ -24,7 +24,7 @@ common_error:
     no_device_mic: "ไม่พบอุปกรณ์ไมโครโฟน"
     no_device_speaker: "ไม่พบอุปกรณ์ลำโพง"
     threshold_invalid_value: "สามารถตั้งค่าได้ระหว่าง {{min}} ถึง {{max}}"
-    failed_download_weight_ctranslate2: "ไม่สามารถดาวน์โหลดโมเดล CTranslate2 ให้เสร็จสมบูรณ์ได้ โปรดลองดาวน์โหลดอีกครั้ง หากยังล้มเหลว ให้เริ่ม VRCNT ใหม่"
+    failed_download_weight_ctranslate2: "ไม่สามารถดาวน์โหลดโมเดลแปลภาษาออฟไลน์ให้เสร็จสมบูรณ์ได้ โปรดลองดาวน์โหลดอีกครั้ง หากยังล้มเหลว ให้เริ่ม VRCNT ใหม่"
     failed_download_weight_whisper: "เกิดข้อผิดพลาดในการดาวน์โหลดโมเดล Whisper"
     failed_download_weight_sensevoice: "เกิดข้อผิดพลาดในการดาวน์โหลดโมเดล SenseVoice"
     translation_limit: "ถึงขีดจำกัดของเอนจินแปลภาษา หรือบริการถูกจำกัดชั่วคราว"
@@ -61,6 +61,19 @@ about_page:
     independence_description: "VRCNT ไม่มีความเกี่ยวข้องหรือได้รับการรับรองจาก VRChat Inc. ชื่อและทรัพย์สินที่เกี่ยวข้องกับ VRChat เป็นเครื่องหมายการค้าของเจ้าของแต่ละราย"
 
 main_page:
+    preset:
+        fast: "Fast"
+        balanced: "Balanced"
+        good: "Good"
+        precise: "Precise"
+    offline_translation:
+        advanced_models: "Advanced Models"
+        all_models: "All Available Models (6)"
+        preset:
+            fast_description: "Smallest and fastest. Recommended for most users."
+            balanced_description: "Balanced speed and translation quality."
+            good_description: "Higher translation quality with increased resource usage."
+            precise_description: "Highest quality offline option. Requires significantly more memory and storage."
     live_weave:
         navigation:
             live: "สด"
@@ -68,6 +81,7 @@ main_page:
             engines: "เอนจินและเสียง"
             history: "ประวัติ"
             models: "โมเดลเสียง"
+            translation_models: "โมเดลแปลภาษา"
             overlay: "สตูดิโอโอเวอร์เลย์"
             settings: "การตั้งค่า"
         session_live: "เซสชันกำลังทำงาน"
@@ -366,7 +380,7 @@ main_page:
         is_selected_same_language: "คุณกำลังเลือกภาษาเดียวกันสำหรับ '{{your_language}}' และ '{{target_language}}' จึงใช้ได้เฉพาะ '{{ctranslate2}}'"
         use_parallel_service: "ใช้บริการแบบขนาน"
         second_translator: "ตัวแปลภาษาที่สอง"
-        local_fallback: "สลับไป CTranslate2 อัตโนมัติ"
+        local_fallback: "สลับไปการแปลภาษาออฟไลน์อัตโนมัติ"
         local_fallback_desc: "ปิดไว้เป็นค่าเริ่มต้น เมื่อเปิด โมเดลในเครื่องที่เตรียมไว้จะช่วยจัดการงานค้างของคลาวด์และรับช่วงเมื่อบริการคลาวด์ทั้งหมดถูกจำกัดหรือล้มเหลว ระบบจะเว้นช่วงคำขอคลาวด์และทดสอบใหม่อัตโนมัติหลังเวลาพักที่แสดง"
         primary_badge: "ตัวที่ 1"
         secondary_badge: "ตัวที่ 2"
@@ -446,6 +460,14 @@ main_page:
     update_available_detail: "VRCNT {{version}} พร้อมใช้งาน เปิด Update เพื่อดาวน์โหลดและรีสตาร์ต"
     updating: "กำลังอัปเดต..."
 
+    translation_models:
+        eyebrow: "การแปลแบบออฟไลน์"
+        title: "โมเดลแปลภาษา"
+        detail: "เลือกโปรไฟล์คุณภาพที่เตรียมไว้สำหรับการแปลแบบออฟไลน์ โมเดลขั้นสูงยังคงใช้งานได้ในการตั้งค่า"
+        back_to_live: "กลับไปยังไลฟ์"
+        advanced_models: "เปิดโมเดลขั้นสูง"
+        advanced_models_detail: "เปิดแค็ตตาล็อกโมเดลทั้งหมดในการตั้งค่า → โมเดลและผู้ให้บริการ"
+
 update_modal:
     cpu_desc: "ใช้ CPU เป็นอุปกรณ์ประมวลผลเท่านั้น"
     cuda_desc: "VRCNT มีการรองรับ CUDA และยังสามารถทำงานบน CPU ได้เมื่อไม่มี GPU NVIDIA ที่รองรับ"
@@ -483,6 +505,9 @@ config_page:
             required: "ต้องดาวน์โหลด"
             unavailable: "ไม่พร้อมใช้งาน"
             finalizing: "กำลังเตรียมโมเดล..."
+            failed: "การดาวน์โหลดล้มเหลว"
+            retry: "ลองอีกครั้ง"
+            download: "ดาวน์โหลดโมเดล"
         correct_auth_key_required: "ต้องใช้ Auth Key ที่ถูกต้อง"
         open_auth_key_webpage: "เปิดหน้าจัดการ Auth Key"
         connection_check:
@@ -499,6 +524,12 @@ config_page:
             type_template_high: "{{type_name}} (ความแม่นยำสูงกว่า ประมวลผลช้ากว่า)"
         warning_labels:
             unable_to_use_osc_query: "เนื่องจากการตั้งค่า OSC IP Address ไม่สามารถรับข้อมูล OSC ได้ ฟีเจอร์นี้จึงไม่พร้อมใช้งานในขณะนี้"
+
+    model_and_provider:
+        speech_models: "โมเดลเสียงพูด"
+        cloud_translation_providers:
+            title: "ผู้ให้บริการแปลภาษาบนคลาวด์"
+            description: "ตั้งค่าคีย์ API และการเชื่อมต่อผู้ให้บริการในเครื่องสำหรับการแปลบนคลาวด์และ LLM"
 
     side_menu_labels:
         device: "อุปกรณ์"
@@ -666,9 +697,40 @@ config_page:
             label: "ตรวจสอบการเชื่อมต่อ Ollama"
         select_ollama_model:
             label: "เลือกโมเดล Ollama"
-            connection_required: "ต้องเชื่อมต่อ Ollama"
+            connection_required: "ต้องเชื่อมต่อกับ Ollama"
+
+    translation_models:
+        title: "โมเดลแปลภาษา"
+        description: "เลือกคุณภาพการแปลที่เหมาะสมกับระบบของคุณ"
+        preparing: "กำลังเตรียมการดาวน์โหลด..."
+        downloading: "กำลังดาวน์โหลด... {{progress}}%"
+        ready: "พร้อมใช้งาน"
+        current_selection: "รายการที่เลือกอยู่"
+        install_status: "สถานะการติดตั้ง"
+        select_model: "เลือกโมเดล"
+        download_model: "ดาวน์โหลดโมเดล"
+        retry: "ลองใหม่"
+        technical_id: "รหัสทางเทคนิค"
+        advanced_description: "โมเดลขั้นสูงจะแสดงรหัสทางเทคนิคเต็มรูปแบบและเลือกใช้งานได้ด้วยตนเอง"
+        model_not_ready: "โมเดลแปลภาษายังไม่ได้รับการติดตั้ง"
+        model_not_ready_detail: "ต้องดาวน์โหลด {{preset_name}} ก่อนจึงจะสามารถเปิดใช้ฟีเจอร์แปลภาษาได้"
+        model_downloading: "โมเดลแปลภาษากำลังดาวน์โหลดอยู่ ({{progress}}%)"
+        model_failed: "โมเดลแปลภาษาพร้อมใช้งานไม่ได้ กรุณาลองดาวน์โหลดใหม่อีกครั้งก่อนเปิดใช้ฟีเจอร์แปลภาษา"
+        active_model: "โมเดลที่ใช้งานอยู่"
+        model_active_translation_change: "โปรดหยุดการแปลก่อนเปลี่ยนโมเดลแปลภาษา"
+
+    model_download_error:
+        tokenizer: "การดาวน์โหลด tokenizer ไม่สำเร็จ กรุณาลองอีกครั้ง"
+        weight_type_tokenizer: "ไม่สามารถตรวจสอบไฟล์โมเดลได้ กรุณาลองดาวน์โหลดใหม่"
+        weight_type_verification: "ไม่สามารถตรวจสอบไฟล์ที่ดาวน์โหลดได้ กรุณาลองดาวน์โหลดใหม่"
+        retryable: "การดาวน์โหลดถูกขัดจังหวะ กรุณาลองดาวน์โหลดใหม่"
+        preset_balanced_failed: "การดาวน์โหลดโมเดลแบบ Balanced ไม่สำเร็จ กรุณาลองอีกครั้ง"
+        preset_fast_failed: "การดาวน์โหลดโมเดลแบบ Fast ไม่สำเร็จ กรุณาลองอีกครั้ง"
+        preset_good_failed: "การดาวน์โหลดโมเดลแบบ Good ไม่สำเร็จ กรุณาลองอีกครั้ง"
+        preset_precise_failed: "การดาวน์โหลดโมเดลแบบ Precise ไม่สำเร็จ กรุณาลองอีกครั้ง"
 
     transcription:
+
         apply_to_both_eyebrow: "การตั้งค่าแบบเดิม"
         apply_to_both_title: "แทนที่โปรไฟล์ถอดเสียงทั้งสองรายการหรือไม่"
         apply_to_both_warning: "เสียงของฉันและเสียงของผู้อื่นกำลังใช้โปรไฟล์การถอดเสียงที่ต่างกัน การดำเนินการต่อจะเปลี่ยนการถอดเสียงทั้งสองทิศทาง ต้องการใช้การตั้งค่านี้กับทั้งสองหรือไม่?"

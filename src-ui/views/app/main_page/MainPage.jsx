@@ -4,6 +4,7 @@ import { MainSection } from "./main_section/MainSection";
 import { GuidedSetup } from "./guided_setup/GuidedSetup";
 import { EnginesWorkspace } from "./engines/EnginesWorkspace";
 import { ModelsHub } from "./models/ModelsHub";
+import { TranslationModelsHub } from "./translation_models/TranslationModelsHub";
 import { OverlayStudio } from "./overlay_studio/OverlayStudio";
 import { useIsOpenedConfigPage } from "@logics_common";
 import { useStore_ExperienceRoute } from "@store";
@@ -21,7 +22,8 @@ export const MainPage = () => {
                 {currentExperienceRoute.data === "setup" ? <GuidedSetup /> :
                     currentExperienceRoute.data === "engines" ? <EnginesWorkspace /> :
                         currentExperienceRoute.data === "models" ? <ModelsHub /> :
-                            currentExperienceRoute.data === "overlay" ? <OverlayStudio /> : <MainSection />}
+                            currentExperienceRoute.data === "translation_models" ? <TranslationModelsHub /> :
+                                currentExperienceRoute.data === "overlay" ? <OverlayStudio /> : <MainSection />}
             </div>
         </div>
     );

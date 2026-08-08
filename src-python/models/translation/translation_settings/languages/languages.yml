@@ -621,9 +621,83 @@ CTranslate2:
       Standard Malay: zsm_Latn
       Zulu: zul_Latn
     target: *nllb_langs
+  nllb-200-distilled-600M-ct2-int8:
+    source: *nllb_langs
+    target: *nllb_langs
   nllb-200-3.3B-ct2-int8:
     source: *nllb_langs
     target: *nllb_langs
+  madlad400-3b-mt-ct2-int8:
+    source: &madlad_langs
+      Afrikaans: af
+      Albanian: sq
+      Amharic: am
+      Arabic: ar
+      Armenian: hy
+      Azerbaijani: az
+      Basque: eu
+      Bengali: bn
+      Bosnian: bs
+      Bulgarian: bg
+      Catalan: ca
+      Chinese Simplified: zh
+      Chinese Traditional: zh
+      Croatian: hr
+      Czech: cs
+      Danish: da
+      Dutch: nl
+      English: en
+      Estonian: et
+      Filipino: tl
+      Finnish: fi
+      French: fr
+      Galician: gl
+      Georgian: ka
+      German: de
+      Greek: el
+      Gujarati: gu
+      Hebrew: he
+      Hindi: hi
+      Hungarian: hu
+      Icelandic: is
+      Indonesian: id
+      Italian: it
+      Japanese: ja
+      Kannada: kn
+      Kazakh: kk
+      Khmer: km
+      Korean: ko
+      Lao: lo
+      Latvian: lv
+      Lithuanian: lt
+      Macedonian: mk
+      Malay: ms
+      Malayalam: ml
+      Mongolian: mn
+      Nepali: ne
+      Norwegian: 'no'
+      Persian: fa
+      Polish: pl
+      Portuguese: pt
+      Romanian: ro
+      Russian: ru
+      Serbian: sr
+      Sinhala: si
+      Slovak: sk
+      Slovenian: sl
+      Spanish: es
+      Sundanese: su
+      Swahili: sw
+      Swedish: sv
+      Tamil: ta
+      Telugu: te
+      Thai: th
+      Turkish: tr
+      Ukrainian: uk
+      Urdu: ur
+      Uzbek: uz
+      Vietnamese: vi
+    target: *madlad_langs
 
 Plamo_API:
   source: &plamo_langs

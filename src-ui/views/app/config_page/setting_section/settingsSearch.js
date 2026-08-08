@@ -3,7 +3,7 @@ import { sidebarTabOrder } from "../sidebar_section/sidebarTabMeta.js";
 const namespaceByTab = {
     device: "device",
     appearance: "appearance",
-    model_and_provider: ["translation", "transcription"],
+    model_and_provider: ["translation", "transcription", "translation_models"],
     vr: "vr",
     others: "others",
     hotkeys: "hotkeys",

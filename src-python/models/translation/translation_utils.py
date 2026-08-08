@@ -1,3 +1,5 @@
+import hashlib
+import json
 import os
 import shutil
 from os import path as os_path
@@ -34,23 +36,89 @@ ctranslate2_weights = {
         "hf_repo": "jncraton/m2m100_418M-ct2-int8",
         "directory_name": "m2m100_418M-ct2-int8",
         "tokenizer": "facebook/m2m100_418M",
+        "display_name": "M2M100 418M",
+        "family": "m2m100",
+        "size_mb": 450,
+        "quantization": "INT8",
+        "license": "MIT",
+        "language_coverage": "75+ languages",
     },
     "m2m100_1.2B-ct2-int8": {
         "hf_repo": "jncraton/m2m100_1.2B-ct2-int8",
         "directory_name": "m2m100_1.2B-ct2-int8",
         "tokenizer": "facebook/m2m100_1.2B",
+        "display_name": "M2M100 1.2B",
+        "family": "m2m100",
+        "size_mb": 1300,
+        "quantization": "INT8",
+        "license": "MIT",
+        "language_coverage": "75+ languages",
+    },
+    "nllb-200-distilled-600M-ct2-int8": {
+        "hf_repo": "osa911/nllb-200-distilled-600M-ct2-int8",
+        "directory_name": "nllb-200-distilled-600M-ct2-int8",
+        "tokenizer": "facebook/nllb-200-distilled-600M",
+        "display_name": "NLLB-200 Distilled 600M",
+        "family": "nllb",
+        "size_mb": 630,
+        "quantization": "INT8",
+        "license": "CC-BY-NC-4.0",
+        "language_coverage": "200+ languages",
     },
     "nllb-200-distilled-1.3B-ct2-int8": {
         "hf_repo": "OpenNMT/nllb-200-distilled-1.3B-ct2-int8",
         "directory_name": "nllb-200-distilled-1.3B-ct2-int8",
         "tokenizer": "facebook/nllb-200-distilled-1.3B",
+        "display_name": "NLLB-200 Distilled 1.3B",
+        "family": "nllb",
+        "size_mb": 1400,
+        "quantization": "INT8",
+        "license": "CC-BY-NC-4.0",
+        "language_coverage": "200+ languages",
     },
     "nllb-200-3.3B-ct2-int8": {
         "hf_repo": "OpenNMT/nllb-200-3.3B-ct2-int8",
         "directory_name": "nllb-200-3.3B-ct2-int8",
         "tokenizer": "facebook/nllb-200-3.3B",
+        "display_name": "NLLB-200 3.3B",
+        "family": "nllb",
+        "size_mb": 3500,
+        "quantization": "INT8",
+        "license": "CC-BY-NC-4.0",
+        "language_coverage": "200+ languages",
+    },
+    "madlad400-3b-mt-ct2-int8": {
+        "hf_repo": "Nextcloud-AI/madlad400-3b-mt-ct2-int8",
+        "directory_name": "madlad400-3b-mt-ct2-int8",
+        "tokenizer": "google/madlad400-3b-mt",
+        "display_name": "MADLAD-400 3B MT",
+        "family": "madlad400",
+        "size_mb": 3200,
+        "quantization": "INT8",
+        "license": "Apache-2.0",
+        "language_coverage": "190+ languages",
     },
 }
+
+# Mapping of user-friendly preset names to internal weight types
+# These are the default configurations used when setting up new presets
+OFFLINE_PRESETS = {
+    "fast": "m2m100_418M-ct2-int8",
+    "balanced": "nllb-200-distilled-600M-ct2-int8",
+    "good": "nllb-200-distilled-1.3B-ct2-int8",
+    "precise": "madlad400-3b-mt-ct2-int8",
+}
+
+def get_weight_preset(weight_type: str) -> str | None:
+    """Return preset name for a weight type, or None if it's a custom/advanced model."""
+    for preset, weight in OFFLINE_PRESETS.items():
+        if weight == weight_type:
+            return preset
+    return None
+
+def is_preset_weight(weight_type: str) -> bool:
+    """Check if a weight type corresponds to a preset."""
+    return get_weight_preset(weight_type) is not None
 
 
 # These are the files shared by the CTranslate2 model repositories. Tokenizer
@@ -115,6 +183,49 @@ def _getCtrTranslate2():
 def _getTransformers():
     return importlib.import_module("transformers")
 
+def verifyCTranslate2Manifest(path: str) -> bool:
+    """Verify an optional repository manifest without weakening runtime checks.
+
+    Some CTranslate2 repositories publish exact byte counts and SHA-256 hashes
+    for their converted files.  When present, validating that manifest turns a
+    vague Translator-load failure into a reproducible corrupt/incomplete-file
+    result.  Repositories without a manifest retain the existing runtime-file
+    and CTranslate2 validation path.
+    """
+    manifest_path = os_path.join(path, "manifest.json")
+    if not os_path.isfile(manifest_path):
+        return True
+    try:
+        with open(manifest_path, "r", encoding="utf-8") as manifest_file:
+            manifest = json.load(manifest_file)
+        entries = manifest.get("files")
+        if not isinstance(entries, list):
+            return False
+        root = os_path.abspath(path)
+        for entry in entries:
+            if not isinstance(entry, dict) or not isinstance(entry.get("name"), str):
+                return False
+            file_path = os_path.abspath(os_path.join(path, entry["name"]))
+            if os_path.commonpath((root, file_path)) != root:
+                return False
+            if not os_path.isfile(file_path):
+                return False
+            expected_bytes = entry.get("bytes")
+            if expected_bytes is not None and os_path.getsize(file_path) != int(expected_bytes):
+                return False
+            expected_sha256 = entry.get("sha256")
+            if expected_sha256:
+                digest = hashlib.sha256()
+                with open(file_path, "rb") as model_file:
+                    for chunk in iter(lambda: model_file.read(1024 * 1024), b""):
+                        digest.update(chunk)
+                if digest.hexdigest().lower() != str(expected_sha256).lower():
+                    return False
+        return True
+    except Exception:
+        errorLogging()
+        return False
+
 def backwardCompatibleRenameWeightsDir(root: str):
     # 後方互換のためファイル名を変更する
     legacy_dirs = {
@@ -137,6 +248,8 @@ def checkCTranslate2Weight(root: str, weight_type: str = "m2m100_418M-ct2-int8")
     for filename in _REQUIRED_CTRANSLATE2_RUNTIME_FILES:
         if not os_path.isfile(os_path.join(path, filename)):
             return False
+    if verifyCTranslate2Manifest(path) is False:
+        return False
 
     try:
         # モデルロード可能かどうかで判定
@@ -169,6 +282,30 @@ def checkCTranslate2Tokenizer(root: str, weight_type: str = "m2m100_418M-ct2-int
         return True
     except Exception:
         return False
+
+def getCTranslate2ModelReadiness(root: str, weight_type: str = "m2m100_418M-ct2-int8") -> dict:
+    """Return the independent local validation results for a model.
+
+    A CTranslate2 model is usable only when both its converted weights and its
+    tokenizer cache are valid.  Keeping these checks separate gives the UI and
+    activation preflight enough information to explain which explicit repair or
+    download action is required.
+    """
+    weight_valid = checkCTranslate2Weight(root, weight_type)
+    tokenizer_valid = checkCTranslate2Tokenizer(root, weight_type)
+    if weight_valid and tokenizer_valid:
+        stage = None
+    elif not weight_valid:
+        stage = "weight"
+    else:
+        stage = "tokenizer"
+    return {
+        "weight_valid": weight_valid,
+        "tokenizer_valid": tokenizer_valid,
+        "ready": weight_valid and tokenizer_valid,
+        "stage": stage,
+        "retryable": True,
+    }
 
 def downloadCTranslate2Weight(root: str, weight_type: str = "m2m100_418M-ct2-int8", callback: Callable = None, end_callback: Callable = None):
     try:
@@ -233,6 +370,9 @@ def downloadCTranslate2Weight(root: str, weight_type: str = "m2m100_418M-ct2-int
         end_callback()
 
     if download_succeeded is False:
+        return False
+
+    if verifyCTranslate2Manifest(path) is False:
         return False
 
     return checkCTranslate2Weight(root, weight_type)

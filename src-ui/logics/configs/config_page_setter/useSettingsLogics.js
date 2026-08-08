@@ -163,31 +163,67 @@ export const useSettingsLogics = (settingsArray, Category) => {
             result[setSuccessExportName] = buildSuccessHandler(s.response_transform ?? null);
 
             result[`updateDownloadProgress${base}`] = (payload) => {
+                const rawProgress = Number(payload?.progress);
+                const progress = Number.isFinite(rawProgress)
+                    ? Math.min(100, Math.max(0, rawProgress * 100))
+                    : null;
                 update((old_status) => {
                     return old_status.data.map((item) =>
                         payload.weight_type === item.id
-                            ? { ...item, progress: payload.progress * 100 }
+                            ? {
+                                ...item,
+                                is_pending: true,
+                                download_failed: false,
+                                progress,
+                            }
                             : item
                     );
                 });
             };
             result[`updateDownloaded${base}`] = (downloaded_weight_type_status) => {
                 update((old_status) => {
-                    return old_status.data.map((item) => ({
-                        ...item,
-                        ...(
-                            typeof downloaded_weight_type_status[item.id] === "object"
-                                ? downloaded_weight_type_status[item.id]
-                                : { is_downloaded: downloaded_weight_type_status[item.id] ?? item.is_downloaded }
-                        ),
-                    }));
+                    return old_status.data.map((item) => {
+                        if (typeof downloaded_weight_type_status === "string") {
+                            return item.id === downloaded_weight_type_status
+                                ? {
+                                    ...item,
+                                    is_downloaded: true,
+                                    is_pending: false,
+                                    download_failed: false,
+                                    tokenizer_valid: true,
+                                    progress: null,
+                                }
+                                : item;
+                        }
+                        const itemStatus = downloaded_weight_type_status?.[item.id];
+                        return {
+                            ...item,
+                            ...(typeof itemStatus === "object"
+                                ? itemStatus
+                                : itemStatus !== undefined
+                                    ? {
+                                        is_downloaded: itemStatus,
+                                        tokenizer_valid: itemStatus === true,
+                                        is_pending: false,
+                                        download_failed: false,
+                                        progress: null,
+                                    }
+                                    : {}),
+                        };
+                    });
                 });
             };
             result[`pending${base}`] = (id) => {
                 update((old_status) => {
                     return old_status.data.map((item) =>
                         id === item.id
-                            ? { ...item, is_pending: true }
+                            ? {
+                                ...item,
+                                is_pending: true,
+                                progress: null,
+                                download_failed: false,
+                                download_error: null,
+                            }
                             : item
                     );
                 });
@@ -196,7 +232,14 @@ export const useSettingsLogics = (settingsArray, Category) => {
                 update((old_status) => {
                     return old_status.data.map((item) =>
                         id === item.id
-                            ? { ...item, is_downloaded: true, is_pending: false, progress: null }
+                            ? {
+                                ...item,
+                                is_downloaded: true,
+                                is_pending: false,
+                                download_failed: false,
+                                tokenizer_valid: true,
+                                progress: null,
+                            }
                             : item
                     );
                 });
@@ -207,7 +250,14 @@ export const useSettingsLogics = (settingsArray, Category) => {
                 update((old_status) => {
                     return old_status.data.map((item) =>
                         id === item.id
-                            ? { ...item, is_pending: false, progress: null }
+                            ? {
+                                ...item,
+                                is_downloaded: false,
+                                is_pending: false,
+                                download_failed: true,
+                                tokenizer_valid: false,
+                                progress: null,
+                            }
                             : item
                     );
                 });

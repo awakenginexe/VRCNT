@@ -2638,6 +2638,34 @@ class Controller:
             status=500,
         )
 
+    def _ctranslate2ReadinessError(self, weight_type: str) -> dict | None:
+        """Return a structured error when the selected local model is incomplete."""
+        try:
+            weight_valid = model.checkTranslatorCTranslate2ModelWeight(weight_type)
+        except Exception:
+            errorLogging()
+            weight_valid = False
+        try:
+            tokenizer_valid = model.checkTranslatorCTranslate2ModelTokenizer(weight_type)
+        except Exception:
+            errorLogging()
+            tokenizer_valid = False
+        if weight_valid and tokenizer_valid:
+            return None
+        stage = "weight" if not weight_valid else "tokenizer"
+        readiness = {
+            "weight_type": weight_type,
+            "stage": stage,
+            "weight_valid": weight_valid,
+            "tokenizer_valid": tokenizer_valid,
+            "retryable": True,
+        }
+        return VRCTError.create_error_response(
+            ErrorCode.TRANSLATION_MODEL_NOT_READY,
+            data=readiness,
+            details=readiness,
+        )
+
     def setEnableTranslation(self, *args, **kwargs) -> dict:
         with self._translation_activation_lock:
             selected_engine = config.SELECTED_TRANSLATION_ENGINES.get(
@@ -2651,12 +2679,24 @@ class Controller:
                 normalized_selection
             )
             try:
+                if config.ENABLE_TRANSLATION is True:
+                    return {"status": 200, "result": True}
+                providers = boundedTranslationProviderSnapshot(normalized_selection)
+                needs_local = self._isCTranslate2Primary(normalized_selection) or (
+                    bool(providers)
+                    and providers[0] != "CTranslate2"
+                    and config.ENABLE_CTRANSLATE2_AUTO_FALLBACK is True
+                )
+                if needs_local:
+                    readiness_error = self._ctranslate2ReadinessError(
+                        config.CTRANSLATE2_WEIGHT_TYPE
+                    )
+                    if readiness_error is not None:
+                        return readiness_error
                 self._ensureCTranslate2Ready(
                     normalized_selection,
                     include_auto_fallback=True,
                 )
-                if config.ENABLE_TRANSLATION is True:
-                    return {"status": 200, "result": True}
                 config.ENABLE_TRANSLATION = True
                 return {"status": 200, "result": True}
             except Exception as error:
@@ -2729,6 +2769,18 @@ class Controller:
                 "",
             )
             if enabled is True and config.ENABLE_TRANSLATION is True:
+                providers = boundedTranslationProviderSnapshot(current_selection)
+                needs_local = self._isCTranslate2Primary(current_selection) or (
+                    bool(providers)
+                    and providers[0] != "CTranslate2"
+                )
+                if needs_local:
+                    readiness_error = self._ctranslate2ReadinessError(
+                        config.CTRANSLATE2_WEIGHT_TYPE
+                    )
+                    if readiness_error is not None:
+                        config.ENABLE_CTRANSLATE2_AUTO_FALLBACK = previous_enabled
+                        return readiness_error
                 try:
                     self._ensureCTranslate2Ready(
                         current_selection,
@@ -4354,6 +4406,11 @@ class Controller:
 
     def setCtranslate2WeightType(self, data, *args, **kwargs) -> dict:
         with self._translation_activation_lock:
+            if config.ENABLE_TRANSLATION is True:
+                return VRCTError.create_error_response(
+                    ErrorCode.TRANSLATION_MODEL_CHANGE_ACTIVE,
+                    data=config.CTRANSLATE2_WEIGHT_TYPE,
+                )
             previous_value = config.CTRANSLATE2_WEIGHT_TYPE
             config.CTRANSLATE2_WEIGHT_TYPE = str(data)
             model.setChangedTranslatorParameters(True)
@@ -5317,11 +5374,35 @@ class Controller:
             return
 
         # すべての重みタイプをチェック（キャッシュされていないものだけ）
-        for weight_type in config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT.keys():
+        for weight_type in list(config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT.keys()):
             # 選択中のウェイトはキャッシュで設定済みなのでスキップ
             if hasattr(self, '_ctranslate2_available_cache') and weight_type == config.CTRANSLATE2_WEIGHT_TYPE:
                 continue
-            config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[weight_type] = model.checkTranslatorCTranslate2ModelWeight(weight_type)
+            weight_valid = model.checkTranslatorCTranslate2ModelWeight(weight_type)
+            tokenizer_valid = model.checkTranslatorCTranslate2ModelTokenizer(weight_type)
+            config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[weight_type] = (
+                weight_valid is True and tokenizer_valid is True
+            )
+
+    def _selectedCTranslate2LanguageCompatible(self, selected_engines) -> bool:
+        """Keep an explicit local-provider selection while its model is offline."""
+        if "CTranslate2" not in selected_engines:
+            return False
+
+        engine_status = dict(config.SELECTABLE_TRANSLATION_ENGINE_STATUS)
+        engine_status["CTranslate2"] = True
+        tab_no = config.SELECTED_TAB_NO
+        input_engines = model.findTranslationEngines(
+            config.SELECTED_YOUR_LANGUAGES[tab_no],
+            config.SELECTED_TARGET_LANGUAGES[tab_no],
+            engine_status,
+        )
+        output_engines = model.findTranslationEngines(
+            config.SELECTED_TARGET_LANGUAGES[tab_no],
+            config.SELECTED_YOUR_TRANSLATION_LANGUAGES[tab_no],
+            engine_status,
+        )
+        return "CTranslate2" in input_engines and "CTranslate2" in output_engines
 
     def updateTranslationEngineAndEngineList(self):
         engines = config.SELECTED_TRANSLATION_ENGINES
@@ -5329,7 +5410,14 @@ class Controller:
             boundedTranslationProviderSnapshot(engines[config.SELECTED_TAB_NO])
         )
         selectable_engines = self.getTranslationEngines()["result"]
-        selected_engines = [engine for engine in selected_engines if engine in selectable_engines]
+        selectable_engines_for_selection = set(selectable_engines)
+        if self._selectedCTranslate2LanguageCompatible(selected_engines):
+            selectable_engines_for_selection.add("CTranslate2")
+        selected_engines = [
+            engine
+            for engine in selected_engines
+            if engine in selectable_engines_for_selection
+        ]
         engines[config.SELECTED_TAB_NO] = self._collapseTranslationProviderSelection(
             selected_engines
         )
@@ -5983,24 +6071,15 @@ class Controller:
 
         self.initializationProgress(1)
 
-        # Download weights
+        # Check local weights. CTranslate2 is installed only from an explicit
+        # Download Model action; startup may still prepare the selected Whisper
+        # model for the existing speech startup flow.
         startup_whisper_weight_type = self._startupWhisperWeightType()
         if connected_network is True:
-            printLog("Download CTranslate2 Model Weight")
             # 後方互換用
             model.backwardCompatibleTranslatorCTranslate2ModelRenameWeightsDir()
 
             download_threads = []
-            weight_type = config.CTRANSLATE2_WEIGHT_TYPE
-            if (
-                model.checkTranslatorCTranslate2ModelWeight(weight_type) is False
-                or model.checkTranslatorCTranslate2ModelTokenizer(weight_type) is False
-            ):
-                th_download_ctranslate2 = Thread(target=self.downloadCtranslate2Weight, args=(weight_type, False))
-                th_download_ctranslate2.daemon = True
-                th_download_ctranslate2.start()
-                download_threads.append(th_download_ctranslate2)
-
             printLog("Download Whisper Model Weight")
             weight_type = startup_whisper_weight_type
             if model.checkTranscriptionWhisperModelWeight(weight_type) is False:
@@ -6012,7 +6091,7 @@ class Controller:
             if len(download_threads) > 0:
                 self.initializationStatus(
                     "Downloading required AI models",
-                    "Preparing the selected local translation and Whisper models.",
+                    "Preparing the selected local Whisper model.",
                     visible=True,
                     phase="download",
                 )

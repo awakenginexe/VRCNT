@@ -40,6 +40,10 @@ export const DownloadModels = (props) => {
         );
         if (rowState === "installed") props.selectFunction(option.id);
         if (rowState === "download_required") {
+            if (props.allow_uninstalled_selection === true) {
+                props.selectFunction(option.id);
+                return;
+            }
             triggeringRowRef.current = rowRefs.current.get(option.id);
             setConfirmationModelId(option.id);
         }

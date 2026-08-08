@@ -25,6 +25,10 @@ test("translation and transcription share one Model & Provider destination", () 
     const workspaceStyles = readSource(
         "../../setting_section/setting_box/model_and_provider/ModelAndProvider.module.scss",
     );
+    const settingsSearch = readSource("../../setting_section/settingsSearch.js");
+    const downloadModels = readSource(
+        "../../setting_section/setting_box/_components/download_models/DownloadModels.jsx",
+    );
 
     assert.match(navigationMeta, /"model_and_provider"/);
     assert.doesNotMatch(
@@ -32,8 +36,12 @@ test("translation and transcription share one Model & Provider destination", () 
         /"translation"|"transcription"/,
     );
     assert.match(settingBox, /case "model_and_provider":\s*return <ModelAndProvider\s*\/>/);
-    assert.match(workspace, /data-settings-pane="translation"[\s\S]*<Translation\s*\/>/);
     assert.match(workspace, /data-settings-pane="transcription"[\s\S]*<Transcription\s*\/>/);
+    assert.match(workspace, /data-settings-pane="translation_models"[\s\S]*<TranslationModels\s*\/>/);
+    assert.match(settingBox, /case "translation":\s*return <Translation\s*\/>/);
+    assert.doesNotMatch(workspace, /<Translation\s*\/>/);
+    assert.match(downloadModels, /allow_uninstalled_selection === true/);
+    assert.match(settingsSearch, /model_and_provider:\s*\["translation",\s*"transcription",\s*"translation_models"\]/);
     assert.match(
         workspaceStyles,
         /grid-template-columns:\s*minmax\(0,\s*1fr\)\s+0\.1rem\s+minmax\(0,\s*1fr\)/,
@@ -44,11 +52,11 @@ test("translation and transcription share one Model & Provider destination", () 
         /@container model-provider-workspace[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)/,
     );
 
-    const translationPosition = workspace.indexOf('data-settings-pane="translation"');
     const transcriptionPosition = workspace.indexOf('data-settings-pane="transcription"');
+    const translationPosition = workspace.indexOf('data-settings-pane="translation_models"');
     assert.ok(
-        translationPosition < transcriptionPosition,
-        "stacked layout must keep Translation above Transcription",
+        transcriptionPosition < translationPosition,
+        "stacked layout must keep Speech Models above Translation Models",
     );
 });
 
@@ -107,10 +115,10 @@ test("all locales contain the Focus settings shell copy", () => {
             new URL(`../../../../../../locales/${locale}.yml`, import.meta.url),
             "utf8",
         );
-        assert.match(source, /\n    focus_settings:\n/);
-        assert.match(source, /\n        search_placeholder:/);
-        assert.match(source, /\n        section_descriptions:/);
-        assert.match(source, /\n            model_and_provider:/);
-        assert.match(source, /\n            about:/);
+        assert.match(source, /\r?\n    focus_settings:\r?\n/);
+        assert.match(source, /\r?\n        search_placeholder:/);
+        assert.match(source, /\r?\n        section_descriptions:/);
+        assert.match(source, /\r?\n            model_and_provider:/);
+        assert.match(source, /\r?\n            about:/);
     }
 });
