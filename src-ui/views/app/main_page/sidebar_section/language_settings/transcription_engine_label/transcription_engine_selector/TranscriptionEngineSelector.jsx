@@ -8,7 +8,7 @@ export const TranscriptionEngineSelector = ({ selected_id, placement = "settings
     const engines = [
         { id: "Google", label: "Google\n(Cloud)", is_available: true },
         { id: "Whisper", label: "Whisper\n(CPU/GPU)", is_available: true },
-        { id: "Whisper Thai", label: "Whisper Thai\n(Thai-only · CPU/GPU)", is_available: true },
+        { id: "Whisper Thai", label: "Whisper Thai\n(CPU/GPU)", is_available: true },
         { id: "Parakeet", label: "Parakeet\n(GPU)", is_available: true },
         { id: "Vosk", label: "Vosk\n(CPU)", is_available: true },
         { id: "SenseVoice", label: "SenseVoice\n(CPU)", is_available: true },

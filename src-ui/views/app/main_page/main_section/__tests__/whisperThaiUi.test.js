@@ -29,6 +29,18 @@ test("Whisper Thai reuses normal Whisper hardware controls without recommendatio
     assert.equal(WHISPER_PRESETS.some((preset) => preset.candidates.includes("thai-thonburian-small")), false);
 });
 
+test("quick engine tiles keep all engines and clarify Whisper Thai", async () => {
+    const selector = await read(
+        "src-ui", "views", "app", "main_page", "sidebar_section",
+        "language_settings", "transcription_engine_label",
+        "transcription_engine_selector", "TranscriptionEngineSelector.jsx",
+    );
+
+    assert.match(selector, /id: "Whisper", label: "Whisper\\n\(CPU\/GPU\)"/);
+    assert.match(selector, /id: "Whisper Thai", label: "Whisper Thai\\n\(CPU\/GPU\)"/);
+    assert.doesNotMatch(selector, /Thai-only/);
+});
+
 test("Whisper Thai exposes six advanced models and locks recognition-language editing", async () => {
     const [models, selector, openButton, profileGroup, engineSelector, locales] = await Promise.all([
         read("src-ui", "views", "app", "main_page", "models", "ModelsHub.jsx"),
