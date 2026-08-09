@@ -49,6 +49,10 @@ from models.transcription.transcription_whisper import (
     downloadWhisperWeight,
     resolveWhisperComputeType,
 )
+from models.transcription.transcription_whisper_thai import (
+    checkWhisperThaiWeight,
+    downloadWhisperThaiWeight,
+)
 from models.transcription.transcription_vosk import checkVoskWeight, downloadVoskWeight
 from models.transcription.transcription_parakeet import checkParakeetWeight, downloadParakeetWeight
 from models.transcription.transcription_sensevoice import checkSenseVoiceWeight, downloadSenseVoiceWeight
@@ -834,6 +838,12 @@ class Model:
 
     def downloadWhisperModelWeight(self, weight_type, callback=None, end_callback=None):
         return downloadWhisperWeight(config.PATH_DATA, weight_type, callback, end_callback)
+
+    def checkTranscriptionWhisperThaiModelWeight(self, weight_type: str):
+        return checkWhisperThaiWeight(config.PATH_DATA, weight_type)
+
+    def downloadWhisperThaiModelWeight(self, weight_type, callback=None, end_callback=None):
+        return downloadWhisperThaiWeight(config.PATH_DATA, weight_type, callback, end_callback)
 
     def checkTranscriptionVoskModelWeight(self, weight_type:str):
         return checkVoskWeight(config.PATH_DATA, weight_type)

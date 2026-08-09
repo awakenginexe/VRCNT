@@ -52,6 +52,7 @@ from models.transcription.transcription_profile import (
     normalize_transcription_profile,
 )
 from models.transcription.transcription_whisper import DEFAULT_WHISPER_WEIGHT_TYPE
+from models.transcription.transcription_whisper_thai import getWhisperThaiModelCatalog
 from models.transcription.transcription_vosk import getVoskModelMeta
 from models.transcription.transcription_parakeet import getParakeetModelMeta
 from models.transcription.transcription_sensevoice import getSenseVoiceModelMeta
@@ -1884,6 +1885,39 @@ class Controller:
                     error_response["result"],
                 )
 
+    class DownloadWhisperThai:
+        def __init__(self, run_mapping:dict, weight_type:str, run:Callable[[int, str, Any], None]) -> None:
+            self.run_mapping = run_mapping
+            self.weight_type = weight_type
+            self.run = run
+
+        def progressBar(self, progress) -> None:
+            printLog("Whisper Thai Weight Download Progress", progress)
+            self.run(
+                200,
+                self.run_mapping["download_progress_whisper_thai_weight"],
+                {"weight_type": self.weight_type, "progress": progress},
+            )
+
+        def downloaded(self) -> None:
+            if model.checkTranscriptionWhisperThaiModelWeight(self.weight_type) is True:
+                config.SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_DICT[self.weight_type] = True
+                self.run(
+                    200,
+                    self.run_mapping["downloaded_whisper_thai_weight"],
+                    self.weight_type,
+                )
+            else:
+                error_response = VRCTError.create_error_response(
+                    ErrorCode.WEIGHT_WHISPER_DOWNLOAD,
+                    data={"weight_type": self.weight_type, "engine": "Whisper Thai"},
+                )
+                self.run(
+                    error_response["status"],
+                    self.run_mapping["error_whisper_thai_weight"],
+                    error_response["result"],
+                )
+
     class DownloadVosk:
         def __init__(self, run_mapping:dict, weight_type:str, run:Callable[[int, str, Any], None]) -> None:
             self.run_mapping = run_mapping
@@ -2458,6 +2492,17 @@ class Controller:
     @staticmethod
     def getSelectableWhisperWeightTypeDict(*args, **kwargs) -> dict:
         return {"status":200, "result":config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT}
+
+    @staticmethod
+    def getSelectableWhisperThaiWeightTypeDict(*args, **kwargs) -> dict:
+        return {
+            "status": 200,
+            "result": config.SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_DICT,
+        }
+
+    @staticmethod
+    def getWhisperThaiModelCatalog(*args, **kwargs) -> dict:
+        return {"status": 200, "result": getWhisperThaiModelCatalog()}
 
     @staticmethod
     def getSelectableVoskWeightTypeDict(*args, **kwargs) -> dict:
@@ -4475,6 +4520,18 @@ class Controller:
         )
 
     @staticmethod
+    def getWhisperThaiWeightType(*args, **kwargs) -> dict:
+        return {"status": 200, "result": config.WHISPER_THAI_WEIGHT_TYPE}
+
+    def setWhisperThaiWeightType(self, data, *args, **kwargs) -> dict:
+        response = self.setTranscriptionProfileAll(
+            {"models": {"Whisper Thai": str(data)}}
+        )
+        return self._transcriptionProfileScalarResponse(
+            response, lambda profile: profile["models"]["Whisper Thai"]
+        )
+
+    @staticmethod
     def getWhisperDecodingProfile(*args, **kwargs) -> dict:
         return {"status": 200, "result": config.WHISPER_DECODING_PROFILE}
 
@@ -5143,6 +5200,27 @@ class Controller:
             model.downloadWhisperModelWeight(weight_type, download_whisper.progressBar, download_whisper.downloaded)
         return {"status":200, "result":True}
 
+    def downloadWhisperThaiWeight(self, data:str, asynchronous:bool=True, *args, **kwargs) -> dict:
+        weight_type = str(data)
+        download_whisper_thai = self.DownloadWhisperThai(
+            self.run_mapping,
+            weight_type,
+            self.run,
+        )
+        if asynchronous is True:
+            self.startThreadingDownloadWhisperThaiWeight(
+                weight_type,
+                download_whisper_thai.progressBar,
+                download_whisper_thai.downloaded,
+            )
+        else:
+            model.downloadWhisperThaiModelWeight(
+                weight_type,
+                download_whisper_thai.progressBar,
+                download_whisper_thai.downloaded,
+            )
+        return {"status": 200, "result": True}
+
     def downloadVoskWeight(self, data:str, asynchronous:bool=True, *args, **kwargs) -> dict:
         weight_type = str(data)
         dl = self.DownloadVosk(self.run_mapping, weight_type, self.run)
@@ -5457,6 +5535,21 @@ class Controller:
                 continue
             config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT[weight_type] = model.checkTranscriptionWhisperModelWeight(weight_type)
 
+    def updateDownloadedWhisperThaiModelWeight(self, scan_all: bool = False) -> None:
+        selected_weight_types = self._selectedTranscriptionModelWeights("Whisper Thai")
+        for selected_weight_type in selected_weight_types:
+            config.SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_DICT[selected_weight_type] = (
+                model.checkTranscriptionWhisperThaiModelWeight(selected_weight_type)
+            )
+        if scan_all is False:
+            return
+        for weight_type in config.SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_DICT.keys():
+            if weight_type in selected_weight_types:
+                continue
+            config.SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_DICT[weight_type] = (
+                model.checkTranscriptionWhisperThaiModelWeight(weight_type)
+            )
+
     def updateDownloadedVoskModelWeight(self, scan_all: bool = False) -> None:
         selected_weight_types = self._selectedTranscriptionModelWeights("Vosk")
         for selected_weight_type in selected_weight_types:
@@ -5586,6 +5679,12 @@ class Controller:
     @staticmethod
     def startThreadingDownloadWhisperWeight(weight_type:str, callback:Callable[[float], None], end_callback:Optional[Callable[..., None]] = None) -> None:
         th_download = Thread(target=model.downloadWhisperModelWeight, args=(weight_type, callback, end_callback))
+        th_download.daemon = True
+        th_download.start()
+
+    @staticmethod
+    def startThreadingDownloadWhisperThaiWeight(weight_type:str, callback:Callable[[float], None], end_callback:Optional[Callable[..., None]] = None) -> None:
+        th_download = Thread(target=model.downloadWhisperThaiModelWeight, args=(weight_type, callback, end_callback))
         th_download.daemon = True
         th_download.start()
 

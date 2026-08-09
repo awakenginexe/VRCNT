@@ -8,6 +8,12 @@ download/validation policy without changing normal Whisper behavior.
 from __future__ import annotations
 
 from copy import deepcopy
+import os
+from os import path as os_path
+
+from huggingface_hub import hf_hub_url, list_repo_files
+
+from .transcription_whisper import _isValidWhisperFile, downloadFile
 
 
 THAI_WHISPER_MODELS = {
@@ -155,3 +161,68 @@ def getWhisperThaiModelCatalog() -> list[dict]:
         {"id": model_id, **deepcopy(metadata)}
         for model_id, metadata in THAI_WHISPER_MODELS.items()
     ]
+
+
+def _whisperThaiModelPath(root: str, weight_type: str) -> str:
+    return os_path.join(root, "weights", "whisper", str(weight_type))
+
+
+def checkWhisperThaiWeight(root: str, weight_type: str) -> bool:
+    """Return whether one Thai model directory is locally self-contained."""
+
+    metadata = getWhisperThaiModelMeta(weight_type)
+    model_path = _whisperThaiModelPath(root, weight_type)
+    if not os_path.isdir(model_path):
+        return False
+    for filename in metadata["required_files"]:
+        if not _isValidWhisperFile(
+            os_path.join(model_path, filename),
+            filename,
+        ):
+            return False
+    return True
+
+
+def downloadWhisperThaiWeight(
+    root: str,
+    weight_type: str,
+    callback=None,
+    end_callback=None,
+) -> bool:
+    """Download one explicitly requested Thai model at its catalog revision."""
+
+    metadata = getWhisperThaiModelMeta(weight_type)
+    model_path = _whisperThaiModelPath(root, weight_type)
+    os.makedirs(model_path, exist_ok=True)
+    if not checkWhisperThaiWeight(root, weight_type):
+        required_files = tuple(metadata["required_files"])
+        try:
+            repository_files = list_repo_files(
+                metadata["repository"],
+                revision=metadata["revision"],
+            )
+            filenames = [
+                filename
+                for filename in repository_files
+                if filename in required_files
+            ]
+        except Exception:
+            filenames = list(required_files)
+
+        for filename in filenames:
+            file_path = os_path.join(model_path, filename)
+            if _isValidWhisperFile(file_path, filename):
+                continue
+            url = hf_hub_url(
+                metadata["repository"],
+                filename,
+                revision=metadata["revision"],
+            )
+            downloadFile(
+                url,
+                file_path,
+                func=callback if filename == "model.bin" else None,
+            )
+    if callable(end_callback):
+        end_callback()
+    return checkWhisperThaiWeight(root, weight_type)
