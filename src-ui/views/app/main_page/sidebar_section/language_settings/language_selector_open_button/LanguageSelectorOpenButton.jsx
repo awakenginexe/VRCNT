@@ -6,7 +6,6 @@ import { useStore_IsOpenedLanguageSelector } from "@store";
 import {
     useLanguageSettings,
 } from "@logics_main";
-import { useTranscription } from "@logics_configs";
 import { LanguageFlag } from "../LanguageFlag.jsx";
 
 export const LanguageSelectorOpenButton = ({
@@ -17,10 +16,10 @@ export const LanguageSelectorOpenButton = ({
     variant = "settings",
     show_title = true,
     selected_group,
+    recognition_engine = "",
 }) => {
     const { t } = useI18n();
     const { updateIsOpenedLanguageSelector, currentIsOpenedLanguageSelector } = useStore_IsOpenedLanguageSelector();
-    const { currentSelectedTranscriptionEngine } = useTranscription();
 
     const {
         currentSelectedPresetTabNumber,
@@ -83,7 +82,7 @@ export const LanguageSelectorOpenButton = ({
     const selectedGroup = getVariable(selector_key);
     const selectedEntry = selectedGroup?.[target_key];
     const isThaiRecognitionSelector = (
-        currentSelectedTranscriptionEngine?.data === "Whisper Thai"
+        recognition_engine === "Whisper Thai"
         && (selector_key === "your_language" || selector_key === "target_language")
     );
     const displayEntry = isThaiRecognitionSelector

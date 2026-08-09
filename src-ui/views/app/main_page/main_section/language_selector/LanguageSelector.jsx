@@ -11,6 +11,10 @@ import {
 } from "../../sidebar_section/language_settings/languageDisplayUtils.js";
 import { findDuplicateSlot } from "@logics_common/languageProfileUtils.js";
 import { LanguageFlag } from "../../sidebar_section/language_settings/LanguageFlag.jsx";
+import {
+    getProfileModel,
+    getRecognitionProfileForSelector,
+} from "../../sidebar_section/language_settings/languageRoutingUtils.js";
 
 import { LanguageSelectorTopBar } from "./language_selector_top_bar/LanguageSelectorTopBar";
 
@@ -171,19 +175,22 @@ export const LanguageSelector = ({ title, onClickFunction, selectorType }) => {
     const [isLegacyLayout, setIsLegacyLayout] = useState(false);
     const searchInputRef = useRef(null);
     const {
-        currentSelectedTranscriptionEngine,
-        currentSelectedVoskWeightType,
-        currentSelectedParakeetWeightType,
-        currentSelectedSenseVoiceWeightType,
+        currentTranscriptionProfileSend,
+        currentTranscriptionProfileReceive,
     } = useTranscription();
 
+    const recognitionProfile = getRecognitionProfileForSelector({
+        selectorType,
+        sendProfile: currentTranscriptionProfileSend.data,
+        receiveProfile: currentTranscriptionProfileReceive.data,
+    });
     const supportGuard = buildSupportGuard({
         selectorType,
         targetKey: currentIsOpenedLanguageSelector.data.target_key,
-        engine: currentSelectedTranscriptionEngine?.data,
-        voskWeightType: currentSelectedVoskWeightType?.data,
-        parakeetWeightType: currentSelectedParakeetWeightType?.data,
-        sensevoiceWeightType: currentSelectedSenseVoiceWeightType?.data,
+        engine: recognitionProfile?.engine,
+        voskWeightType: getProfileModel(recognitionProfile, "Vosk"),
+        parakeetWeightType: getProfileModel(recognitionProfile, "Parakeet"),
+        sensevoiceWeightType: getProfileModel(recognitionProfile, "SenseVoice"),
     });
     const presetKey = currentSelectedPresetTabNumber.data ?? "1";
     const selectedGroup = selectorType === "your_language"

@@ -10,6 +10,7 @@ import { LanguageProfileGroup } from "../../sidebar_section/language_settings/la
 import { LanguageSelectorOpenButton } from "../../sidebar_section/language_settings/language_selector_open_button/LanguageSelectorOpenButton";
 import { TranscriptionEngineLabel } from "../../sidebar_section/language_settings/transcription_engine_label/TranscriptionEngineLabel";
 import { TranslatorSelectorOpenButton } from "../../sidebar_section/language_settings/translator_selector_open_button/TranslatorSelectorOpenButton";
+import { getRecognitionEngineForGroup } from "../../sidebar_section/language_settings/languageRoutingUtils.js";
 import { PipelineStatus } from "../pipeline_status/PipelineStatus";
 import styles from "./LiveControlRail.module.scss";
 
@@ -20,7 +21,10 @@ export const LiveControlRail = () => {
         currentTranscriptionSendStatus,
         currentTranscriptionReceiveStatus,
     } = useMainFunction();
-    const { currentSelectedTranscriptionEngine } = useTranscription();
+    const {
+        currentTranscriptionProfileSend,
+        currentTranscriptionProfileReceive,
+    } = useTranscription();
     const {
         currentTranscriptionLanguageCapabilities,
         getCurrentYourLanguages,
@@ -33,12 +37,25 @@ export const LiveControlRail = () => {
         currentEnableSendMessageToVrc,
         currentEnableSendReceivedMessageToVrc,
     } = useOthers();
-    const transcriptionEngine = currentSelectedTranscriptionEngine?.data ?? "";
-    const capability = currentTranscriptionLanguageCapabilities.data?.[transcriptionEngine] ?? {
+    const sendProfile = currentTranscriptionProfileSend.data ?? {};
+    const receiveProfile = currentTranscriptionProfileReceive.data ?? {};
+    const speakingEngine = getRecognitionEngineForGroup({
+        group: "speaking",
+        sendProfile,
+        receiveProfile,
+    });
+    const targetEngine = getRecognitionEngineForGroup({
+        group: "target",
+        sendProfile,
+        receiveProfile,
+    });
+    const defaultCapability = {
         microphone_max: 1,
         received_max: 1,
         parallel_candidates: false,
     };
+    const speakingCapability = currentTranscriptionLanguageCapabilities.data?.[speakingEngine] ?? defaultCapability;
+    const targetCapability = currentTranscriptionLanguageCapabilities.data?.[targetEngine] ?? defaultCapability;
     const isSessionActive = [
         currentTranslationStatus.data,
         currentTranscriptionSendStatus.data,
@@ -73,8 +90,8 @@ export const LiveControlRail = () => {
                     description={t("main_page.language_panels.speaking_desc")}
                     languages={getCurrentYourLanguages()}
                     selectorKey="your_language"
-                    engine={transcriptionEngine}
-                    capability={capability}
+                    engine={speakingEngine}
+                    capability={speakingCapability}
                     Icon={MicSvg}
                     isActive={currentTranscriptionSendStatus.data}
                     onRemove={removeYourLanguage}
@@ -93,8 +110,8 @@ export const LiveControlRail = () => {
                     description={t("main_page.language_panels.targets_desc")}
                     languages={getCurrentTargetLanguages()}
                     selectorKey="target_language"
-                    engine={transcriptionEngine}
-                    capability={capability}
+                    engine={targetEngine}
+                    capability={targetCapability}
                     Icon={HeadphonesSvg}
                     isActive={currentTranscriptionReceiveStatus.data}
                     onRemove={removeTargetLanguage}

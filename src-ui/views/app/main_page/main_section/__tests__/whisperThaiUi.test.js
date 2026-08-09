@@ -42,13 +42,16 @@ test("quick engine tiles keep all engines and clarify Whisper Thai", async () =>
 });
 
 test("Whisper Thai exposes six advanced models and locks recognition-language editing", async () => {
-    const [models, selector, openButton, profileGroup, engineSelector, locales] = await Promise.all([
+    const [models, selector, openButton, profileGroup, engineSelector, locales, languageSettings, liveBar, controlRail] = await Promise.all([
         read("src-ui", "views", "app", "main_page", "models", "ModelsHub.jsx"),
         read("src-ui", "views", "app", "main_page", "main_section", "language_selector", "LanguageSelector.jsx"),
         read("src-ui", "views", "app", "main_page", "sidebar_section", "language_settings", "language_selector_open_button", "LanguageSelectorOpenButton.jsx"),
         read("src-ui", "views", "app", "main_page", "sidebar_section", "language_settings", "language_profile_group", "LanguageProfileGroup.jsx"),
         read("src-ui", "views", "app", "main_page", "sidebar_section", "language_settings", "transcription_engine_label", "transcription_engine_selector", "TranscriptionEngineSelector.jsx"),
         read("locales", "en.yml"),
+        read("src-ui", "views", "app", "main_page", "sidebar_section", "language_settings", "LanguageSettings.jsx"),
+        read("src-ui", "views", "app", "main_page", "main_section", "live_language_bar", "LiveLanguageBar.jsx"),
+        read("src-ui", "views", "app", "main_page", "main_section", "live_control_rail", "LiveControlRail.jsx"),
     ]);
 
     assert.match(models, /Whisper Thai/);
@@ -57,9 +60,16 @@ test("Whisper Thai exposes six advanced models and locks recognition-language ed
     assert.match(selector, /engine === "Whisper Thai"/);
     assert.match(openButton, /Whisper Thai/);
     assert.match(openButton, /disabled=/);
+    assert.doesNotMatch(openButton, /currentSelectedTranscriptionEngine/);
     assert.match(profileGroup, /Whisper Thai/);
     assert.match(engineSelector, /Whisper Thai/);
     assert.match(locales, /whisper_thai/);
+    for (const source of [languageSettings, liveBar, controlRail]) {
+        assert.match(source, /currentTranscriptionProfileSend/);
+        assert.match(source, /currentTranscriptionProfileReceive/);
+        assert.match(source, /getRecognitionEngineForGroup/);
+    }
+    assert.match(selector, /getRecognitionProfileForSelector/);
 });
 
 test("Whisper Thai uses the shared CPU/GPU runtime policy and is never auto-only", async () => {

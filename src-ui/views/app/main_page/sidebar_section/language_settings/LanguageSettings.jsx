@@ -13,6 +13,7 @@ import { LanguageSwapButton } from "./language_swap_button/LanguageSwapButton";
 import { LanguageProfileGroup } from "./language_profile_group/LanguageProfileGroup";
 import { TranslatorSelectorOpenButton } from "./translator_selector_open_button/TranslatorSelectorOpenButton";
 import { TranscriptionEngineLabel } from "./transcription_engine_label/TranscriptionEngineLabel";
+import { getRecognitionEngineForGroup } from "./languageRoutingUtils.js";
 import styles from "./LanguageSettings.module.scss";
 
 
@@ -37,7 +38,10 @@ export const LanguageSettings = () => {
 const PresetContainer = () => {
     const { t } = useI18n();
     const { currentTranscriptionSendStatus, currentTranscriptionReceiveStatus } = useMainFunction();
-    const { currentSelectedTranscriptionEngine } = useTranscription();
+    const {
+        currentTranscriptionProfileSend,
+        currentTranscriptionProfileReceive,
+    } = useTranscription();
     const {
         currentSelectedPresetTabNumber,
         currentSelectedYourTranslationLanguages,
@@ -47,12 +51,25 @@ const PresetContainer = () => {
         removeYourLanguage,
         removeTargetLanguage,
     } = useLanguageSettings();
-    const transcriptionEngine = currentSelectedTranscriptionEngine?.data ?? "Google";
-    const capability = currentTranscriptionLanguageCapabilities.data?.[transcriptionEngine] ?? {
+    const sendProfile = currentTranscriptionProfileSend.data ?? {};
+    const receiveProfile = currentTranscriptionProfileReceive.data ?? {};
+    const speakingEngine = getRecognitionEngineForGroup({
+        group: "speaking",
+        sendProfile,
+        receiveProfile,
+    });
+    const targetEngine = getRecognitionEngineForGroup({
+        group: "target",
+        sendProfile,
+        receiveProfile,
+    });
+    const defaultCapability = {
         microphone_max: 1,
         received_max: 1,
         parallel_candidates: false,
     };
+    const speakingCapability = currentTranscriptionLanguageCapabilities.data?.[speakingEngine] ?? defaultCapability;
+    const targetCapability = currentTranscriptionLanguageCapabilities.data?.[targetEngine] ?? defaultCapability;
     const presetKey = currentSelectedPresetTabNumber.data ?? "1";
     const preferredLanguages = currentSelectedYourTranslationLanguages.data?.[presetKey] ?? {};
 
@@ -64,8 +81,8 @@ const PresetContainer = () => {
                 description={t("main_page.language_panels.speaking_desc")}
                 languages={getCurrentYourLanguages()}
                 selectorKey="your_language"
-                engine={transcriptionEngine}
-                capability={capability}
+                engine={speakingEngine}
+                capability={speakingCapability}
                 Icon={MicSvg}
                 isActive={currentTranscriptionSendStatus.data}
                 onRemove={removeYourLanguage}
@@ -79,8 +96,8 @@ const PresetContainer = () => {
                 description={t("main_page.language_panels.targets_desc")}
                 languages={getCurrentTargetLanguages()}
                 selectorKey="target_language"
-                engine={transcriptionEngine}
-                capability={capability}
+                engine={targetEngine}
+                capability={targetCapability}
                 Icon={HeadphonesSvg}
                 isActive={currentTranscriptionReceiveStatus.data}
                 onRemove={removeTargetLanguage}

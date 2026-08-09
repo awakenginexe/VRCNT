@@ -9,6 +9,7 @@ import { LanguageSelectorOpenButton } from "../../sidebar_section/language_setti
 import { LanguageProfileGroup } from "../../sidebar_section/language_settings/language_profile_group/LanguageProfileGroup";
 import { TranslatorSelectorOpenButton } from "../../sidebar_section/language_settings/translator_selector_open_button/TranslatorSelectorOpenButton";
 import { TranscriptionEngineLabel } from "../../sidebar_section/language_settings/transcription_engine_label/TranscriptionEngineLabel";
+import { getRecognitionEngineForGroup } from "../../sidebar_section/language_settings/languageRoutingUtils.js";
 
 export const LiveLanguageBar = () => {
     const { t } = useI18n();
@@ -16,7 +17,10 @@ export const LiveLanguageBar = () => {
         currentTranscriptionSendStatus,
         currentTranscriptionReceiveStatus,
     } = useMainFunction();
-    const { currentSelectedTranscriptionEngine } = useTranscription();
+    const {
+        currentTranscriptionProfileSend,
+        currentTranscriptionProfileReceive,
+    } = useTranscription();
     const {
         currentTranscriptionLanguageCapabilities,
         getCurrentYourLanguages,
@@ -24,12 +28,25 @@ export const LiveLanguageBar = () => {
         removeYourLanguage,
         removeTargetLanguage,
     } = useLanguageSettings();
-    const transcriptionEngine = currentSelectedTranscriptionEngine?.data ?? "Google";
-    const capability = currentTranscriptionLanguageCapabilities.data?.[transcriptionEngine] ?? {
+    const sendProfile = currentTranscriptionProfileSend.data ?? {};
+    const receiveProfile = currentTranscriptionProfileReceive.data ?? {};
+    const speakingEngine = getRecognitionEngineForGroup({
+        group: "speaking",
+        sendProfile,
+        receiveProfile,
+    });
+    const targetEngine = getRecognitionEngineForGroup({
+        group: "target",
+        sendProfile,
+        receiveProfile,
+    });
+    const defaultCapability = {
         microphone_max: 1,
         received_max: 1,
         parallel_candidates: false,
     };
+    const speakingCapability = currentTranscriptionLanguageCapabilities.data?.[speakingEngine] ?? defaultCapability;
+    const targetCapability = currentTranscriptionLanguageCapabilities.data?.[targetEngine] ?? defaultCapability;
 
     return (
         <section className={styles.container} aria-label="Live language routes">
@@ -41,8 +58,8 @@ export const LiveLanguageBar = () => {
                     description={t("main_page.language_panels.speaking_desc")}
                     languages={getCurrentYourLanguages()}
                     selectorKey="your_language"
-                    engine={transcriptionEngine}
-                    capability={capability}
+                    engine={speakingEngine}
+                    capability={speakingCapability}
                     Icon={MicSvg}
                     isActive={currentTranscriptionSendStatus.data}
                     onRemove={removeYourLanguage}
@@ -65,8 +82,8 @@ export const LiveLanguageBar = () => {
                     description={t("main_page.language_panels.targets_desc")}
                     languages={getCurrentTargetLanguages()}
                     selectorKey="target_language"
-                    engine={transcriptionEngine}
-                    capability={capability}
+                    engine={targetEngine}
+                    capability={targetCapability}
                     Icon={HeadphonesSvg}
                     isActive={currentTranscriptionReceiveStatus.data}
                     onRemove={removeTargetLanguage}
