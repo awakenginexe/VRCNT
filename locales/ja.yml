@@ -179,6 +179,8 @@ main_page:
         decoding_accurate: "高精度"
         manage_models: "モデルを管理"
         availability_cloud: "クラウドサービス — ローカルモデル不要"
+        availability_auth_required: "Groq APIキーが必要"
+        whisper_cloud_engine: "Whisper (クラウド, 0 GB VRAM)"
         availability_installed: "モデルはインストール済み"
         availability_downloading: "モデルをダウンロード中"
         availability_download_required: "モデルのダウンロードが必要"
@@ -245,6 +247,10 @@ main_page:
         advanced_models_detail: "VRCNTが報告した実際のWhisperモデルです。インストール済みモデルを選ぶか、実際のダウンロードを開始できます。"
         download: "ダウンロード"
         hardware_not_detected: "未検出"
+        whisper_cloud_title: "Whisper Cloud"
+        whisper_cloud_detail: "ローカルモデルをダウンロードせず、Groq上のWhisperを使用します。"
+        whisper_cloud_model_label: "Whisper Cloudモデル"
+        configure_groq_key: "Groq APIキーを設定"
     overlay_studio:
         eyebrow: "オーバーレイ ワークスペース"
         title: "オーバーレイ スタジオ"
@@ -769,6 +775,17 @@ config_page:
             desc: "文字起こしされた単語数の下限値で、この数値を超えた場合のみ結果をログに表示します。"
         select_transcription_engine:
             label: "音声認識で使用するエンジン"
+        whisper_cloud:
+            split_key:
+                label: "Whisper Cloudに別のGroq APIキーを使用"
+                desc: "必要に応じて、Whisperの通信を別のGroqアカウントまたはプロジェクトに分けます。"
+            auth_key:
+                label: "Whisper Cloud Groq APIキー"
+                desc: "分離モードが有効な場合、このキーはWhisper Cloudの文字起こしだけに使用されます。"
+            shared_key_missing: "共有の翻訳用Groq APIキーがまだ設定されていません。"
+            model:
+                label: "Whisper Cloudモデルを選択"
+                desc: "精度重視のwhisper-large-v3、または速度とコスト重視のwhisper-large-v3-turboを選択します。"
         whisper_weight_type:
             label: "Whisperモデルのタイプ"
             desc: "容量が大きいモデルほど精度は高いですが、その分CPUやGPUを占有します。\n※特にmediumより容量の大きいモデルは、CPU/GPUの性能によっては使用すらも困難です。"

@@ -79,6 +79,7 @@ class ErrorCode(str, Enum):
     AUTH_DEEPSEEK_FAILED = "AUTH_DEEPSEEK_FAILED"
     AUTH_GROQ_INVALID = "AUTH_GROQ_INVALID"
     AUTH_GROQ_FAILED = "AUTH_GROQ_FAILED"
+    AUTH_GROQ_WHISPER_INVALID = "AUTH_GROQ_WHISPER_INVALID"
     AUTH_OPENROUTER_INVALID = "AUTH_OPENROUTER_INVALID"
     AUTH_OPENROUTER_FAILED = "AUTH_OPENROUTER_FAILED"
     
@@ -414,6 +415,12 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
         "severity": "error",
         "user_action_required": True,
     },
+    ErrorCode.AUTH_GROQ_WHISPER_INVALID: {
+        "category": ErrorCategory.AUTH,
+        "message": "Groq Whisper auth key is not valid",
+        "severity": "warning",
+        "user_action_required": True,
+    },
     ErrorCode.AUTH_OPENROUTER_INVALID: {
         "category": ErrorCategory.AUTH,
         "message": "OpenRouter auth key is not valid",
@@ -706,6 +713,9 @@ ENDPOINT_ERROR_MAPPING: Dict[str, Dict[str, ErrorCode]] = {
     "/set/data/groq_auth_key": {
         "INVALID": ErrorCode.AUTH_GROQ_INVALID,
         "FAILED": ErrorCode.AUTH_GROQ_FAILED,
+    },
+    "/set/data/groq_whisper_auth_key": {
+        "INVALID": ErrorCode.AUTH_GROQ_WHISPER_INVALID,
     },
     "/set/data/selected_groq_model": {
         "INVALID": ErrorCode.MODEL_GROQ_INVALID,

@@ -32,6 +32,12 @@ test("profile cards expose only controls supported by their provider", async () 
         computeType: false,
         whisperDecoding: false,
     });
+    assert.deepEqual(getProfileControlVisibility("Whisper Cloud"), {
+        model: true,
+        device: false,
+        computeType: false,
+        whisperDecoding: false,
+    });
     for (const engine of ["Vosk", "SenseVoice"]) {
         assert.deepEqual(getProfileControlVisibility(engine), {
             model: true,
@@ -60,6 +66,10 @@ test("availability is resolved from the active provider model only", async () =>
         models: { Whisper: "small" },
     }, statuses), "download_required");
     assert.equal(getActiveModelAvailability({ engine: "Google", models: {} }, statuses), "cloud");
+    assert.equal(getActiveModelAvailability({
+        engine: "Whisper Cloud",
+        models: { "Whisper Cloud": "whisper-large-v3-turbo" },
+    }, statuses), "cloud");
 });
 
 test("legacy overwrite warning is required only when complete profiles differ", async () => {

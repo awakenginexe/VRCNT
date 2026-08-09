@@ -37,6 +37,7 @@ export const _useBackendErrorHandling = () => {
         updateSpeakerRecordTimeout,
         updateSpeakerPhraseTimeout,
         updateSpeakerMaxWords,
+        updateGroqWhisperAuthKey,
     } = useTranscription();
 
     const { updateTranslationStatus, updateTranscriptionSendStatus, updateTranscriptionReceiveStatus } = useMainFunction();
@@ -266,6 +267,10 @@ export const _useBackendErrorHandling = () => {
             case "AUTH_GROQ_INVALID":
             case "AUTH_GROQ_FAILED":
                 updateGroqAuthKey(data);
+                showNotification_Error(message, { category_id: error_code });
+                return;
+            case "AUTH_GROQ_WHISPER_INVALID":
+                updateGroqWhisperAuthKey(data);
                 showNotification_Error(message, { category_id: error_code });
                 return;
             case "AUTH_OPENROUTER_INVALID":

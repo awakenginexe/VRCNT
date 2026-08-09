@@ -5,6 +5,8 @@ import { genNumObjArray } from "@utils";
 
 import {
     useTranscription,
+    useTranslation,
+    useSaveButtonLogic,
 } from "@logics_configs";
 
 import {
@@ -13,6 +15,8 @@ import {
     RadioButtonContainer,
     DropdownMenuContainer,
     SliderContainer,
+    CheckboxContainer,
+    AuthKeyContainer,
 } from "../_templates/Templates";
 
 import {
@@ -30,6 +34,7 @@ import {
     resolveProfileBackedState,
 } from "../../../../main_page/engines/transcriptionProfileUi.js";
 import { LegacyApplyToBothConfirmation } from "./LegacyApplyToBothConfirmation";
+import { groq_auth_key_url } from "@ui_configs";
 
 const LegacyApplyToBothContext = createContext(null);
 
@@ -250,6 +255,7 @@ const TranscriptionEngine_Container = () => {
             <TranscriptionEngine_Box />
             {engine === "Whisper" && <WhisperWeightType_Box />}
             {engine === "Whisper Thai" && <WhisperThaiWeightType_Box />}
+            {engine === "Whisper Cloud" && <WhisperCloud_Box />}
             {engine === "Vosk" && <VoskWeightType_Box />}
             {engine === "Parakeet" && <ParakeetWeightType_Box />}
             {engine === "SenseVoice" && <SenseVoiceWeightType_Box />}
@@ -280,6 +286,7 @@ const TranscriptionEngine_Box = () => {
                 { id: "Google", label: "Google (Cloud, 0 GB VRAM)" },
                 { id: "Whisper", label: "Whisper / faster-whisper (CPU or GPU)" },
                 { id: "Whisper Thai", label: "Whisper Thai (Thai-only, CPU or GPU)" },
+                { id: "Whisper Cloud", label: "Whisper (Cloud, 0 GB VRAM)" },
                 { id: "Parakeet", label: "NVIDIA Parakeet TDT v3 (GPU, ~3 GB VRAM)" },
                 { id: "Vosk", label: "Vosk (CPU, 0 GB VRAM)" },
                 { id: "SenseVoice", label: "SenseVoice-Small (CPU, zh/en/ja/ko/yue)" },
@@ -412,6 +419,102 @@ const SenseVoiceWeightType_Box = () => {
             selectFunction={selectFunction}
             downloadStartFunction={downloadStartFunction}
         />
+    );
+};
+
+const WhisperCloud_Box = () => {
+    const { t } = useI18n();
+    const {
+        currentUseSplitGroqApiKey,
+        toggleUseSplitGroqApiKey,
+        currentGroqWhisperAuthKey,
+        setGroqWhisperAuthKey,
+        deleteGroqWhisperAuthKey,
+        currentSelectedWhisperCloudModel,
+        setSelectedWhisperCloudModel,
+    } = useTranscription();
+    const {
+        currentGroqAuthKey,
+        setGroqAuthKey,
+        deleteGroqAuthKey,
+    } = useTranslation();
+    const applyToBoth = useLegacyApplyToBothGuard();
+    const splitKeyEnabled = currentUseSplitGroqApiKey.data === true;
+    const activeKey = splitKeyEnabled
+        ? currentGroqWhisperAuthKey.data
+        : currentGroqAuthKey.data;
+    const cloudModels = {
+        "whisper-large-v3": "whisper-large-v3",
+        "whisper-large-v3-turbo": "whisper-large-v3-turbo",
+    };
+    const selectFunction = (selectedData) => applyToBoth(
+        setSelectedWhisperCloudModel,
+        selectedData.selected_id,
+    );
+
+    const {
+        variable,
+        onChangeFunction,
+        saveFunction,
+    } = useSaveButtonLogic({
+        variable: currentGroqWhisperAuthKey.data,
+        state: currentGroqWhisperAuthKey.state,
+        setFunction: setGroqWhisperAuthKey,
+        deleteFunction: deleteGroqWhisperAuthKey,
+    });
+    const sharedKeyEditor = useSaveButtonLogic({
+        variable: currentGroqAuthKey.data,
+        state: currentGroqAuthKey.state,
+        setFunction: setGroqAuthKey,
+        deleteFunction: deleteGroqAuthKey,
+    });
+
+    return (
+        <>
+            <CheckboxContainer
+                label={t("config_page.transcription.whisper_cloud.split_key.label")}
+                desc={t("config_page.transcription.whisper_cloud.split_key.desc")}
+                variable={currentUseSplitGroqApiKey}
+                toggleFunction={toggleUseSplitGroqApiKey}
+            />
+            {splitKeyEnabled ? (
+                <AuthKeyContainer
+                    label={t("config_page.transcription.whisper_cloud.auth_key.label")}
+                    desc={t("config_page.transcription.whisper_cloud.auth_key.desc")}
+                    webpage_url={groq_auth_key_url}
+                    open_webpage_label={t("config_page.common.open_auth_key_webpage")}
+                    variable={variable}
+                    state={currentGroqWhisperAuthKey.state}
+                    onChangeFunction={onChangeFunction}
+                    saveFunction={saveFunction}
+                    remove_border_bottom={true}
+                />
+            ) : !currentGroqAuthKey.data ? (
+                <AuthKeyContainer
+                    label={t("config_page.translation.groq_auth_key.label")}
+                    desc={t("config_page.transcription.whisper_cloud.shared_key_missing")}
+                    webpage_url={groq_auth_key_url}
+                    open_webpage_label={t("config_page.common.open_auth_key_webpage")}
+                    variable={sharedKeyEditor.variable}
+                    state={currentGroqAuthKey.state}
+                    onChangeFunction={sharedKeyEditor.onChangeFunction}
+                    saveFunction={sharedKeyEditor.saveFunction}
+                    remove_border_bottom={true}
+                />
+            ) : null}
+            <DropdownMenuContainer
+                dropdown_id="select_whisper_cloud_model"
+                label={t("config_page.transcription.whisper_cloud.model.label")}
+                desc={t("config_page.transcription.whisper_cloud.model.desc")}
+                selected_id={activeKey
+                    ? currentSelectedWhisperCloudModel.data
+                    : t("config_page.common.correct_auth_key_required")}
+                list={cloudModels}
+                selectFunction={selectFunction}
+                state={currentSelectedWhisperCloudModel.state}
+                is_disabled={!activeKey}
+            />
+        </>
     );
 };
 
