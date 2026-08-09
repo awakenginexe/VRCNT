@@ -72,6 +72,30 @@ test("Whisper Thai exposes six advanced models and locks recognition-language ed
     assert.match(selector, /getRecognitionProfileForSelector/);
 });
 
+test("Whisper Thai backend broadcasts have registered UI routes", async () => {
+    const [settings, routes] = await Promise.all([
+        read("src-ui", "logics", "configs", "config_page_setter", "ui_config_setter.js"),
+        read("src-ui", "logics", "useReceiveRoutes.js"),
+    ]);
+
+    assert.match(
+        settings,
+        /Base_Name: "WhisperThaiModelCatalog"[\s\S]*?base_endpoint_name: "whisper_thai_model_catalog"/,
+    );
+    assert.match(
+        settings,
+        /Base_Name: "SelectedTranscriptionEngineSend"[\s\S]*?add_endpoint_run_array: \["from_backend"\]/,
+    );
+    assert.match(
+        settings,
+        /Base_Name: "SelectedTranscriptionEngineReceive"[\s\S]*?add_endpoint_run_array: \["from_backend"\]/,
+    );
+    assert.match(
+        routes,
+        /endpoint: `\/run\/\$\{ep\}`[\s\S]*?method_name: updateFromBackendMethodName/,
+    );
+});
+
 test("Whisper Thai uses the shared CPU/GPU runtime policy and is never auto-only", async () => {
     const utilsUrl = pathToFileURL(
         path.join(root, "src-ui", "views", "app", "main_page", "sidebar_section", "language_settings", "transcriptionRuntimeUtils.js"),

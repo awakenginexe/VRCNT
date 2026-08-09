@@ -94,6 +94,60 @@ def _isValidWhisperFile(file_path: str, filename: str) -> bool:
             return False
     return True
 
+
+def _normalizeWhisperTokenizerFile(tokenizer_path: str) -> bool:
+    """Rewrite Hugging Face array-form BPE merges for bundled tokenizers.
+
+    Newer Hugging Face tokenizers can serialize each BPE merge as a two-item
+    array.  The tokenizers version bundled with VRCNT 5.2.0 still expects the
+    legacy space-separated string representation, and otherwise fails while
+    faster-whisper constructs its tokenizer.  The conversion is lossless and
+    keeps already-compatible tokenizer files untouched.
+    """
+
+    if not os_path.isfile(tokenizer_path):
+        return False
+
+    with open(tokenizer_path, "r", encoding="utf-8") as file:
+        tokenizer = json.load(file)
+
+    model = tokenizer.get("model")
+    merges = model.get("merges") if isinstance(model, dict) else None
+    if not isinstance(merges, list):
+        return False
+
+    normalized_merges = []
+    changed = False
+    for merge in merges:
+        if isinstance(merge, list):
+            if len(merge) != 2 or not all(isinstance(part, str) for part in merge):
+                raise ValueError("Whisper tokenizer contains an invalid BPE merge")
+            normalized_merges.append(f"{merge[0]} {merge[1]}")
+            changed = True
+        elif isinstance(merge, str):
+            normalized_merges.append(merge)
+        else:
+            raise ValueError("Whisper tokenizer contains an invalid BPE merge")
+
+    if not changed:
+        return False
+
+    model["merges"] = normalized_merges
+    normalized_path = f"{tokenizer_path}.normalized"
+    try:
+        with open(normalized_path, "w", encoding="utf-8") as file:
+            json.dump(tokenizer, file, ensure_ascii=False)
+            file.write("\n")
+        os_replace(normalized_path, tokenizer_path)
+    except Exception:
+        try:
+            if os_path.exists(normalized_path):
+                os_remove(normalized_path)
+        except Exception:
+            pass
+        raise
+    return True
+
 def downloadFile(url: str, path: str, func: Optional[Callable[[float], None]] = None) -> bool:
     """Download a file from `url` to `path`.
 
@@ -206,6 +260,7 @@ def getWhisperModel(
     """
     path = os_path.join(root, "weights", "whisper", weight_type)
     compute_type = resolveWhisperComputeType(device, device_index, compute_type)
+    _normalizeWhisperTokenizerFile(os_path.join(path, "tokenizer.json"))
     whisper_model_class = _getWhisperModelClass()
     try:
         model = whisper_model_class(

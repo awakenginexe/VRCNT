@@ -16,6 +16,7 @@ from models.transcription.transcription_whisper_thai import (
     getWhisperThaiModelMeta,
 )
 import models.transcription.transcription_whisper_thai as whisper_thai
+import models.transcription.transcription_whisper as whisper
 
 
 class WhisperThaiCatalogTests(unittest.TestCase):
@@ -134,6 +135,60 @@ class WhisperThaiValidationTests(unittest.TestCase):
             return
         with self.assertRaises(ValueError):
             check("unused-root", "not-a-thai-model")
+
+    def test_array_form_bpe_merges_are_normalized_for_bundled_tokenizers(self):
+        with tempfile.TemporaryDirectory() as root:
+            tokenizer_path = os.path.join(root, "tokenizer.json")
+            with open(tokenizer_path, "w", encoding="utf-8") as file:
+                json.dump(
+                    {
+                        "model": {
+                            "type": "BPE",
+                            "merges": [["Ġ", "t"], ["Ġt", "h"]],
+                        }
+                    },
+                    file,
+                    ensure_ascii=False,
+                )
+
+            self.assertTrue(whisper._normalizeWhisperTokenizerFile(tokenizer_path))
+
+            with open(tokenizer_path, "r", encoding="utf-8") as file:
+                normalized = json.load(file)
+            self.assertEqual(
+                normalized["model"]["merges"],
+                ["Ġ t", "Ġt h"],
+            )
+            self.assertFalse(whisper._normalizeWhisperTokenizerFile(tokenizer_path))
+
+    def test_whisper_model_loading_normalizes_tokenizer_before_constructor(self):
+        with tempfile.TemporaryDirectory() as root:
+            model_root = os.path.join(root, "weights", "whisper", "mort666")
+            os.makedirs(model_root, exist_ok=True)
+            tokenizer_path = os.path.join(model_root, "tokenizer.json")
+            with open(tokenizer_path, "w", encoding="utf-8") as file:
+                json.dump(
+                    {"model": {"type": "BPE", "merges": [["Ġ", "t"]]}},
+                    file,
+                    ensure_ascii=False,
+                )
+
+            class FakeWhisperModel:
+                def __init__(self, *args, **kwargs):
+                    self.args = args
+                    self.kwargs = kwargs
+
+            with patch.object(
+                whisper,
+                "_getWhisperModelClass",
+                return_value=FakeWhisperModel,
+            ):
+                model = whisper.getWhisperModel(root, "mort666")
+
+            self.assertIsInstance(model, FakeWhisperModel)
+            with open(tokenizer_path, "r", encoding="utf-8") as file:
+                normalized = json.load(file)
+            self.assertEqual(normalized["model"]["merges"], ["Ġ t"])
 
     def test_download_uses_the_catalog_revision_and_only_requested_model(self):
         download_function = getattr(whisper_thai, "downloadWhisperThaiWeight", None)

@@ -542,6 +542,7 @@ export const SETTINGS_ARRAY = [
         default_value: "",
         ui_template_id: "select",
         logics_template_id: "get_set",
+        add_endpoint_run_array: ["from_backend"],
         base_endpoint_name: "selected_transcription_engine_send",
     },
     {
@@ -550,6 +551,7 @@ export const SETTINGS_ARRAY = [
         default_value: "",
         ui_template_id: "select",
         logics_template_id: "get_set",
+        add_endpoint_run_array: ["from_backend"],
         base_endpoint_name: "selected_transcription_engine_receive",
     },
     {
@@ -601,6 +603,14 @@ export const SETTINGS_ARRAY = [
         ui_template_id: "list",
         logics_template_id: "weight_download_status",
         base_endpoint_name: "whisper_thai_weight",
+    },
+    {
+        Category: "Transcription",
+        Base_Name: "WhisperThaiModelCatalog",
+        default_value: [],
+        ui_template_id: "list",
+        logics_template_id: "get_list",
+        base_endpoint_name: "whisper_thai_model_catalog",
     },
     {
         Category: "Transcription",
