@@ -40,6 +40,7 @@ class DeepSeekConfigTests(unittest.TestCase):
                 "Gemini_API": None,
                 "OpenAI_API": "existing-openai-key",
                 "Groq_API": None,
+                "Groq_Whisper_API": None,
                 "OpenRouter_API": None,
                 "DeepSeek_API": None,
             },

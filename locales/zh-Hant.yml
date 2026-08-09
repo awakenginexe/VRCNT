@@ -179,6 +179,8 @@ main_page:
         decoding_accurate: "準確"
         manage_models: "管理模型"
         availability_cloud: "雲端服務 — 不需要本機模型"
+        availability_auth_required: "需要 Groq API 金鑰"
+        whisper_cloud_engine: "Whisper（雲端，0 GB VRAM）"
         availability_installed: "模型已安裝"
         availability_downloading: "模型下載中"
         availability_download_required: "需要下載模型"
@@ -245,6 +247,10 @@ main_page:
         advanced_models_detail: "這些是 VRCNT 回報的實際 Whisper 模型記錄。可選擇已安裝模型或開始實際下載。"
         download: "下載"
         hardware_not_detected: "未偵測到"
+        whisper_cloud_title: "Whisper Cloud"
+        whisper_cloud_detail: "使用 Groq 雲端 Whisper，不需要下載本機模型。"
+        whisper_cloud_model_label: "Whisper Cloud 模型"
+        configure_groq_key: "設定 Groq API 金鑰"
     overlay_studio:
         eyebrow: "疊加層工作區"
         title: "疊加層工作室"
@@ -769,6 +775,17 @@ config_page:
             desc: "只有在單詞超過此數量時，才會記錄結果並發送到 VRChat。"
         select_transcription_engine:
             label: "語音辨識使用的引擎"
+        whisper_cloud:
+            split_key:
+                label: "為 Whisper Cloud 使用獨立的 Groq API 金鑰"
+                desc: "需要時，可將 Whisper 轉錄流量分到其他 Groq 帳戶或專案。"
+            auth_key:
+                label: "Whisper Cloud Groq API 金鑰"
+                desc: "啟用分離模式後，此金鑰只用於 Whisper Cloud 轉錄。"
+            shared_key_missing: "尚未設定翻譯共用的 Groq API 金鑰。"
+            model:
+                label: "選擇 Whisper Cloud 模型"
+                desc: "選擇準確度較高的 whisper-large-v3，或延遲與成本較低的 whisper-large-v3-turbo。"
         whisper_weight_type:
             label: "Whisper 模型類型"
             desc: "容量越大的模型精度越高，但會占用更多 CPU/GPU 資源。\n※特別是比 medium 更大的模型，根據 CPU/GPU 效能可能難以使用。"

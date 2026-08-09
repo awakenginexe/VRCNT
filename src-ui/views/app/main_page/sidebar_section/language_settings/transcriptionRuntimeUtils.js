@@ -14,12 +14,13 @@ const ENGINE_DEVICE_RULES = {
     "Google": ["cpu"],
     "Whisper": ["cpu", "cuda"],
     "Whisper Thai": ["cpu", "cuda"],
+    "Whisper Cloud": ["cpu"],
     "Parakeet": ["cuda"],
     "Vosk": ["cpu"],
     "SenseVoice": ["cpu"],
 };
 
-const AUTO_ONLY_ENGINES = new Set(["Google", "Parakeet", "Vosk", "SenseVoice"]);
+const AUTO_ONLY_ENGINES = new Set(["Google", "Whisper Cloud", "Parakeet", "Vosk", "SenseVoice"]);
 
 export const getAllowedTranscriptionDeviceModes = (engine) => {
     return ENGINE_DEVICE_RULES[engine] ?? ["cpu"];

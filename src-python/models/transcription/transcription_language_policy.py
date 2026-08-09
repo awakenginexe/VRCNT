@@ -16,6 +16,11 @@ TRANSCRIPTION_LANGUAGE_CAPABILITIES = {
         "received_max": 3,
         "parallel_candidates": False,
     },
+    "Whisper Cloud": {
+        "microphone_max": 3,
+        "received_max": 3,
+        "parallel_candidates": False,
+    },
     "Whisper Thai": {
         "microphone_max": 1,
         "received_max": 1,

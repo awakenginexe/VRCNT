@@ -179,6 +179,8 @@ main_page:
         decoding_accurate: "แม่นยำ"
         manage_models: "จัดการโมเดล"
         availability_cloud: "บริการคลาวด์ — ไม่ใช้โมเดลภายในเครื่อง"
+        availability_auth_required: "ต้องใช้ Groq API key"
+        whisper_cloud_engine: "Whisper (คลาวด์, 0 GB VRAM)"
         availability_installed: "ติดตั้งโมเดลแล้ว"
         availability_downloading: "กำลังดาวน์โหลดโมเดล"
         availability_download_required: "ต้องดาวน์โหลดโมเดล"
@@ -245,6 +247,10 @@ main_page:
         advanced_models_detail: "นี่คือระเบียนโมเดล Whisper จริงที่รายงานโดย VRCNT เลือกโมเดลที่ติดตั้งแล้วหรือเริ่มการดาวน์โหลดจริงได้"
         download: "ดาวน์โหลด"
         hardware_not_detected: "ตรวจไม่พบ"
+        whisper_cloud_title: "Whisper Cloud"
+        whisper_cloud_detail: "ใช้ Whisper บน Groq โดยไม่ต้องดาวน์โหลดโมเดลไว้ในเครื่อง"
+        whisper_cloud_model_label: "โมเดล Whisper Cloud"
+        configure_groq_key: "ตั้งค่า Groq API key"
     overlay_studio:
         eyebrow: "พื้นที่ทำงานโอเวอร์เลย์"
         title: "สตูดิโอโอเวอร์เลย์"
@@ -770,6 +776,17 @@ config_page:
             desc: "เป็นค่าขั้นต่ำของจำนวนคำที่ถอดเสียง และจะแสดงในบันทึกเฉพาะเมื่อเกินจำนวนนี้"
         select_transcription_engine:
             label: "เอนจินถอดเสียงที่ใช้สำหรับการรู้จำเสียงพูด"
+        whisper_cloud:
+            split_key:
+                label: "ใช้ Groq API key แยกสำหรับ Whisper Cloud"
+                desc: "แยกทราฟฟิกการถอดเสียง Whisper ไปยังบัญชีหรือโปรเจกต์ Groq อื่นได้เมื่อจำเป็น"
+            auth_key:
+                label: "Groq API key สำหรับ Whisper Cloud"
+                desc: "คีย์นี้ใช้เฉพาะการถอดเสียง Whisper Cloud เมื่อเปิดโหมดแยกคีย์"
+            shared_key_missing: "ยังไม่ได้ตั้งค่า Groq API key ที่ใช้ร่วมกับการแปล"
+            model:
+                label: "เลือกโมเดล Whisper Cloud"
+                desc: "เลือก whisper-large-v3 เพื่อความแม่นยำ หรือ whisper-large-v3-turbo เพื่อความหน่วงและต้นทุนที่ต่ำกว่า"
         whisper_weight_type:
             label: "โมเดล Whisper"
             desc: "โมเดลขนาดใหญ่มีความแม่นยำสูงกว่า แต่ใช้ทรัพยากร CPU หรือ GPU มากกว่า\nโดยเฉพาะโมเดลที่ใหญ่กว่า medium อาจใช้งานได้ยากหรือใช้งานไม่ได้ ขึ้นอยู่กับประสิทธิภาพ CPU/GPU ของคุณ"

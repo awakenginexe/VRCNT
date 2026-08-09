@@ -34,6 +34,9 @@ from models.transcription.transcription_transcriber import (
     AudioTranscriber,
     TranscriberPipelineContext,
 )
+from models.transcription.transcription_whisper_cloud import (
+    resolve_whisper_cloud_api_key,
+)
 from models.transcription.whisper_runtime import (
     WhisperRuntimeKey,
     WhisperRuntimeLease,
@@ -345,6 +348,11 @@ class Model:
             models={
                 "Whisper": getattr(config, "WHISPER_WEIGHT_TYPE", ""),
                 "Whisper Thai": getattr(config, "WHISPER_THAI_WEIGHT_TYPE", ""),
+                "Whisper Cloud": getattr(
+                    config,
+                    "SELECTED_WHISPER_CLOUD_MODEL",
+                    "whisper-large-v3-turbo",
+                ),
                 "Vosk": getattr(config, "VOSK_WEIGHT_TYPE", ""),
                 "Parakeet": getattr(config, "PARAKEET_WEIGHT_TYPE", ""),
                 "SenseVoice": getattr(config, "SENSEVOICE_WEIGHT_TYPE", ""),
@@ -1757,6 +1765,10 @@ class Model:
                 )
                 transcription_profile = self._sourceTranscriptionProfile(PipelineSource.MIC)
                 transcription_models = transcription_profile["models"]
+                whisper_cloud_api_key = resolve_whisper_cloud_api_key(
+                    getattr(config, "AUTH_KEYS", {}),
+                    getattr(config, "USE_SPLIT_GROQ_API_KEY", False),
+                )
                 whisper_runtime_lease = self._acquireWhisperRuntimeLease(PipelineSource.MIC)
                 self.mic_whisper_runtime_lease = whisper_runtime_lease
                 self.mic_transcriber = AudioTranscriber(
@@ -1773,6 +1785,11 @@ class Model:
                     vosk_weight_type=transcription_models["Vosk"],
                     parakeet_weight_type=transcription_models["Parakeet"],
                     sensevoice_weight_type=transcription_models["SenseVoice"],
+                    whisper_cloud_model=transcription_models.get(
+                        "Whisper Cloud",
+                        getattr(config, "SELECTED_WHISPER_CLOUD_MODEL", "whisper-large-v3-turbo"),
+                    ),
+                    groq_api_key=whisper_cloud_api_key,
                     device=transcription_device["device"],
                     device_index=transcription_device["device_index"],
                     compute_type=transcription_compute_type,
@@ -2254,6 +2271,10 @@ class Model:
                 )
                 transcription_profile = self._sourceTranscriptionProfile(PipelineSource.SPEAKER)
                 transcription_models = transcription_profile["models"]
+                whisper_cloud_api_key = resolve_whisper_cloud_api_key(
+                    getattr(config, "AUTH_KEYS", {}),
+                    getattr(config, "USE_SPLIT_GROQ_API_KEY", False),
+                )
                 whisper_runtime_lease = self._acquireWhisperRuntimeLease(PipelineSource.SPEAKER)
                 self.speaker_whisper_runtime_lease = whisper_runtime_lease
                 self.speaker_transcriber = AudioTranscriber(
@@ -2270,6 +2291,11 @@ class Model:
                     vosk_weight_type=transcription_models["Vosk"],
                     parakeet_weight_type=transcription_models["Parakeet"],
                     sensevoice_weight_type=transcription_models["SenseVoice"],
+                    whisper_cloud_model=transcription_models.get(
+                        "Whisper Cloud",
+                        getattr(config, "SELECTED_WHISPER_CLOUD_MODEL", "whisper-large-v3-turbo"),
+                    ),
+                    groq_api_key=whisper_cloud_api_key,
                     device=transcription_device["device"],
                     device_index=transcription_device["device_index"],
                     compute_type=transcription_compute_type,

@@ -53,6 +53,9 @@ from models.transcription.transcription_profile import (
 )
 from models.transcription.transcription_whisper import DEFAULT_WHISPER_WEIGHT_TYPE
 from models.transcription.transcription_whisper_thai import getWhisperThaiModelCatalog
+from models.transcription.transcription_whisper_cloud import (
+    DEFAULT_WHISPER_CLOUD_MODEL,
+)
 from models.transcription.transcription_vosk import getVoskModelMeta
 from models.transcription.transcription_parakeet import getParakeetModelMeta
 from models.transcription.transcription_sensevoice import getSenseVoiceModelMeta
@@ -1397,6 +1400,7 @@ class Controller:
             models={
                 "Whisper": config.WHISPER_WEIGHT_TYPE,
                 "Whisper Thai": config.WHISPER_THAI_WEIGHT_TYPE,
+                "Whisper Cloud": config.SELECTED_WHISPER_CLOUD_MODEL,
                 "Vosk": config.VOSK_WEIGHT_TYPE,
                 "Parakeet": config.PARAKEET_WEIGHT_TYPE,
                 "SenseVoice": config.SENSEVOICE_WEIGHT_TYPE,
@@ -1426,6 +1430,7 @@ class Controller:
         return {
             "Whisper": config.SELECTABLE_WHISPER_WEIGHT_TYPE_LIST,
             "Whisper Thai": config.SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_LIST,
+            "Whisper Cloud": config.SELECTABLE_WHISPER_CLOUD_MODEL_LIST,
             "Vosk": config.SELECTABLE_VOSK_WEIGHT_TYPE_LIST,
             "Parakeet": config.SELECTABLE_PARAKEET_WEIGHT_TYPE_LIST,
             "SenseVoice": config.SELECTABLE_SENSEVOICE_WEIGHT_TYPE_LIST,
@@ -1471,6 +1476,10 @@ class Controller:
             "Whisper Thai",
             getattr(config, "WHISPER_THAI_WEIGHT_TYPE", ""),
         )
+        config.SELECTED_WHISPER_CLOUD_MODEL = profile["models"].get(
+            "Whisper Cloud",
+            getattr(config, "SELECTED_WHISPER_CLOUD_MODEL", DEFAULT_WHISPER_CLOUD_MODEL),
+        )
         config.VOSK_WEIGHT_TYPE = profile["models"]["Vosk"]
         config.PARAKEET_WEIGHT_TYPE = profile["models"]["Parakeet"]
         config.SENSEVOICE_WEIGHT_TYPE = profile["models"]["SenseVoice"]
@@ -1498,6 +1507,11 @@ class Controller:
         self._publishTranscriptionRuntimeSetting(
             f"selected_transcription_compute_type_{suffix}", profile["compute_type"]
         )
+        if source is PipelineSource.MIC:
+            self._publishTranscriptionRuntimeSetting(
+                "selected_whisper_cloud_model",
+                profile["models"].get("Whisper Cloud", DEFAULT_WHISPER_CLOUD_MODEL),
+            )
 
     def _normalizeTranscriptionRuntimeSelection(
         self,
@@ -4097,6 +4111,8 @@ class Controller:
                     self.run(200, self.run_mapping["selected_groq_model"], config.SELECTED_GROQ_MODEL)
                     model.updateTranslatorGroqClient()
                     self.updateTranslationEngineAndEngineList()
+                    if config.USE_SPLIT_GROQ_API_KEY is False:
+                        self._restartWhisperCloudSourcesForCredentialChange()
                     response = {"status":200, "result":config.AUTH_KEYS[translator_name]}
                 else:
                     response = VRCTError.create_error_response(
@@ -4129,7 +4145,67 @@ class Controller:
         self.run(200, self.run_mapping["selected_groq_model"], config.SELECTED_GROQ_MODEL)
         config.SELECTABLE_TRANSLATION_ENGINE_STATUS[translator_name] = False
         self.updateTranslationEngineAndEngineList()
+        if config.USE_SPLIT_GROQ_API_KEY is False:
+            self._restartWhisperCloudSourcesForCredentialChange()
         return {"status":200, "result":config.AUTH_KEYS[translator_name]}
+
+    @staticmethod
+    def getUseSplitGroqApiKey(*args, **kwargs) -> dict:
+        return {"status": 200, "result": config.USE_SPLIT_GROQ_API_KEY}
+
+    def setEnableUseSplitGroqApiKey(self, *args, **kwargs) -> dict:
+        config.USE_SPLIT_GROQ_API_KEY = True
+        self._restartWhisperCloudSourcesForCredentialChange()
+        return {"status": 200, "result": config.USE_SPLIT_GROQ_API_KEY}
+
+    def setDisableUseSplitGroqApiKey(self, *args, **kwargs) -> dict:
+        config.USE_SPLIT_GROQ_API_KEY = False
+        self._restartWhisperCloudSourcesForCredentialChange()
+        return {"status": 200, "result": config.USE_SPLIT_GROQ_API_KEY}
+
+    def _restartWhisperCloudSourcesForCredentialChange(self) -> None:
+        sources = []
+        for source in (PipelineSource.MIC, PipelineSource.SPEAKER):
+            if self._getSourceTranscriptionProfile(source).get("engine") == "Whisper Cloud":
+                sources.append(source)
+        if not sources:
+            return
+        try:
+            with self._transcription_restart_lock:
+                self._requestTranscriptionSourcesRestartLocked(tuple(sources))
+        except Exception:
+            errorLogging()
+
+    @staticmethod
+    def getGroqWhisperAuthKey(*args, **kwargs) -> dict:
+        return {"status": 200, "result": config.AUTH_KEYS["Groq_Whisper_API"]}
+
+    def setGroqWhisperAuthKey(self, data, *args, **kwargs) -> dict:
+        printLog("Set Groq Whisper Auth Key", "<redacted>")
+        try:
+            data = str(data)
+            if not data.startswith("gsk") or len(data) < 40:
+                return VRCTError.create_error_response(
+                    ErrorCode.AUTH_GROQ_WHISPER_INVALID,
+                    data=None,
+                )
+            auth_keys = dict(config.AUTH_KEYS)
+            auth_keys["Groq_Whisper_API"] = data
+            config.AUTH_KEYS = auth_keys
+            if config.USE_SPLIT_GROQ_API_KEY is True:
+                self._restartWhisperCloudSourcesForCredentialChange()
+            return {"status": 200, "result": config.AUTH_KEYS["Groq_Whisper_API"]}
+        except Exception as error:
+            errorLogging()
+            return VRCTError.create_exception_error_response(error, data=None)
+
+    def delGroqWhisperAuthKey(self, *args, **kwargs) -> dict:
+        auth_keys = dict(config.AUTH_KEYS)
+        auth_keys["Groq_Whisper_API"] = None
+        config.AUTH_KEYS = auth_keys
+        if config.USE_SPLIT_GROQ_API_KEY is True:
+            self._restartWhisperCloudSourcesForCredentialChange()
+        return {"status": 200, "result": config.AUTH_KEYS["Groq_Whisper_API"]}
 
     def getGroqModelList(self, *args, **kwargs) -> dict:
         return {"status":200, "result": config.SELECTABLE_GROQ_MODEL_LIST}
@@ -4535,6 +4611,22 @@ class Controller:
         )
         return self._transcriptionProfileScalarResponse(
             response, lambda profile: profile["models"]["Whisper Thai"]
+        )
+
+    @staticmethod
+    def getWhisperCloudModel(*args, **kwargs) -> dict:
+        return {
+            "status": 200,
+            "result": config.SELECTED_WHISPER_CLOUD_MODEL,
+        }
+
+    def setWhisperCloudModel(self, data, *args, **kwargs) -> dict:
+        response = self.setTranscriptionProfileAll(
+            {"models": {"Whisper Cloud": str(data)}}
+        )
+        return self._transcriptionProfileScalarResponse(
+            response,
+            lambda profile: profile["models"]["Whisper Cloud"],
         )
 
     @staticmethod

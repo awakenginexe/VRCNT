@@ -8,11 +8,19 @@ TRANSCRIPTION_ENGINES = (
     "Google",
     "Whisper",
     "Whisper Thai",
+    "Whisper Cloud",
     "Vosk",
     "Parakeet",
     "SenseVoice",
 )
-MODEL_ENGINES = ("Whisper", "Whisper Thai", "Vosk", "Parakeet", "SenseVoice")
+MODEL_ENGINES = (
+    "Whisper",
+    "Whisper Thai",
+    "Whisper Cloud",
+    "Vosk",
+    "Parakeet",
+    "SenseVoice",
+)
 WHISPER_ENGINES = ("Whisper", "Whisper Thai")
 RUNTIME_PREFERENCE_ENGINES = ("Whisper", "Parakeet")
 WHISPER_DECODING_PROFILES = ("fast", "balanced", "accurate")
@@ -247,6 +255,8 @@ def effective_transcription_profile(profile: Mapping[str, Any]) -> tuple:
     device_key = (device.get("device"), device.get("device_index"))
     if engine == "Parakeet":
         return (engine, str(models.get(engine, "")), device_key)
+    if engine == "Whisper Cloud":
+        return (engine, str(models.get(engine, "")))
     if engine in WHISPER_ENGINES:
         return (
             engine,

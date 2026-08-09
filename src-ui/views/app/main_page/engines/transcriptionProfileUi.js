@@ -1,4 +1,11 @@
-const MODEL_PROVIDERS = new Set(["Whisper", "Whisper Thai", "Vosk", "Parakeet", "SenseVoice"]);
+const MODEL_PROVIDERS = new Set([
+    "Whisper",
+    "Whisper Thai",
+    "Whisper Cloud",
+    "Vosk",
+    "Parakeet",
+    "SenseVoice",
+]);
 
 export const getProfileControlVisibility = (engine) => ({
     model: MODEL_PROVIDERS.has(engine),
@@ -14,7 +21,7 @@ export const getActiveModel = (profile) => (
 );
 
 export const getActiveModelAvailability = (profile, statusesByProvider) => {
-    if (profile?.engine === "Google") return "cloud";
+    if (profile?.engine === "Google" || profile?.engine === "Whisper Cloud") return "cloud";
     const selected = getActiveModel(profile);
     const status = (statusesByProvider?.[profile?.engine] ?? [])
         .find((item) => item?.id === selected);
@@ -29,6 +36,7 @@ const canonicalProfile = (profile) => ({
     models: {
         Whisper: profile?.models?.Whisper ?? "",
         "Whisper Thai": profile?.models?.["Whisper Thai"] ?? "",
+        "Whisper Cloud": profile?.models?.["Whisper Cloud"] ?? "",
         Vosk: profile?.models?.Vosk ?? "",
         Parakeet: profile?.models?.Parakeet ?? "",
         SenseVoice: profile?.models?.SenseVoice ?? "",

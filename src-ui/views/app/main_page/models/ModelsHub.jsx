@@ -1,14 +1,21 @@
 import { useMemo } from "react";
 import { useI18n } from "@useI18n";
-import { useTranscription } from "@logics_configs";
-import { useResourceUsage } from "@logics_common";
-import { useStore_ExperienceRoute } from "@store";
+import { useTranscription, useTranslation } from "@logics_configs";
+import {
+    useIsOpenedConfigPage,
+    useResourceUsage,
+} from "@logics_common";
+import {
+    useStore_ExperienceRoute,
+    useStore_SelectedConfigTabId,
+} from "@store";
 import { TopBar } from "../main_section/top_bar/TopBar";
 import { CustomModernSelect } from "@common_components";
 import {
     findPresetCandidate,
     resolveWhisperRecommendation,
     WHISPER_PRESETS,
+    WHISPER_CLOUD_MODELS,
 } from "../engines/engineModelUtils";
 import { ModelDownloadProgress } from "./ModelDownloadProgress.jsx";
 import { getModelDownloadState } from "./modelDownloadDisplay.js";
@@ -45,7 +52,13 @@ export const ModelsHub = () => {
         currentSenseVoiceWeightTypeStatus,
         downloadSenseVoiceWeightTypeStatus,
         currentTranscriptionProfileSend,
+        setTranscriptionProfileSend,
+        currentUseSplitGroqApiKey,
+        currentGroqWhisperAuthKey,
     } = useTranscription();
+    const { currentGroqAuthKey } = useTranslation();
+    const { setIsOpenedConfigPage } = useIsOpenedConfigPage();
+    const { updateSelectedConfigTabId } = useStore_SelectedConfigTabId();
 
     const statuses = currentWhisperWeightTypeStatus.data ?? [];
     const modelGroups = [
@@ -67,6 +80,13 @@ export const ModelsHub = () => {
         ?? selectedGpu?.device_name
         ?? t("main_page.models_hub.hardware_not_detected");
     const controlsPending = statuses.some((status) => status?.is_pending === true);
+    const cloudConfigured = currentUseSplitGroqApiKey.data === true
+        ? Boolean(currentGroqWhisperAuthKey.data)
+        : Boolean(currentGroqAuthKey.data);
+    const openAdvanced = () => {
+        updateSelectedConfigTabId("model_and_provider");
+        setIsOpenedConfigPage(true);
+    };
 
     const applyInstalledPreset = (_preset, status) => {
         if (status?.is_downloaded !== true || controlsPending) return;
@@ -94,7 +114,7 @@ export const ModelsHub = () => {
         if (preset && status) applyInstalledPreset(preset, status);
     };
 
-const modelOptions = useMemo(() => {
+    const modelOptions = useMemo(() => {
         const options = [
             {
                 id: "auto",
@@ -128,6 +148,16 @@ const modelOptions = useMemo(() => {
             });
         });
 
+        options.push({
+            id: "Whisper Cloud",
+            title: "☁ Whisper (Cloud, 0 GB VRAM)",
+            subtitle: "Groq-hosted transcription · no local download",
+            badge: "Cloud",
+            badgeType: "purple",
+            isDownloaded: cloudConfigured,
+            computeTarget: "Cloud",
+        });
+
         statuses.forEach((item) => {
             if (!options.some((opt) => opt.id === item.id)) {
                 options.push({
@@ -142,11 +172,19 @@ const modelOptions = useMemo(() => {
         });
 
         return options;
-    }, [statuses, recommendation, hardwareName, selectedDevice, t]);
+    }, [statuses, recommendation, hardwareName, selectedDevice, t, cloudConfigured]);
 
     const handleModelSelectChange = (selectedId) => {
         if (selectedId === "auto") {
             useRecommendation();
+            return;
+        }
+        if (selectedId === "Whisper Cloud") {
+            if (!cloudConfigured) {
+                openAdvanced();
+                return;
+            }
+            setTranscriptionProfileSend({ engine: "Whisper Cloud" });
             return;
         }
         const statusItem = statuses.find((s) => s.id === selectedId);
@@ -189,13 +227,42 @@ const modelOptions = useMemo(() => {
                         <CustomModernSelect
                             id="primary-speech-model-select"
                             label="Model download management"
-                            value="auto"
+                            value={currentTranscriptionProfileSend.data?.engine === "Whisper Cloud" ? "Whisper Cloud" : "auto"}
                             options={modelOptions}
                             onChange={handleModelSelectChange}
                             disabled={controlsPending && statuses.length === 0}
                             variant="model"
                         />
                     </div>
+                </section>
+
+                <section className={styles.advanced_models} data-provider="whisper-cloud">
+                    <div className={styles.model_identity}>
+                        <strong>{t("main_page.models_hub.whisper_cloud_title")}</strong>
+                        <span>{t("main_page.models_hub.whisper_cloud_detail")}</span>
+                    </div>
+                    <CustomModernSelect
+                        id="whisper-cloud-model-select"
+                        label={t("main_page.models_hub.whisper_cloud_model_label")}
+                        value={currentTranscriptionProfileSend.data?.models?.["Whisper Cloud"] ?? WHISPER_CLOUD_MODELS[1]}
+                        options={WHISPER_CLOUD_MODELS.map((id) => ({ id, title: id }))}
+                        disabled={!cloudConfigured}
+                        onChange={(value) => {
+                            if (!cloudConfigured) {
+                                openAdvanced();
+                                return;
+                            }
+                            setTranscriptionProfileSend({
+                                engine: "Whisper Cloud",
+                                models: { "Whisper Cloud": value },
+                            });
+                        }}
+                    />
+                    {!cloudConfigured && (
+                        <button type="button" onClick={openAdvanced}>
+                            {t("main_page.models_hub.configure_groq_key")}
+                        </button>
+                    )}
                 </section>
 
                 <section className={styles.preset_grid} aria-label={t("main_page.models_hub.presets_label")}>

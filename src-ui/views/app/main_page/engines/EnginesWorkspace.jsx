@@ -1,7 +1,7 @@
 import { useRef, useEffect, useMemo } from "react";
 import { useI18n } from "@useI18n";
 import { useLanguageSettings } from "@logics_main";
-import { useTranscription } from "@logics_configs";
+import { useTranscription, useTranslation } from "@logics_configs";
 import {
     useComputeMode,
     useIsBackendReady,
@@ -23,6 +23,7 @@ import {
     getActiveModelAvailability,
     getProfileControlVisibility,
 } from "./transcriptionProfileUi.js";
+import { WHISPER_CLOUD_MODELS } from "./engineModelUtils.js";
 import styles from "./EnginesWorkspace.module.scss";
 
 const toArray = (value) => (
@@ -64,6 +65,9 @@ const SourceRuntimeCard = ({
     flow,
     emptyLabel,
     labels,
+    cloudConfigured,
+    onOpenAdvanced,
+    engineLabelFor,
 }) => {
     const engine = profile?.engine ?? "";
     const visibility = getProfileControlVisibility(engine);
@@ -81,12 +85,14 @@ const SourceRuntimeCard = ({
     const modelOptions = activeStatuses
         .filter((item) => item?.is_downloaded === true || item?.id === activeModel)
         .map((item) => ({ id: item.id, title: item.label ?? item.id }));
-    const availability = getActiveModelAvailability(profile, modelStatuses);
+    const availability = profile?.engine === "Whisper Cloud" && !cloudConfigured
+        ? "auth_required"
+        : getActiveModelAvailability(profile, modelStatuses);
 
     const parsedEngineOptions = useMemo(() => {
         if (engineOptionsList.length === 0) return [{ id: "", title: emptyLabel }];
-        return engineOptionsList.map((e) => ({ id: e, title: e }));
-    }, [emptyLabel, engineOptionsList]);
+        return engineOptionsList.map((e) => ({ id: e, title: engineLabelFor(e) }));
+    }, [emptyLabel, engineLabelFor, engineOptionsList]);
 
     const parsedDeviceOptions = useMemo(() => {
         if (deviceOptions.length === 0) return [{ id: "", title: emptyLabel }];
@@ -119,7 +125,13 @@ const SourceRuntimeCard = ({
                         options={parsedEngineOptions}
                         disabled={pending || engineOptionsList.length === 0}
                         placeholder={emptyLabel}
-                        onChange={(value) => onProfileChange({ engine: value })}
+                        onChange={(value) => {
+                            if (value === "Whisper Cloud" && !cloudConfigured) {
+                                onOpenAdvanced();
+                                return;
+                            }
+                            onProfileChange({ engine: value });
+                        }}
                     />
                 </div>
                 {visibility.model && <div className={styles.field}>
@@ -127,9 +139,15 @@ const SourceRuntimeCard = ({
                         label={labels.model}
                         value={activeModel}
                         options={modelOptions.length > 0 ? modelOptions : [{ id: activeModel, title: activeModel || emptyLabel }]}
-                        disabled={pending || modelOptions.length === 0}
+                        disabled={pending || modelOptions.length === 0 || (engine === "Whisper Cloud" && !cloudConfigured)}
                         placeholder={emptyLabel}
-                        onChange={(value) => onProfileChange({ models: { [engine]: value } })}
+                        onChange={(value) => {
+                            if (engine === "Whisper Cloud" && !cloudConfigured) {
+                                onOpenAdvanced();
+                                return;
+                            }
+                            onProfileChange({ models: { [engine]: value } });
+                        }}
                     />
                 </div>}
                 {visibility.device && <div className={styles.field}>
@@ -209,7 +227,10 @@ export const EnginesWorkspace = () => {
         currentVoskWeightTypeStatus,
         currentParakeetWeightTypeStatus,
         currentSenseVoiceWeightTypeStatus,
+        currentUseSplitGroqApiKey,
+        currentGroqWhisperAuthKey,
     } = useTranscription();
+    const { currentGroqAuthKey } = useTranslation();
 
     const { currentIsBackendReady } = useIsBackendReady();
     const isBackendReady = currentIsBackendReady?.data === true;
@@ -241,6 +262,12 @@ export const EnginesWorkspace = () => {
     const modelStatuses = useMemo(() => ({
         Whisper: currentWhisperWeightTypeStatus.data ?? [],
         "Whisper Thai": currentWhisperThaiWeightTypeStatus.data ?? [],
+        "Whisper Cloud": WHISPER_CLOUD_MODELS.map((id) => ({
+            id,
+            label: id,
+            is_downloaded: true,
+            downloadable: false,
+        })),
         Vosk: currentVoskWeightTypeStatus.data ?? [],
         Parakeet: currentParakeetWeightTypeStatus.data ?? [],
         SenseVoice: currentSenseVoiceWeightTypeStatus.data ?? [],
@@ -283,6 +310,22 @@ export const EnginesWorkspace = () => {
         setIsOpenedConfigPage(true);
     };
     const openModels = () => updateExperienceRoute("models");
+    const cloudConfigured = currentUseSplitGroqApiKey.data === true
+        ? Boolean(currentGroqWhisperAuthKey.data)
+        : Boolean(currentGroqAuthKey.data);
+    const engineLabelFor = (engine) => engine === "Whisper Cloud"
+        ? t("main_page.engines_workspace.whisper_cloud_engine")
+        : engine;
+    const handleProfileChange = (setter) => (patch) => {
+        if (
+            (patch?.engine === "Whisper Cloud" || patch?.models?.["Whisper Cloud"])
+            && !cloudConfigured
+        ) {
+            openAdvanced();
+            return;
+        }
+        setter(patch);
+    };
     const profileLabels = {
         model: t("main_page.engines_workspace.model_label"),
         decoding: t("main_page.engines_workspace.decoding_label"),
@@ -296,6 +339,7 @@ export const EnginesWorkspace = () => {
             downloading: t("main_page.engines_workspace.availability_downloading"),
             download_required: t("main_page.engines_workspace.availability_download_required"),
             unavailable: t("main_page.engines_workspace.availability_unavailable"),
+            auth_required: t("main_page.engines_workspace.availability_auth_required"),
         },
     };
 
@@ -328,11 +372,14 @@ export const EnginesWorkspace = () => {
                         devices={computeDevices}
                         modelStatuses={modelStatuses}
                         pending={currentTranscriptionProfileSend.state === "pending"}
-                        onProfileChange={setTranscriptionProfileSend}
+                        onProfileChange={handleProfileChange(setTranscriptionProfileSend)}
                         onManageModels={openModels}
                         flow={t("main_page.engines_workspace.outgoing_flow", { engine: currentTranscriptionProfileSend.data?.engine || emptyLabel })}
                         emptyLabel={emptyLabel}
                         labels={profileLabels}
+                        cloudConfigured={cloudConfigured}
+                        onOpenAdvanced={openAdvanced}
+                        engineLabelFor={engineLabelFor}
                     />
                     <SourceRuntimeCard
                         accent="teal"
@@ -347,11 +394,14 @@ export const EnginesWorkspace = () => {
                         devices={computeDevices}
                         modelStatuses={modelStatuses}
                         pending={currentTranscriptionProfileReceive.state === "pending"}
-                        onProfileChange={setTranscriptionProfileReceive}
+                        onProfileChange={handleProfileChange(setTranscriptionProfileReceive)}
                         onManageModels={openModels}
                         flow={t("main_page.engines_workspace.incoming_flow", { engine: currentTranscriptionProfileReceive.data?.engine || emptyLabel })}
                         emptyLabel={emptyLabel}
                         labels={profileLabels}
+                        cloudConfigured={cloudConfigured}
+                        onOpenAdvanced={openAdvanced}
+                        engineLabelFor={engineLabelFor}
                     />
                 </section>
 

@@ -1,10 +1,16 @@
 export const TRANSCRIPTION_ENGINE_OPTIONS = [
     "Whisper",
     "Whisper Thai",
+    "Whisper Cloud",
     "Google",
     "Vosk",
     "Parakeet",
     "SenseVoice",
+];
+
+export const WHISPER_CLOUD_MODELS = [
+    "whisper-large-v3",
+    "whisper-large-v3-turbo",
 ];
 
 export const WHISPER_PRESETS = [

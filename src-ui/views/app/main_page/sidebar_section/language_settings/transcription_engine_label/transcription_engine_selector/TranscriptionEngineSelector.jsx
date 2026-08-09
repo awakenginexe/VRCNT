@@ -2,19 +2,15 @@ import clsx from "clsx";
 import styles from "./TranscriptionEngineSelector.module.scss";
 import { chunkArray } from "@utils";
 import { useStore_IsOpenedTranscriptionEngineSelector } from "@store";
-import { useTranscription } from "@logics_configs";
+import {
+    useStore_SelectedConfigTabId,
+} from "@store";
+import { useTranscription, useTranslation } from "@logics_configs";
+import { useIsOpenedConfigPage } from "@logics_common";
+import { QUICK_TRANSCRIPTION_ENGINE_OPTIONS } from "./transcriptionEngineOptions";
 
 export const TranscriptionEngineSelector = ({ selected_id, placement = "settings" }) => {
-    const engines = [
-        { id: "Google", label: "Google\n(Cloud)", is_available: true },
-        { id: "Whisper", label: "Whisper\n(CPU/GPU)", is_available: true },
-        { id: "Whisper Thai", label: "Whisper Thai\n(CPU/GPU)", is_available: true },
-        { id: "Parakeet", label: "Parakeet\n(GPU)", is_available: true },
-        { id: "Vosk", label: "Vosk\n(CPU)", is_available: true },
-        { id: "SenseVoice", label: "SenseVoice\n(CPU)", is_available: true },
-    ];
-
-    const columns = chunkArray(engines, 2);
+    const columns = chunkArray(QUICK_TRANSCRIPTION_ENGINE_OPTIONS, 2);
 
     return (
         <div className={styles.container} data-placement={placement}>
@@ -40,7 +36,14 @@ export const TranscriptionEngineSelector = ({ selected_id, placement = "settings
 };
 
 const EngineBox = (props) => {
-    const { setSelectedTranscriptionEngine } = useTranscription();
+    const {
+        setSelectedTranscriptionEngine,
+        currentUseSplitGroqApiKey,
+        currentGroqWhisperAuthKey,
+    } = useTranscription();
+    const { currentGroqAuthKey } = useTranslation();
+    const { setIsOpenedConfigPage } = useIsOpenedConfigPage();
+    const { updateSelectedConfigTabId } = useStore_SelectedConfigTabId();
     const { updateIsOpenedTranscriptionEngineSelector } = useStore_IsOpenedTranscriptionEngineSelector();
 
     const box_class_name = clsx(
@@ -51,6 +54,15 @@ const EngineBox = (props) => {
 
     const selectEngine = () => {
         if (props.is_selected === false) {
+            const hasCloudKey = currentUseSplitGroqApiKey.data === true
+                ? Boolean(currentGroqWhisperAuthKey.data)
+                : Boolean(currentGroqAuthKey.data);
+            if (props.id === "Whisper Cloud" && !hasCloudKey) {
+                updateSelectedConfigTabId("model_and_provider");
+                setIsOpenedConfigPage(true);
+                updateIsOpenedTranscriptionEngineSelector(false);
+                return;
+            }
             setSelectedTranscriptionEngine(props.id);
         }
         updateIsOpenedTranscriptionEngineSelector(false);

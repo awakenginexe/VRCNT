@@ -74,6 +74,7 @@ run_mapping = {
     "selected_transcription_engine_receive":"/run/selected_transcription_engine_receive",
     "transcription_profile_send":"/run/transcription_profile_send",
     "transcription_profile_receive":"/run/transcription_profile_receive",
+    "selected_whisper_cloud_model":"/run/selected_whisper_cloud_model",
 
     "selectable_plamo_model_list":"/run/selectable_plamo_model_list",
     "selected_plamo_model":"/run/selected_plamo_model",
@@ -116,6 +117,10 @@ mapping = {
     # Main Window
     "/set/enable/translation": {"status": False, "variable":controller.setEnableTranslation},
     "/set/disable/translation": {"status": False, "variable":controller.setDisableTranslation},
+
+    "/get/data/use_split_groq_api_key": {"status": True, "variable":controller.getUseSplitGroqApiKey},
+    "/set/enable/use_split_groq_api_key": {"status": True, "variable":controller.setEnableUseSplitGroqApiKey},
+    "/set/disable/use_split_groq_api_key": {"status": True, "variable":controller.setDisableUseSplitGroqApiKey},
 
     "/set/enable/transcription_send": {"status": False, "variable":controller.setEnableTranscriptionSend},
     "/set/disable/transcription_send": {"status": False, "variable":controller.setDisableTranscriptionSend},
@@ -284,6 +289,9 @@ mapping = {
     "/get/data/groq_auth_key": {"status": True, "variable":controller.getGroqAuthKey},
     "/set/data/groq_auth_key": {"status": True, "variable":controller.setGroqAuthKey},
     "/delete/data/groq_auth_key": {"status": True, "variable":controller.delGroqAuthKey},
+    "/get/data/groq_whisper_auth_key": {"status": True, "variable":controller.getGroqWhisperAuthKey},
+    "/set/data/groq_whisper_auth_key": {"status": True, "variable":controller.setGroqWhisperAuthKey},
+    "/delete/data/groq_whisper_auth_key": {"status": True, "variable":controller.delGroqWhisperAuthKey},
 
     "/get/data/selectable_openrouter_model_list": {"status": True, "variable":controller.getOpenRouterModelList},
     "/get/data/selected_openrouter_model": {"status": True, "variable":controller.getOpenRouterModel},
@@ -405,6 +413,8 @@ mapping = {
 
     "/get/data/selected_whisper_weight_type": {"status": True, "variable":controller.getWhisperWeightType},
     "/set/data/selected_whisper_weight_type": {"status": True, "variable":controller.setWhisperWeightType},
+    "/get/data/selected_whisper_cloud_model": {"status": True, "variable":controller.getWhisperCloudModel},
+    "/set/data/selected_whisper_cloud_model": {"status": True, "variable":controller.setWhisperCloudModel},
     "/get/data/selected_whisper_thai_weight_type": {"status": True, "variable":controller.getWhisperThaiWeightType},
     "/set/data/selected_whisper_thai_weight_type": {"status": True, "variable":controller.setWhisperThaiWeightType},
     "/get/data/whisper_decoding_profile": {"status": True, "variable":controller.getWhisperDecodingProfile},

@@ -22,6 +22,7 @@ export const TranscriptionEngineLabel = ({ variant = "settings" }) => {
         setSelectedTranscriptionComputeType,
         currentSelectedWhisperWeightType,
         currentSelectedWhisperThaiWeightType,
+        currentSelectedWhisperCloudModel,
         currentSelectedVoskWeightType,
         currentSelectedParakeetWeightType,
         currentSelectedSenseVoiceWeightType,
@@ -49,6 +50,7 @@ export const TranscriptionEngineLabel = ({ variant = "settings" }) => {
     const currentModelName =
         engine === "Whisper" ? currentSelectedWhisperWeightType?.data :
         engine === "Whisper Thai" ? currentSelectedWhisperThaiWeightType?.data :
+        engine === "Whisper Cloud" ? currentSelectedWhisperCloudModel?.data :
         engine === "Vosk" ? currentSelectedVoskWeightType?.data :
         engine === "Parakeet" ? currentSelectedParakeetWeightType?.data :
         engine === "SenseVoice" ? currentSelectedSenseVoiceWeightType?.data :

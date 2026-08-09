@@ -42,6 +42,10 @@ from models.transcription.transcription_profile import (
     make_transcription_profile,
     normalize_transcription_profile,
 )
+from models.transcription.transcription_whisper_cloud import (
+    DEFAULT_WHISPER_CLOUD_MODEL,
+    WHISPER_CLOUD_MODELS,
+)
 
 try:
     from models.transcription.transcription_whisper import _MODELS as whisper_models, DEFAULT_WHISPER_WEIGHT_TYPE
@@ -709,13 +713,16 @@ def _auth_keys_validator(val, inst):
         return None
 
     expected_keys = set(current)
-    legacy_keys = expected_keys - {"DeepSeek_API"}
+    legacy_optional_keys = {"DeepSeek_API", "Groq_Whisper_API"}
     received_keys = set(val)
-    if received_keys == legacy_keys:
-        val = dict(val)
-        val["DeepSeek_API"] = None
-    elif received_keys != expected_keys:
+    if not received_keys.issubset(expected_keys):
         return None
+    missing_keys = expected_keys - received_keys
+    if not missing_keys.issubset(legacy_optional_keys):
+        return None
+    val = dict(val)
+    for key in missing_keys:
+        val[key] = None
 
     return {
         key: value if value is None or isinstance(value, str) else current.get(key)
@@ -796,6 +803,7 @@ class Config:
     SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_LIST = ManagedProperty('SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_LIST', readonly=True, serialize=False)
     SELECTABLE_WHISPER_WEIGHT_TYPE_LIST = ManagedProperty('SELECTABLE_WHISPER_WEIGHT_TYPE_LIST', readonly=True, serialize=False)
     SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_LIST = ManagedProperty('SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_LIST', readonly=True, serialize=False)
+    SELECTABLE_WHISPER_CLOUD_MODEL_LIST = ManagedProperty('SELECTABLE_WHISPER_CLOUD_MODEL_LIST', readonly=True, serialize=False)
     SELECTABLE_VOSK_WEIGHT_TYPE_LIST = ManagedProperty('SELECTABLE_VOSK_WEIGHT_TYPE_LIST', readonly=True, serialize=False)
     SELECTABLE_PARAKEET_WEIGHT_TYPE_LIST = ManagedProperty('SELECTABLE_PARAKEET_WEIGHT_TYPE_LIST', readonly=True, serialize=False)
     SELECTABLE_SENSEVOICE_WEIGHT_TYPE_LIST = ManagedProperty('SELECTABLE_SENSEVOICE_WEIGHT_TYPE_LIST', readonly=True, serialize=False)
@@ -814,6 +822,7 @@ class Config:
     ENABLE_FOREGROUND = ManagedProperty('ENABLE_FOREGROUND', type_=bool, serialize=False)
     ENABLE_CHECK_ENERGY_SEND = ManagedProperty('ENABLE_CHECK_ENERGY_SEND', type_=bool, serialize=False)
     ENABLE_CHECK_ENERGY_RECEIVE = ManagedProperty('ENABLE_CHECK_ENERGY_RECEIVE', type_=bool, serialize=False)
+    USE_SPLIT_GROQ_API_KEY = ManagedProperty('USE_SPLIT_GROQ_API_KEY', type_=bool)
 
     # --- Selectable dict/list properties (managed by descriptor, not serialized) ---
     # These are dynamically generated in init_config() based on installed packages/APIs
@@ -952,6 +961,7 @@ class Config:
     SELECTED_OPENAI_MODEL = ManagedProperty('SELECTED_OPENAI_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_OPENAI_MODEL_LIST'))
     SELECTED_DEEPSEEK_MODEL = ManagedProperty('SELECTED_DEEPSEEK_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_DEEPSEEK_MODEL_LIST'))
     SELECTED_GROQ_MODEL = ManagedProperty('SELECTED_GROQ_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_GROQ_MODEL_LIST'))
+    SELECTED_WHISPER_CLOUD_MODEL = ManagedProperty('SELECTED_WHISPER_CLOUD_MODEL', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_WHISPER_CLOUD_MODEL_LIST)
     SELECTED_OPENROUTER_MODEL = ManagedProperty('SELECTED_OPENROUTER_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_OPENROUTER_MODEL_LIST'))
     SELECTED_LMSTUDIO_MODEL = ManagedProperty('SELECTED_LMSTUDIO_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_LMSTUDIO_MODEL_LIST'))
     SELECTED_OLLAMA_MODEL = ManagedProperty('SELECTED_OLLAMA_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_OLLAMA_MODEL_LIST'))
@@ -980,7 +990,7 @@ class Config:
 
     def init_config(self):
         # Read Only
-        self._VERSION = "5.3.0"
+        self._VERSION = "5.4.0"
         if getattr(sys, 'frozen', False):
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
@@ -1013,6 +1023,7 @@ class Config:
         self._SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_LIST = getattr(ctranslate2_weights, 'keys', lambda: [])()
         self._SELECTABLE_WHISPER_WEIGHT_TYPE_LIST = getattr(whisper_models, 'keys', lambda: [])()
         self._SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_LIST = list(whisper_thai_models.keys())
+        self._SELECTABLE_WHISPER_CLOUD_MODEL_LIST = list(WHISPER_CLOUD_MODELS)
         self._SELECTABLE_VOSK_WEIGHT_TYPE_LIST = getattr(vosk_models, 'keys', lambda: [])()
         self._SELECTABLE_PARAKEET_WEIGHT_TYPE_LIST = getattr(parakeet_models, 'keys', lambda: [])()
         self._SELECTABLE_SENSEVOICE_WEIGHT_TYPE_LIST = getattr(sensevoice_models, 'keys', lambda: [])()
@@ -1038,6 +1049,7 @@ class Config:
         self._ENABLE_FOREGROUND = False
         self._ENABLE_CHECK_ENERGY_SEND = False
         self._ENABLE_CHECK_ENERGY_RECEIVE = False
+        self._USE_SPLIT_GROQ_API_KEY = False
         self._SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT = {}
         for weight_type in self.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_LIST:
             self._SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[weight_type] = False
@@ -1212,6 +1224,7 @@ class Config:
             "OpenAI_API": None,
             "DeepSeek_API": None,
             "Groq_API": None,
+            "Groq_Whisper_API": None,
             "OpenRouter_API": None,
         }
         self._USE_EXCLUDE_WORDS = True
@@ -1225,6 +1238,7 @@ class Config:
         self._SELECTED_OPENAI_MODEL = None
         self._SELECTED_DEEPSEEK_MODEL = "deepseek-v4-flash"
         self._SELECTED_GROQ_MODEL = None
+        self._SELECTED_WHISPER_CLOUD_MODEL = DEFAULT_WHISPER_CLOUD_MODEL
         self._SELECTED_OPENROUTER_MODEL = None
         self._LMSTUDIO_URL = "http://127.0.0.1:1234/v1"
         self._SELECTED_LMSTUDIO_MODEL = None
@@ -1250,6 +1264,7 @@ class Config:
             models={
                 "Whisper": self._WHISPER_WEIGHT_TYPE,
                 "Whisper Thai": self._WHISPER_THAI_WEIGHT_TYPE,
+                "Whisper Cloud": self._SELECTED_WHISPER_CLOUD_MODEL,
                 "Vosk": self._VOSK_WEIGHT_TYPE,
                 "Parakeet": self._PARAKEET_WEIGHT_TYPE,
                 "SenseVoice": self._SENSEVOICE_WEIGHT_TYPE,
@@ -1434,6 +1449,7 @@ class Config:
         selectable_models = {
             "Whisper": getattr(self, "_SELECTABLE_WHISPER_WEIGHT_TYPE_LIST", ()),
             "Whisper Thai": getattr(self, "_SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_LIST", ()),
+            "Whisper Cloud": getattr(self, "_SELECTABLE_WHISPER_CLOUD_MODEL_LIST", ()),
             "Vosk": getattr(self, "_SELECTABLE_VOSK_WEIGHT_TYPE_LIST", ()),
             "Parakeet": getattr(self, "_SELECTABLE_PARAKEET_WEIGHT_TYPE_LIST", ()),
             "SenseVoice": getattr(self, "_SELECTABLE_SENSEVOICE_WEIGHT_TYPE_LIST", ()),
@@ -1441,6 +1457,7 @@ class Config:
         legacy_models = {
             "Whisper": getattr(self, "_WHISPER_WEIGHT_TYPE", ""),
             "Whisper Thai": getattr(self, "_WHISPER_THAI_WEIGHT_TYPE", ""),
+            "Whisper Cloud": getattr(self, "_SELECTED_WHISPER_CLOUD_MODEL", DEFAULT_WHISPER_CLOUD_MODEL),
             "Vosk": getattr(self, "_VOSK_WEIGHT_TYPE", ""),
             "Parakeet": getattr(self, "_PARAKEET_WEIGHT_TYPE", ""),
             "SenseVoice": getattr(self, "_SENSEVOICE_WEIGHT_TYPE", ""),
@@ -1529,6 +1546,7 @@ class Config:
         self._SELECTED_TRANSCRIPTION_COMPUTE_TYPE = send_profile["compute_type"]
         self._WHISPER_WEIGHT_TYPE = send_profile["models"]["Whisper"]
         self._WHISPER_THAI_WEIGHT_TYPE = send_profile["models"]["Whisper Thai"]
+        self._SELECTED_WHISPER_CLOUD_MODEL = send_profile["models"]["Whisper Cloud"]
         self._VOSK_WEIGHT_TYPE = send_profile["models"]["Vosk"]
         self._PARAKEET_WEIGHT_TYPE = send_profile["models"]["Parakeet"]
         self._SENSEVOICE_WEIGHT_TYPE = send_profile["models"]["SenseVoice"]
@@ -1543,6 +1561,7 @@ class Config:
             ('SELECTED_OPENAI_MODEL', 'SELECTABLE_OPENAI_MODEL_LIST'),
             ('SELECTED_DEEPSEEK_MODEL', 'SELECTABLE_DEEPSEEK_MODEL_LIST'),
             ('SELECTED_GROQ_MODEL', 'SELECTABLE_GROQ_MODEL_LIST'),
+            ('SELECTED_WHISPER_CLOUD_MODEL', 'SELECTABLE_WHISPER_CLOUD_MODEL_LIST'),
             ('SELECTED_OPENROUTER_MODEL', 'SELECTABLE_OPENROUTER_MODEL_LIST'),
             ('SELECTED_LMSTUDIO_MODEL', 'SELECTABLE_LMSTUDIO_MODEL_LIST'),
             ('SELECTED_OLLAMA_MODEL', 'SELECTABLE_OLLAMA_MODEL_LIST'),

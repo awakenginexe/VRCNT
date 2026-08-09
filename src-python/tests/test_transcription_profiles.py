@@ -91,7 +91,7 @@ class TranscriptionProfileControllerTests(unittest.TestCase):
         self.assertEqual(response["status"], 200)
         self.assertEqual(
             response["result"],
-            ["Google", "Whisper", "Whisper Thai", "Vosk", "Parakeet", "SenseVoice"],
+            ["Google", "Whisper", "Whisper Thai", "Whisper Cloud", "Vosk", "Parakeet", "SenseVoice"],
         )
 
     def test_engine_catalog_exposes_whisper_thai_as_a_separate_engine(self):
@@ -99,7 +99,7 @@ class TranscriptionProfileControllerTests(unittest.TestCase):
 
         self.assertEqual(
             response["result"],
-            ["Google", "Whisper", "Whisper Thai", "Vosk", "Parakeet", "SenseVoice"],
+            ["Google", "Whisper", "Whisper Thai", "Whisper Cloud", "Vosk", "Parakeet", "SenseVoice"],
         )
         self.assertIn("Whisper Thai", TRANSCRIPTION_ENGINES)
         self.assertIn("Whisper Thai", MODEL_ENGINES)

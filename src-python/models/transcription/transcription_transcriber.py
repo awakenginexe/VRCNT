@@ -1,4 +1,4 @@
-"""Runtime transcriber that wraps Google SpeechRecognition and faster-whisper.
+"""Runtime transcriber for Google, local engines, and Groq-hosted Whisper.
 
 This class focuses on converting incoming raw audio buffers into text using
 either the Google web recognizer (online) or a local Whisper model (offline).
@@ -21,6 +21,10 @@ from models.pipeline.latest_queue import QueueClosed
 from models.pipeline.pipeline_types import PipelineSource, PipelineStatusEvent
 from .transcription_languages import transcription_lang
 from .whisper_runtime import WhisperRuntimeLease
+from .transcription_whisper_cloud import (
+    WhisperCloudClient,
+    WhisperCloudRequestError,
+)
 
 import json
 import numpy as np
@@ -67,7 +71,8 @@ def _getSenseVoiceHelpers():
 
 def _languageCode(engine: str, language: str, country: str) -> str:
     try:
-        return transcription_lang[language][country].get(engine, "")
+        lookup_engine = "Whisper" if engine == "Whisper Cloud" else engine
+        return transcription_lang[language][country].get(lookup_engine, "")
     except Exception:
         return ""
 
@@ -116,6 +121,9 @@ class AudioTranscriber:
         vosk_weight_type: Optional[str] = None,
         parakeet_weight_type: Optional[str] = None,
         sensevoice_weight_type: Optional[str] = None,
+        whisper_cloud_model: Optional[str] = None,
+        groq_api_key: Optional[str] = None,
+        whisper_cloud_client: Optional[WhisperCloudClient] = None,
         device: str = "cpu",
         device_index: int = 0,
         compute_type: str = "auto",
@@ -134,6 +142,9 @@ class AudioTranscriber:
         self.sensevoice_model = None
         self.root = root
         self.whisper_weight_type = whisper_weight_type
+        self.whisper_cloud_model = whisper_cloud_model
+        self.groq_api_key = groq_api_key
+        self.whisper_cloud_client = whisper_cloud_client
         self.device = device
         self.device_index = device_index
         self.compute_type = compute_type
@@ -145,12 +156,20 @@ class AudioTranscriber:
             "channels": source.channels,
             "last_sample": bytes(),
             "last_spoken": None,
+            "last_audio_received_monotonic": None,
             "new_phrase": True,
             "phrase_started_at_monotonic": None,
             "process_data_func": self.processSpeakerData if speaker else self.processMicData,
         }
 
-        if transcription_engine == "Vosk":
+        if transcription_engine == "Whisper Cloud":
+            if self.whisper_cloud_client is None:
+                self.whisper_cloud_client = WhisperCloudClient(
+                    api_key=groq_api_key or "",
+                    model=whisper_cloud_model or "whisper-large-v3-turbo",
+                )
+            self.transcription_engine = "Whisper Cloud"
+        elif transcription_engine == "Vosk":
             getVoskRecognizer, checkVoskWeight = _getVoskHelpers()
         elif transcription_engine == "Parakeet":
             getParakeetModel, checkParakeetWeight = _getParakeetHelpers()
@@ -207,6 +226,127 @@ class AudioTranscriber:
 
     def clearLiveAudioSample(self) -> None:
         self.audio_sources["last_sample"] = bytes()
+
+    def _clearCloudPhraseBuffer(self) -> None:
+        source_info = self.audio_sources
+        source_info["last_sample"] = bytes()
+        source_info["last_spoken"] = None
+        source_info["last_audio_received_monotonic"] = None
+        source_info["new_phrase"] = True
+        source_info["phrase_started_at_monotonic"] = None
+
+    def _cloudPhraseIsReady(self) -> bool:
+        source_info = self.audio_sources
+        last_audio_at = source_info.get("last_audio_received_monotonic")
+        if not source_info.get("last_sample") or last_audio_at is None:
+            return False
+        return time.monotonic() - last_audio_at >= self.phrase_timeout
+
+    def _transcribeWhisperCloudPhrase(
+        self,
+        languages: List[str],
+        countries: List[str],
+        queue_age_ms: Optional[int] = None,
+        queue_depth: int = 0,
+    ) -> bool:
+        if not self._cloudPhraseIsReady():
+            return False
+
+        source_info = self.audio_sources
+        inference_started_at = time.perf_counter()
+        started_at_monotonic = source_info["phrase_started_at_monotonic"]
+        try:
+            audio_data = source_info["process_data_func"]()
+            wav_bytes = audio_data.get_wav_data(
+                convert_rate=16000,
+                convert_width=2,
+            )
+            language_code = None
+            if len(languages) == 1 and countries:
+                language_code = _languageCode(
+                    "Whisper",
+                    languages[0],
+                    countries[0],
+                ) or None
+            if self.whisper_cloud_client is None:
+                raise RuntimeError("Whisper Cloud client is unavailable")
+            payload = self.whisper_cloud_client.transcribe(
+                wav_bytes,
+                language=language_code,
+            )
+            text = str(payload.get("text", "")).strip()
+            result_language = _languageForCode(
+                "Whisper",
+                payload.get("language"),
+                languages,
+                countries,
+            )
+            if result_language is None and len(languages) == 1:
+                result_language = languages[0]
+            try:
+                confidence = float(payload.get("language_probability", 1.0))
+            except (TypeError, ValueError):
+                confidence = 1.0
+            result = {
+                "confidence": confidence,
+                "text": text,
+                "language": result_language,
+                "started_at_monotonic": started_at_monotonic,
+            }
+            self._clearCloudPhraseBuffer()
+            if not self._isGenerationCurrent():
+                return True
+            self._handleRecognitionSuccess()
+            if text:
+                self.updateTranscript(result)
+            self._emitPipelineMetric(
+                stage="transcription",
+                outcome="success" if text else "skipped",
+                queue_age_ms=queue_age_ms,
+                duration_ms=max(
+                    0,
+                    int((time.perf_counter() - inference_started_at) * 1000),
+                ),
+                queue_depth=queue_depth,
+                error_code=None if text else "transcription_no_speech",
+            )
+            return bool(text)
+        except WhisperCloudRequestError as error:
+            errorLogging()
+            self._handleRecognitionFailure()
+            self._clearCloudPhraseBuffer()
+            self._emitPipelineMetric(
+                stage="transcription",
+                outcome="error",
+                queue_age_ms=queue_age_ms,
+                duration_ms=max(
+                    0,
+                    int((time.perf_counter() - inference_started_at) * 1000),
+                ),
+                queue_depth=queue_depth,
+                error_code=(
+                    "groq_rate_limited"
+                    if error.status_code == 429
+                    else "groq_transcription_failed"
+                ),
+            )
+            return False
+        except Exception:
+            errorLogging()
+            self._handleRecognitionFailure()
+            self._clearCloudPhraseBuffer()
+            self._emitPipelineMetric(
+                stage="transcription",
+                outcome="error",
+                queue_age_ms=queue_age_ms,
+                duration_ms=max(
+                    0,
+                    int((time.perf_counter() - inference_started_at) * 1000),
+                ),
+                queue_depth=queue_depth,
+                error_code="groq_transcription_failed",
+            )
+            return False
 
     @staticmethod
     def _queueDepth(audio_queue: Any) -> int:
@@ -339,6 +479,15 @@ class AudioTranscriber:
     ) -> bool:
         try:
             if audio_queue.empty():
+                if self.transcription_engine == "Whisper Cloud":
+                    result = self._transcribeWhisperCloudPhrase(
+                        languages,
+                        countries,
+                        queue_depth=self._queueDepth(audio_queue),
+                    )
+                    if not result:
+                        time.sleep(0.01)
+                    return result
                 time.sleep(0.01)
                 return False
             chunk = audio_queue.get()
@@ -357,6 +506,13 @@ class AudioTranscriber:
             int((dequeued_at - final_chunk.captured_at_monotonic) * 1000),
         )
         queue_depth = self._queueDepth(audio_queue)
+        if self.transcription_engine == "Whisper Cloud":
+            return self._transcribeWhisperCloudPhrase(
+                languages,
+                countries,
+                queue_age_ms=queue_age_ms,
+                queue_depth=queue_depth,
+            )
         self._emitPipelineMetric(
             stage="queue",
             outcome="success",
@@ -705,6 +861,7 @@ class AudioTranscriber:
         self.audio_sources["channels"] = source.channels
         self.audio_sources["last_sample"] = bytes()
         self.audio_sources["last_spoken"] = None
+        self.audio_sources["last_audio_received_monotonic"] = None
         self.audio_sources["new_phrase"] = True
         self.audio_sources["phrase_started_at_monotonic"] = None
 
@@ -730,6 +887,7 @@ class AudioTranscriber:
         captured_at_monotonic: Optional[float] = None,
     ) -> None:
         source_info = self.audio_sources
+        source_info["last_audio_received_monotonic"] = time.monotonic()
         if source_info["last_spoken"] and time_spoken - source_info["last_spoken"] > timedelta(seconds=self.phrase_timeout):
             source_info["last_sample"] = bytes()
             source_info["new_phrase"] = True
@@ -807,5 +965,6 @@ class AudioTranscriber:
         self.transcript_data.clear()
         self.audio_sources["last_sample"] = bytes()
         self.audio_sources["last_spoken"] = None
+        self.audio_sources["last_audio_received_monotonic"] = None
         self.audio_sources["new_phrase"] = True
         self.audio_sources["phrase_started_at_monotonic"] = None
