@@ -1200,6 +1200,12 @@ class Controller:
         self._raiseFinalOutputFailures(failures)
 
     def _startupWhisperWeightType(self) -> str:
+        active_engines = {
+            self._getSourceTranscriptionEngine(source)
+            for source in (PipelineSource.MIC, PipelineSource.SPEAKER)
+        }
+        if "Whisper" not in active_engines:
+            return ""
         selectable_weights = config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT
         if config.WHISPER_WEIGHT_TYPE in selectable_weights:
             return config.WHISPER_WEIGHT_TYPE
@@ -1463,7 +1469,7 @@ class Controller:
         config.WHISPER_WEIGHT_TYPE = profile["models"]["Whisper"]
         config.WHISPER_THAI_WEIGHT_TYPE = profile["models"].get(
             "Whisper Thai",
-            config.WHISPER_THAI_WEIGHT_TYPE,
+            getattr(config, "WHISPER_THAI_WEIGHT_TYPE", ""),
         )
         config.VOSK_WEIGHT_TYPE = profile["models"]["Vosk"]
         config.PARAKEET_WEIGHT_TYPE = profile["models"]["Parakeet"]
@@ -5517,8 +5523,9 @@ class Controller:
         if hasattr(self, '_whisper_available_cache'):
             # 起動時のキャッシュを使用: 起動に必要な最小ウェイトのみ設定
             cached_weight_type = getattr(self, '_whisper_available_cache_key', config.WHISPER_WEIGHT_TYPE)
-            config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT[cached_weight_type] = self._whisper_available_cache
-            checked_weight_types.add(cached_weight_type)
+            if cached_weight_type:
+                config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT[cached_weight_type] = self._whisper_available_cache
+                checked_weight_types.add(cached_weight_type)
 
         for selected_weight_type in self._selectedTranscriptionModelWeights("Whisper"):
             if selected_weight_type not in checked_weight_types:
@@ -5847,6 +5854,11 @@ class Controller:
             match engine:
                 case "Whisper":
                     config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = whisper_available
+                case "Whisper Thai":
+                    config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = any(
+                        model.checkTranscriptionWhisperThaiModelWeight(wt)
+                        for wt in config.SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_DICT.keys()
+                    )
                 case "Vosk":
                     config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = any(
                         model.checkTranscriptionVoskModelWeight(wt)
@@ -6185,9 +6197,9 @@ class Controller:
             model.backwardCompatibleTranslatorCTranslate2ModelRenameWeightsDir()
 
             download_threads = []
-            printLog("Download Whisper Model Weight")
             weight_type = startup_whisper_weight_type
-            if model.checkTranscriptionWhisperModelWeight(weight_type) is False:
+            if weight_type and model.checkTranscriptionWhisperModelWeight(weight_type) is False:
+                printLog("Download Whisper Model Weight")
                 th_download_whisper = Thread(target=self.downloadWhisperWeight, args=(weight_type, False))
                 th_download_whisper.daemon = True
                 th_download_whisper.start()
@@ -6212,6 +6224,8 @@ class Controller:
             )
 
         def check_whisper() -> bool:
+            if not startup_whisper_weight_type:
+                return True
             return model.checkTranscriptionWhisperModelWeight(startup_whisper_weight_type) is True
 
         with ThreadPoolExecutor(max_workers=2) as executor:
@@ -6236,6 +6250,7 @@ class Controller:
 
         self.updateDownloadedCTranslate2ModelWeight()
         self.updateDownloadedWhisperModelWeight()
+        self.updateDownloadedWhisperThaiModelWeight()
         self.updateDownloadedVoskModelWeight()
         self.updateDownloadedParakeetModelWeight()
         self.updateDownloadedSenseVoiceModelWeight()

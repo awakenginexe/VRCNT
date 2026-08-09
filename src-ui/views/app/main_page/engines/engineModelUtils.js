@@ -1,5 +1,6 @@
 export const TRANSCRIPTION_ENGINE_OPTIONS = [
     "Whisper",
+    "Whisper Thai",
     "Google",
     "Vosk",
     "Parakeet",

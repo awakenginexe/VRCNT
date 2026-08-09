@@ -21,6 +21,7 @@ export const TranscriptionEngineLabel = ({ variant = "settings" }) => {
         currentSelectedTranscriptionComputeType,
         setSelectedTranscriptionComputeType,
         currentSelectedWhisperWeightType,
+        currentSelectedWhisperThaiWeightType,
         currentSelectedVoskWeightType,
         currentSelectedParakeetWeightType,
         currentSelectedSenseVoiceWeightType,
@@ -47,6 +48,7 @@ export const TranscriptionEngineLabel = ({ variant = "settings" }) => {
     const selectedComputeType = currentSelectedTranscriptionComputeType?.data ?? "auto";
     const currentModelName =
         engine === "Whisper" ? currentSelectedWhisperWeightType?.data :
+        engine === "Whisper Thai" ? currentSelectedWhisperThaiWeightType?.data :
         engine === "Vosk" ? currentSelectedVoskWeightType?.data :
         engine === "Parakeet" ? currentSelectedParakeetWeightType?.data :
         engine === "SenseVoice" ? currentSelectedSenseVoiceWeightType?.data :

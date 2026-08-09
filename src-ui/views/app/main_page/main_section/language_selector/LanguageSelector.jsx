@@ -110,6 +110,9 @@ const SENSEVOICE_MODEL_LANGUAGES = {
 };
 
 const getLanguageCode = ({ language, country }, engine) => {
+    if (engine === "Whisper Thai") {
+        return language === "Thai" && country === "Thailand" ? "th" : "";
+    }
     if (engine === "Vosk" && language === "Chinese Traditional" && country === "Hong Kong") return "";
     if (engine === "SenseVoice") {
         if (language === "Chinese Simplified") return "zh";
@@ -123,12 +126,13 @@ const getLanguageCode = ({ language, country }, engine) => {
 };
 
 const buildSupportGuard = ({ selectorType, targetKey, engine, voskWeightType, parakeetWeightType, sensevoiceWeightType }) => {
+    const isThaiOnly = engine === "Whisper Thai";
     const isEngineLimited = engine === "Vosk" || engine === "Parakeet" || engine === "SenseVoice";
     const isPausedSingleEngineSlot = (
         (engine === "Vosk" || engine === "Parakeet")
         && targetKey !== "1"
     );
-    const shouldRestrict = isEngineLimited && !isPausedSingleEngineSlot && (
+    const shouldRestrict = (isThaiOnly || isEngineLimited) && !isPausedSingleEngineSlot && (
         selectorType === "your_language" ||
         selectorType === "target_language"
     );
@@ -138,6 +142,7 @@ const buildSupportGuard = ({ selectorType, targetKey, engine, voskWeightType, pa
     }
 
     const supportedCodes = new Set(
+        isThaiOnly ? ["th"] :
         engine === "Vosk" ? (VOSK_MODEL_LANGUAGES[voskWeightType] ?? []) :
         engine === "SenseVoice" ? (SENSEVOICE_MODEL_LANGUAGES[sensevoiceWeightType] ?? []) :
         (PARAKEET_MODEL_LANGUAGES[parakeetWeightType] ?? [])

@@ -560,6 +560,30 @@ class TranscriberPipelineTests(unittest.TestCase):
         self.assertEqual(" 這是 VRChat test", transcript["text"])
         self.assertEqual("Chinese Traditional", transcript["language"])
 
+    def test_whisper_thai_forces_thai_language_without_restricted_detection(self):
+        lease = FakeRestrictedWhisperLease()
+        context = make_pipeline_context(lease)
+        transcriber = make_transcriber(lease, context)
+        transcriber.transcription_engine = "Whisper Thai"
+
+        result = transcriber.transcribeAudioQueue(
+            queue_with(
+                AudioChunk(
+                    pcm(1200),
+                    datetime.now(timezone.utc),
+                    time.perf_counter(),
+                )
+            ),
+            ["English", "Thai", "Chinese Traditional"],
+            ["Singapore", "Thailand", "Taiwan"],
+        )
+
+        self.assertTrue(result)
+        self.assertEqual(1, len(lease.calls))
+        self.assertEqual("th", lease.calls[0][1]["language"])
+        self.assertEqual([], lease.restricted_calls)
+        self.assertEqual("Thai", transcriber.getTranscript()["language"])
+
     def test_vad_rejected_music_like_audio_never_becomes_a_transcript(self):
         lease = EmptyWhisperLease()
         events = []
@@ -1488,6 +1512,42 @@ class ModelWhisperLeaseIntegrationTests(unittest.TestCase):
 
         self.assertIsNone(lease)
         self.assertIsNone(context.whisper_runtime_lease)
+
+    def test_whisper_thai_engine_uses_thai_model_checker_and_runtime_key(self):
+        factory_keys = []
+        manager = WhisperRuntimeManager(
+            factory=lambda root, key: factory_keys.append(key) or object(),
+            unload=lambda model: None,
+        )
+        instance = make_bare_model(manager)
+        fake_config = make_model_config(engine="Whisper Thai")
+        fake_config.WHISPER_THAI_WEIGHT_TYPE = "thai-thonburian-small"
+
+        with (
+            patch.object(model_module, "config", fake_config),
+            patch.object(
+                model_module,
+                "checkWhisperThaiWeight",
+                return_value=True,
+            ) as thai_check,
+            patch.object(
+                model_module,
+                "checkWhisperWeight",
+                side_effect=AssertionError("Thai runtime checked normal Whisper"),
+            ),
+        ):
+            lease = instance._acquireWhisperRuntimeLease()
+
+        self.assertIsNotNone(lease)
+        thai_check.assert_called_once_with(
+            fake_config.PATH_DATA,
+            "thai-thonburian-small",
+        )
+        self.assertEqual(
+            factory_keys[0].weight_type,
+            "thai-thonburian-small",
+        )
+        lease.close()
 
     def test_mic_startup_failures_roll_back_every_owned_resource(self):
         cases = (

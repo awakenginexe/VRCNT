@@ -205,6 +205,7 @@ export const EnginesWorkspace = () => {
         setTranscriptionProfileSend,
         setTranscriptionProfileReceive,
         currentWhisperWeightTypeStatus,
+        currentWhisperThaiWeightTypeStatus,
         currentVoskWeightTypeStatus,
         currentParakeetWeightTypeStatus,
         currentSenseVoiceWeightTypeStatus,
@@ -239,11 +240,13 @@ export const EnginesWorkspace = () => {
     const computeDevices = currentSelectableTranscriptionComputeDeviceList.data ?? [];
     const modelStatuses = useMemo(() => ({
         Whisper: currentWhisperWeightTypeStatus.data ?? [],
+        "Whisper Thai": currentWhisperThaiWeightTypeStatus.data ?? [],
         Vosk: currentVoskWeightTypeStatus.data ?? [],
         Parakeet: currentParakeetWeightTypeStatus.data ?? [],
         SenseVoice: currentSenseVoiceWeightTypeStatus.data ?? [],
     }), [
         currentWhisperWeightTypeStatus.data,
+        currentWhisperThaiWeightTypeStatus.data,
         currentVoskWeightTypeStatus.data,
         currentParakeetWeightTypeStatus.data,
         currentSenseVoiceWeightTypeStatus.data,

@@ -330,6 +330,7 @@ main_page:
         recognition_paused: "保存済み・音声認識では一時停止"
         outgoing_only: "送信翻訳のみ"
         whisper_profile_hint: "Whisper は選択言語から最も強い候補を選び、1回だけデコードします。"
+        whisper_thai_hint: "Whisper Thai はタイ語専用です。認識言語はタイ語に固定され、使用する言語スロットは1つです。"
         google_single_hint: "Google は各フレーズを選択中の言語で確認します。"
         google_parallel_hint: "Google は {{count}} 言語を並列に確認します。"
         sensevoice_profile_hint: "SenseVoice はモデルが対応する選択言語から検出します。"
@@ -768,6 +769,10 @@ config_page:
             desc: "容量が大きいモデルほど精度は高いですが、その分CPUやGPUを占有します。\n※特にmediumより容量の大きいモデルは、CPU/GPUの性能によっては使用すらも困難です。"
             model_template: "{{model_name}} モデル （{{capacity}}）"
             recommended_model_template: "{{model_name}} モデル （{{capacity}}） [推奨]"
+        whisper_thai:
+            label: "Whisper Thai モデル"
+            desc: "タイ語専用の faster-whisper モデルです。モデルは明示的に選択・ダウンロードし、認識言語はタイ語に固定されます。"
+            experimental: "実験的"
         whisper_decoding_profile:
             label: "Whisper デコードプロファイル"
             desc: "VR の応答性とデコード精度のバランスを選びます。"

@@ -1055,6 +1055,7 @@ transcription_lang = {
         "Thailand":{
             "Google": "th-TH",
             "Whisper": "th",
+            "Whisper Thai": "th",
             "Parakeet": "",
             "Vosk": "",
             "SenseVoice": "",

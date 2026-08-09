@@ -330,6 +330,7 @@ main_page:
         recognition_paused: "Saved · paused for recognition"
         outgoing_only: "Outgoing translation only"
         whisper_profile_hint: "Whisper chooses the strongest selected language, then decodes once."
+        whisper_thai_hint: "Whisper Thai is Thai-only. Recognition is locked to Thai and uses one active language slot."
         google_single_hint: "Google checks the selected language for each phrase."
         google_parallel_hint: "Google checks {{count}} languages in parallel."
         sensevoice_profile_hint: "SenseVoice detects among the selected languages supported by its model."
@@ -768,6 +769,10 @@ config_page:
             desc: "Larger models have higher accuracy, but they also consume more CPU or GPU resources.\nEspecially for models larger than medium, it may be difficult or even impossible to use them depending on the performance of your CPU/GPU."
             model_template: "{{model_name}} model ({{capacity}})"
             recommended_model_template: "{{model_name}} model ({{capacity}}) (Recommended)"
+        whisper_thai:
+            label: "Whisper Thai Models"
+            desc: "Thai-only faster-whisper models. Select and download a model explicitly; recognition is locked to Thai."
+            experimental: "Experimental"
         whisper_decoding_profile:
             label: "Whisper decoding profile"
             desc: "Choose the balance between VR responsiveness and decoder accuracy."

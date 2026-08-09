@@ -36,6 +36,8 @@ THAI_WHISPER_MODELS = {
             "tokenizer.json",
         ),
         "tokenizer_repository": "biodatlab/whisper-th-small-combined",
+        "tokenizer_revision": "956bcd8fbcb69c053b3116e2f21c636db5510a79",
+        "tokenizer_file": "tokenizer.json",
     },
     "thai-thonburian-medium": {
         "display_name": "Thonburian Thai Medium",
@@ -209,6 +211,18 @@ def downloadWhisperThaiWeight(
         except Exception:
             filenames = list(required_files)
 
+        tokenizer_repository = metadata.get("tokenizer_repository")
+        tokenizer_file = metadata.get("tokenizer_file")
+        if tokenizer_repository and tokenizer_file:
+            # The Small CT2 repository is known not to contain its tokenizer.
+            # Keep the fallback path from ever treating a target-repository
+            # tokenizer as authoritative for this assembled package.
+            filenames = [
+                filename
+                for filename in filenames
+                if filename != tokenizer_file
+            ]
+
         for filename in filenames:
             file_path = os_path.join(model_path, filename)
             if _isValidWhisperFile(file_path, filename):
@@ -223,6 +237,29 @@ def downloadWhisperThaiWeight(
                 file_path,
                 func=callback if filename == "model.bin" else None,
             )
+
+        # The approved Small CT2 conversion intentionally does not package a
+        # tokenizer.  Assemble that one missing runtime artifact only from the
+        # pinned BioDataLab source repository; never borrow a normal Whisper
+        # tokenizer or mark the package ready without it.
+        if tokenizer_repository and tokenizer_file:
+            tokenizer_path = os_path.join(model_path, tokenizer_file)
+            if not _isValidWhisperFile(tokenizer_path, tokenizer_file):
+                tokenizer_revision = metadata.get("tokenizer_revision")
+                try:
+                    source_files = list_repo_files(
+                        tokenizer_repository,
+                        revision=tokenizer_revision,
+                    )
+                except Exception:
+                    source_files = (tokenizer_file,)
+                if tokenizer_file in source_files:
+                    url = hf_hub_url(
+                        tokenizer_repository,
+                        tokenizer_file,
+                        revision=tokenizer_revision,
+                    )
+                    downloadFile(url, tokenizer_path)
     if callable(end_callback):
         end_callback()
     return checkWhisperThaiWeight(root, weight_type)

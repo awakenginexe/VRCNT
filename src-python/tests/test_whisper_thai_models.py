@@ -64,6 +64,18 @@ class WhisperThaiCatalogTests(unittest.TestCase):
             "Thonburian Thai Small (Experimental)",
         )
 
+    def test_small_catalog_pins_authoritative_tokenizer_source(self):
+        metadata = getWhisperThaiModelMeta("thai-thonburian-small")
+
+        self.assertEqual(
+            metadata["tokenizer_repository"],
+            "biodatlab/whisper-th-small-combined",
+        )
+        self.assertEqual(
+            metadata["tokenizer_revision"],
+            "956bcd8fbcb69c053b3116e2f21c636db5510a79",
+        )
+
 
 class WhisperThaiValidationTests(unittest.TestCase):
     @staticmethod
@@ -170,6 +182,70 @@ class WhisperThaiValidationTests(unittest.TestCase):
                     "4ac21c3d2b48f846cd787272777d3f5e6156571d",
                 ),
             },
+        )
+
+    def test_small_download_assembles_tokenizer_from_authoritative_source_repo(self):
+        with tempfile.TemporaryDirectory() as root:
+            model_root = os.path.join(
+                root,
+                "weights",
+                "whisper",
+                "thai-thonburian-small",
+            )
+
+            def repository_files(repository, revision=None):
+                if repository == "Thaweewat/whisper-th-small-ct2":
+                    return ["config.json", "model.bin", "vocabulary.json"]
+                if repository == "biodatlab/whisper-th-small-combined":
+                    return ["tokenizer.json", "config.json"]
+                raise AssertionError(repository)
+
+            with (
+                patch.object(
+                    whisper_thai,
+                    "list_repo_files",
+                    side_effect=repository_files,
+                ),
+                patch.object(
+                    whisper_thai,
+                    "hf_hub_url",
+                    side_effect=lambda repo, filename, revision=None: (
+                        repo,
+                        filename,
+                        revision,
+                    ),
+                ),
+                patch.object(
+                    whisper_thai,
+                    "downloadFile",
+                    return_value=True,
+                ) as download,
+                patch.object(
+                    whisper_thai,
+                    "checkWhisperThaiWeight",
+                    return_value=False,
+                ),
+            ):
+                whisper_thai.downloadWhisperThaiWeight(
+                    root,
+                    "thai-thonburian-small",
+                )
+
+        self.assertIn(
+            (
+                "biodatlab/whisper-th-small-combined",
+                "tokenizer.json",
+                "956bcd8fbcb69c053b3116e2f21c636db5510a79",
+            ),
+            {call.args[0] for call in download.call_args_list},
+        )
+        self.assertNotIn(
+            (
+                "Thaweewat/whisper-th-small-ct2",
+                "tokenizer.json",
+                "fe1f90dcade5fe4f6fa229047c7cf6d939bbb8bb",
+            ),
+            {call.args[0] for call in download.call_args_list},
         )
 
 

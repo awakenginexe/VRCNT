@@ -3,6 +3,7 @@ import { createAtomWithHook } from "@store";
 import {
     ctranslate2_weight_type_status,
     whisper_weight_type_status,
+    whisper_thai_weight_type_status,
     vosk_weight_type_status,
     parakeet_weight_type_status,
     sensevoice_weight_type_status,
@@ -592,6 +593,22 @@ export const SETTINGS_ARRAY = [
         ui_template_id: "select",
         logics_template_id: "get_set",
         base_endpoint_name: "selected_whisper_weight_type",
+    },
+    {
+        Category: "Transcription",
+        Base_Name: "WhisperThaiWeightTypeStatus",
+        default_value: whisper_thai_weight_type_status,
+        ui_template_id: "list",
+        logics_template_id: "weight_download_status",
+        base_endpoint_name: "whisper_thai_weight",
+    },
+    {
+        Category: "Transcription",
+        Base_Name: "SelectedWhisperThaiWeightType",
+        default_value: "",
+        ui_template_id: "select",
+        logics_template_id: "get_set",
+        base_endpoint_name: "selected_whisper_thai_weight_type",
     },
     {
         Category: "Transcription",

@@ -158,11 +158,11 @@ class AudioTranscriber:
             getSenseVoiceModel, checkSenseVoiceWeight = _getSenseVoiceHelpers()
 
         if (
-            transcription_engine == "Whisper"
+            transcription_engine in ("Whisper", "Whisper Thai")
             and pipeline_context is not None
             and pipeline_context.whisper_runtime_lease is not None
         ):
-            self.transcription_engine = "Whisper"
+            self.transcription_engine = transcription_engine
         elif transcription_engine == "Vosk" and vosk_weight_type and checkVoskWeight(root, vosk_weight_type) is True:
             try:
                 self.vosk_recognizer = getVoskRecognizer(root, vosk_weight_type)
@@ -416,7 +416,10 @@ class AudioTranscriber:
                 errorLogging()
 
         try:
-            if not languages or not countries:
+            if (
+                (not languages or not countries)
+                and self.transcription_engine != "Whisper Thai"
+            ):
                 emit_terminal_metric(
                     "error",
                     "transcription_languages_unavailable",
@@ -441,8 +444,9 @@ class AudioTranscriber:
                             "google_recognition_failed",
                         )
                         return False
-                case "Whisper":
+                case "Whisper" | "Whisper Thai":
                     try:
+                        is_thai = self.transcription_engine == "Whisper Thai"
                         context = self.pipeline_context
                         lease = (
                             context.whisper_runtime_lease
@@ -468,10 +472,14 @@ class AudioTranscriber:
                         if audio_data.size > max_samples:
                             audio_data = audio_data[-max_samples:]
 
-                        language_codes = tuple(
-                            code
-                            for language, country in zip(languages[:3], countries[:3])
-                            if (code := _languageCode("Whisper", language, country))
+                        language_codes = (
+                            ("th",)
+                            if is_thai
+                            else tuple(
+                                code
+                                for language, country in zip(languages[:3], countries[:3])
+                                if (code := _languageCode("Whisper", language, country))
+                            )
                         )
                         transcription_options = dict(
                             beam_size=_getWhisperBeamSize(
@@ -487,7 +495,7 @@ class AudioTranscriber:
                             vad_filter=vad_filter,
                             vad_parameters=vad_parameters,
                         )
-                        if len(language_codes) > 1:
+                        if not is_thai and len(language_codes) > 1:
                             inference_result = lease.transcribe_restricted_languages(
                                 audio_data,
                                 language_codes=language_codes,
@@ -496,7 +504,9 @@ class AudioTranscriber:
                         else:
                             inference_result = lease.transcribe(
                                 audio_data,
-                                language=language_codes[0] if language_codes else None,
+                                language="th" if is_thai else (
+                                    language_codes[0] if language_codes else None
+                                ),
                                 **transcription_options,
                             )
                         segments = inference_result.segments
@@ -522,22 +532,30 @@ class AudioTranscriber:
                                 )
                             return False
 
-                        detected_language_code = (
-                            inference_result.detected_language
-                            if len(language_codes) > 1
-                            else getattr(info, "language", None)
-                        )
-                        detected_language_probability = (
-                            inference_result.detected_language_probability
-                            if len(language_codes) > 1
-                            else getattr(info, "language_probability", 0.0)
-                        )
-                        result_language = _languageForCode(
-                            "Whisper",
-                            detected_language_code,
-                            languages,
-                            countries,
-                        )
+                        if is_thai:
+                            result_language = "Thai"
+                            detected_language_probability = getattr(
+                                info,
+                                "language_probability",
+                                0.0,
+                            )
+                        else:
+                            detected_language_code = (
+                                inference_result.detected_language
+                                if len(language_codes) > 1
+                                else getattr(info, "language", None)
+                            )
+                            detected_language_probability = (
+                                inference_result.detected_language_probability
+                                if len(language_codes) > 1
+                                else getattr(info, "language_probability", 0.0)
+                            )
+                            result_language = _languageForCode(
+                                "Whisper",
+                                detected_language_code,
+                                languages,
+                                countries,
+                            )
                         if result_language:
                             confidences.append({
                                 "confidence": detected_language_probability,
@@ -630,7 +648,7 @@ class AudioTranscriber:
                                 confidences.append({"confidence": 1.0, "text": result_text, "language": primary})
 
         except UnknownValueError:
-            if self.transcription_engine == "Whisper":
+            if self.transcription_engine in ("Whisper", "Whisper Thai"):
                 request_whisper_recovery()
                 emit_terminal_metric(
                     "error",
@@ -639,7 +657,7 @@ class AudioTranscriber:
                 return False
         except Exception:
             errorLogging()
-            if self.transcription_engine == "Whisper":
+            if self.transcription_engine in ("Whisper", "Whisper Thai"):
                 request_whisper_recovery()
                 emit_terminal_metric(
                     "error",
@@ -655,7 +673,7 @@ class AudioTranscriber:
                 )
                 return False
         finally:
-            if self.transcription_engine == "Whisper":
+            if self.transcription_engine in ("Whisper", "Whisper Thai"):
                 self.clearLiveAudioSample()
             if safe_to_restart is not None:
                 safe_to_restart.set()

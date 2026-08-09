@@ -249,6 +249,7 @@ const TranscriptionEngine_Container = () => {
             <SectionLabelComponent label={t("config_page.transcription.section_label_transcription_engines")} />
             <TranscriptionEngine_Box />
             {engine === "Whisper" && <WhisperWeightType_Box />}
+            {engine === "Whisper Thai" && <WhisperThaiWeightType_Box />}
             {engine === "Vosk" && <VoskWeightType_Box />}
             {engine === "Parakeet" && <ParakeetWeightType_Box />}
             {engine === "SenseVoice" && <SenseVoiceWeightType_Box />}
@@ -256,6 +257,7 @@ const TranscriptionEngine_Container = () => {
                 <TranscriptionComputeDevice_Box showComputeType={visibility.computeType} />
             )}
             {engine === "Whisper" && <WhisperDecodingProfile_Box />}
+            {engine === "Whisper Thai" && <WhisperDecodingProfile_Box />}
         </div>
     );
 };
@@ -277,6 +279,7 @@ const TranscriptionEngine_Box = () => {
             options={[
                 { id: "Google", label: "Google (Cloud, 0 GB VRAM)" },
                 { id: "Whisper", label: "Whisper / faster-whisper (CPU or GPU)" },
+                { id: "Whisper Thai", label: "Whisper Thai (Thai-only, CPU or GPU)" },
                 { id: "Parakeet", label: "NVIDIA Parakeet TDT v3 (GPU, ~3 GB VRAM)" },
                 { id: "Vosk", label: "Vosk (CPU, 0 GB VRAM)" },
                 { id: "SenseVoice", label: "SenseVoice-Small (CPU, zh/en/ja/ko/yue)" },
@@ -473,6 +476,49 @@ const WhisperWeightType_Box = () => {
                 downloadStartFunction={downloadStartFunction}
             />
         </>
+    );
+};
+
+const WhisperThaiWeightType_Box = () => {
+    const { t } = useI18n();
+    const {
+        currentWhisperThaiWeightTypeStatus,
+        pendingWhisperThaiWeightTypeStatus,
+        downloadWhisperThaiWeightTypeStatus,
+        currentSelectedWhisperThaiWeightType,
+        setSelectedWhisperThaiWeightType,
+        currentTranscriptionProfileSend,
+    } = useTranscription();
+    const applyToBoth = useLegacyApplyToBothGuard();
+
+    if (!currentWhisperThaiWeightTypeStatus) return null;
+
+    const selectFunction = (id) => {
+        applyToBoth(setSelectedWhisperThaiWeightType, id);
+    };
+    const downloadStartFunction = (id) => {
+        pendingWhisperThaiWeightTypeStatus(id);
+        downloadWhisperThaiWeightTypeStatus(id);
+    };
+
+    const items = (currentWhisperThaiWeightTypeStatus.data || []).map((item) => ({
+        ...item,
+        label: `${item.label ?? item.display_name ?? item.id}${item.experimental ? ` — ${t("config_page.transcription.whisper_thai.experimental")}` : ""} (${item.capacity ?? ""})`,
+    }));
+
+    return (
+        <DownloadModelsContainer
+            label={t("config_page.transcription.whisper_thai.label")}
+            desc={t("config_page.transcription.whisper_thai.desc")}
+            name="whisper_thai_weight_type"
+            options={items}
+            checked_variable={resolveProfileBackedState(
+                currentSelectedWhisperThaiWeightType,
+                currentTranscriptionProfileSend.data?.models?.["Whisper Thai"],
+            )}
+            selectFunction={selectFunction}
+            downloadStartFunction={downloadStartFunction}
+        />
     );
 };
 

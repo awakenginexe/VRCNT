@@ -39,6 +39,8 @@ export const ModelsHub = () => {
     const {
         currentWhisperWeightTypeStatus,
         downloadWhisperWeightTypeStatus,
+        currentWhisperThaiWeightTypeStatus,
+        downloadWhisperThaiWeightTypeStatus,
         currentVoskWeightTypeStatus,
         downloadVoskWeightTypeStatus,
         currentParakeetWeightTypeStatus,
@@ -51,6 +53,7 @@ export const ModelsHub = () => {
     const statuses = currentWhisperWeightTypeStatus.data ?? [];
     const modelGroups = [
         { id: "Whisper", statuses, download: downloadWhisperWeightTypeStatus },
+        { id: "Whisper Thai", statuses: currentWhisperThaiWeightTypeStatus.data ?? [], download: downloadWhisperThaiWeightTypeStatus },
         { id: "Vosk", statuses: currentVoskWeightTypeStatus.data ?? [], download: downloadVoskWeightTypeStatus },
         { id: "Parakeet", statuses: currentParakeetWeightTypeStatus.data ?? [], download: downloadParakeetWeightTypeStatus },
         { id: "SenseVoice", statuses: currentSenseVoiceWeightTypeStatus.data ?? [], download: downloadSenseVoiceWeightTypeStatus },
@@ -265,7 +268,7 @@ const modelOptions = useMemo(() => {
                             {group.statuses.map((status) => (
                                 <div key={status.id} className={styles.model_row}>
                                     <div>
-                                        <strong>{status.id}</strong>
+                                        <strong>{status.label ?? status.display_name ?? status.id}</strong>
                                         <span>{status.capacity ?? t("main_page.models_hub.size_not_available")}</span>
                                     </div>
                                     <span data-ready={status.is_downloaded === true}>

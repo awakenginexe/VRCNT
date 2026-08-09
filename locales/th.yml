@@ -330,6 +330,7 @@ main_page:
         recognition_paused: "บันทึกไว้ · พักการรู้จำเสียง"
         outgoing_only: "ใช้แปลขาออกเท่านั้น"
         whisper_profile_hint: "Whisper จะเลือกภาษาที่มีโอกาสสูงสุดจากรายการ แล้วถอดรหัสเพียงครั้งเดียว"
+        whisper_thai_hint: "Whisper Thai รองรับเฉพาะภาษาไทย ล็อกภาษาการรู้จำเป็นภาษาไทยและใช้ช่องภาษาเพียงหนึ่งช่อง"
         google_single_hint: "Google จะตรวจแต่ละวลีด้วยภาษาที่เลือก"
         google_parallel_hint: "Google กำลังตรวจ {{count}} ภาษาพร้อมกัน"
         sensevoice_profile_hint: "SenseVoice จะตรวจจับจากภาษาที่เลือกและโมเดลรองรับ"
@@ -769,6 +770,10 @@ config_page:
             desc: "โมเดลขนาดใหญ่มีความแม่นยำสูงกว่า แต่ใช้ทรัพยากร CPU หรือ GPU มากกว่า\nโดยเฉพาะโมเดลที่ใหญ่กว่า medium อาจใช้งานได้ยากหรือใช้งานไม่ได้ ขึ้นอยู่กับประสิทธิภาพ CPU/GPU ของคุณ"
             model_template: "โมเดล {{model_name}} ({{capacity}})"
             recommended_model_template: "โมเดล {{model_name}} ({{capacity}}) (แนะนำ)"
+        whisper_thai:
+            label: "โมเดล Whisper Thai"
+            desc: "โมเดล faster-whisper สำหรับภาษาไทยเท่านั้น เลือกและดาวน์โหลดโมเดลด้วยตนเอง และล็อกภาษาการรู้จำเป็นภาษาไทย"
+            experimental: "ทดลอง"
         whisper_decoding_profile:
             label: "โปรไฟล์การถอดรหัส Whisper"
             desc: "เลือกระหว่างความลื่นไหลใน VR และความแม่นยำของตัวถอดรหัส"

@@ -16,6 +16,16 @@ TRANSCRIPTION_LANGUAGE_CAPABILITIES = {
         "received_max": 3,
         "parallel_candidates": False,
     },
+    "Whisper Thai": {
+        "microphone_max": 1,
+        "received_max": 1,
+        "parallel_candidates": False,
+        "fixed_language": {
+            "language": "Thai",
+            "country": "Thailand",
+            "code": "th",
+        },
+    },
     "Google": {
         "microphone_max": 3,
         "received_max": 3,
@@ -154,6 +164,15 @@ def enabled_language_slots(slots: Mapping, maximum_enabled: int = 3) -> tuple[di
 
 def runtime_language_slots(engine: str, slots: Mapping, direction: str) -> tuple[dict, ...]:
     """Return active language hints without changing the saved profile."""
+
+    if str(engine) == "Whisper Thai":
+        return (
+            {
+                "language": "Thai",
+                "country": "Thailand",
+                "enable": True,
+            },
+        )
 
     capability = TRANSCRIPTION_LANGUAGE_CAPABILITIES.get(
         str(engine),

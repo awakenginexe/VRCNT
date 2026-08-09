@@ -129,6 +129,27 @@ class TranscriptionLanguagePolicyTests(unittest.TestCase):
                 self.assertEqual((THREE_LANGUAGE_SLOTS["1"],), runtime)
                 self.assertEqual(THREE_LANGUAGE_SLOTS, saved)
 
+    def test_whisper_thai_uses_one_canonical_thai_slot_without_mutating_saved_profile(self):
+        saved = copy.deepcopy(THREE_LANGUAGE_SLOTS)
+
+        runtime = runtime_language_slots(
+            "Whisper Thai",
+            saved,
+            direction="microphone",
+        )
+
+        self.assertEqual(
+            (
+                {
+                    "language": "Thai",
+                    "country": "Thailand",
+                    "enable": True,
+                },
+            ),
+            runtime,
+        )
+        self.assertEqual(THREE_LANGUAGE_SLOTS, saved)
+
     def test_multilingual_engines_activate_up_to_three_saved_languages(self):
         for engine in ("Whisper", "Google", "SenseVoice"):
             for direction in ("microphone", "received"):
@@ -155,6 +176,9 @@ class TranscriptionLanguagePolicyTests(unittest.TestCase):
         self.assertTrue(capabilities["Google"]["parallel_candidates"])
         self.assertEqual(1, capabilities["Vosk"]["microphone_max"])
         self.assertEqual(1, capabilities["Parakeet"]["received_max"])
+        self.assertEqual(1, capabilities["Whisper Thai"]["microphone_max"])
+        self.assertEqual(1, capabilities["Whisper Thai"]["received_max"])
+        self.assertFalse(capabilities["Whisper Thai"]["parallel_candidates"])
 
         capabilities["Google"]["microphone_max"] = 99
         self.assertEqual(

@@ -344,6 +344,7 @@ class Model:
             engine=getattr(config, engine_name, config.SELECTED_TRANSCRIPTION_ENGINE),
             models={
                 "Whisper": getattr(config, "WHISPER_WEIGHT_TYPE", ""),
+                "Whisper Thai": getattr(config, "WHISPER_THAI_WEIGHT_TYPE", ""),
                 "Vosk": getattr(config, "VOSK_WEIGHT_TYPE", ""),
                 "Parakeet": getattr(config, "PARAKEET_WEIGHT_TYPE", ""),
                 "SenseVoice": getattr(config, "SENSEVOICE_WEIGHT_TYPE", ""),
@@ -364,10 +365,15 @@ class Model:
     ) -> Optional[WhisperRuntimeLease]:
         engine, selected_device, selected_compute_type = self._sourceTranscriptionRuntimeSettings(source)
         profile = self._sourceTranscriptionProfile(source)
-        if engine != "Whisper":
+        if engine not in ("Whisper", "Whisper Thai"):
             return None
-        whisper_weight_type = profile["models"]["Whisper"]
-        if checkWhisperWeight(config.PATH_DATA, whisper_weight_type) is not True:
+        whisper_weight_type = profile["models"].get(engine, "")
+        check_weight = (
+            checkWhisperThaiWeight
+            if engine == "Whisper Thai"
+            else checkWhisperWeight
+        )
+        if check_weight(config.PATH_DATA, whisper_weight_type) is not True:
             return None
         device = selected_device["device"]
         device_index = selected_device["device_index"]
@@ -1760,7 +1766,10 @@ class Model:
                     max_phrases=config.MIC_MAX_PHRASES,
                     transcription_engine=transcription_engine,
                     root=config.PATH_DATA,
-                    whisper_weight_type=transcription_models["Whisper"],
+                    whisper_weight_type=transcription_models.get(
+                        transcription_engine,
+                        transcription_models["Whisper"],
+                    ),
                     vosk_weight_type=transcription_models["Vosk"],
                     parakeet_weight_type=transcription_models["Parakeet"],
                     sensevoice_weight_type=transcription_models["SenseVoice"],
@@ -2254,7 +2263,10 @@ class Model:
                     max_phrases=config.SPEAKER_MAX_PHRASES,
                     transcription_engine=transcription_engine,
                     root=config.PATH_DATA,
-                    whisper_weight_type=transcription_models["Whisper"],
+                    whisper_weight_type=transcription_models.get(
+                        transcription_engine,
+                        transcription_models["Whisper"],
+                    ),
                     vosk_weight_type=transcription_models["Vosk"],
                     parakeet_weight_type=transcription_models["Parakeet"],
                     sensevoice_weight_type=transcription_models["SenseVoice"],

@@ -13,6 +13,7 @@ const DEFAULT_COMPUTE_TYPE_ORDER = [
 const ENGINE_DEVICE_RULES = {
     "Google": ["cpu"],
     "Whisper": ["cpu", "cuda"],
+    "Whisper Thai": ["cpu", "cuda"],
     "Parakeet": ["cuda"],
     "Vosk": ["cpu"],
     "SenseVoice": ["cpu"],

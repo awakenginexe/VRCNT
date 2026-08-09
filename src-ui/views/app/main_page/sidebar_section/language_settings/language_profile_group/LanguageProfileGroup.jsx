@@ -15,6 +15,7 @@ import styles from "./LanguageProfileGroup.module.scss";
 
 
 const helperText = ({ t, group, engine, capability, count }) => {
+    if (engine === "Whisper Thai") return t("main_page.language_panels.whisper_thai_hint");
     if (group === "speaking") {
         if (capability?.parallel_candidates && count > 1) {
             return t("main_page.language_panels.google_parallel_hint", { count });
@@ -49,12 +50,21 @@ export const LanguageProfileGroup = ({
 }) => {
     const { t } = useI18n();
     const { updateIsOpenedLanguageSelector } = useStore_IsOpenedLanguageSelector();
-    const activeKeys = enabledSlotKeys(languages);
+    const isThaiOnly = engine === "Whisper Thai" && (group === "speaking" || group === "target");
+    const displayedLanguages = isThaiOnly
+        ? {
+            1: { language: "Thai", country: "Thailand", enable: true },
+            2: { language: "", country: "", enable: false },
+            3: { language: "", country: "", enable: false },
+        }
+        : languages;
+    const activeKeys = enabledSlotKeys(displayedLanguages);
     const count = activeKeys.length;
     const titleId = `language-profile-${group}-title`;
     const helperId = `language-profile-${group}-helper`;
 
     const openSelector = (targetKey) => {
+        if (isThaiOnly) return;
         updateIsOpenedLanguageSelector({
             your_language: selectorKey === "your_language",
             your_translation_language: false,
@@ -64,7 +74,8 @@ export const LanguageProfileGroup = ({
     };
 
     const addLanguage = () => {
-        const targetKey = nextDisabledSlotKey(languages);
+        if (isThaiOnly) return;
+        const targetKey = nextDisabledSlotKey(displayedLanguages);
         if (targetKey) openSelector(targetKey);
     };
 
@@ -92,9 +103,9 @@ export const LanguageProfileGroup = ({
 
             <div className={styles.chip_list}>
                 {activeKeys.map((targetKey) => {
-                    const entry = languages[targetKey];
+                    const entry = displayedLanguages[targetKey];
                     const state = recognitionState(capability, targetKey, group);
-                    const removable = canRemoveLanguage(languages, targetKey);
+                    const removable = canRemoveLanguage(displayedLanguages, targetKey);
                     const stateLabel = state === "paused"
                         ? t("main_page.language_panels.recognition_paused")
                         : state === "outgoing-only"
@@ -109,6 +120,7 @@ export const LanguageProfileGroup = ({
                                 type="button"
                                 className={styles.language_button}
                                 onClick={() => openSelector(targetKey)}
+                                disabled={isThaiOnly}
                                 aria-label={t("main_page.language_panels.edit_language", {
                                     language: entry.language,
                                     country: entry.country,
@@ -125,7 +137,7 @@ export const LanguageProfileGroup = ({
                                 type="button"
                                 className={styles.remove_button}
                                 onClick={() => onRemove(targetKey)}
-                                disabled={!removable}
+                                disabled={isThaiOnly || !removable}
                                 aria-label={removable
                                     ? t("main_page.language_panels.remove_language", { language: entry.language })
                                     : t("main_page.language_panels.minimum_one_language")}
@@ -140,7 +152,7 @@ export const LanguageProfileGroup = ({
                 })}
             </div>
 
-            {canAddLanguage(languages) && (
+            {!isThaiOnly && canAddLanguage(displayedLanguages) && (
                 <button type="button" className={styles.add_button} onClick={addLanguage}>
                     <AddSvg aria-hidden="true" />
                     <span>{t("main_page.language_panels.add_language")}</span>

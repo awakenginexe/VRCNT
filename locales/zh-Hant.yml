@@ -330,6 +330,7 @@ main_page:
         recognition_paused: "已儲存 · 暫停用於語音辨識"
         outgoing_only: "僅用於傳出翻譯"
         whisper_profile_hint: "Whisper 會從所選語言中選擇機率最高的一種，然後只解碼一次。"
+        whisper_thai_hint: "Whisper Thai 僅支援泰語。辨識語言固定為泰語，且只使用一個語言欄位。"
         google_single_hint: "Google 會用所選語言檢查每個短語。"
         google_parallel_hint: "Google 正在平行檢查 {{count}} 種語言。"
         sensevoice_profile_hint: "SenseVoice 會在模型支援的所選語言中進行偵測。"
@@ -768,6 +769,10 @@ config_page:
             desc: "容量越大的模型精度越高，但會占用更多 CPU/GPU 資源。\n※特別是比 medium 更大的模型，根據 CPU/GPU 效能可能難以使用。"
             model_template: "{{model_name}}模型（{{capacity}}）"
             recommended_model_template: "{{model_name}}模型（{{capacity}}）（推薦）"
+        whisper_thai:
+            label: "Whisper Thai 模型"
+            desc: "僅支援泰語的 faster-whisper 模型。請明確選擇並下載模型，辨識語言固定為泰語。"
+            experimental: "實驗性"
         whisper_decoding_profile:
             label: "Whisper 解碼設定"
             desc: "選擇 VR 回應速度與解碼準確度之間的平衡。"

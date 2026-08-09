@@ -359,6 +359,18 @@ class TranscriptionProfileControllerTests(unittest.TestCase):
         )
         self.controller._requestTranscriptionSourcesRestartLocked.assert_not_called()
 
+    def test_thai_only_profiles_have_no_normal_whisper_startup_download_target(self):
+        controller_module.config._TRANSCRIPTION_PROFILE_SEND = profile(
+            "Whisper Thai",
+            whisper="missing-normal-send",
+        )
+        controller_module.config._TRANSCRIPTION_PROFILE_RECEIVE = profile(
+            "Whisper Thai",
+            whisper="missing-normal-receive",
+        )
+
+        self.assertEqual(self.controller._startupWhisperWeightType(), "")
+
     def test_model_status_refresh_checks_models_selected_by_both_profiles(self):
         send = profile("Vosk")
         receive = profile("Vosk")

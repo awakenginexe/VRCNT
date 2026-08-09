@@ -1,10 +1,10 @@
-const MODEL_PROVIDERS = new Set(["Whisper", "Vosk", "Parakeet", "SenseVoice"]);
+const MODEL_PROVIDERS = new Set(["Whisper", "Whisper Thai", "Vosk", "Parakeet", "SenseVoice"]);
 
 export const getProfileControlVisibility = (engine) => ({
     model: MODEL_PROVIDERS.has(engine),
-    device: engine === "Whisper" || engine === "Parakeet",
-    computeType: engine === "Whisper",
-    whisperDecoding: engine === "Whisper",
+    device: engine === "Whisper" || engine === "Whisper Thai" || engine === "Parakeet",
+    computeType: engine === "Whisper" || engine === "Whisper Thai",
+    whisperDecoding: engine === "Whisper" || engine === "Whisper Thai",
 });
 
 export const getActiveModel = (profile) => (
@@ -28,6 +28,7 @@ const canonicalProfile = (profile) => ({
     engine: profile?.engine ?? "",
     models: {
         Whisper: profile?.models?.Whisper ?? "",
+        "Whisper Thai": profile?.models?.["Whisper Thai"] ?? "",
         Vosk: profile?.models?.Vosk ?? "",
         Parakeet: profile?.models?.Parakeet ?? "",
         SenseVoice: profile?.models?.SenseVoice ?? "",

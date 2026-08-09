@@ -6,6 +6,7 @@ import { useStore_IsOpenedLanguageSelector } from "@store";
 import {
     useLanguageSettings,
 } from "@logics_main";
+import { useTranscription } from "@logics_configs";
 import { LanguageFlag } from "../LanguageFlag.jsx";
 
 export const LanguageSelectorOpenButton = ({
@@ -19,6 +20,7 @@ export const LanguageSelectorOpenButton = ({
 }) => {
     const { t } = useI18n();
     const { updateIsOpenedLanguageSelector, currentIsOpenedLanguageSelector } = useStore_IsOpenedLanguageSelector();
+    const { currentSelectedTranscriptionEngine } = useTranscription();
 
     const {
         currentSelectedPresetTabNumber,
@@ -30,6 +32,7 @@ export const LanguageSelectorOpenButton = ({
     } = useLanguageSettings();
 
     const toggleSelector = () => {
+        if (isThaiRecognitionSelector) return;
         if (currentIsOpenedLanguageSelector.data[selector_key] === true && currentIsOpenedLanguageSelector.data.target_key === target_key) { // Close Language Selector
             updateIsOpenedLanguageSelector({ your_language: false, your_translation_language: false, target_language: false, target_key: "1" });
         } else { // Open Language Selector
@@ -79,11 +82,18 @@ export const LanguageSelectorOpenButton = ({
     const title = getTitle(selector_key);
     const selectedGroup = getVariable(selector_key);
     const selectedEntry = selectedGroup?.[target_key];
+    const isThaiRecognitionSelector = (
+        currentSelectedTranscriptionEngine?.data === "Whisper Thai"
+        && (selector_key === "your_language" || selector_key === "target_language")
+    );
+    const displayEntry = isThaiRecognitionSelector
+        ? { language: "Thai", country: "Thailand", enable: true }
+        : selectedEntry;
 
-    if (selectedEntry?.enable === false) return null;
+    if (displayEntry?.enable === false) return null;
 
-    const language_text = selectedEntry?.language ?? t("main_page.language_panels.loading");
-    const country_text = selectedEntry?.country ?? t("main_page.language_panels.loading");
+    const language_text = displayEntry?.language ?? t("main_page.language_panels.loading");
+    const country_text = displayEntry?.country ?? t("main_page.language_panels.loading");
 
     return (
         <div data-selector-key={selector_key} className={clsx(styles.container, styles[`variant_${variant}`])}>
@@ -97,6 +107,8 @@ export const LanguageSelectorOpenButton = ({
                 type="button"
                 className={styles.dropdown_menu_container}
                 onClick={toggleSelector}
+                disabled={isThaiRecognitionSelector}
+                aria-disabled={isThaiRecognitionSelector}
                 aria-haspopup="dialog"
                 aria-expanded={
                     currentIsOpenedLanguageSelector.data[selector_key] === true &&

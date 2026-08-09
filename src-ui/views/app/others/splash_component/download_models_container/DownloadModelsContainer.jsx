@@ -8,12 +8,16 @@ import {
 
 export const DownloadModelsContainer = () => {
     const { currentCTranslate2WeightTypeStatus } = useTranslation();
-    const { currentWhisperWeightTypeStatus } = useTranscription();
+    const {
+        currentWhisperWeightTypeStatus,
+        currentWhisperThaiWeightTypeStatus,
+    } = useTranscription();
 
     const downloadingCTranslate2 = currentCTranslate2WeightTypeStatus.data.filter(d => d.progress !== null);
     const downloadingWhisper = currentWhisperWeightTypeStatus.data.filter(d => d.progress !== null);
+    const downloadingWhisperThai = currentWhisperThaiWeightTypeStatus.data.filter(d => d.progress !== null);
 
-    if (downloadingCTranslate2.length === 0 && downloadingWhisper.length === 0) return null;
+    if (downloadingCTranslate2.length === 0 && downloadingWhisper.length === 0 && downloadingWhisperThai.length === 0) return null;
 
     return (
         <div className={styles.container}>
@@ -23,6 +27,9 @@ export const DownloadModelsContainer = () => {
                 ))}
                 {downloadingWhisper.map((model) => (
                     <DownloadModelsProgress key={model.id} progress={model.progress} type_label={`Transcription: ${model.id}`} />
+                ))}
+                {downloadingWhisperThai.map((model) => (
+                    <DownloadModelsProgress key={model.id} progress={model.progress} type_label={`Whisper Thai: ${model.label ?? model.id}`} />
                 ))}
             </div>
             <div className={styles.labels_wrapper}>
