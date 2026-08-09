@@ -6,6 +6,7 @@ import { dirname, resolve } from "node:path";
 
 import {
     DESKTOP_OVERLAY_CHANNEL,
+    DESKTOP_OVERLAY_MAX_MESSAGE_LOGS,
     DESKTOP_OVERLAY_STORAGE_KEY,
     DESKTOP_OVERLAY_SETTINGS_STORAGE_KEY,
     LEGACY_DESKTOP_OVERLAY_STORAGE_KEY,
@@ -15,8 +16,11 @@ import {
     buildDesktopOverlayWindowOptions,
     createDesktopOverlayPayload,
     getDesktopOverlayLanguageProfiles,
+    getDesktopOverlayPayloadSignature,
     openDesktopOverlayWindow,
     readDesktopOverlayPayload,
+    readDesktopOverlayPayloadRaw,
+    readDesktopOverlayPayloadSnapshot,
     readMigratedStorageValue,
 } from "../desktopOverlayWindow.js";
 
@@ -64,6 +68,53 @@ test("desktop overlay payload persists the one logical managed font selection", 
         createDesktopOverlayPayload({ fontFamily: "Yu Gothic UI" }).fontFamily,
         "Yu Gothic UI",
     );
+});
+
+test("desktop overlay payload sends only the latest three logs without mutating global history", () => {
+    const messageLogs = Array.from({ length: 10 }, (_, index) => ({ id: `log-${index}` }));
+    const originalLogs = structuredClone(messageLogs);
+
+    const payload = createDesktopOverlayPayload({ messageLogs });
+
+    assert.equal(DESKTOP_OVERLAY_MAX_MESSAGE_LOGS, 3);
+    assert.deepEqual(payload.messageLogs, messageLogs.slice(-3));
+    assert.deepEqual(messageLogs, originalLogs);
+});
+
+test("reading a legacy/full payload normalizes it at the Desktop boundary", () => {
+    const messageLogs = Array.from({ length: 7 }, (_, index) => ({ id: `log-${index}` }));
+    const rawPayload = JSON.stringify({ messageLogs, updatedAt: 123 });
+    const storage = new MemoryStorage({
+        [DESKTOP_OVERLAY_STORAGE_KEY]: rawPayload,
+    });
+
+    const snapshot = readDesktopOverlayPayloadSnapshot(storage);
+
+    assert.equal(snapshot.raw, rawPayload);
+    assert.deepEqual(snapshot.payload.messageLogs, messageLogs.slice(-3));
+    assert.deepEqual(readDesktopOverlayPayload(storage).messageLogs, messageLogs.slice(-3));
+});
+
+test("raw Desktop payload reads do not parse unchanged storage values", () => {
+    const rawPayload = "not-json-yet";
+    const storage = new MemoryStorage({
+        [DESKTOP_OVERLAY_STORAGE_KEY]: rawPayload,
+    });
+
+    assert.equal(readDesktopOverlayPayloadRaw(storage), rawPayload);
+    assert.equal(readDesktopOverlayPayloadSnapshot(storage), null);
+});
+
+test("Desktop payload signatures ignore transport timestamps but detect displayed changes", () => {
+    const first = createDesktopOverlayPayload({
+        messageLogs: [{ id: "one", original_message: "hello" }],
+        uiLanguage: "en",
+    });
+    const timestampOnly = { ...first, updatedAt: first.updatedAt + 1 };
+    const changed = { ...timestampOnly, messageLogs: [{ id: "one", original_message: "changed" }] };
+
+    assert.equal(getDesktopOverlayPayloadSignature(first), getDesktopOverlayPayloadSignature(timestampOnly));
+    assert.notEqual(getDesktopOverlayPayloadSignature(first), getDesktopOverlayPayloadSignature(changed));
 });
 
 test("desktop overlay activation receives source and translation languages from normalized logs", () => {

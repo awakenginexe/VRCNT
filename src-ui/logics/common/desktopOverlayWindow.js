@@ -6,6 +6,7 @@ export const DESKTOP_OVERLAY_STORAGE_KEY = "vrcnt-desktop-overlay-payload";
 export const DESKTOP_OVERLAY_SETTINGS_STORAGE_KEY = "vrcnt-desktop-overlay-settings";
 export const LEGACY_DESKTOP_OVERLAY_STORAGE_KEY = "vrcnt-next-desktop-overlay-payload";
 export const LEGACY_DESKTOP_OVERLAY_SETTINGS_STORAGE_KEY = "vrcnt-next-desktop-overlay-settings";
+export const DESKTOP_OVERLAY_MAX_MESSAGE_LOGS = 3;
 
 const desktopOverlayWindows = new WeakMap();
 
@@ -174,7 +175,7 @@ export const createDesktopOverlayPayload = ({
     listeningEnabled = false,
     uiLanguage = "en",
     fontFamily = "VRCNT Noto",
-} = {}) => ({
+} = {}) => normalizeDesktopOverlayPayload({
     messageLogs,
     statuses: {
         translationEnabled,
@@ -185,6 +186,32 @@ export const createDesktopOverlayPayload = ({
     fontFamily,
     updatedAt: Date.now(),
 });
+
+export const normalizeDesktopOverlayPayload = (candidate = {}) => {
+    const payload = candidate && typeof candidate === "object" ? candidate : {};
+    const normalized = { ...payload };
+    if (Array.isArray(payload.messageLogs)) {
+        normalized.messageLogs = payload.messageLogs.slice(-DESKTOP_OVERLAY_MAX_MESSAGE_LOGS);
+    } else if (Object.prototype.hasOwnProperty.call(payload, "messageLogs")) {
+        normalized.messageLogs = [];
+    }
+    return normalized;
+};
+
+export const getDesktopOverlayPayloadSignature = (payload = {}) => {
+    const normalized = normalizeDesktopOverlayPayload(payload);
+    const statuses = normalized.statuses ?? {};
+    return JSON.stringify({
+        messageLogs: normalized.messageLogs,
+        statuses: {
+            translationEnabled: statuses.translationEnabled === true,
+            speakingEnabled: statuses.speakingEnabled === true,
+            listeningEnabled: statuses.listeningEnabled === true,
+        },
+        uiLanguage: normalized.uiLanguage ?? "",
+        fontFamily: normalized.fontFamily ?? "",
+    });
+};
 
 export const getDesktopOverlayLanguageProfiles = (payload = {}) => [
     payload?.uiLanguage,
@@ -210,18 +237,39 @@ export const readMigratedStorageValue = (
     return legacyValue;
 };
 
-export const readDesktopOverlayPayload = (
+export const readDesktopOverlayPayloadRaw = (
     storage = globalThis.localStorage,
 ) => {
     try {
-        const rawPayload = readMigratedStorageValue(
+        return readMigratedStorageValue(
             storage,
             DESKTOP_OVERLAY_STORAGE_KEY,
             LEGACY_DESKTOP_OVERLAY_STORAGE_KEY,
         );
-        return rawPayload ? JSON.parse(rawPayload) : null;
     } catch (error) {
         console.warn("Unable to read desktop overlay payload.", error);
         return null;
     }
 };
+
+export const parseDesktopOverlayPayload = (rawPayload) => {
+    if (!rawPayload) return null;
+    try {
+        return normalizeDesktopOverlayPayload(JSON.parse(rawPayload));
+    } catch (error) {
+        console.warn("Unable to read desktop overlay payload.", error);
+        return null;
+    }
+};
+
+export const readDesktopOverlayPayloadSnapshot = (
+    storage = globalThis.localStorage,
+) => {
+    const raw = readDesktopOverlayPayloadRaw(storage);
+    const payload = parseDesktopOverlayPayload(raw);
+    return payload ? { raw, payload } : null;
+};
+
+export const readDesktopOverlayPayload = (
+    storage = globalThis.localStorage,
+) => readDesktopOverlayPayloadSnapshot(storage)?.payload ?? null;

@@ -6,6 +6,7 @@ import {
     createDesktopOverlayPayload,
     DESKTOP_OVERLAY_ACCENTS,
     DESKTOP_OVERLAY_DEFAULT_SETTINGS,
+    DESKTOP_OVERLAY_MAX_MESSAGE_LOGS,
     DESKTOP_OVERLAY_SETTINGS_CHANNEL,
     estimateDesktopOverlayFitHeight,
     getDesktopOverlayAccent,
@@ -127,7 +128,7 @@ export const OverlayStudio = () => {
 
     const fitToContent = async () => {
         const visibleLogCount = desktopSettings.expanded
-            ? Math.min(3, currentMessageLogs.data?.length ?? 0)
+            ? Math.min(DESKTOP_OVERLAY_MAX_MESSAGE_LOGS, currentMessageLogs.data?.length ?? 0)
             : Math.min(1, currentMessageLogs.data?.length ?? 0);
         const nextSettings = await updateDesktopSettings((current) => ({
             ...current,
@@ -136,7 +137,10 @@ export const OverlayStudio = () => {
                 autoHeight: true,
                 height: Math.min(
                     current.geometry.maxHeight,
-                    estimateDesktopOverlayFitHeight({ visibleLogCount }),
+                    estimateDesktopOverlayFitHeight({
+                        visibleLogCount,
+                        messageTextScale: current.messageTextScale,
+                    }),
                 ),
             },
         }));
@@ -261,6 +265,15 @@ export const OverlayStudio = () => {
                                 suffix="%"
                                 onChange={(opacity) => updateDesktopSettings((current) => ({ ...current, opacity }))}
                             />
+                            <RangeControl
+                                label={t("main_page.overlay_studio.message_text_size")}
+                                value={desktopSettings.messageTextScale}
+                                min={40}
+                                max={200}
+                                step={10}
+                                suffix="%"
+                                onChange={(messageTextScale) => updateDesktopSettings((current) => ({ ...current, messageTextScale }))}
+                            />
                             <label className={styles.toggle_row}>
                                 <span>{t("main_page.overlay_studio.auto_height")}</span>
                                 <input
@@ -293,6 +306,7 @@ export const OverlayStudio = () => {
                                     "--vr-accent": activeAccent.color,
                                     "--vr-accent-rgb": activeAccent.rgb,
                                     "--vr-opacity": activeVrSettings.opacity ?? 1,
+                                    "--vr-message-text-scale": activeVrSettings.message_text_scale ?? 1,
                                 }}
                             >
                                 <div className={styles.vr_frame} data-enabled={activeVrEnabled}>
@@ -319,6 +333,15 @@ export const OverlayStudio = () => {
                                         <option value="solid_black">{t("main_page.overlay_studio.solid")}</option>
                                     </select>
                                 </label>
+                                <RangeControl
+                                    label={t("main_page.overlay_studio.message_text_size")}
+                                    value={Math.round((activeVrSettings.message_text_scale ?? 1) * 100)}
+                                    min={40}
+                                    max={200}
+                                    step={10}
+                                    suffix="%"
+                                    onChange={(value) => updateActiveVrSettings("message_text_scale", value / 100)}
+                                />
                             </div>
                             <label className={styles.field}>
                                 <span>{t("main_page.overlay_studio.accent_color")}</span>
@@ -341,7 +364,7 @@ export const OverlayStudio = () => {
     );
 };
 
-const RangeControl = ({ label, value, min, max, suffix, disabled = false, onChange }) => (
+const RangeControl = ({ label, value, min, max, step = 1, suffix, disabled = false, onChange }) => (
     <label className={styles.range_control}>
         <span>{label}</span>
         <strong>{value}{suffix}</strong>
@@ -349,6 +372,7 @@ const RangeControl = ({ label, value, min, max, suffix, disabled = false, onChan
             type="range"
             min={min}
             max={max}
+            step={step}
             value={value}
             disabled={disabled}
             onChange={(event) => onChange(Number(event.target.value))}

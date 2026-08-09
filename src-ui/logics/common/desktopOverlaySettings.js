@@ -17,6 +17,12 @@ export const DESKTOP_OVERLAY_WINDOW_CONSTRAINTS = {
     minContentHeight: 200,
 };
 
+export const DESKTOP_OVERLAY_MESSAGE_TEXT_SCALE = {
+    min: 40,
+    max: 200,
+    step: 10,
+};
+
 export const DESKTOP_OVERLAY_ACCENTS = [
     { id: "theme-neon-cyan", label: "Neon cyan", color: "#00e5ff", rgb: "0, 229, 255" },
     { id: "theme-midnight-purple", label: "Midnight purple", color: "#a78bfa", rgb: "167, 139, 250" },
@@ -28,6 +34,7 @@ export const DESKTOP_OVERLAY_DEFAULT_SETTINGS = {
     pinned: true,
     opacity: 92,
     scale: 100,
+    messageTextScale: 100,
     translationsOnly: false,
     expanded: true,
     accentColor: "theme-neon-cyan",
@@ -73,6 +80,11 @@ export const normalizeDesktopOverlaySettings = (candidate = {}) => {
         pinned: candidate?.pinned !== false,
         opacity: clamp(numberOr(candidate?.opacity, base.opacity), 45, 100),
         scale: clamp(numberOr(candidate?.scale, base.scale), 80, 130),
+        messageTextScale: clamp(
+            numberOr(candidate?.messageTextScale, base.messageTextScale),
+            DESKTOP_OVERLAY_MESSAGE_TEXT_SCALE.min,
+            DESKTOP_OVERLAY_MESSAGE_TEXT_SCALE.max,
+        ),
         translationsOnly: candidate?.translationsOnly === true,
         expanded: candidate?.expanded !== false,
         accentColor: knownAccent(candidate?.accentColor)
@@ -129,13 +141,22 @@ export const writeDesktopOverlaySettings = (
     return settings;
 };
 
-export const estimateDesktopOverlayFitHeight = ({ visibleLogCount = 0 } = {}) => (
-    clamp(
-        DESKTOP_OVERLAY_WINDOW_CONSTRAINTS.minHeight + (Math.max(0, Number(visibleLogCount) || 0) * 40),
+export const estimateDesktopOverlayFitHeight = ({
+    visibleLogCount = 0,
+    messageTextScale = DESKTOP_OVERLAY_DEFAULT_SETTINGS.messageTextScale,
+} = {}) => {
+    const normalizedScale = clamp(
+        numberOr(messageTextScale, DESKTOP_OVERLAY_DEFAULT_SETTINGS.messageTextScale),
+        DESKTOP_OVERLAY_MESSAGE_TEXT_SCALE.min,
+        DESKTOP_OVERLAY_MESSAGE_TEXT_SCALE.max,
+    ) / 100;
+    return clamp(
+        DESKTOP_OVERLAY_WINDOW_CONSTRAINTS.minHeight
+            + (Math.max(0, Number(visibleLogCount) || 0) * 40 * normalizedScale),
         DESKTOP_OVERLAY_WINDOW_CONSTRAINTS.minHeight,
         DESKTOP_OVERLAY_WINDOW_CONSTRAINTS.maxHeight,
-    )
-);
+    );
+};
 
 export const applyDesktopOverlayGeometry = async ({
     settings,

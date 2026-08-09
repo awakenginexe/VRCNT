@@ -513,6 +513,8 @@ def _overlay_small_validator(val, inst):
             new[key] = v
         elif key in ['opacity','ui_scaling'] and isinstance(v,(int,float)):
             new[key] = float(v)
+        elif key == 'message_text_scale' and isinstance(v,(int,float)):
+            new[key] = min(2.0, max(0.4, float(v)))
         elif key == 'accent_color' and isinstance(v, str) and v in OVERLAY_ACCENT_COLORS:
             new[key] = v
         elif key == 'background_mode' and isinstance(v, str) and v in OVERLAY_BACKGROUND_MODES:
@@ -535,6 +537,8 @@ def _overlay_large_validator(val, inst):
             new[key] = v
         elif key in ['opacity','ui_scaling'] and isinstance(v,(int,float)):
             new[key] = float(v)
+        elif key == 'message_text_scale' and isinstance(v,(int,float)):
+            new[key] = min(2.0, max(0.4, float(v)))
         elif key == 'accent_color' and isinstance(v, str) and v in OVERLAY_ACCENT_COLORS:
             new[key] = v
         elif key == 'background_mode' and isinstance(v, str) and v in OVERLAY_BACKGROUND_MODES:
@@ -976,7 +980,7 @@ class Config:
 
     def init_config(self):
         # Read Only
-        self._VERSION = "5.2.0"
+        self._VERSION = "5.3.0"
         if getattr(sys, 'frozen', False):
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
@@ -1270,6 +1274,7 @@ class Config:
             "fadeout_duration": 2,
             "opacity": 1.0,
             "ui_scaling": 1.0,
+            "message_text_scale": 1.0,
             "accent_color": "theme-neon-cyan",
             "background_mode": "transparent_black",
             "tracker": "HMD",
@@ -1286,6 +1291,7 @@ class Config:
             "fadeout_duration": 2,
             "opacity": 1.0,
             "ui_scaling": 1.0,
+            "message_text_scale": 1.0,
             "accent_color": "theme-neon-cyan",
             "background_mode": "transparent_black",
             "tracker": "LeftHand",

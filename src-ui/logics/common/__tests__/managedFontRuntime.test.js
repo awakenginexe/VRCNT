@@ -95,3 +95,67 @@ test("removing a cached pack removes its registered FontFace from the live docum
     assert.equal(runtime.deactivatePack("ethiopic"), true);
     assert.deepEqual(removed, added);
 });
+
+test("one runtime keeps repeated profile activation idempotent and disposes all owned faces", async () => {
+    const registered = new Set();
+    let resolveCount = 0;
+    const runtime = createManagedFontRuntime({
+        invoke: async () => {
+            resolveCount += 1;
+            return [{ packId: "thai", family: "VRCNT Noto", path: "C:\\fonts\\thai.ttf" }];
+        },
+        convertFileSrc: (path) => path,
+        document: {
+            fonts: {
+                add: (face) => registered.add(face),
+                delete: (face) => registered.delete(face),
+            },
+        },
+        FontFace: class { async load() { return this; } },
+    });
+
+    for (let index = 0; index < 1000; index += 1) {
+        assert.deepEqual(await runtime.activateLanguageProfiles([{ language: "Thai" }]), [true]);
+    }
+
+    assert.equal(resolveCount, 1);
+    assert.equal(registered.size, 1);
+    runtime.dispose();
+    assert.equal(registered.size, 0);
+});
+
+test("disposing a runtime prevents an in-flight FontFace from being registered", async () => {
+    const registered = new Set();
+    let releaseLoad;
+    let loadStartedResolve;
+    const loadStarted = new Promise((resolve) => {
+        loadStartedResolve = resolve;
+    });
+    const runtime = createManagedFontRuntime({
+        invoke: async () => [{ packId: "thai", family: "VRCNT Noto", path: "C:\\fonts\\thai.ttf" }],
+        convertFileSrc: (path) => path,
+        document: {
+            fonts: {
+                add: (face) => registered.add(face),
+                delete: (face) => registered.delete(face),
+            },
+        },
+        FontFace: class {
+            async load() {
+                loadStartedResolve();
+                await new Promise((resolve) => {
+                    releaseLoad = resolve;
+                });
+                return this;
+            }
+        },
+    });
+
+    const activation = runtime.activatePack("thai");
+    await loadStarted;
+    runtime.dispose();
+    releaseLoad();
+
+    assert.equal(await activation, false);
+    assert.equal(registered.size, 0);
+});

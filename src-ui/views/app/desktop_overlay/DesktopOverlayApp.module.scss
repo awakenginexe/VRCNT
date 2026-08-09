@@ -193,19 +193,24 @@
 
 .original_message {
     color: var(--dark_300_color);
-    font-size: 1.2rem;
+    font-size: calc(1.2rem * var(--desktop-overlay-message-text-scale));
     line-height: 1.35;
 }
 
 .translated_message {
     margin-top: 0.35rem;
     color: var(--dark_100_color);
-    font-size: 1.45rem;
+    font-size: calc(1.45rem * var(--desktop-overlay-message-text-scale));
     line-height: 1.35;
     font-weight: 850;
 }
 
-.no_translation,
+.no_translation {
+    color: var(--dark_450_color);
+    font-size: calc(1.15rem * var(--desktop-overlay-message-text-scale));
+    line-height: 1.35;
+}
+
 .empty_state {
     color: var(--dark_450_color);
     font-size: 1.15rem;

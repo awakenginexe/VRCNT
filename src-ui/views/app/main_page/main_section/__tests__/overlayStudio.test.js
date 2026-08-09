@@ -45,3 +45,31 @@ test("Overlay Studio stays localized and usable in the minimum desktop workspace
         assert.match(english, new RegExp(`\\s${key}:`));
     }
 });
+
+test("overlay message text size is localized and independent from overall overlay scale", () => {
+    const studio = readSource("../../overlay_studio/OverlayStudio.jsx");
+    const vrSettings = readSource("../../../config_page/setting_section/setting_box/vr/Vr.jsx");
+    const uiConfigs = readSource("../../../../../logics/ui_configs.js");
+    const desktopApp = readSource("../../../desktop_overlay/DesktopOverlayApp.jsx");
+    const desktopStyles = readSource("../../../desktop_overlay/DesktopOverlayApp.module.scss");
+    const previewStyles = readSource("../../../desktop_overlay/DesktopOverlayPreview.module.scss");
+
+    assert.match(studio, /messageTextScale|message_text_scale/);
+    assert.match(vrSettings, /message_text_scale/);
+    assert.match(uiConfigs, /message_text_scale:\s*1\.0/);
+    assert.match(desktopApp, /messageTextScale/);
+    assert.match(desktopApp, /readDesktopOverlayPayloadRaw/);
+    assert.match(desktopApp, /parseDesktopOverlayPayload/);
+    assert.match(desktopApp, /readDesktopOverlayPayloadSnapshot/);
+    assert.match(desktopApp, /languageProfilesSignature/);
+    assert.doesNotMatch(desktopApp, /\}, \[payload\]\);/);
+    assert.match(desktopStyles, /var\(--desktop-overlay-message-text-scale\)/);
+    assert.match(previewStyles, /var\(--desktop-overlay-message-text-scale\)/);
+    const messageMetaStyles = desktopStyles.match(/\.message_meta\s*\{[\s\S]*?\n\}/)?.[0] ?? "";
+    assert.doesNotMatch(messageMetaStyles, /desktop-overlay-message-text-scale/);
+
+    for (const locale of ["en", "ja", "ko", "th", "zh-Hans", "zh-Hant"]) {
+        const source = readSource(`../../../../../../locales/${locale}.yml`);
+        assert.match(source, /message_text_size:/, `${locale} is missing Message Text Size`);
+    }
+});

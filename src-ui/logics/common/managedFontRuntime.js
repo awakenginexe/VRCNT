@@ -42,15 +42,17 @@ export const createManagedFontRuntime = ({
 } = {}) => {
     const activations = new Map();
     const facesByPack = new Map();
+    let disposed = false;
 
     const activatePack = async (packId) => {
+        if (disposed) return false;
         if (activations.has(packId)) return activations.get(packId);
         const activation = (async () => {
-            if (!FONT_PACKS[packId] || !invoke || !convertFileSrc || !document?.fonts?.add || !FontFace) return false;
+            if (disposed || !FONT_PACKS[packId] || !invoke || !convertFileSrc || !document?.fonts?.add || !FontFace) return false;
             const faces = [];
             try {
                 const assets = await invoke("resolve_managed_font_assets", { packIds: [packId] });
-                if (!Array.isArray(assets) || assets.length === 0) return false;
+                if (disposed || !Array.isArray(assets) || assets.length === 0) return false;
                 for (const asset of assets) {
                     const descriptors = {
                         style: "normal",
@@ -59,8 +61,16 @@ export const createManagedFontRuntime = ({
                     };
                     const face = new FontFace(asset.family, `url(${convertFileSrc(asset.path)})`, descriptors);
                     const loadedFace = await face.load();
+                    if (disposed) {
+                        faces.forEach((registeredFace) => document?.fonts?.delete?.(registeredFace));
+                        return false;
+                    }
                     document.fonts.add(loadedFace);
                     faces.push(loadedFace);
+                }
+                if (disposed) {
+                    faces.forEach((face) => document?.fonts?.delete?.(face));
+                    return false;
                 }
                 facesByPack.set(packId, faces);
                 return true;
@@ -91,5 +101,22 @@ export const createManagedFontRuntime = ({
         return true;
     };
 
-    return { activatePack, activateLanguageProfiles, activateAvailablePack, deactivatePack };
+    const dispose = () => {
+        if (disposed) return false;
+        disposed = true;
+        for (const faces of facesByPack.values()) {
+            faces.forEach((face) => document?.fonts?.delete?.(face));
+        }
+        facesByPack.clear();
+        activations.clear();
+        return true;
+    };
+
+    return {
+        activatePack,
+        activateLanguageProfiles,
+        activateAvailablePack,
+        deactivatePack,
+        dispose,
+    };
 };

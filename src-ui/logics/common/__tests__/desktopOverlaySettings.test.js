@@ -57,10 +57,28 @@ test("desktop overlay settings persist geometry within real window constraints",
     assert.equal(DESKTOP_OVERLAY_DEFAULT_SETTINGS.geometry.width, 520);
 });
 
+test("message text scale defaults, clamps, persists, and remains independent from UI scale", () => {
+    const normalized = normalizeDesktopOverlaySettings({
+        scale: 100,
+        messageTextScale: 240,
+    });
+    assert.equal(DESKTOP_OVERLAY_DEFAULT_SETTINGS.messageTextScale, 100);
+    assert.equal(normalized.scale, 100);
+    assert.equal(normalized.messageTextScale, 200);
+    assert.equal(normalizeDesktopOverlaySettings({ messageTextScale: 10 }).messageTextScale, 40);
+
+    const storage = new MemoryStorage();
+    writeDesktopOverlaySettings({ ...normalized, messageTextScale: 130 }, storage);
+    const restored = readDesktopOverlaySettings(storage);
+    assert.equal(restored.scale, 100);
+    assert.equal(restored.messageTextScale, 130);
+});
+
 test("fit-to-content size is derived from the real visible log count and remains bounded", () => {
     assert.equal(estimateDesktopOverlayFitHeight({ visibleLogCount: 0 }), 160);
     assert.equal(estimateDesktopOverlayFitHeight({ visibleLogCount: 2 }), 240);
     assert.equal(estimateDesktopOverlayFitHeight({ visibleLogCount: 99 }), 720);
+    assert.ok(estimateDesktopOverlayFitHeight({ visibleLogCount: 2, messageTextScale: 200 }) > 240);
 });
 
 test("geometry updates target the existing production overlay window only", async () => {

@@ -517,6 +517,23 @@ const OtherControls = ({settings, onChangeFunction, selectFunction, ui_configs})
                 />
             </div>
             <div className={styles.other_controls_wrapper}>
+                <p className={clsx(styles.other_controls_slider_label, styles.ui_scaling_label)}>
+                    {t("config_page.vr.message_text_size")}
+                </p>
+                <Slider
+                    className={clsx(styles.other_controls_slider, styles.ui_scaling_slider)}
+                    no_padding={true}
+                    variable={(settings.message_text_scale ?? 1) * 100}
+                    valueLabelFunction={(val) => val.toFixed(0)}
+                    valueLabelFormat="value %"
+                    step={ui_configs.message_text_scale.step}
+                    min={ui_configs.message_text_scale.min}
+                    max={ui_configs.message_text_scale.max}
+                    setterFunction={(value) => onChangeFunction("message_text_scale", value / 100)}
+                    setter_timing="on_change"
+                />
+            </div>
+            <div className={styles.other_controls_wrapper}>
                 <p className={clsx(styles.other_controls_slider_label, styles.display_duration_label)}>{t("config_page.vr.display_duration")}</p>
                 <Slider
                     className={clsx(styles.other_controls_slider, styles.display_duration_slider)}

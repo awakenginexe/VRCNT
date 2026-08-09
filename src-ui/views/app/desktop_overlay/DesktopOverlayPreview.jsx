@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { useI18n } from "@useI18n";
 import {
+    DESKTOP_OVERLAY_MAX_MESSAGE_LOGS,
     getDesktopOverlayAccent,
     normalizeDesktopOverlaySettings,
 } from "@logics_common";
@@ -13,6 +14,7 @@ export const createDesktopOverlayStyle = (settings) => {
     return {
         "--desktop-overlay-opacity": `${normalized.opacity / 100}`,
         "--desktop-overlay-scale": `${normalized.scale / 100}`,
+        "--desktop-overlay-message-text-scale": `${normalized.messageTextScale / 100}`,
         "--desktop-overlay-accent-color": accent.color,
         "--desktop-overlay-accent-rgb": accent.rgb,
         "--accent_color": accent.color,
@@ -22,7 +24,9 @@ export const createDesktopOverlayStyle = (settings) => {
 
 const visibleMessageLogs = (payload, settings) => {
     const logs = payload?.messageLogs ?? [];
-    return settings.expanded ? logs.slice(-3) : logs.slice(-1);
+    return settings.expanded
+        ? logs.slice(-DESKTOP_OVERLAY_MAX_MESSAGE_LOGS)
+        : logs.slice(-1);
 };
 
 export const DesktopOverlayStatusStrip = ({ statuses = {} }) => {

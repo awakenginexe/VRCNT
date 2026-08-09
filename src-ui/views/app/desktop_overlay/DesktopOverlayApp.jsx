@@ -7,10 +7,17 @@ import { useI18n } from "@useI18n";
 import {
     DESKTOP_OVERLAY_CHANNEL,
     DESKTOP_OVERLAY_CONTROL_CHANNEL,
+    DESKTOP_OVERLAY_MAX_MESSAGE_LOGS,
+    DESKTOP_OVERLAY_STORAGE_KEY,
+    LEGACY_DESKTOP_OVERLAY_STORAGE_KEY,
     DESKTOP_OVERLAY_SETTINGS_CHANNEL,
     DESKTOP_OVERLAY_WINDOW_CONSTRAINTS,
     estimateDesktopOverlayFitHeight,
-    readDesktopOverlayPayload,
+    getDesktopOverlayPayloadSignature,
+    normalizeDesktopOverlayPayload,
+    parseDesktopOverlayPayload,
+    readDesktopOverlayPayloadRaw,
+    readDesktopOverlayPayloadSnapshot,
     readDesktopOverlaySettings,
     createDesktopOverlayPayload,
     getDesktopOverlayLanguageProfiles,
@@ -33,12 +40,30 @@ import styles from "./DesktopOverlayApp.module.scss";
 export const DesktopOverlayApp = () => {
     const { t, i18n } = useI18n();
     const { currentMessageLogs } = useStore_MessageLogs();
-    const [payload, setPayload] = useState(() => (
-        readDesktopOverlayPayload() ?? createDesktopOverlayPayload({ messageLogs: currentMessageLogs.data })
-    ));
+    const payloadSignatureRef = useRef(null);
+    const payloadStorageRawRef = useRef(null);
+    const [payload, setPayload] = useState(() => {
+        const snapshot = readDesktopOverlayPayloadSnapshot();
+        const initialPayload = snapshot?.payload
+            ?? createDesktopOverlayPayload({ messageLogs: currentMessageLogs.data });
+        payloadStorageRawRef.current = snapshot?.raw ?? null;
+        payloadSignatureRef.current = getDesktopOverlayPayloadSignature(initialPayload);
+        return initialPayload;
+    });
     const [settings, setSettings] = useState(readDesktopOverlaySettings);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const panelRef = useRef(null);
+    const fontRuntimeRef = useRef(null);
+
+    const applyIncomingPayload = useCallback((candidate) => {
+        if (!candidate || typeof candidate !== "object") return false;
+        const nextPayload = normalizeDesktopOverlayPayload(candidate);
+        const nextSignature = getDesktopOverlayPayloadSignature(nextPayload);
+        if (nextSignature === payloadSignatureRef.current) return false;
+        payloadSignatureRef.current = nextSignature;
+        setPayload(nextPayload);
+        return true;
+    }, []);
 
     useEffect(() => {
         document.documentElement.classList.add(styles.desktop_overlay_root);
@@ -52,9 +77,7 @@ export const DesktopOverlayApp = () => {
 
     useEffect(() => {
         const runtime = createManagedFontRuntime({ invoke, convertFileSrc });
-        const profiles = getDesktopOverlayLanguageProfiles(payload)
-            .map((language) => typeof language === "string" ? { language } : language);
-        runtime.activateLanguageProfiles(profiles);
+        fontRuntimeRef.current = runtime;
         let unlisten;
         let disposed = false;
         listen("font-pack-download-progress", (event) => {
@@ -66,8 +89,18 @@ export const DesktopOverlayApp = () => {
         return () => {
             disposed = true;
             unlisten?.();
+            runtime.dispose();
+            if (fontRuntimeRef.current === runtime) fontRuntimeRef.current = null;
         };
-    }, [payload]);
+    }, []);
+
+    const languageProfiles = getDesktopOverlayLanguageProfiles(payload)
+        .map((language) => typeof language === "string" ? { language } : language);
+    const languageProfilesSignature = JSON.stringify(languageProfiles);
+
+    useEffect(() => {
+        fontRuntimeRef.current?.activateLanguageProfiles(languageProfiles);
+    }, [languageProfilesSignature]);
 
     useEffect(() => {
         applyManagedFontVariables(document.documentElement, payload?.fontFamily);
@@ -85,13 +118,13 @@ export const DesktopOverlayApp = () => {
     useEffect(() => {
         try {
             const channel = new BroadcastChannel(DESKTOP_OVERLAY_CHANNEL);
-            channel.onmessage = (event) => setPayload(event.data);
+            channel.onmessage = (event) => applyIncomingPayload(event.data);
             return () => channel.close();
         } catch (error) {
             console.warn("Unable to listen for desktop overlay payload.", error);
             return undefined;
         }
-    }, []);
+    }, [applyIncomingPayload]);
 
     useEffect(() => {
         const applyIncomingSettings = (nextSettings) => {
@@ -117,13 +150,29 @@ export const DesktopOverlayApp = () => {
     }, []);
 
     useEffect(() => {
+        const applyStoredPayload = () => {
+            const rawPayload = readDesktopOverlayPayloadRaw();
+            if (!rawPayload || rawPayload === payloadStorageRawRef.current) return;
+            payloadStorageRawRef.current = rawPayload;
+            const storedPayload = parseDesktopOverlayPayload(rawPayload);
+            if (storedPayload) applyIncomingPayload(storedPayload);
+        };
+        const onStorage = (event) => {
+            if (event.key === DESKTOP_OVERLAY_STORAGE_KEY || event.key === LEGACY_DESKTOP_OVERLAY_STORAGE_KEY) {
+                applyStoredPayload();
+            }
+        };
+
+        globalThis.addEventListener?.("storage", onStorage);
         const intervalId = setInterval(() => {
-            const storedPayload = readDesktopOverlayPayload();
-            if (storedPayload) setPayload(storedPayload);
+            applyStoredPayload();
         }, 600);
 
-        return () => clearInterval(intervalId);
-    }, []);
+        return () => {
+            globalThis.removeEventListener?.("storage", onStorage);
+            clearInterval(intervalId);
+        };
+    }, [applyIncomingPayload]);
 
     const startDragging = (event) => {
         if (event.button !== 0) return;
@@ -140,11 +189,14 @@ export const DesktopOverlayApp = () => {
 
     const fitToContent = useCallback(async () => {
         const visibleLogCount = settings.expanded
-            ? (payload?.messageLogs?.slice(-3).length ?? 0)
+            ? (payload?.messageLogs?.slice(-DESKTOP_OVERLAY_MAX_MESSAGE_LOGS).length ?? 0)
             : Math.min(1, payload?.messageLogs?.length ?? 0);
         const measuredHeight = panelRef.current?.scrollHeight
             ? Math.ceil(panelRef.current.scrollHeight + 24)
-            : estimateDesktopOverlayFitHeight({ visibleLogCount });
+            : estimateDesktopOverlayFitHeight({
+                visibleLogCount,
+                messageTextScale: settings.messageTextScale,
+            });
         const height = Math.min(
             settings.geometry.maxHeight,
             Math.max(DESKTOP_OVERLAY_WINDOW_CONSTRAINTS.minHeight, measuredHeight),
@@ -290,6 +342,15 @@ export const DesktopOverlayApp = () => {
                             step={5}
                             suffix="%"
                             onChange={(value) => updateSetting("scale", value)}
+                        />
+                        <RangeSetting
+                            label={t("main_page.desktop_overlay.message_text_size")}
+                            value={settings.messageTextScale}
+                            min={40}
+                            max={200}
+                            step={10}
+                            suffix="%"
+                            onChange={(value) => updateSetting("messageTextScale", value)}
                         />
                         <ToggleSetting
                             label={t("main_page.desktop_overlay.translations_only")}

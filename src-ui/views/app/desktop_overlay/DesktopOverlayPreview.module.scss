@@ -127,19 +127,23 @@
 
 .original_message {
     color: var(--dark_300_color);
-    font-size: 0.85rem;
+    font-size: calc(0.85rem * var(--desktop-overlay-message-text-scale));
     line-height: 1.35;
 }
 
 .translated_message {
     margin-top: 0.25rem;
     color: var(--dark_100_color);
-    font-size: 1rem;
+    font-size: calc(1rem * var(--desktop-overlay-message-text-scale));
     font-weight: 800;
     line-height: 1.35;
 }
 
-.no_translation,
+.no_translation {
+    color: var(--dark_450_color);
+    font-size: calc(0.8rem * var(--desktop-overlay-message-text-scale));
+}
+
 .empty_state {
     color: var(--dark_450_color);
     font-size: 0.8rem;

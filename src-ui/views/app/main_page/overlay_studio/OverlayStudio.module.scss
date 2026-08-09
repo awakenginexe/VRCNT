@@ -310,7 +310,7 @@
 
     strong {
         overflow-wrap: anywhere;
-        font-size: 1rem;
+        font-size: calc(1rem * var(--vr-message-text-scale, 1));
         line-height: 1.35;
     }
 

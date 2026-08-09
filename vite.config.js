@@ -5,6 +5,12 @@ import yaml from "@rollup/plugin-yaml";
 import path from "path";
 
 const host = process.env.TAURI_DEV_HOST;
+const ignoredDevelopmentPaths = [
+    "**/src-tauri/**",
+    "**/.venv/**",
+    "**/.venv_cuda/**",
+    "**/.vite-cache/**",
+];
 
 // https://vitejs.dev/config/
 export default defineConfig(() => {
@@ -37,8 +43,10 @@ export default defineConfig(() => {
                 }
                 : undefined,
             watch: {
-                // 3. tell vite to ignore watching `src-tauri`
-                ignored: ["**/src-tauri/**"],
+                // 3. tell vite to ignore generated runtimes and build output
+                // in addition to `src-tauri`. The CUDA environment alone can
+                // contain tens of thousands of files and several gigabytes.
+                ignored: ignoredDevelopmentPaths,
             },
         },
 

@@ -2602,6 +2602,7 @@ class Model:
             transliteration_translation=transliteration_translation,
             accent_color=config.OVERLAY_SMALL_LOG_SETTINGS.get("accent_color", "theme-neon-cyan"),
             background_mode=config.OVERLAY_SMALL_LOG_SETTINGS.get("background_mode", "transparent_black"),
+            message_text_scale=config.OVERLAY_SMALL_LOG_SETTINGS.get("message_text_scale", 1.0),
         )
 
     def createOverlayImageSmallMessage(self, message):
@@ -2620,6 +2621,7 @@ class Model:
             language,
             accent_color=config.OVERLAY_SMALL_LOG_SETTINGS.get("accent_color", "theme-neon-cyan"),
             background_mode=config.OVERLAY_SMALL_LOG_SETTINGS.get("background_mode", "transparent_black"),
+            message_text_scale=config.OVERLAY_SMALL_LOG_SETTINGS.get("message_text_scale", 1.0),
         )
 
     def clearOverlayImageSmallLog(self):
@@ -2688,6 +2690,7 @@ class Model:
             newest_first=newest_first,
             accent_color=config.OVERLAY_LARGE_LOG_SETTINGS.get("accent_color", "theme-neon-cyan"),
             background_mode=config.OVERLAY_LARGE_LOG_SETTINGS.get("background_mode", "transparent_black"),
+            message_text_scale=config.OVERLAY_LARGE_LOG_SETTINGS.get("message_text_scale", 1.0),
         )
 
     def createOverlayImageLargeMessage(self, message):
@@ -2704,11 +2707,12 @@ class Model:
         overlay_image = OverlayImage(config.PATH_LOCAL)
         accent_color = config.OVERLAY_LARGE_LOG_SETTINGS.get("accent_color", "theme-neon-cyan")
         background_mode = config.OVERLAY_LARGE_LOG_SETTINGS.get("background_mode", "transparent_black")
+        message_text_scale = config.OVERLAY_LARGE_LOG_SETTINGS.get("message_text_scale", 1.0)
 
         for _ in range(2):
-            overlay_image.createOverlayImageLargeLog("send", message, language, newest_first=config.OVERLAY_LARGE_LOG_SETTINGS.get("log_order") == "newest_first", accent_color=accent_color, background_mode=background_mode)
-            overlay_image.createOverlayImageLargeLog("receive", message, language, newest_first=config.OVERLAY_LARGE_LOG_SETTINGS.get("log_order") == "newest_first", accent_color=accent_color, background_mode=background_mode)
-        return overlay_image.createOverlayImageLargeLog("send", message, language, newest_first=config.OVERLAY_LARGE_LOG_SETTINGS.get("log_order") == "newest_first", accent_color=accent_color, background_mode=background_mode)
+            overlay_image.createOverlayImageLargeLog("send", message, language, newest_first=config.OVERLAY_LARGE_LOG_SETTINGS.get("log_order") == "newest_first", accent_color=accent_color, background_mode=background_mode, message_text_scale=message_text_scale)
+            overlay_image.createOverlayImageLargeLog("receive", message, language, newest_first=config.OVERLAY_LARGE_LOG_SETTINGS.get("log_order") == "newest_first", accent_color=accent_color, background_mode=background_mode, message_text_scale=message_text_scale)
+        return overlay_image.createOverlayImageLargeLog("send", message, language, newest_first=config.OVERLAY_LARGE_LOG_SETTINGS.get("log_order") == "newest_first", accent_color=accent_color, background_mode=background_mode, message_text_scale=message_text_scale)
 
     def clearOverlayImageLargeLog(self):
         self.ensure_initialized()
