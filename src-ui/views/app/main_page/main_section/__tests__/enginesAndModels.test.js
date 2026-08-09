@@ -9,12 +9,13 @@ const root = path.resolve(here, "../../../../../../");
 const read = (...segments) => readFile(path.join(root, ...segments), "utf8");
 
 test("Engines and Models are first-class production routes wired to persisted source settings", async () => {
-    const [mainPage, navigation, engines, models, configSetter] = await Promise.all([
+    const [mainPage, navigation, engines, models, configSetter, progressComponent] = await Promise.all([
         read("src-ui", "views", "app", "main_page", "MainPage.jsx"),
         read("src-ui", "views", "app", "main_page", "main_section", "live_weave_navigation", "LiveWeaveNavigation.jsx"),
         read("src-ui", "views", "app", "main_page", "engines", "EnginesWorkspace.jsx"),
         read("src-ui", "views", "app", "main_page", "models", "ModelsHub.jsx"),
         read("src-ui", "logics", "configs", "config_page_setter", "ui_config_setter.js"),
+        read("src-ui", "views", "app", "main_page", "models", "ModelDownloadProgress.jsx"),
     ]);
 
     assert.match(mainPage, /currentExperienceRoute\.data === "engines"/);
@@ -33,6 +34,11 @@ test("Engines and Models are first-class production routes wired to persisted so
     assert.match(models, /downloadVoskWeightTypeStatus/);
     assert.match(models, /downloadParakeetWeightTypeStatus/);
     assert.match(models, /downloadSenseVoiceWeightTypeStatus/);
+    assert.match(models, /ModelDownloadProgress/);
+    assert.match(models, /group\.statuses\.map/);
+    assert.match(models, /group\.statuses\.map[\s\S]*ModelDownloadProgress/);
+    assert.match(models, /download_failed/);
+    assert.match(progressComponent, /download_progress/);
     assert.doesNotMatch(models, /setSelectedWhisperWeightType/);
     assert.match(models, /updateExperienceRoute\("engines"\)/);
     assert.match(configSetter, /Base_Name: "SelectedTranscriptionEngineSend"/);

@@ -200,20 +200,47 @@
     white-space: nowrap;
 }
 
-.progress {
-    height: 0.4rem;
+.download_progress {
+    min-width: 0;
     margin: 0 0 0.8rem;
+}
+
+.download_progress_meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    margin-bottom: 0.28rem;
+    color: var(--dark_400_color);
+    font-size: 0.72rem;
+    font-weight: 750;
+}
+
+.download_progress_meta strong {
+    color: var(--dark_150_color);
+    font-variant-numeric: tabular-nums;
+}
+
+.download_progress_track {
+    position: relative;
+    height: 0.42rem;
     border-radius: 99rem;
     overflow: hidden;
     background: rgba(255, 255, 255, 0.1);
 }
 
-.progress span {
+.download_progress_fill {
     display: block;
+    width: 0;
     height: 100%;
     border-radius: inherit;
     background: var(--accent_gradient);
     transition: width var(--transition_ui);
+}
+
+.download_progress_track.is_indeterminate .download_progress_fill {
+    width: 38%;
+    animation: model_download_indeterminate 1.25s ease-in-out infinite;
 }
 
 .preset_button {
@@ -260,14 +287,14 @@
     background: rgba(255, 255, 255, 0.025);
 }
 
-.model_row div {
+.model_identity {
     min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 0.14rem;
 }
 
-.model_row strong {
+.model_identity > strong {
     overflow: hidden;
     color: var(--dark_150_color);
     font-size: 0.86rem;
@@ -275,7 +302,7 @@
     white-space: nowrap;
 }
 
-.model_row div span,
+.model_identity > span,
 .model_row > span {
     color: var(--dark_500_color);
     font-size: 0.78rem;
@@ -284,6 +311,15 @@
 
 .model_row > span[data-ready="true"] {
     color: #8df1cc;
+}
+
+.model_row > span[data-state="preparing"],
+.model_row > span[data-state="downloading"] {
+    color: var(--accent_color);
+}
+
+.model_row > span[data-state="failed"] {
+    color: #ffb4bd;
 }
 
 .model_row button {
@@ -327,6 +363,19 @@ button:disabled {
     .preset_grid {
         grid-template-columns: minmax(0, 1fr);
     }
+
+    .model_row {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .model_row > span {
+        grid-column: 1;
+    }
+
+    .model_row > button {
+        grid-column: 2;
+        grid-row: 1;
+    }
 }
 
 @media (max-height: 48rem) {
@@ -344,7 +393,18 @@ button:disabled {
 
 @media (prefers-reduced-motion: reduce) {
     .preset_card,
-    .progress span {
+    .download_progress_fill {
         transition: none;
+        animation: none;
+    }
+}
+
+@keyframes model_download_indeterminate {
+    0% {
+        transform: translateX(-110%);
+    }
+
+    100% {
+        transform: translateX(285%);
     }
 }

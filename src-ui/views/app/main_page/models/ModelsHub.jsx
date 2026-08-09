@@ -10,6 +10,8 @@ import {
     resolveWhisperRecommendation,
     WHISPER_PRESETS,
 } from "../engines/engineModelUtils";
+import { ModelDownloadProgress } from "./ModelDownloadProgress.jsx";
+import { getModelDownloadState } from "./modelDownloadDisplay.js";
 import styles from "./ModelsHub.module.scss";
 
 const PRESET_COPY = {
@@ -25,11 +27,6 @@ const PRESET_COPY = {
         title: "main_page.models_hub.accuracy_title",
         detail: "main_page.models_hub.accuracy_detail",
     },
-};
-
-const getProgress = (status) => {
-    const progress = Number(status?.progress);
-    return Number.isFinite(progress) ? Math.max(0, Math.min(100, progress)) : null;
 };
 
 export const ModelsHub = () => {
@@ -209,18 +206,20 @@ const modelOptions = useMemo(() => {
                             statuses,
                             installedOnly: false,
                         });
-                        const progress = getProgress(candidate);
+                        const downloadState = getModelDownloadState(candidate);
                         const isActive = false;
                         const isRecommended = recommendation.presetId === preset.id;
                         const actionLabel = candidate?.is_downloaded === true
                             ? isActive
                                 ? t("main_page.models_hub.active_model")
                                 : t("main_page.models_hub.select_model")
-                            : candidate?.is_pending === true
+                            : downloadState === "preparing" || downloadState === "downloading"
                                 ? t("main_page.models_hub.downloading")
-                                : candidate
-                                    ? t("main_page.models_hub.download_model", { size: candidate.capacity ?? "" })
-                                    : t("main_page.models_hub.model_unavailable");
+                                : downloadState === "failed"
+                                    ? t("main_page.models_hub.retry_download")
+                                    : candidate
+                                        ? t("main_page.models_hub.download_model", { size: candidate.capacity ?? "" })
+                                        : t("main_page.models_hub.model_unavailable");
 
                         return (
                             <article
@@ -240,17 +239,26 @@ const modelOptions = useMemo(() => {
                                     <div><dt>{t("main_page.models_hub.model_label")}</dt><dd>{candidate?.id ?? t("main_page.models_hub.model_unavailable")}</dd></div>
                                     <div><dt>{t("main_page.models_hub.download_size")}</dt><dd>{candidate?.capacity ?? t("main_page.models_hub.size_not_available")}</dd></div>
                                     <div><dt>{t("main_page.models_hub.profile_label")}</dt><dd>{preset.decodingProfile}</dd></div>
-                                    <div><dt>{t("main_page.models_hub.status_label")}</dt><dd>{candidate?.is_downloaded === true ? t("main_page.models_hub.installed") : candidate?.is_pending === true ? t("main_page.models_hub.downloading") : t("main_page.models_hub.download_needed")}</dd></div>
-                                </dl>
-                                {progress !== null && candidate?.is_pending === true && (
-                                    <div className={styles.progress} aria-label={t("main_page.models_hub.download_progress", { progress })}>
-                                        <span style={{ width: `${progress}%` }} />
+                                    <div>
+                                        <dt>{t("main_page.models_hub.status_label")}</dt>
+                                        <dd>{downloadState === "installed"
+                                            ? t("main_page.models_hub.installed")
+                                            : downloadState === "preparing"
+                                                ? t("main_page.models_hub.preparing_download")
+                                                : downloadState === "downloading"
+                                                    ? t("main_page.models_hub.downloading")
+                                                    : downloadState === "failed"
+                                                        ? t("main_page.models_hub.download_failed")
+                                                        : downloadState === "unavailable"
+                                                            ? t("main_page.models_hub.model_unavailable")
+                                                            : t("main_page.models_hub.download_needed")}</dd>
                                     </div>
-                                )}
+                                </dl>
+                                <ModelDownloadProgress status={candidate} />
                                 <button
                                     type="button"
                                     className={styles.preset_button}
-                                    disabled={!candidate || candidate.is_pending === true || isActive || controlsPending}
+                                    disabled={!candidate || downloadState === "preparing" || downloadState === "downloading" || isActive || controlsPending}
                                     onClick={() => handlePresetAction(preset)}
                                 >
                                     {actionLabel}
@@ -265,35 +273,47 @@ const modelOptions = useMemo(() => {
                         <summary>{group.id} · {t("main_page.models_hub.advanced_models")}</summary>
                         <p>{t("main_page.models_hub.advanced_models_detail")}</p>
                         <div className={styles.model_list}>
-                            {group.statuses.map((status) => (
-                                <div key={status.id} className={styles.model_row}>
-                                    <div>
-                                        <strong>{status.label ?? status.display_name ?? status.id}</strong>
-                                        <span>{status.capacity ?? t("main_page.models_hub.size_not_available")}</span>
+                            {group.statuses.map((status) => {
+                                const downloadState = getModelDownloadState(status);
+                                const isDownloading = downloadState === "preparing" || downloadState === "downloading";
+
+                                return (
+                                    <div key={status.id} className={styles.model_row} data-state={downloadState}>
+                                        <div className={styles.model_identity}>
+                                            <strong>{status.label ?? status.display_name ?? status.id}</strong>
+                                            <span>{status.capacity ?? t("main_page.models_hub.size_not_available")}</span>
+                                            {isDownloading && <ModelDownloadProgress status={status} />}
+                                        </div>
+                                        <span data-ready={downloadState === "installed"} data-state={downloadState}>
+                                            {downloadState === "installed"
+                                                ? t("main_page.models_hub.installed")
+                                                : downloadState === "preparing"
+                                                    ? t("main_page.models_hub.preparing_download")
+                                                    : downloadState === "downloading"
+                                                        ? t("main_page.models_hub.downloading")
+                                                        : downloadState === "failed"
+                                                            ? t("main_page.models_hub.download_failed")
+                                                            : downloadState === "unavailable"
+                                                                ? t("main_page.models_hub.model_unavailable")
+                                                                : t("main_page.models_hub.download_needed")}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            disabled={isDownloading || downloadState === "unavailable"}
+                                            onClick={() => {
+                                                if (downloadState === "installed") updateExperienceRoute("engines");
+                                                else group.download(status.id);
+                                            }}
+                                        >
+                                            {downloadState === "installed"
+                                                ? t("main_page.models_hub.select_model")
+                                                : downloadState === "failed"
+                                                    ? t("main_page.models_hub.retry_download")
+                                                    : t("main_page.models_hub.download")}
+                                        </button>
                                     </div>
-                                    <span data-ready={status.is_downloaded === true}>
-                                        {status.is_downloaded === true
-                                            ? t("main_page.models_hub.installed")
-                                            : status.is_pending === true
-                                                ? t("main_page.models_hub.downloading")
-                                                : status.downloadable === false
-                                                    ? t("main_page.models_hub.model_unavailable")
-                                                    : t("main_page.models_hub.download_needed")}
-                                    </span>
-                                    <button
-                                        type="button"
-                                        disabled={status.is_pending === true || status.downloadable === false}
-                                        onClick={() => {
-                                            if (status.is_downloaded === true) updateExperienceRoute("engines");
-                                            else group.download(status.id);
-                                        }}
-                                    >
-                                        {status.is_downloaded === true
-                                            ? t("main_page.models_hub.select_model")
-                                            : t("main_page.models_hub.download")}
-                                    </button>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </details>
                 ))}
