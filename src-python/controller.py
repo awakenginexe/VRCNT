@@ -1389,6 +1389,7 @@ class Controller:
             engine=config.SELECTED_TRANSCRIPTION_ENGINE,
             models={
                 "Whisper": config.WHISPER_WEIGHT_TYPE,
+                "Whisper Thai": config.WHISPER_THAI_WEIGHT_TYPE,
                 "Vosk": config.VOSK_WEIGHT_TYPE,
                 "Parakeet": config.PARAKEET_WEIGHT_TYPE,
                 "SenseVoice": config.SENSEVOICE_WEIGHT_TYPE,
@@ -1417,6 +1418,7 @@ class Controller:
     def _selectableTranscriptionModels() -> dict:
         return {
             "Whisper": config.SELECTABLE_WHISPER_WEIGHT_TYPE_LIST,
+            "Whisper Thai": config.SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_LIST,
             "Vosk": config.SELECTABLE_VOSK_WEIGHT_TYPE_LIST,
             "Parakeet": config.SELECTABLE_PARAKEET_WEIGHT_TYPE_LIST,
             "SenseVoice": config.SELECTABLE_SENSEVOICE_WEIGHT_TYPE_LIST,
@@ -1458,6 +1460,10 @@ class Controller:
         config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE = deepcopy(profile["device"])
         config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE = profile["compute_type"]
         config.WHISPER_WEIGHT_TYPE = profile["models"]["Whisper"]
+        config.WHISPER_THAI_WEIGHT_TYPE = profile["models"].get(
+            "Whisper Thai",
+            config.WHISPER_THAI_WEIGHT_TYPE,
+        )
         config.VOSK_WEIGHT_TYPE = profile["models"]["Vosk"]
         config.PARAKEET_WEIGHT_TYPE = profile["models"]["Parakeet"]
         config.SENSEVOICE_WEIGHT_TYPE = profile["models"]["SenseVoice"]

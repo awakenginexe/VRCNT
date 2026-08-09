@@ -4,8 +4,16 @@ from copy import deepcopy
 from typing import Any, Iterable, Mapping
 
 
-TRANSCRIPTION_ENGINES = ("Google", "Whisper", "Vosk", "Parakeet", "SenseVoice")
-MODEL_ENGINES = ("Whisper", "Vosk", "Parakeet", "SenseVoice")
+TRANSCRIPTION_ENGINES = (
+    "Google",
+    "Whisper",
+    "Whisper Thai",
+    "Vosk",
+    "Parakeet",
+    "SenseVoice",
+)
+MODEL_ENGINES = ("Whisper", "Whisper Thai", "Vosk", "Parakeet", "SenseVoice")
+WHISPER_ENGINES = ("Whisper", "Whisper Thai")
 RUNTIME_PREFERENCE_ENGINES = ("Whisper", "Parakeet")
 WHISPER_DECODING_PROFILES = ("fast", "balanced", "accurate")
 
@@ -73,16 +81,17 @@ def merge_transcription_profile(base: Mapping[str, Any], patch: Any) -> dict:
         merged["runtime_preferences"] = preferences
 
     target_engine = str(merged.get("engine", "Google"))
-    if target_engine in RUNTIME_PREFERENCE_ENGINES and (
+    runtime_provider = "Whisper" if target_engine in WHISPER_ENGINES else target_engine
+    if runtime_provider in RUNTIME_PREFERENCE_ENGINES and (
         "device" in patch or "compute_type" in patch
     ):
         preferences = deepcopy(dict(merged.get("runtime_preferences", {})))
-        preference = deepcopy(dict(preferences.get(target_engine, {})))
+        preference = deepcopy(dict(preferences.get(runtime_provider, {})))
         if "device" in patch:
             preference["device"] = deepcopy(patch["device"])
         if "compute_type" in patch:
             preference["compute_type"] = str(patch["compute_type"])
-        preferences[target_engine] = preference
+        preferences[runtime_provider] = preference
         merged["runtime_preferences"] = preferences
     return merged
 
@@ -135,8 +144,11 @@ def normalize_transcription_profile(
                     candidate["runtime_preferences"][provider] = deepcopy(dict(preference))
         else:
             migrated_engine = str(candidate.get("engine", "Google"))
-            if migrated_engine in RUNTIME_PREFERENCE_ENGINES:
-                candidate["runtime_preferences"][migrated_engine] = {
+            runtime_provider = (
+                "Whisper" if migrated_engine in WHISPER_ENGINES else migrated_engine
+            )
+            if runtime_provider in RUNTIME_PREFERENCE_ENGINES:
+                candidate["runtime_preferences"][runtime_provider] = {
                     "device": deepcopy(candidate.get("device", {})),
                     "compute_type": str(candidate.get("compute_type", "auto")),
                 }
@@ -202,9 +214,10 @@ def normalize_transcription_profile(
             "compute_type": preference_compute_type,
         }
 
-    if engine in RUNTIME_PREFERENCE_ENGINES:
-        device = deepcopy(runtime_preferences[engine]["device"])
-        compute_type = runtime_preferences[engine]["compute_type"]
+    runtime_provider = "Whisper" if engine in WHISPER_ENGINES else engine
+    if runtime_provider in RUNTIME_PREFERENCE_ENGINES:
+        device = deepcopy(runtime_preferences[runtime_provider]["device"])
+        compute_type = runtime_preferences[runtime_provider]["compute_type"]
     else:
         device = _first_device(devices, "cpu") or deepcopy(fallback_profile["device"])
         compute_type = "auto"
@@ -234,6 +247,14 @@ def effective_transcription_profile(profile: Mapping[str, Any]) -> tuple:
     device_key = (device.get("device"), device.get("device_index"))
     if engine == "Parakeet":
         return (engine, str(models.get(engine, "")), device_key)
+    if engine in WHISPER_ENGINES:
+        return (
+            engine,
+            str(models.get(engine, "")),
+            device_key,
+            str(profile.get("compute_type", "auto")),
+            str(profile.get("whisper_decoding_profile", "balanced")),
+        )
     return (
         engine,
         str(models.get("Whisper", "")),

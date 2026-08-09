@@ -50,6 +50,15 @@ except Exception:  # pragma: no cover - optional runtime
     DEFAULT_WHISPER_WEIGHT_TYPE = "tiny"
 
 try:
+    from models.transcription.transcription_whisper_thai import (
+        DEFAULT_WHISPER_THAI_WEIGHT_TYPE,
+        THAI_WHISPER_MODELS as whisper_thai_models,
+    )
+except Exception:  # pragma: no cover - optional runtime
+    whisper_thai_models = {}  # type: ignore
+    DEFAULT_WHISPER_THAI_WEIGHT_TYPE = "thai-thonburian-small"
+
+try:
     from models.transcription.transcription_vosk import _MODELS as vosk_models
 except Exception:  # pragma: no cover - optional runtime
     vosk_models = {}  # type: ignore
@@ -782,6 +791,7 @@ class Config:
     SELECTED_TAB_TARGET_LANGUAGES_NO_LIST = ManagedProperty('SELECTED_TAB_TARGET_LANGUAGES_NO_LIST', readonly=True, serialize=False)
     SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_LIST = ManagedProperty('SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_LIST', readonly=True, serialize=False)
     SELECTABLE_WHISPER_WEIGHT_TYPE_LIST = ManagedProperty('SELECTABLE_WHISPER_WEIGHT_TYPE_LIST', readonly=True, serialize=False)
+    SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_LIST = ManagedProperty('SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_LIST', readonly=True, serialize=False)
     SELECTABLE_VOSK_WEIGHT_TYPE_LIST = ManagedProperty('SELECTABLE_VOSK_WEIGHT_TYPE_LIST', readonly=True, serialize=False)
     SELECTABLE_PARAKEET_WEIGHT_TYPE_LIST = ManagedProperty('SELECTABLE_PARAKEET_WEIGHT_TYPE_LIST', readonly=True, serialize=False)
     SELECTABLE_SENSEVOICE_WEIGHT_TYPE_LIST = ManagedProperty('SELECTABLE_SENSEVOICE_WEIGHT_TYPE_LIST', readonly=True, serialize=False)
@@ -805,6 +815,7 @@ class Config:
     # These are dynamically generated in init_config() based on installed packages/APIs
     SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT = ManagedProperty('SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT', type_=dict, serialize=False, mutable_tracking=True)
     SELECTABLE_WHISPER_WEIGHT_TYPE_DICT = ManagedProperty('SELECTABLE_WHISPER_WEIGHT_TYPE_DICT', type_=dict, serialize=False, mutable_tracking=True)
+    SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_DICT = ManagedProperty('SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_DICT', type_=dict, serialize=False, mutable_tracking=True)
     SELECTABLE_VOSK_WEIGHT_TYPE_DICT = ManagedProperty('SELECTABLE_VOSK_WEIGHT_TYPE_DICT', type_=dict, serialize=False, mutable_tracking=True)
     SELECTABLE_PARAKEET_WEIGHT_TYPE_DICT = ManagedProperty('SELECTABLE_PARAKEET_WEIGHT_TYPE_DICT', type_=dict, serialize=False, mutable_tracking=True)
     SELECTABLE_SENSEVOICE_WEIGHT_TYPE_DICT = ManagedProperty('SELECTABLE_SENSEVOICE_WEIGHT_TYPE_DICT', type_=dict, serialize=False, mutable_tracking=True)
@@ -928,6 +939,7 @@ class Config:
     USE_EXCLUDE_WORDS = ManagedProperty('USE_EXCLUDE_WORDS', type_=bool)
     CTRANSLATE2_WEIGHT_TYPE = ManagedProperty('CTRANSLATE2_WEIGHT_TYPE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_LIST)
     WHISPER_WEIGHT_TYPE = ManagedProperty('WHISPER_WEIGHT_TYPE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_WHISPER_WEIGHT_TYPE_LIST)
+    WHISPER_THAI_WEIGHT_TYPE = ManagedProperty('WHISPER_THAI_WEIGHT_TYPE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_LIST)
     VOSK_WEIGHT_TYPE = ManagedProperty('VOSK_WEIGHT_TYPE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_VOSK_WEIGHT_TYPE_LIST)
     PARAKEET_WEIGHT_TYPE = ManagedProperty('PARAKEET_WEIGHT_TYPE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_PARAKEET_WEIGHT_TYPE_LIST)
     SENSEVOICE_WEIGHT_TYPE = ManagedProperty('SENSEVOICE_WEIGHT_TYPE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_SENSEVOICE_WEIGHT_TYPE_LIST)
@@ -996,6 +1008,7 @@ class Config:
         # these external mappings may be empty dicts if the optional modules failed to import
         self._SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_LIST = getattr(ctranslate2_weights, 'keys', lambda: [])()
         self._SELECTABLE_WHISPER_WEIGHT_TYPE_LIST = getattr(whisper_models, 'keys', lambda: [])()
+        self._SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_LIST = list(whisper_thai_models.keys())
         self._SELECTABLE_VOSK_WEIGHT_TYPE_LIST = getattr(vosk_models, 'keys', lambda: [])()
         self._SELECTABLE_PARAKEET_WEIGHT_TYPE_LIST = getattr(parakeet_models, 'keys', lambda: [])()
         self._SELECTABLE_SENSEVOICE_WEIGHT_TYPE_LIST = getattr(sensevoice_models, 'keys', lambda: [])()
@@ -1027,6 +1040,9 @@ class Config:
         self._SELECTABLE_WHISPER_WEIGHT_TYPE_DICT = {}
         for weight_type in self.SELECTABLE_WHISPER_WEIGHT_TYPE_LIST:
             self._SELECTABLE_WHISPER_WEIGHT_TYPE_DICT[weight_type] = False
+        self._SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_DICT = {}
+        for weight_type in self.SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_LIST:
+            self._SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_DICT[weight_type] = False
         self._SELECTABLE_VOSK_WEIGHT_TYPE_DICT = {}
         for weight_type in self.SELECTABLE_VOSK_WEIGHT_TYPE_LIST:
             self._SELECTABLE_VOSK_WEIGHT_TYPE_DICT[weight_type] = False
@@ -1214,6 +1230,10 @@ class Config:
             self._WHISPER_WEIGHT_TYPE = DEFAULT_WHISPER_WEIGHT_TYPE
         else:
             self._WHISPER_WEIGHT_TYPE = next(iter(self.SELECTABLE_WHISPER_WEIGHT_TYPE_LIST), "")
+        if DEFAULT_WHISPER_THAI_WEIGHT_TYPE in self.SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_LIST:
+            self._WHISPER_THAI_WEIGHT_TYPE = DEFAULT_WHISPER_THAI_WEIGHT_TYPE
+        else:
+            self._WHISPER_THAI_WEIGHT_TYPE = next(iter(self.SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_LIST), "")
         self._VOSK_WEIGHT_TYPE = next(iter(self.SELECTABLE_VOSK_WEIGHT_TYPE_LIST), "")
         self._PARAKEET_WEIGHT_TYPE = next(iter(self.SELECTABLE_PARAKEET_WEIGHT_TYPE_LIST), "")
         self._SENSEVOICE_WEIGHT_TYPE = next(iter(self.SELECTABLE_SENSEVOICE_WEIGHT_TYPE_LIST), "")
@@ -1225,6 +1245,7 @@ class Config:
             engine=self._SELECTED_TRANSCRIPTION_ENGINE,
             models={
                 "Whisper": self._WHISPER_WEIGHT_TYPE,
+                "Whisper Thai": self._WHISPER_THAI_WEIGHT_TYPE,
                 "Vosk": self._VOSK_WEIGHT_TYPE,
                 "Parakeet": self._PARAKEET_WEIGHT_TYPE,
                 "SenseVoice": self._SENSEVOICE_WEIGHT_TYPE,
@@ -1406,12 +1427,14 @@ class Config:
 
         selectable_models = {
             "Whisper": getattr(self, "_SELECTABLE_WHISPER_WEIGHT_TYPE_LIST", ()),
+            "Whisper Thai": getattr(self, "_SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_LIST", ()),
             "Vosk": getattr(self, "_SELECTABLE_VOSK_WEIGHT_TYPE_LIST", ()),
             "Parakeet": getattr(self, "_SELECTABLE_PARAKEET_WEIGHT_TYPE_LIST", ()),
             "SenseVoice": getattr(self, "_SELECTABLE_SENSEVOICE_WEIGHT_TYPE_LIST", ()),
         }
         legacy_models = {
             "Whisper": getattr(self, "_WHISPER_WEIGHT_TYPE", ""),
+            "Whisper Thai": getattr(self, "_WHISPER_THAI_WEIGHT_TYPE", ""),
             "Vosk": getattr(self, "_VOSK_WEIGHT_TYPE", ""),
             "Parakeet": getattr(self, "_PARAKEET_WEIGHT_TYPE", ""),
             "SenseVoice": getattr(self, "_SENSEVOICE_WEIGHT_TYPE", ""),
@@ -1499,6 +1522,7 @@ class Config:
         self._SELECTED_TRANSCRIPTION_COMPUTE_DEVICE = copy.deepcopy(send_profile["device"])
         self._SELECTED_TRANSCRIPTION_COMPUTE_TYPE = send_profile["compute_type"]
         self._WHISPER_WEIGHT_TYPE = send_profile["models"]["Whisper"]
+        self._WHISPER_THAI_WEIGHT_TYPE = send_profile["models"]["Whisper Thai"]
         self._VOSK_WEIGHT_TYPE = send_profile["models"]["Vosk"]
         self._PARAKEET_WEIGHT_TYPE = send_profile["models"]["Parakeet"]
         self._SENSEVOICE_WEIGHT_TYPE = send_profile["models"]["SenseVoice"]

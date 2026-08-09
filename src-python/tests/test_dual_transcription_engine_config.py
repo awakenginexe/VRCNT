@@ -80,6 +80,7 @@ class DualTranscriptionEngineContractTests(unittest.TestCase):
                     "engine": "Whisper",
                     "models": {
                         "Whisper": "small",
+                        "Whisper Thai": "",
                         "Vosk": "vosk-en",
                         "Parakeet": "parakeet-v3",
                         "SenseVoice": "sensevoice-int8",

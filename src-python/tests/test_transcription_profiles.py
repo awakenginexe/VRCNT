@@ -16,6 +16,9 @@ from model import Model
 from models.pipeline.pipeline_types import PipelineSource
 from models.transcription.whisper_runtime import WhisperRuntimeManager
 from models.transcription.transcription_profile import (
+    MODEL_ENGINES,
+    TRANSCRIPTION_ENGINES,
+    effective_transcription_profile,
     merge_transcription_profile,
     normalize_transcription_profile,
 )
@@ -41,6 +44,7 @@ def profile(engine="Google", whisper="tiny", decoding="balanced"):
         "engine": engine,
         "models": {
             "Whisper": whisper,
+            "Whisper Thai": "thai-thonburian-small",
             "Vosk": next(iter(controller_module.config.SELECTABLE_VOSK_WEIGHT_TYPE_LIST), ""),
             "Parakeet": next(iter(controller_module.config.SELECTABLE_PARAKEET_WEIGHT_TYPE_LIST), ""),
             "SenseVoice": next(iter(controller_module.config.SELECTABLE_SENSEVOICE_WEIGHT_TYPE_LIST), ""),
@@ -87,7 +91,50 @@ class TranscriptionProfileControllerTests(unittest.TestCase):
         self.assertEqual(response["status"], 200)
         self.assertEqual(
             response["result"],
-            ["Google", "Whisper", "Vosk", "Parakeet", "SenseVoice"],
+            ["Google", "Whisper", "Whisper Thai", "Vosk", "Parakeet", "SenseVoice"],
+        )
+
+    def test_engine_catalog_exposes_whisper_thai_as_a_separate_engine(self):
+        response = self.controller.getTranscriptionEngines()
+
+        self.assertEqual(
+            response["result"],
+            ["Google", "Whisper", "Whisper Thai", "Vosk", "Parakeet", "SenseVoice"],
+        )
+        self.assertIn("Whisper Thai", TRANSCRIPTION_ENGINES)
+        self.assertIn("Whisper Thai", MODEL_ENGINES)
+
+    def test_normalized_profiles_keep_whisper_and_thai_models_independent(self):
+        source = profile("Whisper Thai", whisper="large-v3")
+        source["models"]["Whisper Thai"] = "thai-thonburian-medium"
+        selectable_models = self.controller._selectableTranscriptionModels()
+        selectable_models["Whisper Thai"] = (
+            "thai-thonburian-small",
+            "thai-thonburian-medium",
+        )
+
+        normalized = normalize_transcription_profile(
+            source,
+            fallback=source,
+            selectable_engines=TRANSCRIPTION_ENGINES,
+            selectable_models=selectable_models,
+            selectable_devices=(CPU, CUDA),
+        )
+
+        self.assertEqual(normalized["engine"], "Whisper Thai")
+        self.assertEqual(normalized["models"]["Whisper"], "large-v3")
+        self.assertEqual(
+            normalized["models"]["Whisper Thai"],
+            "thai-thonburian-medium",
+        )
+
+    def test_effective_profile_identity_uses_the_thai_model_slot(self):
+        source = profile("Whisper Thai", whisper="large-v3")
+        source["models"]["Whisper Thai"] = "thai-thonburian-large-v2"
+
+        self.assertEqual(
+            effective_transcription_profile(source)[:2],
+            ("Whisper Thai", "thai-thonburian-large-v2"),
         )
 
     def test_whisper_cuda_preference_survives_cloud_quick_switch(self):
