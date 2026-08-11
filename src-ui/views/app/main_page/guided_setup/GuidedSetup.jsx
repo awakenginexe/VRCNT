@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useI18n } from "@useI18n";
 import { useLanguageSettings } from "@logics_main";
-import { useAppearance, useDevice, useOthers } from "@logics_configs";
+import { useAppearance, useDevice, useOnboarding, useOthers } from "@logics_configs";
 import { ui_configs } from "@ui_configs";
 import {
     useIsOscAvailable,
@@ -144,6 +144,7 @@ export const GuidedSetup = () => {
     const { showNotification_Success } = useNotificationStatus();
     const { currentIsOscAvailable } = useIsOscAvailable();
     const { currentUiLanguage, setUiLanguage } = useAppearance();
+    const { setSetupCompleted } = useOnboarding();
     const {
         currentSelectableLanguageList,
         currentSelectedPresetTabNumber,
@@ -212,14 +213,19 @@ export const GuidedSetup = () => {
         }
         setSelectedTargetLanguages({ ...language, target_key: targetKey });
     };
-    const finishSetup = () => {
-        showNotification_Success(
-            t("main_page.guided_setup.complete_notification"),
-            { category_id: "guided_setup_complete" },
-        );
+    const completeSetup = ({ showSuccessNotification = false } = {}) => {
+        setSetupCompleted(true);
+        if (showSuccessNotification) {
+            showNotification_Success(
+                t("main_page.guided_setup.complete_notification"),
+                { category_id: "guided_setup_complete" },
+            );
+        }
         setIsOpenedConfigPage(false);
         updateExperienceRoute("live");
     };
+    const finishSetup = () => completeSetup({ showSuccessNotification: true });
+    const skipSetup = () => completeSetup();
 
     return (
         <div className={styles.container}>
@@ -442,19 +448,28 @@ export const GuidedSetup = () => {
                         >
                             {t("main_page.guided_setup.back")}
                         </button>
-                        {step === 6 ? (
-                            <button type="button" className={styles.primary_button} onClick={finishSetup}>
-                                {t("main_page.guided_setup.finish")}
-                            </button>
-                        ) : (
+                        <div className={styles.footer_actions}>
                             <button
                                 type="button"
-                                className={styles.primary_button}
-                                onClick={() => setStep((current) => Math.min(SETUP_STEPS.length, current + 1))}
+                                className={styles.secondary_button}
+                                onClick={skipSetup}
                             >
-                                {t("main_page.guided_setup.continue")}
+                                {t("main_page.guided_setup.skip")}
                             </button>
-                        )}
+                            {step === 6 ? (
+                                <button type="button" className={styles.primary_button} onClick={finishSetup}>
+                                    {t("main_page.guided_setup.finish")}
+                                </button>
+                            ) : (
+                                <button
+                                    type="button"
+                                    className={styles.primary_button}
+                                    onClick={() => setStep((current) => Math.min(SETUP_STEPS.length, current + 1))}
+                                >
+                                    {t("main_page.guided_setup.continue")}
+                                </button>
+                            )}
+                        </div>
                     </footer>
                 </section>
             </main>

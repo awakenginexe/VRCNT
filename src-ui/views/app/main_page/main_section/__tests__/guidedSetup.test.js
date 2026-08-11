@@ -63,6 +63,26 @@ test("Guided Setup changes real persisted language, device, and VRChat settings"
     assert.doesNotMatch(setup, /RTX\s*5090|RTX\s*3070|Realtek|CABLE-A|mock|fake/i);
 });
 
+test("Guided Setup keeps audio and VRChat controls in their final steps and persists completion for finish or skip", () => {
+    const setup = readSource("../../guided_setup/GuidedSetup.jsx");
+
+    assert.match(setup, /step === 4/);
+    assert.match(setup, /step === 6/);
+    assert.match(setup, /setSetupCompleted\(true\)/);
+    assert.match(setup, /const skipSetup = \(\) =>/);
+    assert.match(setup, /main_page\.guided_setup\.skip/);
+
+    for (const setter of [
+        "setSelectedMicHost",
+        "setSelectedMicDevice",
+        "setSelectedSpeakerDevice",
+        "toggleEnableSendMessageToVrc",
+        "toggleEnableSendReceivedMessageToVrc",
+    ]) {
+        assert.match(setup, new RegExp(setter));
+    }
+});
+
 test("Guided Setup stays usable in the minimum desktop workspace and remains localized", () => {
     const styles = readSource("../../guided_setup/GuidedSetup.module.scss");
     const english = readSource("../../../../../../locales/en.yml");
