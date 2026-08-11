@@ -68,6 +68,7 @@ test("places Desktop and SteamVR previews left of the geometry settings", () => 
     assert.match(styles, /\.geometry_card\s*\{[\s\S]*grid-area:\s*geometry/);
     assert.match(styles, /\.vr_card\s*\{[\s\S]*grid-area:\s*vr/);
     assert.match(styles, /\.overlay_colors_card\s*\{[\s\S]*grid-area:\s*colors/);
+    assert.match(styles, /\.geometry_card,[\s\S]*\.vr_card,[\s\S]*\.overlay_colors_card\s*\{[\s\S]*align-self:\s*start/);
     assert.match(styles, /@media \(max-width: 64rem\)[\s\S]*\.studio_grid\s*\{[\s\S]*grid-template-columns:\s*1fr[\s\S]*grid-template-areas:\s*"desktop"\s*"geometry"\s*"vr"\s*"colors"/);
 });
 
