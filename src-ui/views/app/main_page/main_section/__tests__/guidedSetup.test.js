@@ -12,10 +12,7 @@ test("Guided Setup owns the approved four-step route instead of opening legacy s
     assert.match(mainPage, /import\s+\{\s*GuidedSetup\s*\}/);
     assert.match(mainPage, /currentExperienceRoute\.data === "setup"/);
     assert.match(mainPage, /<GuidedSetup\s*\/>/);
-    assert.match(
-        navigation,
-        /if \(item\.id === "setup"\) \{[\s\S]*?setIsOpenedConfigPage\(false\);[\s\S]*?return;/,
-    );
+    assert.doesNotMatch(navigation, /if \(item\.id === "setup"\)/);
     assert.match(setup, /const SETUP_STEPS = \[/);
     assert.match(setup, /step === 4/);
     assert.match(setup, /<TopBar\s*\/>/);

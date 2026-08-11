@@ -23,7 +23,6 @@ test("the approved shell exposes every top-level destination through one route a
 
     for (const route of [
         "live",
-        "setup",
         "engines",
         "models",
         "overlay",
@@ -33,6 +32,8 @@ test("the approved shell exposes every top-level destination through one route a
     ]) {
         assert.match(navigation, new RegExp(`id:\\s*"${route}"`));
     }
+    assert.doesNotMatch(navigation, /id:\s*"setup"/);
+    assert.doesNotMatch(navigation, /item\.id === "setup"/);
 });
 
 test("runtime state starts without prototype telemetry, languages, or conversation messages", () => {

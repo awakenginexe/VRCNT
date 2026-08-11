@@ -14,7 +14,6 @@ import styles from "./LiveWeaveNavigation.module.scss";
 
 const NAVIGATION_ITEMS = [
     { id: "live", icon: "⚡", labelKey: "main_page.live_weave.navigation.live" },
-    { id: "setup", icon: "🪄", labelKey: "main_page.live_weave.navigation.setup" },
     { id: "engines", icon: "⚙", labelKey: "main_page.live_weave.navigation.engines", configTab: "model_and_provider" },
     { id: "models", icon: "🧠", labelKey: "main_page.live_weave.navigation.models", configTab: "model_and_provider" },
     { id: "translation_models", icon: "🌐", labelKey: "main_page.live_weave.navigation.translation_models" },
@@ -41,11 +40,6 @@ export const LiveWeaveNavigation = () => {
     const openItem = (item) => {
         updateExperienceRoute(item.id);
         if (item.id === "live") {
-            setIsOpenedConfigPage(false);
-            return;
-        }
-
-        if (item.id === "setup") {
             setIsOpenedConfigPage(false);
             return;
         }
