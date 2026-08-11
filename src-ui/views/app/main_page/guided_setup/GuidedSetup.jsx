@@ -11,6 +11,7 @@ import {
 import { CustomModernSelect } from "@common_components";
 import { useStore_ExperienceRoute } from "@store";
 import { TopBar } from "../main_section/top_bar/TopBar";
+import { TranscriptionTranslationStep } from "./TranscriptionTranslationStep.jsx";
 import styles from "./GuidedSetup.module.scss";
 
 const SETUP_STEPS = [
@@ -401,6 +402,7 @@ export const GuidedSetup = () => {
                             <p className={styles.eyebrow}>{t("main_page.guided_setup.step_transcription_translation")}</p>
                             <h2>{t("main_page.guided_setup.transcription_translation_title")}</h2>
                             <p className={styles.lead}>{t("main_page.guided_setup.detail")}</p>
+                            <TranscriptionTranslationStep />
                         </div>
                     )}
 
