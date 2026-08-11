@@ -143,8 +143,10 @@
 }
 
 .session_health {
+    flex: 0 0 auto;
     min-width: 6.4rem;
     min-height: 2.65rem;
+    width: max-content;
     display: inline-flex;
     align-items: center;
     justify-content: center;

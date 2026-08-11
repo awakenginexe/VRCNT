@@ -59,6 +59,13 @@ test("the session health pill has centered text without a leading dot", () => {
     assert.match(styles, /\.session_health[\s\S]*text-align:\s*center/);
 });
 
+test("localized session health keeps its intrinsic pill width", () => {
+    const styles = readSource("../live_weave_navigation/LiveWeaveNavigation.module.scss");
+
+    assert.match(styles, /\.session_health\s*\{[^}]*?flex:\s*0\s+0\s+auto/);
+    assert.match(styles, /\.session_health\s*\{[^}]*?width:\s*max-content/);
+});
+
 test("localized navigation items keep their width inside the scroll rail", () => {
     const styles = readSource("../live_weave_navigation/LiveWeaveNavigation.module.scss");
 
