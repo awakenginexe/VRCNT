@@ -8,6 +8,7 @@ import * as setupUtils from "../../guided_setup/transcriptionTranslationSetupUti
 const {
     applyDefaultTranscriptionEngine,
     getOfflinePresetOptions,
+    getSelectedSetupOfflineModel,
     getSetupEngineOptions,
     getSetupTranslationProviderOptions,
 } = setupUtils;
@@ -55,14 +56,75 @@ test("default transcription engine helper aligns outgoing and incoming profiles"
     const send = [];
     const receive = [];
 
-    applyDefaultTranscriptionEngine(
+    const applied = applyDefaultTranscriptionEngine(
         "Whisper",
         (patch) => send.push(patch),
         (patch) => receive.push(patch),
     );
 
+    assert.equal(applied, true);
     assert.deepEqual(send, [{ engine: "Whisper" }]);
     assert.deepEqual(receive, [{ engine: "Whisper" }]);
+});
+
+test("default transcription engine helper blocks unauthenticated Whisper Cloud mutations", () => {
+    const send = [];
+    const receive = [];
+    const authPrompts = [];
+
+    const applied = applyDefaultTranscriptionEngine(
+        "Whisper Cloud",
+        (patch) => send.push(patch),
+        (patch) => receive.push(patch),
+        {
+            cloudConfigured: false,
+            onAuthRequired: () => authPrompts.push("auth-required"),
+        },
+    );
+
+    assert.equal(applied, false);
+    assert.deepEqual(send, []);
+    assert.deepEqual(receive, []);
+    assert.deepEqual(authPrompts, ["auth-required"]);
+});
+
+test("default transcription engine helper applies authenticated Whisper Cloud normally", () => {
+    const send = [];
+    const receive = [];
+
+    const applied = applyDefaultTranscriptionEngine(
+        "Whisper Cloud",
+        (patch) => send.push(patch),
+        (patch) => receive.push(patch),
+        { cloudConfigured: true },
+    );
+
+    assert.equal(applied, true);
+    assert.deepEqual(send, [{ engine: "Whisper Cloud" }]);
+    assert.deepEqual(receive, [{ engine: "Whisper Cloud" }]);
+});
+
+test("selected offline model helper keeps detailed non-preset CTranslate2 selections", () => {
+    assert.equal(typeof getSelectedSetupOfflineModel, "function");
+
+    const models = [
+        { id: "m2m100_418M-ct2-int8", display_name: "Fast preset" },
+        { id: "nllb-200-distilled-600M-ct2-int8", display_name: "Balanced preset" },
+        {
+            id: "opus-mt-ja-en-ct2-int8",
+            display_name: "OPUS Japanese English",
+            is_downloaded: false,
+            downloadable: true,
+        },
+    ];
+    const selected = getSelectedSetupOfflineModel({
+        selectedWeightType: "opus-mt-ja-en-ct2-int8",
+        models,
+    });
+
+    assert.equal(selected?.model?.id, "opus-mt-ja-en-ct2-int8");
+    assert.equal(selected?.preset, "");
+    assert.equal(selected?.downloadTargetModelId, "opus-mt-ja-en-ct2-int8");
 });
 
 test("advanced warning predicate only flags Whisper tiny profiles", () => {
@@ -183,8 +245,10 @@ test("Transcription and Translation setup step uses the existing runtime contrac
         "currentUseSplitGroqApiKey",
         "currentGroqWhisperAuthKey",
         "currentGroqAuthKey",
+        "defaultAuthRequired",
         "getPresetTranslationModels",
         "getTranslationModelStatus",
+        "getSelectedSetupOfflineModel",
     ]) {
         assert.match(step, new RegExp(symbol));
     }
@@ -200,6 +264,7 @@ test("Transcription and Translation setup step uses the existing runtime contrac
 
     assert.match(step, /TRANSLATION_MODEL_CHANGE_ACTIVE/);
     assert.match(step, /downloadCTranslate2WeightTypeStatus/);
+    assert.match(step, /downloadTargetModelId/);
     assert.match(step, /setSelectedCTranslate2WeightType/);
     assert.match(step, /setShowAdvanced/);
     assert.match(step, /showAdvanced\s*&&/);
@@ -212,6 +277,7 @@ test("Transcription and Translation setup step uses the existing runtime contrac
     assert.match(step, /cloudConfigured/);
     assert.match(step, /setAuthRequiredProfile/);
     assert.match(step, /availability_auth_required/);
+    assert.doesNotMatch(step, /isDownloaded:/);
     assert.match(step, /isWhisperTinyProfile\(profile\)/);
     assert.match(step, /setCTranslate2AutoFallback\(event\.target\.checked\)/);
     assert.match(step, /id="guided-setup-advanced-secondary-provider"/);

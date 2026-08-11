@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "@useI18n";
 import { useLanguageSettings } from "@logics_main";
 import { useAppearance, useDevice, useOnboarding, useOthers } from "@logics_configs";
@@ -8,11 +8,14 @@ import {
     useIsOpenedConfigPage,
     useNotificationStatus,
 } from "@logics_common";
+import { useStdoutToPython } from "@useStdoutToPython";
 import { CustomModernSelect } from "@common_components";
 import { useStore_ExperienceRoute } from "@store";
 import { TopBar } from "../main_section/top_bar/TopBar";
 import { TranscriptionTranslationStep } from "./TranscriptionTranslationStep.jsx";
 import styles from "./GuidedSetup.module.scss";
+
+const SETUP_COMPLETION_TIMEOUT_MS = 8000;
 
 const SETUP_STEPS = [
     { id: 1, labelKey: "main_page.guided_setup.step_app_language" },
@@ -140,12 +143,15 @@ const SetupToggle = ({ id, label, description, checked, disabled, onChange }) =>
 export const GuidedSetup = () => {
     const { t } = useI18n();
     const [step, setStep] = useState(1);
+    const [completionIntent, setCompletionIntent] = useState(null);
+    const [completionError, setCompletionError] = useState("");
     const { updateExperienceRoute } = useStore_ExperienceRoute();
     const { setIsOpenedConfigPage } = useIsOpenedConfigPage();
-    const { showNotification_Success } = useNotificationStatus();
+    const { showNotification_Success, showNotification_Error } = useNotificationStatus();
+    const { asyncStdoutToPython } = useStdoutToPython();
     const { currentIsOscAvailable } = useIsOscAvailable();
     const { currentUiLanguage, setUiLanguage } = useAppearance();
-    const { setSetupCompleted } = useOnboarding();
+    const { currentSetupCompleted } = useOnboarding();
     const {
         currentSelectableLanguageList,
         currentSelectedPresetTabNumber,
@@ -214,16 +220,57 @@ export const GuidedSetup = () => {
         }
         setSelectedTargetLanguages({ ...language, target_key: targetKey });
     };
-    const completeSetup = ({ showSuccessNotification = false } = {}) => {
-        setSetupCompleted(true);
-        if (showSuccessNotification) {
-            showNotification_Success(
-                t("main_page.guided_setup.complete_notification"),
-                { category_id: "guided_setup_complete" },
+    const isCompletingSetup = completionIntent !== null;
+
+    useEffect(() => {
+        if (!completionIntent) return;
+        if (currentSetupCompleted.data === true) {
+            if (completionIntent.showSuccessNotification) {
+                showNotification_Success(
+                    t("main_page.guided_setup.complete_notification"),
+                    { category_id: "guided_setup_complete" },
+                );
+            }
+            setCompletionIntent(null);
+            setCompletionError("");
+            setIsOpenedConfigPage(false);
+            updateExperienceRoute("live");
+        }
+    }, [
+        completionIntent,
+        currentSetupCompleted.data,
+        setIsOpenedConfigPage,
+        showNotification_Success,
+        t,
+        updateExperienceRoute,
+    ]);
+
+    useEffect(() => {
+        if (!completionIntent) return undefined;
+
+        const timeoutId = window.setTimeout(() => {
+            setCompletionIntent(null);
+            setCompletionError(t("main_page.guided_setup.setup_completion_error"));
+        }, SETUP_COMPLETION_TIMEOUT_MS);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [completionIntent, t]);
+
+    const completeSetup = async ({ showSuccessNotification = false } = {}) => {
+        if (isCompletingSetup) return;
+
+        setCompletionError("");
+        setCompletionIntent({ showSuccessNotification });
+        const transportResult = await asyncStdoutToPython("/set/data/setup_completed", true);
+
+        if (!transportResult.ok) {
+            setCompletionIntent(null);
+            setCompletionError(t("main_page.guided_setup.setup_completion_error"));
+            showNotification_Error(
+                t("blocking_operation.backend_unavailable"),
+                { category_id: "guided_setup_completion_failed" },
             );
         }
-        setIsOpenedConfigPage(false);
-        updateExperienceRoute("live");
     };
     const finishSetup = () => completeSetup({ showSuccessNotification: true });
     const skipSetup = () => completeSetup();
@@ -441,11 +488,17 @@ export const GuidedSetup = () => {
                         </div>
                     )}
 
+                    {completionError && (
+                        <p className={styles.completion_error} role="alert">
+                            {completionError}
+                        </p>
+                    )}
+
                     <footer className={styles.footer}>
                         <button
                             type="button"
                             className={styles.secondary_button}
-                            disabled={step === 1}
+                            disabled={step === 1 || isCompletingSetup}
                             onClick={() => setStep((current) => Math.max(1, current - 1))}
                         >
                             {t("main_page.guided_setup.back")}
@@ -454,18 +507,25 @@ export const GuidedSetup = () => {
                             <button
                                 type="button"
                                 className={styles.secondary_button}
+                                disabled={isCompletingSetup}
                                 onClick={skipSetup}
                             >
                                 {t("main_page.guided_setup.skip")}
                             </button>
                             {step === 6 ? (
-                                <button type="button" className={styles.primary_button} onClick={finishSetup}>
+                                <button
+                                    type="button"
+                                    className={styles.primary_button}
+                                    disabled={isCompletingSetup}
+                                    onClick={finishSetup}
+                                >
                                     {t("main_page.guided_setup.finish")}
                                 </button>
                             ) : (
                                 <button
                                     type="button"
                                     className={styles.primary_button}
+                                    disabled={isCompletingSetup}
                                     onClick={() => setStep((current) => Math.min(SETUP_STEPS.length, current + 1))}
                                 >
                                     {t("main_page.guided_setup.continue")}

@@ -94,12 +94,38 @@ export const getAdvancedOfflineModelOptions = (statuses) => (
         }))
 );
 
+export const getSelectedSetupOfflineModel = ({ selectedWeightType, models }) => {
+    const allModels = toArray(models);
+    const presetEntry = getPresetTranslationModels(allModels)
+        .find((entry) => entry.model?.id === selectedWeightType);
+    const model = presetEntry?.model
+        ?? allModels.find((entry) => entry?.id === selectedWeightType)
+        ?? null;
+
+    return {
+        model,
+        preset: presetEntry?.preset ?? "",
+        downloadTargetModelId: model?.id ?? "",
+    };
+};
+
 export const applyDefaultTranscriptionEngine = (
     engine,
     setSendProfile,
     setReceiveProfile,
+    { cloudConfigured = true, onAuthRequired } = {},
 ) => {
+    const guardedPatch = getAdvancedProfilePatch({
+        patch: { engine },
+        cloudConfigured,
+    });
+    if (!guardedPatch) {
+        if (typeof onAuthRequired === "function") onAuthRequired();
+        return false;
+    }
+
     const patch = { engine };
     setSendProfile(patch);
     setReceiveProfile(patch);
+    return true;
 };

@@ -10,6 +10,16 @@ const readSource = (relativePath) => (
     fs.readFileSync(path.join(repoRoot, relativePath), "utf8")
 );
 
+const getPathValue = (source, dottedPath) => (
+    dottedPath.split(".").reduce((current, key) => current?.[key], source)
+);
+
+const getInterpolationNames = (value) => (
+    [...String(value).matchAll(/\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g)]
+        .map((match) => match[1])
+        .sort()
+);
+
 const translationStatusCopy = {
     "en.yml": {
         queued: "Waiting for {{engine}} · {{elapsed}}",
@@ -225,6 +235,10 @@ test("redesigned guided setup schema exists in every supported locale", () => {
         "skip",
     ];
     const approvedEnglish = {
+        step_language: "Language",
+        step_translation: "Translation",
+        step_transcription_translation: "Transcription and Translation",
+        step_vrchat: "VRChat",
         understanding_language: "Your understanding language",
         understanding_language_detail: "The language VRCNT translates incoming speech into for you.",
         skip: "Skip setup",
@@ -244,5 +258,59 @@ test("redesigned guided setup schema exists in every supported locale", () => {
     const english = yaml.load(readSource("locales/en.yml"))?.main_page?.guided_setup;
     for (const [key, value] of Object.entries(approvedEnglish)) {
         assert.equal(english?.[key], value, `en.yml: main_page.guided_setup.${key}`);
+    }
+});
+
+test("guided setup component locale keys exist with matching interpolation in all supported locales", () => {
+    const componentSources = [
+        readSource("src-ui/views/app/main_page/guided_setup/GuidedSetup.jsx"),
+        readSource("src-ui/views/app/main_page/guided_setup/TranscriptionTranslationStep.jsx"),
+    ].join("\n");
+    const staticKeys = new Set(
+        [...componentSources.matchAll(/\bt\(\s*"([^"]+)"/g)]
+            .map((match) => match[1])
+            .filter((key) => (
+                key.startsWith("main_page.guided_setup.")
+                || key.startsWith("main_page.engines_workspace.")
+                || key.startsWith("main_page.translation_models.")
+                || key.startsWith("main_page.preset.")
+                || key.startsWith("config_page.translation_models.")
+                || key.startsWith("config_page.model_download_error.")
+                || key.startsWith("config_page.common.model_download.")
+            )),
+    );
+    for (const key of [
+        "main_page.preset.fast",
+        "main_page.preset.balanced",
+        "main_page.preset.good",
+        "main_page.preset.precise",
+    ]) {
+        staticKeys.add(key);
+    }
+
+    const localeFiles = ["en.yml", "th.yml", "ja.yml", "ko.yml", "zh-Hans.yml", "zh-Hant.yml"];
+    const locales = Object.fromEntries(
+        localeFiles.map((localeFile) => [
+            localeFile,
+            yaml.load(readSource(`locales/${localeFile}`)),
+        ]),
+    );
+    const english = locales["en.yml"];
+
+    for (const key of [...staticKeys].sort()) {
+        const englishValue = getPathValue(english, key);
+        assert.equal(typeof englishValue, "string", `en.yml: ${key}`);
+        const expectedInterpolations = getInterpolationNames(englishValue);
+
+        for (const localeFile of localeFiles) {
+            const value = getPathValue(locales[localeFile], key);
+            assert.equal(typeof value, "string", `${localeFile}: ${key}`);
+            assert.notEqual(value.trim(), "", `${localeFile}: ${key}`);
+            assert.deepEqual(
+                getInterpolationNames(value),
+                expectedInterpolations,
+                `${localeFile}: ${key} interpolation parity`,
+            );
+        }
     }
 });

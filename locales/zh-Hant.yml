@@ -182,6 +182,7 @@ main_page:
         continue: "繼續"
         finish: "完成設定"
         complete_notification: "引導設定已完成。您的已儲存設定已可在 Live 頁面使用。"
+        setup_completion_error: "設定暫時無法儲存。請保持此畫面開啟，然後再次嘗試完成或略過。"
     engines_workspace:
         eyebrow: "音訊架構"
         title: "引擎與音訊"

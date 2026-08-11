@@ -182,6 +182,7 @@ main_page:
         continue: "続ける"
         finish: "セットアップを完了"
         complete_notification: "ガイド付きセットアップが完了しました。保存した設定は Live で利用できます。"
+        setup_completion_error: "セットアップをまだ保存できませんでした。この画面を開いたまま、完了またはスキップをもう一度お試しください。"
     engines_workspace:
         eyebrow: "オーディオ構成"
         title: "エンジンとオーディオ"

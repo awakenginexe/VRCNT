@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 
 const readSource = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
-test("Guided Setup owns the approved four-step route instead of opening legacy settings", () => {
+test("Guided Setup owns the approved six-step route instead of opening legacy settings", () => {
     const mainPage = readSource("../../MainPage.jsx");
     const navigation = readSource("../live_weave_navigation/LiveWeaveNavigation.jsx");
     const setup = readSource("../../guided_setup/GuidedSetup.jsx");
@@ -68,7 +68,7 @@ test("Guided Setup keeps audio and VRChat controls in their final steps and pers
 
     assert.match(setup, /step === 4/);
     assert.match(setup, /step === 6/);
-    assert.match(setup, /setSetupCompleted\(true\)/);
+    assert.match(setup, /"\/set\/data\/setup_completed"/);
     assert.match(setup, /const skipSetup = \(\) =>/);
     assert.match(setup, /main_page\.guided_setup\.skip/);
 
@@ -83,6 +83,21 @@ test("Guided Setup keeps audio and VRChat controls in their final steps and pers
     }
 });
 
+test("Guided Setup waits for durable setup completion acknowledgement before leaving setup", () => {
+    const setup = readSource("../../guided_setup/GuidedSetup.jsx");
+
+    assert.match(setup, /useStdoutToPython/);
+    assert.match(setup, /asyncStdoutToPython\(\s*"\/set\/data\/setup_completed"\s*,\s*true\s*\)/);
+    assert.match(setup, /completionIntent/);
+    assert.match(setup, /currentSetupCompleted\.data\s*===\s*true/);
+    assert.match(setup, /main_page\.guided_setup\.setup_completion_error/);
+    assert.doesNotMatch(
+        setup,
+        /setSetupCompleted\(true\);[\s\S]{0,300}updateExperienceRoute\("live"\)/,
+        "setup must not route Live immediately after the generated setter call",
+    );
+});
+
 test("Guided Setup stays usable in the minimum desktop workspace and remains localized", () => {
     const styles = readSource("../../guided_setup/GuidedSetup.module.scss");
     const english = readSource("../../../../../../locales/en.yml");
@@ -91,7 +106,14 @@ test("Guided Setup stays usable in the minimum desktop workspace and remains loc
     assert.match(styles, /@media \(max-height: 46rem\)/);
     assert.match(styles, /:focus-visible/);
     assert.match(english, /guided_setup:/);
-    for (const key of ["step_languages", "step_routing", "step_audio", "step_finish"]) {
+    for (const key of [
+        "step_app_language",
+        "step_language",
+        "step_translation",
+        "step_audio",
+        "step_transcription_translation",
+        "step_vrchat",
+    ]) {
         assert.match(english, new RegExp(`\\s${key}:`));
     }
 });

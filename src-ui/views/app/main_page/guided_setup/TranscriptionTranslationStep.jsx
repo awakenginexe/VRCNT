@@ -11,6 +11,7 @@ import {
     getAdvancedProfilePatch,
     getAdvancedOfflineModelOptions,
     getOfflinePresetOptions,
+    getSelectedSetupOfflineModel,
     getSetupEngineOptions,
     getSetupTranslationSelection,
     getSetupTranslationProviderOptions,
@@ -268,6 +269,7 @@ const AdvancedSetupDetails = ({
 export const TranscriptionTranslationStep = () => {
     const { t } = useI18n();
     const [showAdvanced, setShowAdvanced] = useState(false);
+    const [defaultAuthRequired, setDefaultAuthRequired] = useState(false);
     const { showNotification_Error } = useNotificationStatus();
     const {
         currentSelectedPresetTabNumber,
@@ -328,7 +330,6 @@ export const TranscriptionTranslationStep = () => {
                 title: t(PRESET_LABEL_KEYS[option.id]),
                 subtitle: statusLabel(t, status),
                 badge: status.ready ? t("config_page.translation_models.ready") : undefined,
-                isDownloaded: status.ready,
             };
         })
     ), [allModels, presetEntries, t]);
@@ -339,13 +340,14 @@ export const TranscriptionTranslationStep = () => {
         }))
     ), [allModels]);
     const selectedWeightType = currentSelectedCTranslate2WeightType?.data;
-    const selectedPreset = presetEntries.find((entry) => entry.model?.id === selectedWeightType)?.preset ?? "";
-    const selectedOfflineOption = offlineOptions.find((option) => option.id === selectedPreset)
-        ?? offlineOptions[0]
-        ?? null;
-    const selectedOfflineModel = presetEntries.find((entry) => (
-        entry.preset === selectedOfflineOption?.id
-    ))?.model;
+    const selectedSetupOfflineModel = getSelectedSetupOfflineModel({
+        selectedWeightType,
+        models: allModels,
+    });
+    const selectedPreset = selectedSetupOfflineModel.preset;
+    const selectedOfflineOption = offlineOptions.find((option) => option.id === selectedPreset) ?? null;
+    const selectedOfflineModel = selectedSetupOfflineModel.model;
+    const downloadTargetModelId = selectedSetupOfflineModel.downloadTargetModelId;
     const selectedOfflineStatus = getTranslationModelStatus(selectedOfflineModel);
     const translationActive = currentTranslationStatus?.data === true;
     const modelBusy = selectedOfflineStatus.state === "preparing" || selectedOfflineStatus.state === "downloading";
@@ -394,9 +396,9 @@ export const TranscriptionTranslationStep = () => {
     };
 
     const downloadSelectedModel = () => {
-        if (!selectedOfflineOption?.modelId || modelBusy || selectedOfflineStatus.ready) return;
-        pendingCTranslate2WeightTypeStatus(selectedOfflineOption.modelId);
-        downloadCTranslate2WeightTypeStatus(selectedOfflineOption.modelId);
+        if (!downloadTargetModelId || modelBusy || selectedOfflineStatus.ready) return;
+        pendingCTranslate2WeightTypeStatus(downloadTargetModelId);
+        downloadCTranslate2WeightTypeStatus(downloadTargetModelId);
     };
 
     const advancedProps = {
@@ -434,12 +436,24 @@ export const TranscriptionTranslationStep = () => {
                         options={engineOptions.length > 0 ? engineOptions : [{ id: "", title: emptyLabel }]}
                         disabled={currentTranscriptionProfileSend.state === "pending" || engineOptions.length === 0}
                         placeholder={emptyLabel}
-                        onChange={(engine) => applyDefaultTranscriptionEngine(
-                            engine,
-                            setTranscriptionProfileSend,
-                            setTranscriptionProfileReceive,
-                        )}
+                        onChange={(engine) => {
+                            const applied = applyDefaultTranscriptionEngine(
+                                engine,
+                                setTranscriptionProfileSend,
+                                setTranscriptionProfileReceive,
+                                {
+                                    cloudConfigured,
+                                    onAuthRequired: () => setDefaultAuthRequired(true),
+                                },
+                            );
+                            if (applied) setDefaultAuthRequired(false);
+                        }}
                     />
+                    {defaultAuthRequired && (
+                        <p className={styles.notice} role="status">
+                            {t("main_page.engines_workspace.availability_auth_required")}
+                        </p>
+                    )}
                     <span className={styles.field_description}>
                         {t("main_page.engines_workspace.outgoing_flow", { engine: engineValue || emptyLabel })}
                     </span>
@@ -480,7 +494,7 @@ export const TranscriptionTranslationStep = () => {
                             <button
                                 type="button"
                                 className={styles.inline_button}
-                                disabled={modelBusy || !selectedOfflineOption?.modelId}
+                                disabled={modelBusy || !downloadTargetModelId}
                                 onClick={downloadSelectedModel}
                             >
                                 {selectedOfflineStatus.failed

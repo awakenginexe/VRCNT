@@ -317,6 +317,17 @@
     color: var(--dark_100_color);
 }
 
+.completion_error {
+    margin: 0 clamp(1.25rem, 2.7vw, 2.35rem) 1rem;
+    border: 0.1rem solid color-mix(in srgb, var(--error_color) 45%, transparent);
+    border-radius: 0.8rem;
+    padding: 0.8rem 0.95rem;
+    color: var(--error_color);
+    background: color-mix(in srgb, var(--error_color) 10%, transparent);
+    font-size: 0.88rem;
+    font-weight: 700;
+}
+
 .footer {
     display: flex;
     justify-content: space-between;
