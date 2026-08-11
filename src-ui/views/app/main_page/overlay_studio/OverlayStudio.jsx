@@ -267,26 +267,85 @@ export const OverlayStudio = () => {
                 </header>
 
                 <div className={styles.studio_grid}>
-                    <section className={styles.desktop_card} aria-labelledby="desktop-overlay-heading">
-                        <header className={styles.card_header}>
-                            <div>
-                                <p className={styles.section_kicker}>{t("main_page.overlay_studio.desktop_kicker")}</p>
-                                <h2 id="desktop-overlay-heading">{t("main_page.overlay_studio.desktop_preview")}</h2>
-                                <p>{t("main_page.overlay_studio.desktop_detail")}</p>
+                    <div className={styles.preview_column}>
+                        <section className={styles.desktop_card} aria-labelledby="desktop-overlay-heading">
+                            <header className={styles.card_header}>
+                                <div>
+                                    <p className={styles.section_kicker}>{t("main_page.overlay_studio.desktop_kicker")}</p>
+                                    <h2 id="desktop-overlay-heading">{t("main_page.overlay_studio.desktop_preview")}</h2>
+                                    <p>{t("main_page.overlay_studio.desktop_detail")}</p>
+                                </div>
+                                <div className={styles.card_actions}>
+                                    <button type="button" className={styles.secondary_button} onClick={fitToContent}>
+                                        {t("main_page.overlay_studio.fit_to_content")}
+                                    </button>
+                                    <button type="button" className={styles.secondary_button} onClick={resetGeometry}>
+                                        {t("main_page.overlay_studio.reset_size")}
+                                    </button>
+                                </div>
+                            </header>
+                            <div className={styles.preview_canvas}>
+                                <DesktopOverlayPreview payload={payload} settings={desktopSettings} />
                             </div>
-                            <div className={styles.card_actions}>
-                                <button type="button" className={styles.secondary_button} onClick={fitToContent}>
-                                    {t("main_page.overlay_studio.fit_to_content")}
-                                </button>
-                                <button type="button" className={styles.secondary_button} onClick={resetGeometry}>
-                                    {t("main_page.overlay_studio.reset_size")}
-                                </button>
+                        </section>
+
+                        <section className={styles.vr_card} aria-labelledby="vr-overlay-heading">
+                            <div className={styles.vr_heading}>
+                                <div>
+                                    <p className={styles.section_kicker}>{t("main_page.overlay_studio.vr_kicker")}</p>
+                                    <h2 id="vr-overlay-heading">{t("main_page.overlay_studio.vr_preview")}</h2>
+                                </div>
+                                <label className={styles.switch_label}>
+                                    <span>{t("main_page.overlay_studio.vr_enabled")}</span>
+                                    <input type="checkbox" checked={activeVrEnabled} onChange={toggleActiveVrOverlay} />
+                                    <span aria-hidden="true" className={styles.toggle_visual} />
+                                </label>
                             </div>
-                        </header>
-                        <div className={styles.preview_canvas}>
-                            <DesktopOverlayPreview payload={payload} settings={desktopSettings} />
-                        </div>
-                    </section>
+                            <div
+                                className={styles.vr_canvas}
+                                style={{
+                                    "--vr-accent": overlayPalette.primary,
+                                    "--vr-accent-rgb": overlayVariables["--overlay_primary_color_rgb"],
+                                    "--vr-opacity": activeVrSettings.opacity ?? 1,
+                                    "--vr-message-text-scale": activeVrSettings.message_text_scale ?? 1,
+                                }}
+                            >
+                                <div className={styles.vr_frame} data-enabled={activeVrEnabled}>
+                                    <span>{activeVrSettings.tracker ?? "HMD"}</span>
+                                    <strong>{vrPreviewText || t("main_page.desktop_overlay.waiting")}</strong>
+                                    <small>{t("main_page.overlay_studio.vr_scale", { scale: Math.round((activeVrSettings.ui_scaling ?? 1) * 100) })}</small>
+                                </div>
+                            </div>
+                            <div className={styles.vr_controls}>
+                                <label className={styles.field}>
+                                    <span>{t("main_page.overlay_studio.vr_mode")}</span>
+                                    <select value={vrMode} onChange={(event) => setVrMode(event.target.value)}>
+                                        <option value="small">{t("main_page.overlay_studio.small_overlay")}</option>
+                                        <option value="large">{t("main_page.overlay_studio.large_overlay")}</option>
+                                    </select>
+                                </label>
+                                <label className={styles.field}>
+                                    <span>{t("main_page.overlay_studio.background")}</span>
+                                    <select
+                                        value={activeVrSettings.background_mode ?? "transparent_black"}
+                                        onChange={(event) => updateActiveVrSettings("background_mode", event.target.value)}
+                                    >
+                                        <option value="transparent_black">{t("main_page.overlay_studio.transparent")}</option>
+                                        <option value="solid_black">{t("main_page.overlay_studio.solid")}</option>
+                                    </select>
+                                </label>
+                                <RangeControl
+                                    label={t("main_page.overlay_studio.message_text_size")}
+                                    value={Math.round((activeVrSettings.message_text_scale ?? 1) * 100)}
+                                    min={40}
+                                    max={200}
+                                    step={10}
+                                    suffix="%"
+                                    onChange={(value) => updateActiveVrSettings("message_text_scale", value / 100)}
+                                />
+                            </div>
+                        </section>
+                    </div>
 
                     <div className={styles.control_grid}>
                         <section className={styles.geometry_card} aria-labelledby="geometry-heading">
@@ -358,63 +417,6 @@ export const OverlayStudio = () => {
                                 />
                                 <span aria-hidden="true" className={styles.toggle_visual} />
                             </label>
-                        </section>
-
-                        <section className={styles.vr_card} aria-labelledby="vr-overlay-heading">
-                            <div className={styles.vr_heading}>
-                                <div>
-                                    <p className={styles.section_kicker}>{t("main_page.overlay_studio.vr_kicker")}</p>
-                                    <h2 id="vr-overlay-heading">{t("main_page.overlay_studio.vr_preview")}</h2>
-                                </div>
-                                <label className={styles.switch_label}>
-                                    <span>{t("main_page.overlay_studio.vr_enabled")}</span>
-                                    <input type="checkbox" checked={activeVrEnabled} onChange={toggleActiveVrOverlay} />
-                                    <span aria-hidden="true" className={styles.toggle_visual} />
-                                </label>
-                            </div>
-                            <div
-                                className={styles.vr_canvas}
-                                style={{
-                                    "--vr-accent": overlayPalette.primary,
-                                    "--vr-accent-rgb": overlayVariables["--overlay_primary_color_rgb"],
-                                    "--vr-opacity": activeVrSettings.opacity ?? 1,
-                                    "--vr-message-text-scale": activeVrSettings.message_text_scale ?? 1,
-                                }}
-                            >
-                                <div className={styles.vr_frame} data-enabled={activeVrEnabled}>
-                                    <span>{activeVrSettings.tracker ?? "HMD"}</span>
-                                    <strong>{vrPreviewText || t("main_page.desktop_overlay.waiting")}</strong>
-                                    <small>{t("main_page.overlay_studio.vr_scale", { scale: Math.round((activeVrSettings.ui_scaling ?? 1) * 100) })}</small>
-                                </div>
-                            </div>
-                            <div className={styles.vr_controls}>
-                                <label className={styles.field}>
-                                    <span>{t("main_page.overlay_studio.vr_mode")}</span>
-                                    <select value={vrMode} onChange={(event) => setVrMode(event.target.value)}>
-                                        <option value="small">{t("main_page.overlay_studio.small_overlay")}</option>
-                                        <option value="large">{t("main_page.overlay_studio.large_overlay")}</option>
-                                    </select>
-                                </label>
-                                <label className={styles.field}>
-                                    <span>{t("main_page.overlay_studio.background")}</span>
-                                    <select
-                                        value={activeVrSettings.background_mode ?? "transparent_black"}
-                                        onChange={(event) => updateActiveVrSettings("background_mode", event.target.value)}
-                                    >
-                                        <option value="transparent_black">{t("main_page.overlay_studio.transparent")}</option>
-                                        <option value="solid_black">{t("main_page.overlay_studio.solid")}</option>
-                                    </select>
-                                </label>
-                                <RangeControl
-                                    label={t("main_page.overlay_studio.message_text_size")}
-                                    value={Math.round((activeVrSettings.message_text_scale ?? 1) * 100)}
-                                    min={40}
-                                    max={200}
-                                    step={10}
-                                    suffix="%"
-                                    onChange={(value) => updateActiveVrSettings("message_text_scale", value / 100)}
-                                />
-                            </div>
                         </section>
 
                         <section

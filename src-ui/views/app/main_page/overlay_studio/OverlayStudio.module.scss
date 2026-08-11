@@ -106,16 +106,21 @@
 .studio_grid {
     display: grid;
     grid-template-columns: minmax(0, 1.1fr) minmax(30rem, 0.9fr);
-    grid-template-areas:
-        "desktop geometry"
-        "vr colors";
     gap: clamp(1rem, 1.8vw, 1.5rem);
     margin-top: clamp(1rem, 1.8vw, 1.5rem);
 }
 
+.preview_column,
+.control_grid {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(1rem, 1.8vw, 1.5rem);
+    align-items: stretch;
+}
+
 .desktop_card {
     min-width: 0;
-    grid-area: desktop;
     padding: clamp(1.15rem, 1.8vw, 1.6rem);
 }
 
@@ -159,29 +164,11 @@
     overflow: hidden;
 }
 
-.control_grid {
-    min-width: 0;
-    display: contents;
-}
-
 .geometry_card,
 .vr_card,
 .overlay_colors_card {
     min-width: 0;
-    align-self: start;
     padding: 1.3rem;
-}
-
-.geometry_card {
-    grid-area: geometry;
-}
-
-.vr_card {
-    grid-area: vr;
-}
-
-.overlay_colors_card {
-    grid-area: colors;
 }
 
 .range_control {
@@ -410,11 +397,6 @@
 @media (max-width: 64rem) {
     .studio_grid {
         grid-template-columns: 1fr;
-        grid-template-areas:
-            "desktop"
-            "geometry"
-            "vr"
-            "colors";
     }
 }
 

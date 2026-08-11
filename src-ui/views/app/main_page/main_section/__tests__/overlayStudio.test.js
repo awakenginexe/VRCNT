@@ -46,30 +46,33 @@ test("Overlay Studio stays localized and usable in the minimum desktop workspace
     }
 });
 
-test("places Desktop and SteamVR previews left of the geometry settings", () => {
+test("keeps independent preview and settings stacks", () => {
     const studio = readSource("../../overlay_studio/OverlayStudio.jsx");
     const styles = readSource("../../overlay_studio/OverlayStudio.module.scss");
 
+    const previewColumnIndex = studio.indexOf("className={styles.preview_column}");
     const desktopIndex = studio.indexOf("className={styles.desktop_card}");
     const controlsIndex = studio.indexOf("className={styles.control_grid}");
     const geometryIndex = studio.indexOf("className={styles.geometry_card}");
     const vrIndex = studio.indexOf("className={styles.vr_card}");
     const colorsIndex = studio.indexOf("className={styles.overlay_colors_card}");
 
+    assert.ok(previewColumnIndex >= 0, "Preview column should group the visual overlay previews");
     assert.ok(desktopIndex >= 0, "Desktop preview card should remain in Overlay Studio");
-    assert.ok(controlsIndex > desktopIndex, "Settings column should follow the desktop preview");
+    assert.ok(vrIndex > desktopIndex && vrIndex < controlsIndex, "SteamVR preview should follow Desktop in the preview column");
     assert.ok(geometryIndex > controlsIndex, "Geometry controls should be inside the settings column");
-    assert.ok(vrIndex > geometryIndex, "VR preview should remain after geometry in the settings wrapper");
-    assert.ok(colorsIndex > vrIndex, "Overlay colors should follow the VR preview in the settings wrapper");
+    assert.ok(colorsIndex > geometryIndex, "Overlay colors should follow Geometry in the settings column");
+    assert.match(
+        studio,
+        /className=\{styles\.preview_column\}[\s\S]*className=\{styles\.desktop_card\}[\s\S]*className=\{styles\.vr_card\}/,
+    );
+    assert.match(
+        studio,
+        /className=\{styles\.control_grid\}[\s\S]*className=\{styles\.geometry_card\}[\s\S]*className=\{styles\.overlay_colors_card\}/,
+    );
     assert.match(styles, /\.studio_grid\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 1\.1fr\) minmax\(30rem, 0\.9fr\)/);
-    assert.match(styles, /grid-template-areas:\s*"desktop geometry"\s*"vr colors"/);
-    assert.match(styles, /\.control_grid\s*\{[\s\S]*display:\s*contents/);
-    assert.match(styles, /\.desktop_card\s*\{[\s\S]*grid-area:\s*desktop/);
-    assert.match(styles, /\.geometry_card\s*\{[\s\S]*grid-area:\s*geometry/);
-    assert.match(styles, /\.vr_card\s*\{[\s\S]*grid-area:\s*vr/);
-    assert.match(styles, /\.overlay_colors_card\s*\{[\s\S]*grid-area:\s*colors/);
-    assert.match(styles, /\.geometry_card,[\s\S]*\.vr_card,[\s\S]*\.overlay_colors_card\s*\{[\s\S]*align-self:\s*start/);
-    assert.match(styles, /@media \(max-width: 64rem\)[\s\S]*\.studio_grid\s*\{[\s\S]*grid-template-columns:\s*1fr[\s\S]*grid-template-areas:\s*"desktop"\s*"geometry"\s*"vr"\s*"colors"/);
+    assert.match(styles, /\.preview_column\s*,?\s*\.control_grid\s*\{[\s\S]*display:\s*flex[\s\S]*flex-direction:\s*column/);
+    assert.match(styles, /@media \(max-width: 64rem\)[\s\S]*\.studio_grid\s*\{[\s\S]*grid-template-columns:\s*1fr/);
 });
 
 test("overlay message text size is localized and independent from overall overlay scale", () => {
