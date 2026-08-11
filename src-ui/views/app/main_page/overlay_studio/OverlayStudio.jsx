@@ -415,6 +415,12 @@ export const OverlayStudio = () => {
                                     onChange={(value) => updateActiveVrSettings("message_text_scale", value / 100)}
                                 />
                             </div>
+                        </section>
+
+                        <section
+                            className={styles.overlay_colors_card}
+                            aria-label={t("main_page.overlay_studio.colors.editor_title")}
+                        >
                             <div className={styles.overlay_color_editor}>
                                 <ColorRoleEditor
                                     groups={overlayGroups}

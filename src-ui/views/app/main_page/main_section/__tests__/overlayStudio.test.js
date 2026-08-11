@@ -54,18 +54,21 @@ test("places Desktop and SteamVR previews left of the geometry settings", () => 
     const controlsIndex = studio.indexOf("className={styles.control_grid}");
     const geometryIndex = studio.indexOf("className={styles.geometry_card}");
     const vrIndex = studio.indexOf("className={styles.vr_card}");
+    const colorsIndex = studio.indexOf("className={styles.overlay_colors_card}");
 
     assert.ok(desktopIndex >= 0, "Desktop preview card should remain in Overlay Studio");
     assert.ok(controlsIndex > desktopIndex, "Settings column should follow the desktop preview");
     assert.ok(geometryIndex > controlsIndex, "Geometry controls should be inside the settings column");
-    assert.ok(vrIndex > geometryIndex, "VR preview should remain in the existing settings wrapper for shared state");
+    assert.ok(vrIndex > geometryIndex, "VR preview should remain after geometry in the settings wrapper");
+    assert.ok(colorsIndex > vrIndex, "Overlay colors should follow the VR preview in the settings wrapper");
     assert.match(styles, /\.studio_grid\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 1\.1fr\) minmax\(30rem, 0\.9fr\)/);
-    assert.match(styles, /grid-template-areas:\s*"desktop geometry"\s*"vr geometry"/);
+    assert.match(styles, /grid-template-areas:\s*"desktop geometry"\s*"vr colors"/);
     assert.match(styles, /\.control_grid\s*\{[\s\S]*display:\s*contents/);
     assert.match(styles, /\.desktop_card\s*\{[\s\S]*grid-area:\s*desktop/);
     assert.match(styles, /\.geometry_card\s*\{[\s\S]*grid-area:\s*geometry/);
     assert.match(styles, /\.vr_card\s*\{[\s\S]*grid-area:\s*vr/);
-    assert.match(styles, /@media \(max-width: 64rem\)[\s\S]*\.studio_grid\s*\{[\s\S]*grid-template-columns:\s*1fr[\s\S]*grid-template-areas:\s*"desktop"\s*"geometry"\s*"vr"/);
+    assert.match(styles, /\.overlay_colors_card\s*\{[\s\S]*grid-area:\s*colors/);
+    assert.match(styles, /@media \(max-width: 64rem\)[\s\S]*\.studio_grid\s*\{[\s\S]*grid-template-columns:\s*1fr[\s\S]*grid-template-areas:\s*"desktop"\s*"geometry"\s*"vr"\s*"colors"/);
 });
 
 test("overlay message text size is localized and independent from overall overlay scale", () => {

@@ -23,7 +23,8 @@
 .hero,
 .desktop_card,
 .geometry_card,
-.vr_card {
+.vr_card,
+.overlay_colors_card {
     border: 0.1rem solid rgba(255, 255, 255, 0.1);
     border-radius: 1rem;
     background: rgba(12, 10, 21, 0.84);
@@ -107,7 +108,7 @@
     grid-template-columns: minmax(0, 1.1fr) minmax(30rem, 0.9fr);
     grid-template-areas:
         "desktop geometry"
-        "vr geometry";
+        "vr colors";
     gap: clamp(1rem, 1.8vw, 1.5rem);
     margin-top: clamp(1rem, 1.8vw, 1.5rem);
 }
@@ -164,7 +165,8 @@
 }
 
 .geometry_card,
-.vr_card {
+.vr_card,
+.overlay_colors_card {
     min-width: 0;
     padding: 1.3rem;
 }
@@ -175,6 +177,10 @@
 
 .vr_card {
     grid-area: vr;
+}
+
+.overlay_colors_card {
+    grid-area: colors;
 }
 
 .range_control {
@@ -406,7 +412,8 @@
         grid-template-areas:
             "desktop"
             "geometry"
-            "vr";
+            "vr"
+            "colors";
     }
 }
 
@@ -430,7 +437,8 @@
 
     .desktop_card,
     .geometry_card,
-    .vr_card {
+    .vr_card,
+    .overlay_colors_card {
         padding: 0.9rem;
     }
 

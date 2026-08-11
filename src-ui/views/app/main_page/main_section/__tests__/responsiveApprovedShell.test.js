@@ -20,7 +20,8 @@ test("the compact overlay shell keeps SteamVR left of settings before the narrow
     assert.match(navigation, /@media \(max-width: 80rem\)/);
     assert.match(studio, /@media \(max-width: 80rem\)/);
     assert.match(studio, /\.studio_grid\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 1\.1fr\) minmax\(30rem, 0\.9fr\)/);
-    assert.match(studio, /grid-template-areas:\s*"desktop geometry"\s*"vr geometry"/);
+    assert.match(studio, /grid-template-areas:\s*"desktop geometry"\s*"vr colors"/);
     assert.match(studio, /\.control_grid\s*\{[\s\S]*display:\s*contents/);
-    assert.match(studio, /@media \(max-width: 64rem\)[\s\S]*?\.studio_grid\s*\{[\s\S]*?grid-template-columns:\s*1fr[\s\S]*?grid-template-areas:\s*"desktop"\s*"geometry"\s*"vr"/);
+    assert.match(studio, /\.overlay_colors_card\s*\{[\s\S]*grid-area:\s*colors/);
+    assert.match(studio, /@media \(max-width: 64rem\)[\s\S]*?\.studio_grid\s*\{[\s\S]*?grid-template-columns:\s*1fr[\s\S]*?grid-template-areas:\s*"desktop"\s*"geometry"\s*"vr"\s*"colors"/);
 });
