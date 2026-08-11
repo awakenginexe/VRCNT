@@ -32,16 +32,33 @@ export const isWhisperTinyProfile = (profile) => (
 export const getActiveProfileModelOptions = (profile, statusesByEngine) => {
     const engine = profile?.engine;
     const activeModel = getActiveModel(profile);
-    return toArray(statusesByEngine?.[engine])
+    const activeStatus = toArray(statusesByEngine?.[engine])
+        .find((item) => item?.id === activeModel);
+    const options = toArray(statusesByEngine?.[engine])
         .filter((item) => item?.id && (
             item.id === activeModel
             || item.is_downloaded === true
-            || item.is_available === true
+            || item.downloadable === true
         ))
         .map((item) => ({
             id: item.id,
             title: optionTitle(item),
         }));
+    if (!activeModel || options.some((item) => item.id === activeModel)) return options;
+    return [
+        { id: activeModel, title: optionTitle(activeStatus ?? { id: activeModel }) },
+        ...options,
+    ];
+};
+
+export const getAdvancedProfilePatch = ({ patch, cloudConfigured }) => {
+    if (
+        (patch?.engine === "Whisper Cloud" || patch?.models?.["Whisper Cloud"])
+        && cloudConfigured !== true
+    ) {
+        return null;
+    }
+    return patch;
 };
 
 export const normalizeSetupTranslationSelection = (selection) => {

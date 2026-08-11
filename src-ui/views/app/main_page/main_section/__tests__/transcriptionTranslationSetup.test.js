@@ -95,6 +95,68 @@ test("advanced model helper keeps the current model and downloaded engine models
     );
 });
 
+test("advanced model helper inserts the active model when backend statuses omit it", () => {
+    const { getActiveProfileModelOptions } = setupUtils;
+
+    assert.deepEqual(
+        getActiveProfileModelOptions(
+            { engine: "Whisper", models: { Whisper: "tiny" } },
+            {
+                Whisper: [
+                    { id: "base", label: "Base", is_downloaded: true },
+                    { id: "small", label: "Small", is_downloaded: false },
+                ],
+            },
+        ),
+        [
+            { id: "tiny", title: "tiny" },
+            { id: "base", title: "Base" },
+        ],
+    );
+});
+
+test("advanced model helper preserves downloadable transcription model choices", () => {
+    const { getActiveProfileModelOptions } = setupUtils;
+
+    assert.deepEqual(
+        getActiveProfileModelOptions(
+            { engine: "Parakeet", models: { Parakeet: "parakeet-installed" } },
+            {
+                Parakeet: [
+                    { id: "parakeet-tdt-0.6b-v2", label: "Parakeet TDT", downloadable: true },
+                    { id: "parakeet-rnnt-1.1b", label: "Parakeet RNNT", downloadable: false },
+                    { id: "parakeet-installed", label: "Parakeet Installed", is_downloaded: true },
+                ],
+            },
+        ),
+        [
+            { id: "parakeet-tdt-0.6b-v2", title: "Parakeet TDT" },
+            { id: "parakeet-installed", title: "Parakeet Installed" },
+        ],
+    );
+});
+
+test("advanced profile helper blocks unauthenticated Whisper Cloud mutations", () => {
+    const { getAdvancedProfilePatch } = setupUtils;
+    assert.equal(typeof getAdvancedProfilePatch, "function");
+
+    assert.equal(
+        getAdvancedProfilePatch({ patch: { engine: "Whisper Cloud" }, cloudConfigured: false }),
+        null,
+    );
+    assert.equal(
+        getAdvancedProfilePatch({
+            patch: { models: { "Whisper Cloud": "whisper-large-v3" } },
+            cloudConfigured: false,
+        }),
+        null,
+    );
+    assert.deepEqual(
+        getAdvancedProfilePatch({ patch: { engine: "Whisper Cloud" }, cloudConfigured: true }),
+        { engine: "Whisper Cloud" },
+    );
+});
+
 test("advanced provider helper caps parallel providers at two unique IDs", () => {
     const { getSetupTranslationSelection } = setupUtils;
     assert.equal(typeof getSetupTranslationSelection, "function");
@@ -118,6 +180,9 @@ test("Transcription and Translation setup step uses the existing runtime contrac
         "setTranscriptionProfileReceive",
         "currentTranslationEngines",
         "setSelectedTranslationEngines",
+        "currentUseSplitGroqApiKey",
+        "currentGroqWhisperAuthKey",
+        "currentGroqAuthKey",
         "getPresetTranslationModels",
         "getTranslationModelStatus",
     ]) {
@@ -143,6 +208,10 @@ test("Transcription and Translation setup step uses the existing runtime contrac
     assert.match(step, /engineId="guided-setup-advanced-incoming-engine"/);
     assert.match(step, /onProfileChange=\{setTranscriptionProfileSend\}/);
     assert.match(step, /onProfileChange=\{setTranscriptionProfileReceive\}/);
+    assert.match(step, /getAdvancedProfilePatch/);
+    assert.match(step, /cloudConfigured/);
+    assert.match(step, /setAuthRequiredProfile/);
+    assert.match(step, /availability_auth_required/);
     assert.match(step, /isWhisperTinyProfile\(profile\)/);
     assert.match(step, /setCTranslate2AutoFallback\(event\.target\.checked\)/);
     assert.match(step, /id="guided-setup-advanced-secondary-provider"/);

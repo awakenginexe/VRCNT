@@ -8,6 +8,7 @@ import { CustomModernSelect } from "@common_components";
 import {
     applyDefaultTranscriptionEngine,
     getActiveProfileModelOptions,
+    getAdvancedProfilePatch,
     getAdvancedOfflineModelOptions,
     getOfflinePresetOptions,
     getSetupEngineOptions,
@@ -65,6 +66,7 @@ const AdvancedSetupDetails = ({
     const [parallelEnabled, setParallelEnabled] = useState(
         normalizeSetupTranslationSelection(advancedProps.translationSelection).length > 1,
     );
+    const [authRequiredProfile, setAuthRequiredProfile] = useState(null);
     if (!showAdvanced) return null;
 
     const {
@@ -88,6 +90,7 @@ const AdvancedSetupDetails = ({
         offlineModel,
         offlineModelPending,
         selectAdvancedOfflineModel,
+        cloudConfigured,
     } = advancedProps;
     const selectedProviders = normalizeSetupTranslationSelection(translationSelection);
     const primaryProvider = selectedProviders[0] ?? "";
@@ -117,11 +120,26 @@ const AdvancedSetupDetails = ({
         profile,
         pending,
         onProfileChange,
+        authRequiredKey,
     }) => {
         const engine = profile?.engine ?? "";
         const visibility = getProfileControlVisibility(engine);
         const activeModel = getActiveModel(profile);
         const modelOptions = getActiveProfileModelOptions(profile, transcriptionModelStatuses);
+        const whisperCloudAuthRequired = engine === "Whisper Cloud" && !cloudConfigured;
+        const showWhisperCloudAuthRequired = whisperCloudAuthRequired
+            || authRequiredProfile === authRequiredKey;
+        const handleProfilePatch = (patch) => {
+            const guardedPatch = getAdvancedProfilePatch({ patch, cloudConfigured });
+            if (!guardedPatch) {
+                setAuthRequiredProfile(authRequiredKey);
+                return;
+            }
+            setAuthRequiredProfile((current) => (
+                current === authRequiredKey ? null : current
+            ));
+            if (guardedPatch) onProfileChange(guardedPatch);
+        };
         return (
             <section className={styles.advanced_card}>
                 <div className={styles.advanced_card_header}>
@@ -138,20 +156,25 @@ const AdvancedSetupDetails = ({
                         options={engineOptions.length > 0 ? engineOptions : [{ id: "", title: emptyLabel }]}
                         disabled={pending || engineOptions.length === 0}
                         placeholder={emptyLabel}
-                        onChange={(value) => onProfileChange({ engine: value })}
+                        onChange={(value) => handleProfilePatch({ engine: value })}
                     />
                     {visibility.model && (
                         <CustomModernSelect
                             id={modelId}
                             label={t("main_page.engines_workspace.model_label")}
                             value={activeModel}
-                            options={modelOptions.length > 0 ? modelOptions : [{ id: activeModel, title: activeModel || emptyLabel }]}
-                            disabled={pending || modelOptions.length === 0}
+                            options={modelOptions.length > 0 ? modelOptions : [{ id: "", title: emptyLabel }]}
+                            disabled={pending || modelOptions.length === 0 || whisperCloudAuthRequired}
                             placeholder={emptyLabel}
-                            onChange={(value) => onProfileChange({ models: { [engine]: value } })}
+                            onChange={(value) => handleProfilePatch({ models: { [engine]: value } })}
                         />
                     )}
                 </div>
+                {showWhisperCloudAuthRequired && (
+                    <p className={styles.notice} role="status">
+                        {t("main_page.engines_workspace.availability_auth_required")}
+                    </p>
+                )}
                 {isWhisperTinyProfile(profile) && (
                     <p className={styles.warning_notice} role="status">
                         {t("main_page.engines_workspace.whisper_tiny_warning")}
@@ -171,6 +194,7 @@ const AdvancedSetupDetails = ({
                 profile={transcriptionProfileSend}
                 pending={transcriptionPendingSend}
                 onProfileChange={setTranscriptionProfileSend}
+                authRequiredKey="outgoing"
             />
             <ProfileControls
                 engineId="guided-setup-advanced-incoming-engine"
@@ -180,6 +204,7 @@ const AdvancedSetupDetails = ({
                 profile={transcriptionProfileReceive}
                 pending={transcriptionPendingReceive}
                 onProfileChange={setTranscriptionProfileReceive}
+                authRequiredKey="incoming"
             />
 
             <section className={styles.advanced_card}>
@@ -263,6 +288,8 @@ export const TranscriptionTranslationStep = () => {
         currentVoskWeightTypeStatus,
         currentParakeetWeightTypeStatus,
         currentSenseVoiceWeightTypeStatus,
+        currentUseSplitGroqApiKey,
+        currentGroqWhisperAuthKey,
     } = useTranscription();
     const {
         currentCTranslate2WeightTypeStatus,
@@ -270,6 +297,7 @@ export const TranscriptionTranslationStep = () => {
         downloadCTranslate2WeightTypeStatus,
         currentSelectedCTranslate2WeightType,
         setSelectedCTranslate2WeightType,
+        currentGroqAuthKey,
     } = useTranslation();
     const { currentTranslationStatus } = useMainFunction();
 
@@ -323,6 +351,9 @@ export const TranscriptionTranslationStep = () => {
     const modelBusy = selectedOfflineStatus.state === "preparing" || selectedOfflineStatus.state === "downloading";
     const engineValue = currentTranscriptionProfileSend.data?.engine ?? "";
     const emptyLabel = t("main_page.engines_workspace.loading_options");
+    const cloudConfigured = currentUseSplitGroqApiKey.data === true
+        ? Boolean(currentGroqWhisperAuthKey.data)
+        : Boolean(currentGroqAuthKey.data);
     const transcriptionModelStatuses = {
         Whisper: currentWhisperWeightTypeStatus.data ?? [],
         "Whisper Thai": currentWhisperThaiWeightTypeStatus.data ?? [],
@@ -389,6 +420,7 @@ export const TranscriptionTranslationStep = () => {
         ctranslate2Fallback: currentCTranslate2AutoFallback.data,
         ctranslate2FallbackPending: currentCTranslate2AutoFallback.state === "pending",
         setCTranslate2AutoFallback,
+        cloudConfigured,
     };
 
     return (
