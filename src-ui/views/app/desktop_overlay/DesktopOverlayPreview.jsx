@@ -2,23 +2,26 @@ import clsx from "clsx";
 import { useI18n } from "@useI18n";
 import {
     DESKTOP_OVERLAY_MAX_MESSAGE_LOGS,
-    getDesktopOverlayAccent,
+    getOverlayCssVariables,
     normalizeDesktopOverlaySettings,
 } from "@logics_common";
 import styles from "./DesktopOverlayPreview.module.scss";
 
-export const createDesktopOverlayStyle = (settings) => {
+export const createDesktopOverlayStyle = (settings, overlayColorPalette) => {
     const normalized = normalizeDesktopOverlaySettings(settings);
-    const accent = getDesktopOverlayAccent(normalized.accentColor);
+    const overlayVariables = getOverlayCssVariables(
+        overlayColorPalette ?? normalized.overlayColorPalette,
+    );
 
     return {
+        ...overlayVariables,
         "--desktop-overlay-opacity": `${normalized.opacity / 100}`,
         "--desktop-overlay-scale": `${normalized.scale / 100}`,
         "--desktop-overlay-message-text-scale": `${normalized.messageTextScale / 100}`,
-        "--desktop-overlay-accent-color": accent.color,
-        "--desktop-overlay-accent-rgb": accent.rgb,
-        "--accent_color": accent.color,
-        "--accent_color_rgb": accent.rgb,
+        "--desktop-overlay-accent-color": overlayVariables["--overlay_primary_color"],
+        "--desktop-overlay-accent-rgb": overlayVariables["--overlay_primary_color_rgb"],
+        "--accent_color": overlayVariables["--overlay_primary_color"],
+        "--accent_color_rgb": overlayVariables["--overlay_primary_color_rgb"],
     };
 };
 
@@ -99,7 +102,7 @@ export const DesktopOverlayMessageStack = ({ payload, settings, className }) => 
     );
 };
 
-export const DesktopOverlayPreview = ({ payload, settings, className }) => {
+export const DesktopOverlayPreview = ({ payload, settings, overlayColorPalette, className }) => {
     const { t } = useI18n();
     const normalizedSettings = normalizeDesktopOverlaySettings(settings);
     const { width, height } = normalizedSettings.geometry;
@@ -108,7 +111,7 @@ export const DesktopOverlayPreview = ({ payload, settings, className }) => {
         <section
             className={clsx(styles.preview, className)}
             style={{
-                ...createDesktopOverlayStyle(normalizedSettings),
+                ...createDesktopOverlayStyle(normalizedSettings, overlayColorPalette ?? payload?.overlayColorPalette),
                 "--desktop-overlay-preview-width": `${width}px`,
                 "--desktop-overlay-preview-height": `${height}px`,
             }}

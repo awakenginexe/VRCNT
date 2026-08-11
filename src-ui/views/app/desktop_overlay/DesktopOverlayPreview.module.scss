@@ -6,15 +6,15 @@
     flex-direction: column;
     gap: 0.7rem;
     padding: 1rem;
-    border: 0.1rem solid rgba(var(--desktop-overlay-accent-rgb), 0.72);
+    border: 0.1rem solid rgba(var(--overlay_border_color_rgb), 0.72);
     border-radius: 0.9rem;
     background: color-mix(
         in srgb,
-        var(--surface_overlay_color) calc(var(--desktop-overlay-opacity) * 100%),
+        var(--overlay_background_color) calc(var(--desktop-overlay-opacity) * 100%),
         transparent
     );
-    box-shadow: 0 1.25rem 3rem rgba(0, 0, 0, 0.5), 0 0 1.8rem rgba(var(--desktop-overlay-accent-rgb), 0.16);
-    color: var(--dark_100_color);
+    box-shadow: 0 1.25rem 3rem rgba(0, 0, 0, 0.5), 0 0 1.8rem rgba(var(--overlay_primary_color_rgb), 0.16);
+    color: var(--overlay_text_color);
     overflow: hidden;
     transform: scale(min(var(--desktop-overlay-scale), 1.08));
     transform-origin: center;
@@ -25,14 +25,14 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    color: var(--desktop-overlay-accent-color);
+    color: var(--overlay_primary_color);
     font-size: 0.72rem;
     font-weight: 900;
     letter-spacing: 0.08em;
     text-transform: uppercase;
 
     span:last-child {
-        color: var(--dark_450_color);
+        color: var(--overlay_text_muted_color);
         font-weight: 750;
         letter-spacing: 0;
         text-transform: none;
@@ -54,18 +54,18 @@
     border: 0.1rem solid rgba(255, 255, 255, 0.08);
     border-radius: 99rem;
     background: rgba(255, 255, 255, 0.035);
-    color: var(--dark_450_color);
+    color: var(--overlay_text_muted_color);
     font-size: 0.72rem;
     font-weight: 800;
 
     &.is_active {
-        border-color: rgba(var(--desktop-overlay-accent-rgb), 0.45);
-        background: rgba(var(--desktop-overlay-accent-rgb), 0.12);
-        color: var(--desktop-overlay-accent-color);
+        border-color: rgba(var(--overlay_border_color_rgb), 0.45);
+        background: rgba(var(--overlay_primary_color_rgb), 0.12);
+        color: var(--overlay_primary_color);
 
         .status_dot {
-            background: var(--success_bc_color);
-            box-shadow: 0 0 0.6rem color-mix(in srgb, var(--success_bc_color) 65%, transparent);
+            background: var(--overlay_success_color);
+            box-shadow: 0 0 0.6rem color-mix(in srgb, var(--overlay_success_color) 65%, transparent);
         }
     }
 }
@@ -74,7 +74,7 @@
     width: 0.45rem;
     height: 0.45rem;
     border-radius: 99rem;
-    background: var(--dark_500_color);
+    background: var(--overlay_border_color);
 }
 
 .log_stack {
@@ -91,18 +91,20 @@
     width: fit-content;
     max-width: 92%;
     padding: 0.65rem 0.75rem;
-    border: 0.1rem solid rgba(var(--desktop-overlay-accent-rgb), 0.22);
+    border: 0.1rem solid rgba(var(--overlay_border_color_rgb), 0.22);
     border-radius: 0.7rem;
     background: rgba(255, 255, 255, 0.045);
 
     &.sent {
         align-self: flex-end;
-        border-color: rgba(var(--desktop-overlay-accent-rgb), 0.42);
-        background: color-mix(in srgb, var(--desktop-overlay-accent-color) 10%, var(--surface_2_color));
+        border-color: rgba(var(--overlay_sent_color_rgb), 0.42);
+        background: color-mix(in srgb, var(--overlay_sent_color) 10%, var(--overlay_panel_color));
     }
 
     &.received {
         align-self: flex-start;
+        border-color: rgba(var(--overlay_received_color_rgb), 0.3);
+        background: color-mix(in srgb, var(--overlay_received_color) 7%, var(--overlay_panel_color));
     }
 }
 
@@ -111,10 +113,34 @@
     justify-content: space-between;
     gap: 0.75rem;
     margin-bottom: 0.3rem;
-    color: var(--desktop-overlay-accent-color);
+    color: var(--overlay_primary_color);
     font-size: 0.68rem;
     font-weight: 850;
     text-transform: uppercase;
+}
+
+.message_card.sent .message_meta {
+    color: var(--overlay_sent_color);
+}
+
+.message_card.received .message_meta {
+    color: var(--overlay_received_color);
+}
+
+.message_card.translation .message_meta {
+    color: var(--overlay_translation_color);
+}
+
+.message_card.sent .translated_message {
+    color: var(--overlay_sent_color);
+}
+
+.message_card.received .translated_message {
+    color: var(--overlay_received_color);
+}
+
+.message_card.translation .translated_message {
+    color: var(--overlay_translation_color);
 }
 
 .original_message,
@@ -126,26 +152,26 @@
 }
 
 .original_message {
-    color: var(--dark_300_color);
+    color: var(--overlay_text_muted_color);
     font-size: calc(0.85rem * var(--desktop-overlay-message-text-scale));
     line-height: 1.35;
 }
 
 .translated_message {
     margin-top: 0.25rem;
-    color: var(--dark_100_color);
+    color: var(--overlay_text_color);
     font-size: calc(1rem * var(--desktop-overlay-message-text-scale));
     font-weight: 800;
     line-height: 1.35;
 }
 
 .no_translation {
-    color: var(--dark_450_color);
+    color: var(--overlay_text_muted_color);
     font-size: calc(0.8rem * var(--desktop-overlay-message-text-scale));
 }
 
 .empty_state {
-    color: var(--dark_450_color);
+    color: var(--overlay_text_muted_color);
     font-size: 0.8rem;
 }
 
@@ -155,7 +181,7 @@
     flex: 1;
     align-items: center;
     justify-content: center;
-    border: 0.1rem dashed rgba(var(--desktop-overlay-accent-rgb), 0.2);
+    border: 0.1rem dashed rgba(var(--overlay_border_color_rgb), 0.2);
     border-radius: 0.7rem;
     background: rgba(255, 255, 255, 0.025);
     text-align: center;

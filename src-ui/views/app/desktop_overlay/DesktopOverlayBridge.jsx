@@ -10,14 +10,18 @@ import {
     useStore_TranscriptionSendStatus,
     useStore_TranscriptionReceiveStatus,
 } from "@store";
-import { useAppearance } from "@logics_configs";
+import { useAppearance, useVr } from "@logics_configs";
 
 export const DesktopOverlayBridge = () => {
     const { currentMessageLogs } = useStore_MessageLogs();
     const { currentTranslationStatus } = useStore_TranslationStatus();
     const { currentTranscriptionSendStatus } = useStore_TranscriptionSendStatus();
     const { currentTranscriptionReceiveStatus } = useStore_TranscriptionReceiveStatus();
-    const { currentUiLanguage, currentSelectedFontFamily } = useAppearance();
+    const {
+        currentUiLanguage,
+        currentSelectedFontFamily,
+    } = useAppearance();
+    const { currentOverlayColorPalette } = useVr();
 
     useEffect(() => {
         const payload = createDesktopOverlayPayload({
@@ -27,6 +31,7 @@ export const DesktopOverlayBridge = () => {
             listeningEnabled: currentTranscriptionReceiveStatus.data === true,
             uiLanguage: currentUiLanguage.data,
             fontFamily: currentSelectedFontFamily.data,
+            overlayColorPalette: currentOverlayColorPalette.data,
         });
 
         try {
@@ -44,6 +49,7 @@ export const DesktopOverlayBridge = () => {
         currentTranscriptionReceiveStatus.data,
         currentUiLanguage.data,
         currentSelectedFontFamily.data,
+        currentOverlayColorPalette.data,
     ]);
 
     return null;

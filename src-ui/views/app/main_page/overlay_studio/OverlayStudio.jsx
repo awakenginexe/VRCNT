@@ -1,16 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@useI18n";
 import { useAppearance, useVr } from "@logics_configs";
+import { ColorRoleEditor } from "@common_components";
 import {
     applyDesktopOverlayGeometry,
     createDesktopOverlayPayload,
-    DESKTOP_OVERLAY_ACCENTS,
     DESKTOP_OVERLAY_DEFAULT_SETTINGS,
     DESKTOP_OVERLAY_MAX_MESSAGE_LOGS,
     DESKTOP_OVERLAY_SETTINGS_CHANNEL,
+    DEFAULT_OVERLAY_COLOR_PALETTE,
     estimateDesktopOverlayFitHeight,
-    getDesktopOverlayAccent,
+    getContrastRatio,
+    getOverlayCssVariables,
     normalizeDesktopOverlaySettings,
+    normalizeColorPalette,
+    OVERLAY_COLOR_ROLE_GROUPS,
     openDesktopOverlayWindow,
     readDesktopOverlaySettings,
     sendDesktopOverlayControl,
@@ -26,6 +30,31 @@ import { ui_configs } from "@ui_configs";
 import { TopBar } from "../main_section/top_bar/TopBar";
 import { DesktopOverlayPreview } from "../../desktop_overlay/DesktopOverlayPreview";
 import styles from "./OverlayStudio.module.scss";
+
+const overlayRoleLabelKeys = {
+    primary: "primary",
+    secondary: "secondary",
+    border: "border",
+    background: "background",
+    panel: "panel",
+    text: "text",
+    textMuted: "text_muted",
+    sent: "sent",
+    received: "received",
+    translation: "translation",
+    success: "success",
+    warning: "warning",
+    error: "error",
+    info: "info",
+};
+
+const overlayGroupLabelKeys = {
+    brand: "brand",
+    surfaces: "surfaces",
+    content: "content",
+    messages: "messages",
+    status: "status",
+};
 
 const vrSettingsFor = (mode, smallSettings, largeSettings) => (
     mode === "large" ? largeSettings : smallSettings
@@ -51,6 +80,9 @@ export const OverlayStudio = () => {
         currentOverlayLargeLogSettings,
         setOverlayLargeLogSettings,
         currentOverlayShowOnlyTranslatedMessages,
+        currentOverlayColorPalette,
+        updateOverlayColorPalette,
+        setOverlayColorPalette,
     } = useVr();
     const { currentMessageLogs } = useStore_MessageLogs();
     const { currentTranslationStatus } = useStore_TranslationStatus();
@@ -59,6 +91,7 @@ export const OverlayStudio = () => {
     const [desktopSettings, setDesktopSettings] = useState(readDesktopOverlaySettings);
     const [vrMode, setVrMode] = useState("small");
     const [feedback, setFeedback] = useState("");
+    const overlayPersistTimer = useRef(null);
 
     const smallSettings = currentOverlaySmallLogSettings.data ?? ui_configs.overlay_small_log_default_settings;
     const largeSettings = currentOverlayLargeLogSettings.data ?? ui_configs.overlay_large_log_default_settings;
@@ -66,9 +99,24 @@ export const OverlayStudio = () => {
     const activeVrEnabled = vrMode === "large"
         ? currentIsEnabledOverlayLargeLog.data === true
         : currentIsEnabledOverlaySmallLog.data === true;
-    const activeAccent = getDesktopOverlayAccent(
-        activeVrSettings.accent_color ?? desktopSettings.accentColor,
+    const overlayPalette = useMemo(
+        () => normalizeColorPalette(currentOverlayColorPalette.data, DEFAULT_OVERLAY_COLOR_PALETTE),
+        [currentOverlayColorPalette.data],
     );
+    const overlayVariables = useMemo(
+        () => getOverlayCssVariables(overlayPalette),
+        [overlayPalette],
+    );
+    const overlayGroups = useMemo(() => OVERLAY_COLOR_ROLE_GROUPS.map((group) => ({
+        id: group.id,
+        label: t(`main_page.overlay_studio.colors.groups.${overlayGroupLabelKeys[group.id]}`),
+        description: t(`main_page.overlay_studio.colors.group_descriptions.${overlayGroupLabelKeys[group.id]}`),
+        roles: group.roles.map((roleId) => ({
+            id: roleId,
+            label: t(`main_page.overlay_studio.colors.roles.${overlayRoleLabelKeys[roleId]}`),
+            description: t(`main_page.overlay_studio.colors.role_descriptions.${overlayRoleLabelKeys[roleId]}`),
+        })),
+    })), [t]);
     const payload = useMemo(() => createDesktopOverlayPayload({
         messageLogs: currentMessageLogs.data,
         translationEnabled: currentTranslationStatus.data === true,
@@ -76,6 +124,7 @@ export const OverlayStudio = () => {
         listeningEnabled: currentTranscriptionReceiveStatus.data === true,
         uiLanguage: currentUiLanguage.data,
         fontFamily: currentSelectedFontFamily.data,
+        overlayColorPalette: overlayPalette,
     }), [
         currentMessageLogs.data,
         currentTranslationStatus.data,
@@ -83,7 +132,12 @@ export const OverlayStudio = () => {
         currentTranscriptionReceiveStatus.data,
         currentUiLanguage.data,
         currentSelectedFontFamily.data,
+        overlayPalette,
     ]);
+
+    useEffect(() => () => {
+        if (overlayPersistTimer.current) clearTimeout(overlayPersistTimer.current);
+    }, []);
     const vrPreviewText = lastVisibleText(
         currentMessageLogs.data ?? [],
         currentOverlayShowOnlyTranslatedMessages.data === true,
@@ -159,13 +213,31 @@ export const OverlayStudio = () => {
         setFeedback(t("main_page.overlay_studio.geometry_reset"));
     };
 
-    const updateAccent = (accentColor) => {
-        const nextSmallSettings = { ...smallSettings, accent_color: accentColor };
-        const nextLargeSettings = { ...largeSettings, accent_color: accentColor };
-        setOverlaySmallLogSettings(nextSmallSettings);
-        setOverlayLargeLogSettings(nextLargeSettings);
-        updateDesktopSettings((current) => ({ ...current, accentColor }));
-        setFeedback(t("main_page.overlay_studio.accent_synced"));
+    const persistOverlayPalette = (nextPalette) => {
+        updateOverlayColorPalette(nextPalette);
+        setFeedback(t("main_page.overlay_studio.colors.saving"));
+        if (overlayPersistTimer.current) clearTimeout(overlayPersistTimer.current);
+        overlayPersistTimer.current = setTimeout(() => {
+            setOverlayColorPalette(nextPalette);
+            setFeedback(t("main_page.overlay_studio.colors.saved"));
+            overlayPersistTimer.current = null;
+        }, 180);
+    };
+
+    const updateOverlayRole = (roleId, value) => {
+        persistOverlayPalette(normalizeColorPalette(
+            { ...overlayPalette, [roleId]: value },
+            DEFAULT_OVERLAY_COLOR_PALETTE,
+        ));
+    };
+
+    const resetOverlayRole = (roleId) => updateOverlayRole(roleId, DEFAULT_OVERLAY_COLOR_PALETTE[roleId]);
+    const resetOverlayPalette = () => persistOverlayPalette({ ...DEFAULT_OVERLAY_COLOR_PALETTE });
+    const getOverlayContrastWarning = (roleId, value) => {
+        if (!roleId.startsWith("text")) return null;
+        return getContrastRatio(value, overlayPalette.background) < 4.5
+            ? t("main_page.overlay_studio.colors.contrast_warning")
+            : null;
     };
 
     const updateActiveVrSettings = (key, value) => {
@@ -303,8 +375,8 @@ export const OverlayStudio = () => {
                             <div
                                 className={styles.vr_canvas}
                                 style={{
-                                    "--vr-accent": activeAccent.color,
-                                    "--vr-accent-rgb": activeAccent.rgb,
+                                    "--vr-accent": overlayPalette.primary,
+                                    "--vr-accent-rgb": overlayVariables["--overlay_primary_color_rgb"],
                                     "--vr-opacity": activeVrSettings.opacity ?? 1,
                                     "--vr-message-text-scale": activeVrSettings.message_text_scale ?? 1,
                                 }}
@@ -343,18 +415,29 @@ export const OverlayStudio = () => {
                                     onChange={(value) => updateActiveVrSettings("message_text_scale", value / 100)}
                                 />
                             </div>
-                            <label className={styles.field}>
-                                <span>{t("main_page.overlay_studio.accent_color")}</span>
-                                <select
-                                    value={activeAccent.id}
-                                    onChange={(event) => updateAccent(event.target.value)}
-                                >
-                                    {DESKTOP_OVERLAY_ACCENTS.map((accent) => (
-                                        <option key={accent.id} value={accent.id}>{accent.label}</option>
-                                    ))}
-                                </select>
-                            </label>
-                            <p className={styles.sync_note}>{t("main_page.overlay_studio.accent_sync_detail")}</p>
+                            <div className={styles.overlay_color_editor}>
+                                <ColorRoleEditor
+                                    groups={overlayGroups}
+                                    palette={overlayPalette}
+                                    onChangeRole={updateOverlayRole}
+                                    onResetRole={resetOverlayRole}
+                                    onResetAll={resetOverlayPalette}
+                                    resetLabel={t("main_page.overlay_studio.colors.reset_all")}
+                                    getContrastWarning={getOverlayContrastWarning}
+                                    labels={{
+                                        kicker: t("main_page.overlay_studio.colors.editor_kicker"),
+                                        title: t("main_page.overlay_studio.colors.editor_title"),
+                                        description: t("main_page.overlay_studio.colors.editor_description"),
+                                        reset: t("main_page.overlay_studio.colors.reset_role"),
+                                        hue: t("config_page.appearance.colors.picker_hue"),
+                                        saturation: t("config_page.appearance.colors.picker_saturation"),
+                                        brightness: t("config_page.appearance.colors.picker_brightness"),
+                                        hex: t("config_page.appearance.colors.picker_hex"),
+                                        invalid: t("config_page.appearance.colors.picker_invalid"),
+                                    }}
+                                />
+                            </div>
+                            <p className={styles.sync_note}>{t("main_page.overlay_studio.colors.sync_detail")}</p>
                         </section>
                     </aside>
                 </div>

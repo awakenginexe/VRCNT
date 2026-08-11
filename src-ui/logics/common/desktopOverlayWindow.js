@@ -1,4 +1,8 @@
 import { isTauriRuntime } from "./tauriRuntime.js";
+import {
+    DEFAULT_OVERLAY_COLOR_PALETTE,
+    normalizeColorPalette,
+} from "./colorPalette.js";
 
 export const DESKTOP_OVERLAY_WINDOW_LABEL = "desktop-overlay";
 export const DESKTOP_OVERLAY_CHANNEL = "vrcnt-desktop-overlay";
@@ -175,6 +179,7 @@ export const createDesktopOverlayPayload = ({
     listeningEnabled = false,
     uiLanguage = "en",
     fontFamily = "VRCNT Noto",
+    overlayColorPalette = DEFAULT_OVERLAY_COLOR_PALETTE,
 } = {}) => normalizeDesktopOverlayPayload({
     messageLogs,
     statuses: {
@@ -184,6 +189,7 @@ export const createDesktopOverlayPayload = ({
     },
     uiLanguage,
     fontFamily,
+    overlayColorPalette,
     updatedAt: Date.now(),
 });
 
@@ -194,6 +200,12 @@ export const normalizeDesktopOverlayPayload = (candidate = {}) => {
         normalized.messageLogs = payload.messageLogs.slice(-DESKTOP_OVERLAY_MAX_MESSAGE_LOGS);
     } else if (Object.prototype.hasOwnProperty.call(payload, "messageLogs")) {
         normalized.messageLogs = [];
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, "overlayColorPalette")) {
+        normalized.overlayColorPalette = normalizeColorPalette(
+            payload.overlayColorPalette,
+            DEFAULT_OVERLAY_COLOR_PALETTE,
+        );
     }
     return normalized;
 };
@@ -210,6 +222,8 @@ export const getDesktopOverlayPayloadSignature = (payload = {}) => {
         },
         uiLanguage: normalized.uiLanguage ?? "",
         fontFamily: normalized.fontFamily ?? "",
+        overlayColorPalette: normalized.overlayColorPalette
+            ?? DEFAULT_OVERLAY_COLOR_PALETTE,
     });
 };
 

@@ -23,11 +23,11 @@
     flex-direction: column;
     gap: 1rem;
     padding: 1.2rem;
-    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.22);
+    border: 0.1rem solid rgba(var(--overlay_border_color_rgb), 0.22);
     border-radius: 1.6rem;
     background: color-mix(
         in srgb,
-        var(--surface_overlay_color) calc(var(--desktop-overlay-opacity) * 100%),
+        var(--overlay_background_color) calc(var(--desktop-overlay-opacity) * 100%),
         transparent
     );
     backdrop-filter: var(--panel_blur);
@@ -54,7 +54,7 @@
 
 .eyebrow {
     margin: 0;
-    color: var(--primary_150_color);
+    color: var(--overlay_primary_color);
     font-size: 0.9rem;
     line-height: 1;
     font-weight: 900;
@@ -64,7 +64,7 @@
 
 .title {
     margin: 0;
-    color: var(--dark_100_color);
+    color: var(--overlay_text_color);
     font-size: 1.55rem;
     line-height: 1.1;
     font-weight: 900;
@@ -83,18 +83,18 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.14);
+    border: 0.1rem solid rgba(var(--overlay_border_color_rgb), 0.14);
     border-radius: 0.85rem;
-    background: var(--surface_control_color);
-    color: var(--dark_350_color);
+    background: var(--overlay_panel_color);
+    color: var(--overlay_text_muted_color);
     cursor: pointer;
 
     &:hover,
     &.is_active {
-        border-color: rgba(var(--accent_color_rgb), 0.42);
-        background: rgba(var(--accent_color_rgb), 0.12);
-        color: var(--primary_150_color);
-        box-shadow: 0 0 1.4rem rgba(var(--accent_color_rgb), 0.18);
+        border-color: rgba(var(--overlay_border_color_rgb), 0.42);
+        background: rgba(var(--overlay_primary_color_rgb), 0.12);
+        color: var(--overlay_primary_color);
+        box-shadow: 0 0 1.4rem rgba(var(--overlay_primary_color_rgb), 0.18);
     }
 }
 
@@ -117,19 +117,19 @@
     padding: 0 0.75rem;
     border: 0.1rem solid rgba(255, 255, 255, 0.08);
     border-radius: 99rem;
-    background: var(--surface_2_color);
-    color: var(--dark_400_color);
+    background: var(--overlay_panel_color);
+    color: var(--overlay_text_muted_color);
     font-size: 0.95rem;
     font-weight: 850;
 
     &.is_active {
-        border-color: rgba(var(--accent_color_rgb), 0.35);
-        color: var(--primary_150_color);
-        background: rgba(var(--accent_color_rgb), 0.1);
+        border-color: rgba(var(--overlay_border_color_rgb), 0.35);
+        color: var(--overlay_primary_color);
+        background: rgba(var(--overlay_primary_color_rgb), 0.1);
 
         .status_dot {
-            background: var(--success_bc_color);
-            box-shadow: 0 0 0.8rem color-mix(in srgb, var(--success_bc_color) 56%, transparent);
+            background: var(--overlay_success_color);
+            box-shadow: 0 0 0.8rem color-mix(in srgb, var(--overlay_success_color) 56%, transparent);
         }
     }
 }
@@ -138,7 +138,7 @@
     width: 0.55rem;
     height: 0.55rem;
     border-radius: 99rem;
-    background: var(--dark_500_color);
+    background: var(--overlay_border_color);
 }
 
 .log_stack {
@@ -155,20 +155,20 @@
     width: fit-content;
     max-width: min(86%, 58rem);
     padding: 0.9rem 1rem;
-    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.28);
+    border: 0.1rem solid rgba(var(--overlay_border_color_rgb), 0.28);
     border-radius: 0.95rem;
-    background: var(--surface_2_color);
+    background: var(--overlay_panel_color);
 
     &.sent {
         margin-left: auto;
-        border-color: rgba(var(--accent_color_rgb), 0.42);
-        background: color-mix(in srgb, var(--accent_color) 10%, var(--surface_2_color));
+        border-color: rgba(var(--overlay_sent_color_rgb), 0.42);
+        background: color-mix(in srgb, var(--overlay_sent_color) 10%, var(--overlay_panel_color));
     }
 
     &.received {
         margin-right: auto;
-        border-color: rgba(var(--accent_color_rgb), 0.28);
-        background: color-mix(in srgb, var(--accent_color) 7%, var(--surface_2_color));
+        border-color: rgba(var(--overlay_received_color_rgb), 0.28);
+        background: color-mix(in srgb, var(--overlay_received_color) 7%, var(--overlay_panel_color));
     }
 }
 
@@ -177,10 +177,34 @@
     justify-content: space-between;
     gap: 1rem;
     margin-bottom: 0.5rem;
-    color: var(--dark_450_color);
+    color: var(--overlay_text_muted_color);
     font-size: 0.9rem;
     font-weight: 850;
     text-transform: uppercase;
+}
+
+.message_card.sent .message_meta {
+    color: var(--overlay_sent_color);
+}
+
+.message_card.received .message_meta {
+    color: var(--overlay_received_color);
+}
+
+.message_card.translation .message_meta {
+    color: var(--overlay_translation_color);
+}
+
+.message_card.sent .translated_message {
+    color: var(--overlay_sent_color);
+}
+
+.message_card.received .translated_message {
+    color: var(--overlay_received_color);
+}
+
+.message_card.translation .translated_message {
+    color: var(--overlay_translation_color);
 }
 
 .original_message,
@@ -192,27 +216,27 @@
 }
 
 .original_message {
-    color: var(--dark_300_color);
+    color: var(--overlay_text_muted_color);
     font-size: calc(1.2rem * var(--desktop-overlay-message-text-scale));
     line-height: 1.35;
 }
 
 .translated_message {
     margin-top: 0.35rem;
-    color: var(--dark_100_color);
+    color: var(--overlay_text_color);
     font-size: calc(1.45rem * var(--desktop-overlay-message-text-scale));
     line-height: 1.35;
     font-weight: 850;
 }
 
 .no_translation {
-    color: var(--dark_450_color);
+    color: var(--overlay_text_muted_color);
     font-size: calc(1.15rem * var(--desktop-overlay-message-text-scale));
     line-height: 1.35;
 }
 
 .empty_state {
-    color: var(--dark_450_color);
+    color: var(--overlay_text_muted_color);
     font-size: 1.15rem;
     line-height: 1.35;
 }
@@ -223,9 +247,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 0.1rem dashed rgba(var(--accent_color_rgb), 0.16);
+    border: 0.1rem dashed rgba(var(--overlay_border_color_rgb), 0.16);
     border-radius: 1.2rem;
-    background: var(--surface_1_color);
+    background: var(--overlay_background_color);
 }
 
 .settings_panel {
@@ -233,15 +257,15 @@
     flex-direction: column;
     gap: 0.9rem;
     padding: 1rem;
-    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.18);
+    border: 0.1rem solid rgba(var(--overlay_border_color_rgb), 0.18);
     border-radius: 1.2rem;
-    background: var(--surface_2_color);
+    background: var(--overlay_panel_color);
     box-shadow: inset 0 0.1rem 0 rgba(255, 255, 255, 0.06);
 }
 
 .settings_title {
     margin: 0 0 0.2rem;
-    color: var(--primary_150_color);
+    color: var(--overlay_primary_color);
     font-size: 1rem;
     font-weight: 900;
     letter-spacing: 0.12rem;
@@ -263,14 +287,14 @@
 
 .setting_label {
     min-width: 0;
-    color: var(--dark_300_color);
+    color: var(--overlay_text_muted_color);
     font-size: 1rem;
     font-weight: 800;
     line-height: 1.2;
 }
 
 .setting_value {
-    color: var(--primary_150_color);
+    color: var(--overlay_primary_color);
     font-size: 1rem;
     font-weight: 900;
     text-align: right;
@@ -278,7 +302,7 @@
 
 .range_input {
     width: 100%;
-    accent-color: var(--accent_color);
+    accent-color: var(--overlay_primary_color);
 }
 
 .checkbox {
@@ -290,9 +314,9 @@
     height: 2.2rem;
     justify-self: end;
     position: relative;
-    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.18);
+    border: 0.1rem solid rgba(var(--overlay_border_color_rgb), 0.18);
     border-radius: 99rem;
-    background: var(--surface_control_color);
+    background: var(--overlay_panel_color);
 
     &::after {
         content: "";
@@ -302,18 +326,18 @@
         width: 1.3rem;
         height: 1.3rem;
         border-radius: 99rem;
-        background: var(--dark_400_color);
+        background: var(--overlay_text_muted_color);
         transition: var(--transition_ui);
     }
 }
 
 .checkbox:checked + .toggle_visual {
-    border-color: rgba(var(--accent_color_rgb), 0.56);
-    background: rgba(var(--accent_color_rgb), 0.16);
+    border-color: rgba(var(--overlay_border_color_rgb), 0.56);
+    background: rgba(var(--overlay_primary_color_rgb), 0.16);
 
     &::after {
         transform: translateX(1.9rem);
         background: var(--accent_gradient);
-        box-shadow: 0 0 1rem rgba(var(--accent_color_rgb), 0.4);
+        box-shadow: 0 0 1rem rgba(var(--overlay_primary_color_rgb), 0.4);
     }
 }

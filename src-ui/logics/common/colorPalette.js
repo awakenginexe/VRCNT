@@ -198,12 +198,19 @@ export const getOverlayCssVariables = (candidate = {}) => {
         "--overlay_text_color": palette.text,
         "--overlay_text_muted_color": palette.textMuted,
         "--overlay_sent_color": palette.sent,
+        "--overlay_sent_color_rgb": hexToRgbString(palette.sent),
         "--overlay_received_color": palette.received,
+        "--overlay_received_color_rgb": hexToRgbString(palette.received),
         "--overlay_translation_color": palette.translation,
+        "--overlay_translation_color_rgb": hexToRgbString(palette.translation),
         "--overlay_success_color": palette.success,
+        "--overlay_success_color_rgb": hexToRgbString(palette.success),
         "--overlay_warning_color": palette.warning,
+        "--overlay_warning_color_rgb": hexToRgbString(palette.warning),
         "--overlay_error_color": palette.error,
+        "--overlay_error_color_rgb": hexToRgbString(palette.error),
         "--overlay_info_color": palette.info,
+        "--overlay_info_color_rgb": hexToRgbString(palette.info),
     };
 };
 

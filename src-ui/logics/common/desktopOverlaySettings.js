@@ -4,6 +4,11 @@ import {
     LEGACY_DESKTOP_OVERLAY_SETTINGS_STORAGE_KEY,
     readMigratedStorageValue,
 } from "./desktopOverlayWindow.js";
+import {
+    DEFAULT_OVERLAY_COLOR_PALETTE,
+    getLegacyOverlayColorPalette,
+    normalizeColorPalette,
+} from "./colorPalette.js";
 import { isTauriRuntime } from "./tauriRuntime.js";
 
 export const DESKTOP_OVERLAY_SETTINGS_CHANNEL = "vrcnt-desktop-overlay-settings";
@@ -38,6 +43,7 @@ export const DESKTOP_OVERLAY_DEFAULT_SETTINGS = {
     translationsOnly: false,
     expanded: true,
     accentColor: "theme-neon-cyan",
+    overlayColorPalette: { ...DEFAULT_OVERLAY_COLOR_PALETTE },
     geometry: {
         width: 520,
         height: 240,
@@ -90,6 +96,11 @@ export const normalizeDesktopOverlaySettings = (candidate = {}) => {
         accentColor: knownAccent(candidate?.accentColor)
             ? candidate.accentColor
             : base.accentColor,
+        overlayColorPalette: normalizeColorPalette(
+            candidate?.overlayColorPalette
+                ?? getLegacyOverlayColorPalette(candidate?.accentColor),
+            DEFAULT_OVERLAY_COLOR_PALETTE,
+        ),
         geometry: {
             width: clamp(
                 numberOr(requestedGeometry.width, base.geometry.width),

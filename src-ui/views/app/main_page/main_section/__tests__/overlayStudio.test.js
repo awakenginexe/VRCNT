@@ -25,7 +25,7 @@ test("Overlay Studio is a production route wired to desktop and VR overlay state
     assert.match(overlayApp, /fit-to-content/);
 
     const resetGeometryHandler = studio.match(
-        /const resetGeometry = async \(\) => \{[\s\S]*?\n    \};\n\n    const updateAccent/,
+        /const resetGeometry = async \(\) => \{[\s\S]*?\n    \};\n\n    const persistOverlayPalette/,
     )?.[0];
     assert.ok(resetGeometryHandler);
     assert.match(resetGeometryHandler, /const nextSettings = await updateDesktopSettings/);
