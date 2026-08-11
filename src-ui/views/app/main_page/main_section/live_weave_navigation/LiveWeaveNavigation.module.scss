@@ -158,15 +158,15 @@
     text-align: center;
 
     &[data-health="slow"] {
-        border-color: rgba(242, 184, 75, 0.46);
-        background: rgba(111, 73, 14, 0.32);
-        color: #ffd38a;
+        border-color: color-mix(in srgb, var(--warning_color) 46%, transparent);
+        background: color-mix(in srgb, var(--warning_color) 16%, var(--surface_2_color));
+        color: var(--warning_color);
     }
 
     &[data-health="error"] {
-        border-color: rgba(255, 113, 128, 0.48);
-        background: rgba(114, 31, 42, 0.34);
-        color: #ffadb6;
+        border-color: color-mix(in srgb, var(--error_color) 48%, transparent);
+        background: color-mix(in srgb, var(--error_color) 14%, var(--surface_2_color));
+        color: var(--error_color);
     }
 }
 

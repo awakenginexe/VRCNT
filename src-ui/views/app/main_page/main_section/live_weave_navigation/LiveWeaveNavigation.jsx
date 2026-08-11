@@ -19,6 +19,7 @@ const NAVIGATION_ITEMS = [
     { id: "models", icon: "🧠", labelKey: "main_page.live_weave.navigation.models", configTab: "model_and_provider" },
     { id: "translation_models", icon: "🌐", labelKey: "main_page.live_weave.navigation.translation_models" },
     { id: "overlay", icon: "🖼", labelKey: "main_page.live_weave.navigation.overlay", configTab: "vr" },
+    { id: "customize", icon: "🎨", labelKey: "main_page.live_weave.navigation.customize" },
     { id: "history", icon: "📜", labelKey: "main_page.live_weave.navigation.history" },
     { id: "settings", icon: "⚙", labelKey: "main_page.live_weave.navigation.settings", configTab: "appearance" },
 ];
@@ -49,7 +50,7 @@ export const LiveWeaveNavigation = () => {
             return;
         }
 
-        if (item.id === "engines" || item.id === "models" || item.id === "translation_models" || item.id === "overlay") {
+        if (item.id === "engines" || item.id === "models" || item.id === "translation_models" || item.id === "overlay" || item.id === "customize") {
             setIsOpenedConfigPage(false);
             return;
         }

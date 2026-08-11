@@ -1,0 +1,198 @@
+.preview {
+    min-height: 31rem;
+    overflow: hidden;
+    border: 0.1rem solid var(--border_subtle_color);
+    border-radius: 1rem;
+    background: var(--canvas_color);
+    box-shadow: var(--shadow_card);
+    color: var(--dark_basic_text_color);
+}
+
+.preview_topbar {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    min-height: 3.4rem;
+    padding: 0 1rem;
+    border-bottom: 0.1rem solid var(--border_subtle_color);
+    background: color-mix(in srgb, var(--canvas_color) 82%, var(--surface_1_color));
+    color: var(--dark_500_color);
+    font-size: 0.68rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.preview_mark {
+    margin-right: 0.3rem;
+    color: var(--dark_100_color);
+    font-size: 0.85rem;
+    font-weight: 900;
+}
+
+.preview_nav_active {
+    padding: 0.45rem 0.65rem;
+    border-radius: 0.45rem;
+    background: color-mix(in srgb, var(--accent_color) 18%, transparent);
+    color: var(--dark_100_color);
+}
+
+.preview_body {
+    display: grid;
+    grid-template-columns: 10.5rem minmax(0, 1fr);
+    min-height: 27.6rem;
+}
+
+.preview_rail {
+    display: grid;
+    align-content: start;
+    gap: 0.6rem;
+    padding: 1rem 0.75rem;
+    border-right: 0.1rem solid var(--border_subtle_color);
+    background: var(--surface_1_color);
+    font-size: 0.72rem;
+}
+
+.preview_rail strong {
+    color: var(--dark_200_color);
+    font-size: 0.86rem;
+}
+
+.preview_kicker {
+    color: var(--accent_color);
+    font-size: 0.62rem;
+    font-weight: 850;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.preview_status {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.35rem;
+    padding: 0.55rem;
+    border: 0.1rem solid var(--border_subtle_color);
+    border-radius: 0.5rem;
+    color: var(--dark_350_color);
+}
+
+.preview_status span {
+    width: 0.45rem;
+    height: 0.45rem;
+    margin-top: 0.2rem;
+    border-radius: 50%;
+    background: var(--success_bc_color);
+}
+
+.preview_status b {
+    grid-column: 2;
+    color: var(--success_bc_color);
+    font-size: 0.61rem;
+}
+
+.preview_main {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-width: 0;
+    padding: 1.1rem;
+}
+
+.preview_heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.8rem;
+}
+
+.preview_heading h3 {
+    margin: 0.25rem 0 0;
+    color: var(--dark_100_color);
+    font-size: 1rem;
+}
+
+.preview_live {
+    padding: 0.35rem 0.6rem;
+    border: 0.1rem solid color-mix(in srgb, var(--success_bc_color) 45%, transparent);
+    border-radius: 99rem;
+    color: var(--success_bc_color);
+    font-size: 0.62rem;
+    font-weight: 850;
+    white-space: nowrap;
+}
+
+.preview_empty {
+    display: grid;
+    place-items: center;
+    min-height: 8.5rem;
+    padding: 1rem;
+    border: 0.1rem solid var(--border_subtle_color);
+    border-radius: 0.75rem;
+    background: var(--surface_2_color);
+    color: var(--dark_400_color);
+    font-size: 0.76rem;
+    line-height: 1.45;
+    text-align: center;
+}
+
+.preview_messages {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.preview_sent,
+.preview_received {
+    width: fit-content;
+    max-width: 86%;
+    padding: 0.55rem 0.7rem;
+    border-radius: 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 750;
+}
+
+.preview_received {
+    border: 0.1rem solid color-mix(in srgb, var(--received_300_color) 48%, transparent);
+    background: color-mix(in srgb, var(--received_300_color) 10%, var(--surface_2_color));
+    color: var(--received_300_color);
+}
+
+.preview_sent {
+    justify-self: end;
+    border: 0.1rem solid color-mix(in srgb, var(--sent_400_color) 50%, transparent);
+    background: color-mix(in srgb, var(--sent_400_color) 12%, var(--surface_2_color));
+    color: var(--sent_400_color);
+}
+
+.preview_composer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: auto;
+    padding: 0.55rem;
+    border: 0.1rem solid var(--border_subtle_color);
+    border-radius: 0.65rem;
+    background: var(--surface_control_color);
+    color: var(--dark_500_color);
+    font-size: 0.72rem;
+}
+
+.preview_composer button {
+    padding: 0.45rem 0.7rem;
+    border: 0;
+    border-radius: 0.45rem;
+    background: var(--accent_color);
+    color: var(--dark_100_color);
+    font: inherit;
+    font-size: 0.65rem;
+    font-weight: 850;
+}
+
+@media (max-width: 48rem) {
+    .preview_body {
+        grid-template-columns: 1fr;
+    }
+
+    .preview_rail {
+        display: none;
+    }
+}

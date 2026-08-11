@@ -27,7 +27,7 @@ export const ColorRoleEditor = ({
             <div className={styles.editor_header}>
                 <div>
                     <p className={styles.kicker}>{copy.kicker}</p>
-                    <h2>{copy.title}</h2>
+                    <h2 id="color-editor-title">{copy.title}</h2>
                     <p className={styles.description}>{copy.description}</p>
                 </div>
                 <button className={styles.reset_all} type="button" onClick={onResetAll}>{resetLabel}</button>

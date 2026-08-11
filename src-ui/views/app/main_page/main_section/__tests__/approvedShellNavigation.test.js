@@ -27,6 +27,7 @@ test("the approved shell exposes every top-level destination through one route a
         "engines",
         "models",
         "overlay",
+        "customize",
         "history",
         "settings",
     ]) {

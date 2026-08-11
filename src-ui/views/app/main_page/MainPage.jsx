@@ -6,6 +6,7 @@ import { EnginesWorkspace } from "./engines/EnginesWorkspace";
 import { ModelsHub } from "./models/ModelsHub";
 import { TranslationModelsHub } from "./translation_models/TranslationModelsHub";
 import { OverlayStudio } from "./overlay_studio/OverlayStudio";
+import { ColorCustomization } from "./color_customization/ColorCustomization";
 import { useIsOpenedConfigPage } from "@logics_common";
 import { useStore_ExperienceRoute } from "@store";
 
@@ -23,7 +24,8 @@ export const MainPage = () => {
                     currentExperienceRoute.data === "engines" ? <EnginesWorkspace /> :
                         currentExperienceRoute.data === "models" ? <ModelsHub /> :
                             currentExperienceRoute.data === "translation_models" ? <TranslationModelsHub /> :
-                                currentExperienceRoute.data === "overlay" ? <OverlayStudio /> : <MainSection />}
+                                currentExperienceRoute.data === "overlay" ? <OverlayStudio /> :
+                                    currentExperienceRoute.data === "customize" ? <ColorCustomization /> : <MainSection />}
             </div>
         </div>
     );
