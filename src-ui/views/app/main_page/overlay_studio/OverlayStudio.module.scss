@@ -104,6 +104,7 @@
 
 .studio_grid {
     display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(30rem, 0.9fr);
     gap: clamp(1rem, 1.8vw, 1.5rem);
     margin-top: clamp(1rem, 1.8vw, 1.5rem);
 }
@@ -155,8 +156,8 @@
 
 .control_grid {
     min-width: 0;
-    display: grid;
-    grid-template-columns: minmax(19rem, 0.85fr) minmax(0, 1.5fr);
+    display: flex;
+    flex-direction: column;
     gap: clamp(1rem, 1.8vw, 1.5rem);
 }
 
@@ -390,7 +391,7 @@
 }
 
 @media (max-width: 64rem) {
-    .control_grid {
+    .studio_grid {
         grid-template-columns: 1fr;
     }
 }
@@ -438,7 +439,6 @@
         width: 100%;
     }
 
-    .control_grid,
     .vr_controls {
         grid-template-columns: 1fr;
     }

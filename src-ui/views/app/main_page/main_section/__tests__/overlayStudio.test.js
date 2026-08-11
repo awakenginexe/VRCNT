@@ -37,7 +37,7 @@ test("Overlay Studio stays localized and usable in the minimum desktop workspace
     const styles = readSource("../../overlay_studio/OverlayStudio.module.scss");
     const english = readSource("../../../../../../locales/en.yml");
 
-    assert.match(styles, /grid-template-columns:\s*minmax\(19rem, 0\.85fr\) minmax\(0, 1\.5fr\)/);
+    assert.match(styles, /grid-template-columns:\s*minmax\(0, 1\.1fr\) minmax\(30rem, 0\.9fr\)/);
     assert.match(styles, /@media \(max-width: 80rem\)/);
     assert.match(styles, /:focus-visible/);
     assert.match(english, /overlay_studio:/);
@@ -46,7 +46,7 @@ test("Overlay Studio stays localized and usable in the minimum desktop workspace
     }
 });
 
-test("places geometry and VR controls below the wide desktop preview", () => {
+test("keeps the desktop preview beside a stacked settings column", () => {
     const studio = readSource("../../overlay_studio/OverlayStudio.jsx");
     const styles = readSource("../../overlay_studio/OverlayStudio.module.scss");
 
@@ -56,11 +56,12 @@ test("places geometry and VR controls below the wide desktop preview", () => {
     const vrIndex = studio.indexOf("className={styles.vr_card}");
 
     assert.ok(desktopIndex >= 0, "Desktop preview card should remain in Overlay Studio");
-    assert.ok(controlsIndex > desktopIndex, "Control grid should follow the desktop preview");
-    assert.ok(geometryIndex > controlsIndex, "Geometry controls should be inside the moved control grid");
-    assert.ok(vrIndex > controlsIndex, "VR controls should be inside the moved control grid");
-    assert.match(styles, /\.control_grid\s*\{[\s\S]*grid-template-columns:\s*minmax\(19rem, 0\.85fr\) minmax\(0, 1\.5fr\)/);
-    assert.match(styles, /@media \(max-width: 64rem\)[\s\S]*\.control_grid\s*\{[\s\S]*grid-template-columns:\s*1fr/);
+    assert.ok(controlsIndex > desktopIndex, "Settings column should follow the desktop preview");
+    assert.ok(geometryIndex > controlsIndex, "Geometry controls should be inside the settings column");
+    assert.ok(vrIndex > controlsIndex, "VR controls should be inside the settings column");
+    assert.match(styles, /\.studio_grid\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 1\.1fr\) minmax\(30rem, 0\.9fr\)/);
+    assert.match(styles, /\.control_grid\s*\{[\s\S]*display:\s*flex[\s\S]*flex-direction:\s*column/);
+    assert.match(styles, /@media \(max-width: 64rem\)[\s\S]*\.studio_grid\s*\{[\s\S]*grid-template-columns:\s*1fr/);
 });
 
 test("overlay message text size is localized and independent from overall overlay scale", () => {

@@ -13,12 +13,12 @@ test("the approved shell keeps visible keyboard focus and reduced-motion support
     assert.match(root, /@media \(prefers-reduced-motion: reduce\)/);
 });
 
-test("the compact overlay shell preserves a wide control row before the narrow breakpoint", () => {
+test("the compact overlay shell keeps preview and settings side by side before the narrow breakpoint", () => {
     const navigation = readSource("../live_weave_navigation/LiveWeaveNavigation.module.scss");
     const studio = readSource("../../overlay_studio/OverlayStudio.module.scss");
 
     assert.match(navigation, /@media \(max-width: 80rem\)/);
     assert.match(studio, /@media \(max-width: 80rem\)/);
-    assert.match(studio, /\.control_grid\s*\{[\s\S]*grid-template-columns:\s*minmax\(19rem, 0\.85fr\) minmax\(0, 1\.5fr\)/);
-    assert.match(studio, /@media \(max-width: 64rem\)[\s\S]*?\.control_grid\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
+    assert.match(studio, /\.studio_grid\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 1\.1fr\) minmax\(30rem, 0\.9fr\)/);
+    assert.match(studio, /@media \(max-width: 64rem\)[\s\S]*?\.studio_grid\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
 });
