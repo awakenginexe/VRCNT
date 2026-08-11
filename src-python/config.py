@@ -2,6 +2,7 @@ import sys
 import copy
 import importlib
 import os
+import re
 import shutil
 from os import environ as os_environ
 from os import path as os_path, makedirs as os_makedirs
@@ -460,6 +461,83 @@ OVERLAY_ACCENT_COLORS = {
 
 OVERLAY_BACKGROUND_MODES = ("transparent_black", "solid_black")
 
+APP_COLOR_PALETTE_DEFAULTS = {
+    "primary": "#9B6DFF",
+    "secondary": "#A87CFF",
+    "gradientStart": "#8B5CF6",
+    "gradientEnd": "#A87CFF",
+    "canvas": "#08070B",
+    "backgroundStart": "#08070B",
+    "backgroundEnd": "#08070B",
+    "surface1": "#100D15",
+    "surface2": "#15111C",
+    "surface3": "#1B1526",
+    "surfaceOverlay": "#0E0B14",
+    "surfaceControl": "#0B0910",
+    "textStrong": "#F8F5FB",
+    "text": "#E7E1EF",
+    "textMuted": "#958AA3",
+    "textSubtle": "#746A80",
+    "border": "#463C51",
+    "focus": "#9B6DFF",
+    "success": "#5BE2B5",
+    "warning": "#F2B84B",
+    "error": "#FF7180",
+    "info": "#38BDF8",
+    "sent": "#5BE2B5",
+    "received": "#CBB8FF",
+    "translation": "#CBB8FF",
+}
+
+OVERLAY_COLOR_PALETTE_DEFAULTS = {
+    "primary": "#00E5FF",
+    "secondary": "#67F3FF",
+    "background": "#000000",
+    "panel": "#0A1016",
+    "border": "#00E5FF",
+    "text": "#F4F7FA",
+    "textMuted": "#B0BAC6",
+    "sent": "#00E5FF",
+    "received": "#E680DC",
+    "translation": "#E680DC",
+    "success": "#5BE2B5",
+    "warning": "#F2B84B",
+    "error": "#FF7180",
+    "info": "#67E8F9",
+}
+
+_HEX_COLOR_PATTERN = re.compile(r"^#?([0-9a-f]{3}|[0-9a-f]{6})$", re.IGNORECASE)
+
+
+def _normalize_color_hex(value):
+    if not isinstance(value, str):
+        return None
+    match = _HEX_COLOR_PATTERN.fullmatch(value.strip())
+    if match is None:
+        return None
+    value = match.group(1)
+    if len(value) == 3:
+        value = "".join(f"{part}{part}" for part in value)
+    return f"#{value.upper()}"
+
+
+def _normalize_color_palette(value, defaults):
+    source = value if isinstance(value, dict) else {}
+    return {
+        role: _normalize_color_hex(source.get(role))
+        or _normalize_color_hex(fallback)
+        or "#000000"
+        for role, fallback in defaults.items()
+    }
+
+
+def _app_color_palette_validator(val, inst):
+    return _normalize_color_palette(val, APP_COLOR_PALETTE_DEFAULTS)
+
+
+def _overlay_color_palette_validator(val, inst):
+    return _normalize_color_palette(val, OVERLAY_COLOR_PALETTE_DEFAULTS)
+
 def _main_window_geometry_validator(val, inst):
     if not (isinstance(val, dict) and set(val.keys()) == set(inst.MAIN_WINDOW_GEOMETRY.keys())):
         return None
@@ -860,6 +938,7 @@ class Config:
     FONT_DOWNLOAD_POLICY = ManagedProperty('FONT_DOWNLOAD_POLICY', type_=str, allowed=lambda v, inst: v in {"ask", "automatic", "never"})
     UI_LANGUAGE = ManagedProperty('UI_LANGUAGE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_UI_LANGUAGE_LIST)
     MAIN_WINDOW_GEOMETRY = ValidatedProperty('MAIN_WINDOW_GEOMETRY', _main_window_geometry_validator, immediate_save=True)
+    APP_COLOR_PALETTE = ValidatedProperty('APP_COLOR_PALETTE', _app_color_palette_validator)
 
     # --- Mic-related simple properties ---
     MIC_THRESHOLD = ManagedProperty('MIC_THRESHOLD', type_=int)
@@ -915,6 +994,7 @@ class Config:
     # --- Overlay settings ---
     OVERLAY_SMALL_LOG_SETTINGS = ValidatedProperty('OVERLAY_SMALL_LOG_SETTINGS', _overlay_small_validator)
     OVERLAY_LARGE_LOG_SETTINGS = ValidatedProperty('OVERLAY_LARGE_LOG_SETTINGS', _overlay_large_validator)
+    OVERLAY_COLOR_PALETTE = ValidatedProperty('OVERLAY_COLOR_PALETTE', _overlay_color_palette_validator)
 
     # --- Message format settings ---
     SEND_MESSAGE_FORMAT_PARTS = ValidatedProperty('SEND_MESSAGE_FORMAT_PARTS', _format_validator_send)
@@ -1149,6 +1229,7 @@ class Config:
             "width": 870,
             "height": 654,
         }
+        self._APP_COLOR_PALETTE = copy.deepcopy(APP_COLOR_PALETTE_DEFAULTS)
         self._AUTO_MIC_SELECT = True
         # device_manager may be unavailable or not initialized; use safe defaults
         try:
@@ -1278,6 +1359,7 @@ class Config:
         self._AUTO_CLEAR_MESSAGE_BOX = True
         self._SEND_ONLY_TRANSLATED_MESSAGES = False
         self._OVERLAY_SMALL_LOG = False
+        self._OVERLAY_COLOR_PALETTE = copy.deepcopy(OVERLAY_COLOR_PALETTE_DEFAULTS)
         self._OVERLAY_SMALL_LOG_SETTINGS = {
             "x_pos": 0.0,
             "y_pos": 0.0,

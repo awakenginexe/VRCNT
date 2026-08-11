@@ -28,6 +28,22 @@ OVERLAY_BACKGROUND_ALPHA = {
 MESSAGE_TEXT_SCALE_MIN = 0.4
 MESSAGE_TEXT_SCALE_MAX = 2.0
 
+def _hex_color_to_rgb(value: object, fallback: Tuple[int, int, int]) -> Tuple[int, int, int]:
+    if not isinstance(value, str):
+        return fallback
+    value = value.strip().lstrip("#")
+    if len(value) == 3 and all(character in "0123456789abcdefABCDEF" for character in value):
+        value = "".join(f"{character}{character}" for character in value)
+    if len(value) != 6 or any(character not in "0123456789abcdefABCDEF" for character in value):
+        return fallback
+    return tuple(int(value[index:index + 2], 16) for index in (0, 2, 4))
+
+
+def _palette_color(palette: Optional[dict], role: str, fallback: Tuple[int, int, int]) -> Tuple[int, int, int]:
+    if not isinstance(palette, dict):
+        return fallback
+    return _hex_color_to_rgb(palette.get(role), fallback)
+
 
 def normalize_message_text_scale(value: object = 1.0) -> float:
     try:
@@ -102,32 +118,51 @@ class OverlayImage:
         }
 
     @staticmethod
-    def resolveOverlayColors(accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", size: str = "small") -> dict:
+    def resolveOverlayColors(accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", size: str = "small", color_palette: Optional[dict] = None) -> dict:
         accent_rgb = OVERLAY_ACCENT_COLORS.get(accent_color, OVERLAY_ACCENT_COLORS["theme-neon-cyan"])
         background_alpha = OVERLAY_BACKGROUND_ALPHA.get(background_mode, OVERLAY_BACKGROUND_ALPHA["transparent_black"])
-        background_color = (0, 0, 0, background_alpha)
         outline_alpha = 255 if background_mode == "solid_black" else 220
+
+        if isinstance(color_palette, dict):
+            primary_rgb = _palette_color(color_palette, "primary", accent_rgb)
+            background_rgb = _palette_color(color_palette, "background", (0, 0, 0))
+            border_rgb = _palette_color(color_palette, "border", primary_rgb)
+            text_rgb = _palette_color(color_palette, "text", (244, 247, 250))
+            text_muted_rgb = _palette_color(color_palette, "textMuted", (176, 186, 198))
+            sent_rgb = _palette_color(color_palette, "sent", primary_rgb)
+            received_rgb = _palette_color(color_palette, "received", (230, 128, 220))
+            small_text_rgb = text_rgb
+        else:
+            background_rgb = (0, 0, 0)
+            border_rgb = accent_rgb
+            text_rgb = (244, 247, 250)
+            text_muted_rgb = (176, 186, 198)
+            sent_rgb = accent_rgb
+            received_rgb = (230, 128, 220)
+            small_text_rgb = (223, 223, 223)
+
+        background_color = (*background_rgb, background_alpha)
 
         if size == "large":
             return {
                 "background_color": background_color,
-                "background_outline_color": (*accent_rgb, outline_alpha),
-                "text_color_large": (244, 247, 250, 255),
-                "text_color_small": (176, 186, 198, 255),
-                "text_color_send": (*accent_rgb, 255),
-                "text_color_receive": (230, 128, 220, 255),
-                "text_color_time": (117, 133, 150, 255)
+                "background_outline_color": (*border_rgb, outline_alpha),
+                "text_color_large": (*text_rgb, 255),
+                "text_color_small": (*text_muted_rgb, 255),
+                "text_color_send": (*sent_rgb, 255),
+                "text_color_receive": (*received_rgb, 255),
+                "text_color_time": (*text_muted_rgb, 255)
             }
 
         return {
             "background_color": background_color,
-            "background_outline_color": (*accent_rgb, outline_alpha),
-            "text_color": (223, 223, 223, 255)
+            "background_outline_color": (*border_rgb, outline_alpha),
+            "text_color": (*small_text_rgb, 255)
         }
 
     @staticmethod
-    def getUiColorSmallLog(accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black") -> dict:
-        return OverlayImage.resolveOverlayColors(accent_color, background_mode, "small")
+    def getUiColorSmallLog(accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", color_palette: Optional[dict] = None) -> dict:
+        return OverlayImage.resolveOverlayColors(accent_color, background_mode, "small", color_palette)
 
     def _resolve_font_path(self, font_family: str | Tuple[str, ...] | List[str]) -> str:
         candidates = (font_family,) if isinstance(font_family, str) else tuple(font_family)
@@ -460,13 +495,13 @@ class OverlayImage:
             result_img = self.concatenateImagesVertically(result_img, line_img, margin=0)
         return result_img
 
-    def createOverlayImageSmallLog(self, message: str, your_language: str, translation: List[str] = [], target_language: List[str] = [], transliteration_message: List[dict] = [], transliteration_translation: List[List[dict]] = [], ruby_font_scale: float = 0.5, ruby_line_spacing: int = 4, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", message_text_scale: float = 1.0) -> Image:
+    def createOverlayImageSmallLog(self, message: str, your_language: str, translation: List[str] = [], target_language: List[str] = [], transliteration_message: List[dict] = [], transliteration_translation: List[List[dict]] = [], ruby_font_scale: float = 0.5, ruby_line_spacing: int = 4, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", message_text_scale: float = 1.0, color_palette: Optional[dict] = None) -> Image:
         # UI設定を取得
         ui_size = self.getUiSizeSmallLog()
         width, height = ui_size["width"], ui_size["height"]
         font_size = _scaled_message_font_size(ui_size["font_size"], message_text_scale)
 
-        ui_colors = self.getUiColorSmallLog(accent_color, background_mode)
+        ui_colors = self.getUiColorSmallLog(accent_color, background_mode, color_palette)
         text_color = ui_colors["text_color"]
         background_color = ui_colors["background_color"]
         background_outline_color = ui_colors["background_outline_color"]
@@ -557,14 +592,14 @@ class OverlayImage:
         }
 
     @staticmethod
-    def getUiColorLargeLog(accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black") -> dict:
-        return OverlayImage.resolveOverlayColors(accent_color, background_mode, "large")
+    def getUiColorLargeLog(accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", color_palette: Optional[dict] = None) -> dict:
+        return OverlayImage.resolveOverlayColors(accent_color, background_mode, "large", color_palette)
 
-    def createTextImageLargeLog(self, message_type: str, size: str, text: str, language: str, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", message_text_scale: float = 1.0) -> Image:
+    def createTextImageLargeLog(self, message_type: str, size: str, text: str, language: str, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", message_text_scale: float = 1.0, color_palette: Optional[dict] = None) -> Image:
         ui_size = self.getUiSizeLargeLog()
         base_font_size = ui_size["font_size_large"] if size == "large" else ui_size["font_size_small"]
         font_size = _scaled_message_font_size(base_font_size, message_text_scale)
-        text_color = self.getUiColorLargeLog(accent_color, background_mode)[f"text_color_{size}"]
+        text_color = self.getUiColorLargeLog(accent_color, background_mode, color_palette)[f"text_color_{size}"]
         outer_padding = ui_size["padding"] * (2 if size == "large" else 1)
         inner_width = ui_size["width"] - (outer_padding * 2)
         line_spacing = max(6, font_size // 4)
@@ -581,7 +616,7 @@ class OverlayImage:
                 self._draw_script_text(draw, (ui_size["width"] - outer_padding, text_y), line, text_color, font_size, anchor="rt", language=language)
         return img
 
-    def createTextboxLargeLogWithRubyTokens(self, message_type: str, size: str, message: str, transliteration: List[dict], language: str, ruby_font_scale: float, ruby_line_spacing: int, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", message_text_scale: float = 1.0) -> Image:
+    def createTextboxLargeLogWithRubyTokens(self, message_type: str, size: str, message: str, transliteration: List[dict], language: str, ruby_font_scale: float, ruby_line_spacing: int, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", message_text_scale: float = 1.0, color_palette: Optional[dict] = None) -> Image:
         """Render a large-log textbox with per-token centered ruby above each original token.
 
         When wrapping occurs, splits tokens into lines and renders ruby above each line separately.
@@ -589,7 +624,7 @@ class OverlayImage:
         ui_size = self.getUiSizeLargeLog()
         base_font_size = ui_size["font_size_large"] if size == "large" else ui_size["font_size_small"]
         font_size = _scaled_message_font_size(base_font_size, message_text_scale)
-        text_color = self.getUiColorLargeLog(accent_color, background_mode)[f"text_color_{size}"]
+        text_color = self.getUiColorLargeLog(accent_color, background_mode, color_palette)[f"text_color_{size}"]
         font_family = self.LANGUAGES.get(language, self.LANGUAGES["Default"])
         font_orig = self._get_font(font_family, font_size)
         ruby_size = max(1, int(font_size * ruby_font_scale))
@@ -605,6 +640,7 @@ class OverlayImage:
                 accent_color,
                 background_mode,
                 message_text_scale,
+                color_palette,
             )
 
         # Measure token widths
@@ -638,6 +674,7 @@ class OverlayImage:
                 accent_color,
                 background_mode,
                 message_text_scale,
+                color_palette,
             )
 
         # Split tokens into lines based on base_width * 0.9
@@ -705,6 +742,7 @@ class OverlayImage:
                 message,
                 language,
                 message_text_scale=message_text_scale,
+                color_palette=color_palette,
             )
         
         result_img = line_images[0]
@@ -712,12 +750,12 @@ class OverlayImage:
             result_img = self.concatenateImagesVertically(result_img, line_img, margin=0)
         return result_img
 
-    def createTextImageMessageType(self, message_type: str, date_time: str, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black") -> Image:
+    def createTextImageMessageType(self, message_type: str, date_time: str, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", color_palette: Optional[dict] = None) -> Image:
         ui_size = self.getUiSizeLargeLog()
         font_size = ui_size["font_size_small"]
         ui_padding = ui_size["padding"] * 2
 
-        ui_color = self.getUiColorLargeLog(accent_color, background_mode)
+        ui_color = self.getUiColorLargeLog(accent_color, background_mode, color_palette)
         text_color = ui_color[f"text_color_{message_type}"]
         text_color_time = ui_color["text_color_time"]
 
@@ -737,9 +775,9 @@ class OverlayImage:
             draw.text((ui_size["width"] - ui_padding - self._measure_text(text, font) - label_gap, text_y), date_time, text_color_time, anchor="rt", stroke_width=0, font=font)
         return img
 
-    def createTextboxLargeLog(self, message_type: str, message: Optional[str] = None, your_language: Optional[str] = None, translation: List[str] = [], target_language: List[str] = [], date_time: Optional[str] = None, transliteration_message: Optional[List[dict]] = None, transliteration_translation: Optional[List[List[dict]]] = None, ruby_font_scale: float = 0.5, ruby_line_spacing: int = 4, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", message_text_scale: float = 1.0) -> Image:
+    def createTextboxLargeLog(self, message_type: str, message: Optional[str] = None, your_language: Optional[str] = None, translation: List[str] = [], target_language: List[str] = [], date_time: Optional[str] = None, transliteration_message: Optional[List[dict]] = None, transliteration_translation: Optional[List[List[dict]]] = None, ruby_font_scale: float = 0.5, ruby_line_spacing: int = 4, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", message_text_scale: float = 1.0, color_palette: Optional[dict] = None) -> Image:
         # テキスト画像のリストを作成
-        images = [self.createTextImageMessageType(message_type, date_time, accent_color, background_mode)]
+        images = [self.createTextImageMessageType(message_type, date_time, accent_color, background_mode, color_palette)]
 
         # 翻訳がある場合
         if translation and target_language:
@@ -753,6 +791,7 @@ class OverlayImage:
                     accent_color,
                     background_mode,
                     message_text_scale,
+                    color_palette,
                 )
                 images.append(small_img)
 
@@ -770,6 +809,7 @@ class OverlayImage:
                         accent_color,
                         background_mode,
                         message_text_scale,
+                        color_palette,
                     )
                 except Exception:
                     errorLogging()
@@ -781,6 +821,7 @@ class OverlayImage:
                         accent_color,
                         background_mode,
                         message_text_scale,
+                        color_palette,
                     )
                 images.append(large_img)
         else:
@@ -797,6 +838,7 @@ class OverlayImage:
                     accent_color,
                     background_mode,
                     message_text_scale,
+                    color_palette,
                 )
             except Exception:
                 errorLogging()
@@ -808,6 +850,7 @@ class OverlayImage:
                     accent_color,
                     background_mode,
                     message_text_scale,
+                    color_palette,
                 )
             images.append(large_img)
 
@@ -818,8 +861,8 @@ class OverlayImage:
 
         return combined_img
 
-    def createOverlayImageLargeLog(self, message_type: str, message: Optional[str] = None, your_language: Optional[str] = None, translation: List[str] = [], target_language: List[str] = [], transliteration_message: List[dict] = [], transliteration_translation: List[List[dict]] = [], ruby_font_scale: float = 0.5, ruby_line_spacing: int = 4, newest_first: bool = False, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", message_text_scale: float = 1.0) -> Image:
-        ui_color = self.getUiColorLargeLog(accent_color, background_mode)
+    def createOverlayImageLargeLog(self, message_type: str, message: Optional[str] = None, your_language: Optional[str] = None, translation: List[str] = [], target_language: List[str] = [], transliteration_message: List[dict] = [], transliteration_translation: List[List[dict]] = [], ruby_font_scale: float = 0.5, ruby_line_spacing: int = 4, newest_first: bool = False, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", message_text_scale: float = 1.0, color_palette: Optional[dict] = None) -> Image:
+        ui_color = self.getUiColorLargeLog(accent_color, background_mode, color_palette)
         background_color = ui_color["background_color"]
         background_outline_color = ui_color["background_outline_color"]
 
@@ -858,6 +901,7 @@ class OverlayImage:
                 accent_color=accent_color,
                 background_mode=background_mode,
                 message_text_scale=message_text_scale,
+                color_palette=color_palette,
             ) for log in visible_logs
             ]
 

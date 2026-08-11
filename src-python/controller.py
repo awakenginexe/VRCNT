@@ -3230,6 +3230,15 @@ class Controller:
         return {"status":200, "result":config.MAIN_WINDOW_GEOMETRY}
 
     @staticmethod
+    def getAppColorPalette(*args, **kwargs) -> dict:
+        return {"status": 200, "result": config.APP_COLOR_PALETTE}
+
+    @staticmethod
+    def setAppColorPalette(data, *args, **kwargs) -> dict:
+        config.APP_COLOR_PALETTE = data
+        return {"status": 200, "result": config.APP_COLOR_PALETTE}
+
+    @staticmethod
     def getAutoMicSelect(*args, **kwargs) -> dict:
         return {"status":200, "result":config.AUTO_MIC_SELECT}
 
@@ -4836,6 +4845,15 @@ class Controller:
         config.OVERLAY_LARGE_LOG_SETTINGS = data
         model.updateOverlayLargeLogSettings()
         return {"status":200, "result":config.OVERLAY_LARGE_LOG_SETTINGS}
+
+    @staticmethod
+    def getOverlayColorPalette(*args, **kwargs) -> dict:
+        return {"status": 200, "result": config.OVERLAY_COLOR_PALETTE}
+
+    @staticmethod
+    def setOverlayColorPalette(data, *args, **kwargs) -> dict:
+        config.OVERLAY_COLOR_PALETTE = data
+        return {"status": 200, "result": config.OVERLAY_COLOR_PALETTE}
 
     @staticmethod
     def getOverlayShowOnlyTranslatedMessages(*args, **kwargs) -> dict:
