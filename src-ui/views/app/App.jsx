@@ -11,6 +11,7 @@ import {
     TransparencyController,
     CornerRadiusController,
     PerformanceModeController,
+    ColorThemeController,
 } from "./_app_controllers";
 
 import styles from "./App.module.scss";
@@ -55,6 +56,7 @@ export const App = () => {
                 <TransparencyController />
                 <CornerRadiusController />
                 <PerformanceModeController />
+                <ColorThemeController />
                 <DesktopOverlayBridge />
                 <Contents key={i18n.language} />
 

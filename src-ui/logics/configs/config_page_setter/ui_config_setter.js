@@ -15,6 +15,11 @@ import {
     useConfigFunctions,
 } from "./useSettingsLogics";
 
+import {
+    APP_COLOR_PALETTE_DEFAULTS,
+    DEFAULT_OVERLAY_COLOR_PALETTE,
+} from "../../common/colorPalette.js";
+
 
 export const SETTINGS_ARRAY = [
     // Device
@@ -188,6 +193,14 @@ export const SETTINGS_ARRAY = [
         ui_template_id: "slider",
         logics_template_id: "get_set",
         base_endpoint_name: "transparency",
+    },
+    {
+        Category: "Appearance",
+        Base_Name: "AppColorPalette",
+        default_value: { ...APP_COLOR_PALETTE_DEFAULTS },
+        ui_template_id: "object",
+        logics_template_id: "get_set",
+        base_endpoint_name: "app_color_palette",
     },
 
     // Translation
@@ -832,6 +845,14 @@ export const SETTINGS_ARRAY = [
         ui_template_id: "object",
         logics_template_id: "get_set",
         base_endpoint_name: "overlay_large_log_settings",
+    },
+    {
+        Category: "Vr",
+        Base_Name: "OverlayColorPalette",
+        default_value: { ...DEFAULT_OVERLAY_COLOR_PALETTE },
+        ui_template_id: "object",
+        logics_template_id: "get_set",
+        base_endpoint_name: "overlay_color_palette",
     },
     {
         Category: "Vr",
