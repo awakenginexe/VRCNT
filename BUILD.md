@@ -95,9 +95,10 @@ Pipeline:
 3. `update-version` — bump version in `tauri.conf.json`
 4. `build-python` → `pyinstaller spec/backend.spec` — bundles the Python backend to `src-tauri/bin/VRCNT-backend-x86_64-pc-windows-msvc.exe`
 5. `vite-build` — builds JS UI to `dist/`
-6. `tauri build` — Cargo compiles Rust shell, then NSIS packages everything
+6. `prepare-installer-tools` — publishes the release helper and stages `7za.exe` and `minisign.exe` in the ignored `src-tauri/nsis/bin/` directory
+7. `tauri build` — Cargo compiles Rust shell, then NSIS packages everything
 
-Output: `src-tauri/target/release/bundle/nsis/VRCT_<version>_x64-setup.exe`
+Output: `src-tauri/target/release/bundle/nsis/VRCNT_<version>_x64-setup.exe`
 
 ### Step 5 — (Optional) Build CUDA variant
 
@@ -105,7 +106,7 @@ Output: `src-tauri/target/release/bundle/nsis/VRCT_<version>_x64-setup.exe`
 npm run build-cuda
 ```
 
-Same pipeline but uses `.venv_cuda` and `spec/backend_cuda.spec`. Produces a GPU-accelerated build.
+Same pipeline but uses `.venv_cuda` and `spec/backend_cuda.spec`. The installer-tool preparation runs automatically before Tauri packaging and produces a GPU-accelerated build.
 
 ### Step 6 — GitHub Release packaging
 
