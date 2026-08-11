@@ -20,6 +20,14 @@ export const getActiveModel = (profile) => (
         : ""
 );
 
+export const resolveLiveTranscriptionEngine = ({
+    legacyEngine,
+    sendProfile,
+    receiveProfile,
+} = {}) => (
+    sendProfile?.engine || receiveProfile?.engine || legacyEngine || ""
+);
+
 export const getActiveModelAvailability = (profile, statusesByProvider) => {
     if (profile?.engine === "Google" || profile?.engine === "Whisper Cloud") return "cloud";
     const selected = getActiveModel(profile);

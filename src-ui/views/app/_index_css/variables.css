@@ -1,19 +1,48 @@
 :root {
-    --accent_color: #9B6DFF;
+    /* User-editable semantic palette fallbacks. ColorThemeController replaces these at runtime. */
+    --palette_primary_color: #9B6DFF;
+    --palette_secondary_color: #A87CFF;
+    --palette_gradient_start_color: #8B5CF6;
+    --palette_gradient_end_color: #A87CFF;
+    --palette_canvas_color: #08070B;
+    --palette_background_start_color: #08070B;
+    --palette_background_end_color: #08070B;
+    --palette_surface_1_color: #100D15;
+    --palette_surface_2_color: #15111C;
+    --palette_surface_3_color: #1B1526;
+    --palette_surface_overlay_color: #0E0B14;
+    --palette_surface_control_color: #0B0910;
+    --palette_text_strong_color: #F8F5FB;
+    --palette_text_color: #E7E1EF;
+    --palette_text_muted_color: #958AA3;
+    --palette_text_subtle_color: #746A80;
+    --palette_border_color: #463C51;
+    --palette_focus_color: #9B6DFF;
+    --palette_success_color: #5BE2B5;
+    --palette_warning_color: #F2B84B;
+    --palette_error_color: #FF7180;
+    --palette_info_color: #38BDF8;
+    --palette_sent_color: #5BE2B5;
+    --palette_received_color: #CBB8FF;
+    --palette_translation_color: #CBB8FF;
+
+    --accent_color: var(--palette_primary_color);
     --accent_color_rgb: 155, 109, 255;
-    --accent_gradient: linear-gradient(115deg, #8B5CF6, #A87CFF);
-    --bg_gradient_start: #08070B;
-    --bg_gradient_end: #08070B;
-    --canvas_color: #08070B;
+    --accent_secondary_color: var(--palette_secondary_color);
+    --accent_secondary_color_rgb: 168, 124, 255;
+    --accent_gradient: linear-gradient(115deg, var(--palette_gradient_start_color), var(--palette_gradient_end_color));
+    --bg_gradient_start: var(--palette_background_start_color);
+    --bg_gradient_end: var(--palette_background_end_color);
+    --canvas_color: var(--palette_canvas_color);
     --surface_overlay_color: color-mix(
         in srgb,
-        var(--accent_color) 7%,
-        rgba(10, 8, 14, 0.98)
+        var(--palette_surface_overlay_color) 86%,
+        var(--accent_color) 14%
     );
     --surface_control_color: color-mix(
         in srgb,
-        var(--accent_color) 5%,
-        rgba(8, 7, 11, 0.92)
+        var(--palette_surface_control_color) 92%,
+        var(--accent_color) 8%
     );
 
     --primary_100_color: color-mix(in srgb, var(--accent_color) 15%, #ffffff);
@@ -35,45 +64,45 @@
 
     --primary_600_color_44: color-mix(in srgb, var(--primary_600_color) 44%, transparent);
 
-    --sent_400_color: #5BE2B5;
-    --received_300_color: #CBB8FF;
+    --sent_400_color: var(--palette_sent_color);
+    --received_300_color: var(--palette_received_color);
 
-    --error_bc_color: #FF7180;
-    --error_bc_active_color: #D75465;
-    --success_bc_color: #5BE2B5;
-    --warning_color: #F2B84B;
+    --error_bc_color: var(--palette_error_color);
+    --error_bc_active_color: color-mix(in srgb, var(--palette_error_color) 78%, #000000);
+    --success_bc_color: var(--palette_success_color);
+    --warning_color: var(--palette_warning_color);
     --warning_color_rgb: 242, 184, 75;
-    --warning_bc_color: #B87518;
+    --warning_bc_color: color-mix(in srgb, var(--palette_warning_color) 72%, #000000);
 
-    --dark_basic_text_color: #E7E1EF;
-    --dark_100_color: #F8F5FB;
-    --dark_200_color: #F3EFF8;
-    --dark_300_color: #D8CFDF;
-    --dark_350_color: #B8AFC5;
-    --dark_400_color: #958AA3;
-    --dark_450_color: #746A80;
-    --dark_500_color: #5D5369;
-    --dark_550_color: #463C51;
-    --dark_600_color: #302839;
-    --dark_650_color: #27202F;
-    --dark_700_color: #211A28;
-    --dark_725_color: #1B1526;
-    --dark_750_color: #17121F;
-    --dark_775_color: #130F19;
-    --dark_800_color: #100D15;
-    --dark_825_color: #0D0A11;
-    --dark_850_color: #0A080E;
-    --dark_863_color: #09070C;
-    --dark_875_color: #08070B;
-    --dark_888_color: #060508;
-    --dark_900_color: #040305;
-    --dark_925_color: #020203;
-    --dark_950_color: #000001;
-    --dark_975_color: #000000;
+    --dark_basic_text_color: var(--palette_text_color);
+    --dark_100_color: var(--palette_text_strong_color);
+    --dark_200_color: color-mix(in srgb, var(--palette_text_strong_color) 82%, var(--palette_text_color));
+    --dark_300_color: color-mix(in srgb, var(--palette_text_color) 70%, var(--palette_text_muted_color));
+    --dark_350_color: color-mix(in srgb, var(--palette_text_muted_color) 76%, #ffffff);
+    --dark_400_color: var(--palette_text_muted_color);
+    --dark_450_color: var(--palette_text_subtle_color);
+    --dark_500_color: color-mix(in srgb, var(--palette_text_subtle_color) 70%, var(--palette_border_color));
+    --dark_550_color: var(--palette_border_color);
+    --dark_600_color: color-mix(in srgb, var(--palette_border_color) 68%, var(--palette_surface_3_color));
+    --dark_650_color: color-mix(in srgb, var(--palette_surface_3_color) 78%, var(--palette_surface_2_color));
+    --dark_700_color: color-mix(in srgb, var(--palette_surface_3_color) 64%, var(--palette_surface_2_color));
+    --dark_725_color: var(--palette_surface_3_color);
+    --dark_750_color: color-mix(in srgb, var(--palette_surface_2_color) 82%, var(--palette_surface_1_color));
+    --dark_775_color: var(--palette_surface_1_color);
+    --dark_800_color: var(--palette_surface_1_color);
+    --dark_825_color: color-mix(in srgb, var(--palette_surface_1_color) 78%, var(--palette_canvas_color));
+    --dark_850_color: color-mix(in srgb, var(--palette_canvas_color) 86%, #000000);
+    --dark_863_color: color-mix(in srgb, var(--palette_canvas_color) 78%, #000000);
+    --dark_875_color: var(--palette_canvas_color);
+    --dark_888_color: color-mix(in srgb, var(--palette_canvas_color) 76%, #000000);
+    --dark_900_color: color-mix(in srgb, var(--palette_canvas_color) 62%, #000000);
+    --dark_925_color: color-mix(in srgb, var(--palette_canvas_color) 42%, #000000);
+    --dark_950_color: color-mix(in srgb, var(--palette_canvas_color) 22%, #000000);
+    --dark_975_color: color-mix(in srgb, var(--palette_canvas_color) 8%, #000000);
     --dark_1000_color: #000000;
 
-    --dark_550_color_22: rgba(51, 65, 85, 0.22);
-    --dark_825_color_cc: rgba(7, 9, 15, 0.8);
+    --dark_550_color_22: color-mix(in srgb, var(--palette_border_color) 22%, transparent);
+    --dark_825_color_cc: color-mix(in srgb, var(--palette_canvas_color) 80%, transparent);
     --dark_1000_color_66: rgba(0, 0, 0, 0.4);
     --dark_1000_color_aa: rgba(0, 0, 0, 0.66);
     --dark_1000_color_dd: rgba(0, 0, 0, 0.85);
@@ -92,19 +121,19 @@
     /* Performance Mode reactive variables */
     --panel_blur: blur(16px);
     --panel_bg_opacity: 0.6;
-    --panel_border: 0.1rem solid rgba(var(--accent_color_rgb), 0.15);
+    --panel_border: 0.1rem solid color-mix(in srgb, var(--palette_border_color) 55%, var(--accent_color));
     --panel_border_subtle: 0.1rem solid rgba(var(--accent_color_rgb), 0.1);
     --glow_shadow: 0 0 3rem rgba(var(--accent_color_rgb), 0.05);
     --glow_shadow_hover: 0 0 2.4rem rgba(var(--accent_color_rgb), 0.24);
-    --glow_shadow_purple: 0 0 2.2rem rgba(155, 109, 255, 0.14);
+    --glow_shadow_purple: 0 0 2.2rem rgba(var(--accent_color_rgb), 0.14);
     --transition_ui: var(--motion_standard) var(--ease_out_quart);
     --bg_radial_gradient: radial-gradient(circle at 88% 8%, rgba(var(--accent_color_rgb), 0.1) 0%, transparent 32%), radial-gradient(circle at 12% 92%, rgba(var(--accent_color_rgb), 0.045) 0%, transparent 40%);
 
-    --surface_1_color: color-mix(in srgb, rgba(var(--accent_color_rgb), 0.035), rgba(16, 13, 21, var(--panel_bg_opacity)));
-    --surface_2_color: color-mix(in srgb, rgba(var(--accent_color_rgb), 0.06), rgba(21, 17, 28, 0.88));
-    --surface_3_color: color-mix(in srgb, rgba(var(--accent_color_rgb), 0.09), rgba(27, 21, 38, 0.92));
-    --border_subtle_color: rgba(var(--accent_color_rgb), 0.12);
-    --focus_ring_color: rgba(var(--accent_color_rgb), 0.3);
+    --surface_1_color: color-mix(in srgb, var(--palette_surface_1_color) 88%, var(--accent_color) 12%);
+    --surface_2_color: color-mix(in srgb, var(--palette_surface_2_color) 88%, var(--accent_color) 12%);
+    --surface_3_color: color-mix(in srgb, var(--palette_surface_3_color) 88%, var(--accent_color) 12%);
+    --border_subtle_color: color-mix(in srgb, var(--palette_border_color) 50%, transparent);
+    --focus_ring_color: color-mix(in srgb, var(--palette_focus_color) 30%, transparent);
     --shadow_soft: 0 1.8rem 4.8rem rgba(0, 0, 0, 0.36);
     --shadow_lateral: 1rem 0 3.4rem rgba(0, 0, 0, 0.26);
     --shadow_card: 0 1.8rem 4.2rem rgba(0, 0, 0, 0.22), inset 0 0.1rem 0 rgba(255, 255, 255, 0.07);
@@ -117,7 +146,7 @@
     /*sent_400_color + #000 10% = */
     --supporters_color_fuwa: #5788a2;
 
-    --supporters_crown_color: #f0cb55;
+    --supporters_crown_color: var(--palette_warning_color);
 
     --title_bar_height: 2rem;
     --main_page_topbar_height: 6rem;
@@ -146,11 +175,11 @@
     --glow_shadow_purple: none;
     --transition_ui: 0ms;
     --bg_radial_gradient: none;
-    --surface_1_color: color-mix(in srgb, var(--accent_color) 5%, #100d15);
-    --surface_2_color: color-mix(in srgb, var(--accent_color) 7%, #15111c);
-    --surface_3_color: color-mix(in srgb, var(--accent_color) 9%, #1b1526);
-    --border_subtle_color: #2b2238;
-    --focus_ring_color: var(--accent_color);
+    --surface_1_color: color-mix(in srgb, var(--palette_surface_1_color) 94%, var(--accent_color) 6%);
+    --surface_2_color: color-mix(in srgb, var(--palette_surface_2_color) 93%, var(--accent_color) 7%);
+    --surface_3_color: color-mix(in srgb, var(--palette_surface_3_color) 91%, var(--accent_color) 9%);
+    --border_subtle_color: color-mix(in srgb, var(--palette_border_color) 70%, #000000);
+    --focus_ring_color: var(--palette_focus_color);
     --shadow_soft: none;
     --shadow_lateral: none;
     --shadow_card: none;

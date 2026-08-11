@@ -9,6 +9,10 @@ import {
 
 import {
     useAppearance,
+    UI_SCALE_MARKS,
+    UI_SCALE_MAX,
+    UI_SCALE_MIN,
+    UI_SCALE_STEP,
 } from "@logics_configs";
 
 import {
@@ -69,10 +73,10 @@ const UiScalingContainer = () => {
             variable={currentUiScaling.data}
             setterFunction={setUiScaling}
             postUpdateAction={asyncUpdateBreakPoint}
-            min={40}
-            max={200}
-            step={10}
-            show_label_values={[40, 60, 80, 100, 120, 140, 160, 180, 200]}
+            min={UI_SCALE_MIN}
+            max={UI_SCALE_MAX}
+            step={UI_SCALE_STEP}
+            show_label_values={UI_SCALE_MARKS}
         />
     );
 };
@@ -88,10 +92,10 @@ export const MessageLogUiScalingContainer = () => {
             valueLabelFormat="value %"
             variable={currentMessageLogUiScaling.data}
             setterFunction={setMessageLogUiScaling}
-            min={40}
-            max={200}
-            step={10}
-            show_label_values={[40, 60, 80, 100, 120, 140, 160, 180, 200]}
+            min={UI_SCALE_MIN}
+            max={UI_SCALE_MAX}
+            step={UI_SCALE_STEP}
+            show_label_values={UI_SCALE_MARKS}
         />
     );
 };

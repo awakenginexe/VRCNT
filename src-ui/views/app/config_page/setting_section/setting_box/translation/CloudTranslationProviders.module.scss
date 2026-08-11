@@ -6,6 +6,10 @@
 
 .provider_group {
     min-width: 0;
+    --settings-template-direction: column;
+    --settings-template-justify: flex-start;
+    --settings-template-align: stretch;
+    --settings-template-gap: 1rem;
 }
 
 @container model-provider-workspace (max-width: 72rem) {

@@ -1,16 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@useI18n";
 import { useAppearance, useVr } from "@logics_configs";
+import { ColorRoleEditor } from "@common_components";
 import {
     applyDesktopOverlayGeometry,
     createDesktopOverlayPayload,
-    DESKTOP_OVERLAY_ACCENTS,
     DESKTOP_OVERLAY_DEFAULT_SETTINGS,
     DESKTOP_OVERLAY_MAX_MESSAGE_LOGS,
     DESKTOP_OVERLAY_SETTINGS_CHANNEL,
+    DEFAULT_OVERLAY_COLOR_PALETTE,
     estimateDesktopOverlayFitHeight,
-    getDesktopOverlayAccent,
+    getContrastRatio,
+    getOverlayCssVariables,
     normalizeDesktopOverlaySettings,
+    normalizeColorPalette,
+    OVERLAY_COLOR_ROLE_GROUPS,
     openDesktopOverlayWindow,
     readDesktopOverlaySettings,
     sendDesktopOverlayControl,
@@ -26,6 +30,31 @@ import { ui_configs } from "@ui_configs";
 import { TopBar } from "../main_section/top_bar/TopBar";
 import { DesktopOverlayPreview } from "../../desktop_overlay/DesktopOverlayPreview";
 import styles from "./OverlayStudio.module.scss";
+
+const overlayRoleLabelKeys = {
+    primary: "primary",
+    secondary: "secondary",
+    border: "border",
+    background: "background",
+    panel: "panel",
+    text: "text",
+    textMuted: "text_muted",
+    sent: "sent",
+    received: "received",
+    translation: "translation",
+    success: "success",
+    warning: "warning",
+    error: "error",
+    info: "info",
+};
+
+const overlayGroupLabelKeys = {
+    brand: "brand",
+    surfaces: "surfaces",
+    content: "content",
+    messages: "messages",
+    status: "status",
+};
 
 const vrSettingsFor = (mode, smallSettings, largeSettings) => (
     mode === "large" ? largeSettings : smallSettings
@@ -51,6 +80,9 @@ export const OverlayStudio = () => {
         currentOverlayLargeLogSettings,
         setOverlayLargeLogSettings,
         currentOverlayShowOnlyTranslatedMessages,
+        currentOverlayColorPalette,
+        updateOverlayColorPalette,
+        setOverlayColorPalette,
     } = useVr();
     const { currentMessageLogs } = useStore_MessageLogs();
     const { currentTranslationStatus } = useStore_TranslationStatus();
@@ -59,6 +91,7 @@ export const OverlayStudio = () => {
     const [desktopSettings, setDesktopSettings] = useState(readDesktopOverlaySettings);
     const [vrMode, setVrMode] = useState("small");
     const [feedback, setFeedback] = useState("");
+    const overlayPersistTimer = useRef(null);
 
     const smallSettings = currentOverlaySmallLogSettings.data ?? ui_configs.overlay_small_log_default_settings;
     const largeSettings = currentOverlayLargeLogSettings.data ?? ui_configs.overlay_large_log_default_settings;
@@ -66,9 +99,24 @@ export const OverlayStudio = () => {
     const activeVrEnabled = vrMode === "large"
         ? currentIsEnabledOverlayLargeLog.data === true
         : currentIsEnabledOverlaySmallLog.data === true;
-    const activeAccent = getDesktopOverlayAccent(
-        activeVrSettings.accent_color ?? desktopSettings.accentColor,
+    const overlayPalette = useMemo(
+        () => normalizeColorPalette(currentOverlayColorPalette.data, DEFAULT_OVERLAY_COLOR_PALETTE),
+        [currentOverlayColorPalette.data],
     );
+    const overlayVariables = useMemo(
+        () => getOverlayCssVariables(overlayPalette),
+        [overlayPalette],
+    );
+    const overlayGroups = useMemo(() => OVERLAY_COLOR_ROLE_GROUPS.map((group) => ({
+        id: group.id,
+        label: t(`main_page.overlay_studio.colors.groups.${overlayGroupLabelKeys[group.id]}`),
+        description: t(`main_page.overlay_studio.colors.group_descriptions.${overlayGroupLabelKeys[group.id]}`),
+        roles: group.roles.map((roleId) => ({
+            id: roleId,
+            label: t(`main_page.overlay_studio.colors.roles.${overlayRoleLabelKeys[roleId]}`),
+            description: t(`main_page.overlay_studio.colors.role_descriptions.${overlayRoleLabelKeys[roleId]}`),
+        })),
+    })), [t]);
     const payload = useMemo(() => createDesktopOverlayPayload({
         messageLogs: currentMessageLogs.data,
         translationEnabled: currentTranslationStatus.data === true,
@@ -76,6 +124,7 @@ export const OverlayStudio = () => {
         listeningEnabled: currentTranscriptionReceiveStatus.data === true,
         uiLanguage: currentUiLanguage.data,
         fontFamily: currentSelectedFontFamily.data,
+        overlayColorPalette: overlayPalette,
     }), [
         currentMessageLogs.data,
         currentTranslationStatus.data,
@@ -83,7 +132,12 @@ export const OverlayStudio = () => {
         currentTranscriptionReceiveStatus.data,
         currentUiLanguage.data,
         currentSelectedFontFamily.data,
+        overlayPalette,
     ]);
+
+    useEffect(() => () => {
+        if (overlayPersistTimer.current) clearTimeout(overlayPersistTimer.current);
+    }, []);
     const vrPreviewText = lastVisibleText(
         currentMessageLogs.data ?? [],
         currentOverlayShowOnlyTranslatedMessages.data === true,
@@ -159,13 +213,31 @@ export const OverlayStudio = () => {
         setFeedback(t("main_page.overlay_studio.geometry_reset"));
     };
 
-    const updateAccent = (accentColor) => {
-        const nextSmallSettings = { ...smallSettings, accent_color: accentColor };
-        const nextLargeSettings = { ...largeSettings, accent_color: accentColor };
-        setOverlaySmallLogSettings(nextSmallSettings);
-        setOverlayLargeLogSettings(nextLargeSettings);
-        updateDesktopSettings((current) => ({ ...current, accentColor }));
-        setFeedback(t("main_page.overlay_studio.accent_synced"));
+    const persistOverlayPalette = (nextPalette) => {
+        updateOverlayColorPalette(nextPalette);
+        setFeedback(t("main_page.overlay_studio.colors.saving"));
+        if (overlayPersistTimer.current) clearTimeout(overlayPersistTimer.current);
+        overlayPersistTimer.current = setTimeout(() => {
+            setOverlayColorPalette(nextPalette);
+            setFeedback(t("main_page.overlay_studio.colors.saved"));
+            overlayPersistTimer.current = null;
+        }, 180);
+    };
+
+    const updateOverlayRole = (roleId, value) => {
+        persistOverlayPalette(normalizeColorPalette(
+            { ...overlayPalette, [roleId]: value },
+            DEFAULT_OVERLAY_COLOR_PALETTE,
+        ));
+    };
+
+    const resetOverlayRole = (roleId) => updateOverlayRole(roleId, DEFAULT_OVERLAY_COLOR_PALETTE[roleId]);
+    const resetOverlayPalette = () => persistOverlayPalette({ ...DEFAULT_OVERLAY_COLOR_PALETTE });
+    const getOverlayContrastWarning = (roleId, value) => {
+        if (!roleId.startsWith("text")) return null;
+        return getContrastRatio(value, overlayPalette.background) < 4.5
+            ? t("main_page.overlay_studio.colors.contrast_warning")
+            : null;
     };
 
     const updateActiveVrSettings = (key, value) => {
@@ -195,28 +267,87 @@ export const OverlayStudio = () => {
                 </header>
 
                 <div className={styles.studio_grid}>
-                    <section className={styles.desktop_card} aria-labelledby="desktop-overlay-heading">
-                        <header className={styles.card_header}>
-                            <div>
-                                <p className={styles.section_kicker}>{t("main_page.overlay_studio.desktop_kicker")}</p>
-                                <h2 id="desktop-overlay-heading">{t("main_page.overlay_studio.desktop_preview")}</h2>
-                                <p>{t("main_page.overlay_studio.desktop_detail")}</p>
+                    <div className={styles.preview_column}>
+                        <section className={styles.desktop_card} aria-labelledby="desktop-overlay-heading">
+                            <header className={styles.card_header}>
+                                <div>
+                                    <p className={styles.section_kicker}>{t("main_page.overlay_studio.desktop_kicker")}</p>
+                                    <h2 id="desktop-overlay-heading">{t("main_page.overlay_studio.desktop_preview")}</h2>
+                                    <p>{t("main_page.overlay_studio.desktop_detail")}</p>
+                                </div>
+                                <div className={styles.card_actions}>
+                                    <button type="button" className={styles.secondary_button} onClick={fitToContent}>
+                                        {t("main_page.overlay_studio.fit_to_content")}
+                                    </button>
+                                    <button type="button" className={styles.secondary_button} onClick={resetGeometry}>
+                                        {t("main_page.overlay_studio.reset_size")}
+                                    </button>
+                                </div>
+                            </header>
+                            <div className={styles.preview_canvas}>
+                                <DesktopOverlayPreview payload={payload} settings={desktopSettings} />
                             </div>
-                            <div className={styles.card_actions}>
-                                <button type="button" className={styles.secondary_button} onClick={fitToContent}>
-                                    {t("main_page.overlay_studio.fit_to_content")}
-                                </button>
-                                <button type="button" className={styles.secondary_button} onClick={resetGeometry}>
-                                    {t("main_page.overlay_studio.reset_size")}
-                                </button>
-                            </div>
-                        </header>
-                        <div className={styles.preview_canvas}>
-                            <DesktopOverlayPreview payload={payload} settings={desktopSettings} />
-                        </div>
-                    </section>
+                        </section>
 
-                    <aside className={styles.sidebar}>
+                        <section className={styles.vr_card} aria-labelledby="vr-overlay-heading">
+                            <div className={styles.vr_heading}>
+                                <div>
+                                    <p className={styles.section_kicker}>{t("main_page.overlay_studio.vr_kicker")}</p>
+                                    <h2 id="vr-overlay-heading">{t("main_page.overlay_studio.vr_preview")}</h2>
+                                </div>
+                                <label className={styles.switch_label}>
+                                    <span>{t("main_page.overlay_studio.vr_enabled")}</span>
+                                    <input type="checkbox" checked={activeVrEnabled} onChange={toggleActiveVrOverlay} />
+                                    <span aria-hidden="true" className={styles.toggle_visual} />
+                                </label>
+                            </div>
+                            <div
+                                className={styles.vr_canvas}
+                                style={{
+                                    "--vr-accent": overlayPalette.primary,
+                                    "--vr-accent-rgb": overlayVariables["--overlay_primary_color_rgb"],
+                                    "--vr-opacity": activeVrSettings.opacity ?? 1,
+                                    "--vr-message-text-scale": activeVrSettings.message_text_scale ?? 1,
+                                }}
+                            >
+                                <div className={styles.vr_frame} data-enabled={activeVrEnabled}>
+                                    <span>{activeVrSettings.tracker ?? "HMD"}</span>
+                                    <strong>{vrPreviewText || t("main_page.desktop_overlay.waiting")}</strong>
+                                    <small>{t("main_page.overlay_studio.vr_scale", { scale: Math.round((activeVrSettings.ui_scaling ?? 1) * 100) })}</small>
+                                </div>
+                            </div>
+                            <div className={styles.vr_controls}>
+                                <label className={styles.field}>
+                                    <span>{t("main_page.overlay_studio.vr_mode")}</span>
+                                    <select value={vrMode} onChange={(event) => setVrMode(event.target.value)}>
+                                        <option value="small">{t("main_page.overlay_studio.small_overlay")}</option>
+                                        <option value="large">{t("main_page.overlay_studio.large_overlay")}</option>
+                                    </select>
+                                </label>
+                                <label className={styles.field}>
+                                    <span>{t("main_page.overlay_studio.background")}</span>
+                                    <select
+                                        value={activeVrSettings.background_mode ?? "transparent_black"}
+                                        onChange={(event) => updateActiveVrSettings("background_mode", event.target.value)}
+                                    >
+                                        <option value="transparent_black">{t("main_page.overlay_studio.transparent")}</option>
+                                        <option value="solid_black">{t("main_page.overlay_studio.solid")}</option>
+                                    </select>
+                                </label>
+                                <RangeControl
+                                    label={t("main_page.overlay_studio.message_text_size")}
+                                    value={Math.round((activeVrSettings.message_text_scale ?? 1) * 100)}
+                                    min={40}
+                                    max={200}
+                                    step={10}
+                                    suffix="%"
+                                    onChange={(value) => updateActiveVrSettings("message_text_scale", value / 100)}
+                                />
+                            </div>
+                        </section>
+                    </div>
+
+                    <div className={styles.control_grid}>
                         <section className={styles.geometry_card} aria-labelledby="geometry-heading">
                             <h2 id="geometry-heading">{t("main_page.overlay_studio.geometry_title")}</h2>
                             <RangeControl
@@ -288,75 +419,35 @@ export const OverlayStudio = () => {
                             </label>
                         </section>
 
-                        <section className={styles.vr_card} aria-labelledby="vr-overlay-heading">
-                            <div className={styles.vr_heading}>
-                                <div>
-                                    <p className={styles.section_kicker}>{t("main_page.overlay_studio.vr_kicker")}</p>
-                                    <h2 id="vr-overlay-heading">{t("main_page.overlay_studio.vr_preview")}</h2>
-                                </div>
-                                <label className={styles.switch_label}>
-                                    <span>{t("main_page.overlay_studio.vr_enabled")}</span>
-                                    <input type="checkbox" checked={activeVrEnabled} onChange={toggleActiveVrOverlay} />
-                                    <span aria-hidden="true" className={styles.toggle_visual} />
-                                </label>
-                            </div>
-                            <div
-                                className={styles.vr_canvas}
-                                style={{
-                                    "--vr-accent": activeAccent.color,
-                                    "--vr-accent-rgb": activeAccent.rgb,
-                                    "--vr-opacity": activeVrSettings.opacity ?? 1,
-                                    "--vr-message-text-scale": activeVrSettings.message_text_scale ?? 1,
-                                }}
-                            >
-                                <div className={styles.vr_frame} data-enabled={activeVrEnabled}>
-                                    <span>{activeVrSettings.tracker ?? "HMD"}</span>
-                                    <strong>{vrPreviewText || t("main_page.desktop_overlay.waiting")}</strong>
-                                    <small>{t("main_page.overlay_studio.vr_scale", { scale: Math.round((activeVrSettings.ui_scaling ?? 1) * 100) })}</small>
-                                </div>
-                            </div>
-                            <div className={styles.vr_controls}>
-                                <label className={styles.field}>
-                                    <span>{t("main_page.overlay_studio.vr_mode")}</span>
-                                    <select value={vrMode} onChange={(event) => setVrMode(event.target.value)}>
-                                        <option value="small">{t("main_page.overlay_studio.small_overlay")}</option>
-                                        <option value="large">{t("main_page.overlay_studio.large_overlay")}</option>
-                                    </select>
-                                </label>
-                                <label className={styles.field}>
-                                    <span>{t("main_page.overlay_studio.background")}</span>
-                                    <select
-                                        value={activeVrSettings.background_mode ?? "transparent_black"}
-                                        onChange={(event) => updateActiveVrSettings("background_mode", event.target.value)}
-                                    >
-                                        <option value="transparent_black">{t("main_page.overlay_studio.transparent")}</option>
-                                        <option value="solid_black">{t("main_page.overlay_studio.solid")}</option>
-                                    </select>
-                                </label>
-                                <RangeControl
-                                    label={t("main_page.overlay_studio.message_text_size")}
-                                    value={Math.round((activeVrSettings.message_text_scale ?? 1) * 100)}
-                                    min={40}
-                                    max={200}
-                                    step={10}
-                                    suffix="%"
-                                    onChange={(value) => updateActiveVrSettings("message_text_scale", value / 100)}
+                        <section
+                            className={styles.overlay_colors_card}
+                            aria-label={t("main_page.overlay_studio.colors.editor_title")}
+                        >
+                            <div className={styles.overlay_color_editor}>
+                                <ColorRoleEditor
+                                    groups={overlayGroups}
+                                    palette={overlayPalette}
+                                    onChangeRole={updateOverlayRole}
+                                    onResetRole={resetOverlayRole}
+                                    onResetAll={resetOverlayPalette}
+                                    resetLabel={t("main_page.overlay_studio.colors.reset_all")}
+                                    getContrastWarning={getOverlayContrastWarning}
+                                    labels={{
+                                        kicker: t("main_page.overlay_studio.colors.editor_kicker"),
+                                        title: t("main_page.overlay_studio.colors.editor_title"),
+                                        description: t("main_page.overlay_studio.colors.editor_description"),
+                                        reset: t("main_page.overlay_studio.colors.reset_role"),
+                                        hue: t("config_page.appearance.colors.picker_hue"),
+                                        saturation: t("config_page.appearance.colors.picker_saturation"),
+                                        brightness: t("config_page.appearance.colors.picker_brightness"),
+                                        hex: t("config_page.appearance.colors.picker_hex"),
+                                        invalid: t("config_page.appearance.colors.picker_invalid"),
+                                    }}
                                 />
                             </div>
-                            <label className={styles.field}>
-                                <span>{t("main_page.overlay_studio.accent_color")}</span>
-                                <select
-                                    value={activeAccent.id}
-                                    onChange={(event) => updateAccent(event.target.value)}
-                                >
-                                    {DESKTOP_OVERLAY_ACCENTS.map((accent) => (
-                                        <option key={accent.id} value={accent.id}>{accent.label}</option>
-                                    ))}
-                                </select>
-                            </label>
-                            <p className={styles.sync_note}>{t("main_page.overlay_studio.accent_sync_detail")}</p>
+                            <p className={styles.sync_note}>{t("main_page.overlay_studio.colors.sync_detail")}</p>
                         </section>
-                    </aside>
+                    </div>
                 </div>
                 <p className={styles.feedback} role="status" aria-live="polite">{feedback}</p>
             </main>

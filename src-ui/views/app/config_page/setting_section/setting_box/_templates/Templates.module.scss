@@ -1,10 +1,11 @@
 .container {
     display: flex;
     width: 100%;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: var(--settings-template-direction, row);
+    justify-content: var(--settings-template-justify, space-between);
+    align-items: var(--settings-template-align, center);
     padding: 1.45rem 1.8rem;
-    gap: 1.8rem;
+    gap: var(--settings-template-gap, 1.8rem);
     background: var(--surface_2_color);
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.16);
     border-radius: 0.8rem;

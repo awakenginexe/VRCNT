@@ -6,3 +6,5 @@ export { CloseButton } from "./close_button/CloseButton";
 export { CircularProgress } from "./circular_progress/CircularProgress";
 export { Tooltip } from "./tooltip/Tooltip";
 export { CustomModernSelect } from "./custom_select/CustomModernSelect";
+export { ColorPicker } from "./color_picker/ColorPicker";
+export { ColorRoleEditor } from "./color_picker/ColorRoleEditor";

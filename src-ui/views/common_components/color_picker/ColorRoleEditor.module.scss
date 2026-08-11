@@ -1,0 +1,158 @@
+.editor {
+    min-width: 0;
+}
+
+.editor_header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+
+    h2,
+    h3,
+    h4,
+    p {
+        margin: 0;
+    }
+
+    h2 {
+        margin-top: 0.25rem;
+        color: var(--dark_100_color);
+        font-size: 1.15rem;
+    }
+}
+
+.kicker {
+    color: var(--accent_color);
+    font-size: 0.7rem;
+    font-weight: 850;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.description {
+    max-width: 38rem;
+    margin-top: 0.4rem !important;
+    color: var(--dark_450_color);
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+
+.reset_all,
+.reset_role {
+    border: 0.1rem solid var(--border_subtle_color);
+    border-radius: 0.55rem;
+    background: transparent;
+    color: var(--dark_350_color);
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 800;
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+        border-color: var(--focus_ring_color);
+        color: var(--dark_100_color);
+    }
+
+    &:focus-visible {
+        outline: 0.15rem solid var(--focus_ring_color);
+        outline-offset: 0.12rem;
+    }
+}
+
+.reset_all {
+    flex: 0 0 auto;
+    min-height: 2.3rem;
+    padding: 0 0.75rem;
+}
+
+.groups {
+    display: grid;
+    gap: 0.85rem;
+}
+
+.group {
+    padding: 0.85rem;
+    border: 0.1rem solid var(--border_subtle_color);
+    border-radius: 0.75rem;
+    background: var(--surface_1_color);
+}
+
+.group_heading {
+    margin-bottom: 0.7rem;
+
+    h3 {
+        color: var(--dark_200_color);
+        font-size: 0.8rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    p {
+        margin-top: 0.25rem;
+        color: var(--dark_500_color);
+        font-size: 0.7rem;
+    }
+}
+
+.roles {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.role {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-width: 0;
+    padding: 0.55rem 0.6rem;
+    border-radius: 0.6rem;
+    background: rgba(0, 0, 0, 0.13);
+}
+
+.role_copy {
+    min-width: 0;
+
+    h4 {
+        overflow: hidden;
+        color: var(--dark_300_color);
+        font-size: 0.78rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    p {
+        margin-top: 0.2rem;
+        color: var(--dark_500_color);
+        font-size: 0.67rem;
+        line-height: 1.35;
+    }
+}
+
+.role_actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex: 0 0 auto;
+}
+
+.reset_role {
+    min-height: 2.1rem;
+    padding: 0 0.55rem;
+    color: var(--dark_500_color);
+}
+
+@media (max-width: 42rem) {
+    .editor_header,
+    .role {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .role_actions {
+        justify-content: space-between;
+    }
+}

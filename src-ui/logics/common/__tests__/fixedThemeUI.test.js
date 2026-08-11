@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { getAppCssVariables } from "../colorPalette.js";
 
 const root = path.resolve(import.meta.dirname, "../../../..");
 const readSource = (relativePath) => readFileSync(path.join(root, relativePath), "utf8");
 
-test("the app and desktop overlay use one fixed visual system", () => {
+test("the app and desktop overlay use one editable semantic visual system", () => {
     const app = readSource("src-ui/views/app/App.jsx");
     const overlay = readSource("src-ui/views/app/desktop_overlay/DesktopOverlayApp.jsx");
     const appearance = readSource("src-ui/views/app/config_page/setting_section/setting_box/appearance/Appearance.jsx");
@@ -23,10 +24,15 @@ test("the app and desktop overlay use one fixed visual system", () => {
     assert.doesNotMatch(overlay, /THEME_ACCENT_CLASSES|theme_accent/);
     assert.doesNotMatch(appearance, /ThemeAccentContainer|THEME_ACCENTS/);
     assert.doesNotMatch(variables, /\.theme-midnight-purple|\.theme-emerald-green|\.theme-sakura-pink/);
-    assert.match(variables, /--accent_color:\s*#9B6DFF/i);
-    assert.match(variables, /--bg_gradient_start:\s*#08070B/i);
-    assert.match(variables, /--success_bc_color:\s*#5BE2B5/i);
-    assert.match(variables, /--canvas_color:\s*#08070B/i);
+    const appVariables = getAppCssVariables();
+    assert.equal(appVariables["--accent_color"], "#9B6DFF");
+    assert.equal(appVariables["--bg_gradient_start"], "#08070B");
+    assert.equal(appVariables["--success_color"], "#5BE2B5");
+    assert.equal(appVariables["--canvas_color"], "#08070B");
+    assert.match(variables, /--palette_primary_color:\s*#9B6DFF/i);
+    assert.match(variables, /--palette_background_start_color:\s*#08070B/i);
+    assert.match(variables, /--palette_success_color:\s*#5BE2B5/i);
+    assert.match(variables, /--palette_canvas_color:\s*#08070B/i);
     assert.match(variables, /--surface_overlay_color:/);
     assert.doesNotMatch(mainSection, /91,\s*226,\s*181/);
     assert.match(configPage, /var\(--canvas_color\)/);
@@ -39,8 +45,8 @@ test("the app and desktop overlay use one fixed visual system", () => {
     assert.match(messageSubMenu, /color:\s*var\(--accent_color\)/);
     assert.match(messageSubMenu, /background-color:\s*var\(--accent_color\)/);
     assert.match(overlayStyles, /&\.sent\s*\{[\s\S]*?margin-left:\s*auto/);
-    assert.match(overlayStyles, /&\.sent\s*\{\s*margin-left:\s*auto;\s*border-color:\s*rgba\(var\(--accent_color_rgb\),\s*0\.42\);\s*background:\s*color-mix\(in srgb,\s*var\(--accent_color\) 10%,\s*var\(--surface_2_color\)\)/);
+    assert.match(overlayStyles, /&\.sent\s*\{\s*margin-left:\s*auto;\s*border-color:\s*rgba\(var\(--overlay_sent_color_rgb\),\s*0\.42\);\s*background:\s*color-mix\(in srgb,\s*var\(--overlay_sent_color\) 10%,\s*var\(--overlay_panel_color\)\)/);
     assert.match(overlayStyles, /&\.received\s*\{[\s\S]*?margin-right:\s*auto/);
-    assert.match(overlayStyles, /var\(--surface_2_color\)/);
-    assert.match(overlayStyles, /var\(--accent_color_rgb\)/);
+    assert.match(overlayStyles, /var\(--overlay_panel_color\)/);
+    assert.match(overlayStyles, /var\(--overlay_border_color_rgb\)/);
 });

@@ -1,5 +1,6 @@
 export { KeyEventController } from "./KeyEventController";
 export { StartPythonController } from "./StartPythonController";
+export { FirstRunSetupController } from "./FirstRunSetupController";
 export { GlobalHotKeyController } from "./GlobalHotKeyController";
 export { UiLanguageController } from "./UiLanguageController";
 export { ConfigPageCloseTriggerController } from "./ConfigPageCloseTriggerController";
@@ -8,3 +9,4 @@ export { FontFamilyController } from "./FontFamilyController";
 export { TransparencyController } from "./TransparencyController";
 export { CornerRadiusController } from "./CornerRadiusController";
 export { PerformanceModeController } from "./PerformanceModeController";
+export { ColorThemeController } from "./ColorThemeController";

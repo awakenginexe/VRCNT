@@ -91,9 +91,9 @@ export const useWindow = () => {
         }
     };
 
-    const asyncUpdateBreakPoint = async () => {
+    const asyncUpdateBreakPoint = async (uiScaling = currentUiScaling.data) => {
         const size = await appWindow.innerSize();
-        const dynamicBreakPoint = 800 * (currentUiScaling.data / 100);
+        const dynamicBreakPoint = 800 * (uiScaling / 100);
         updateIsBreakPoint(size.width <= dynamicBreakPoint);
     };
 

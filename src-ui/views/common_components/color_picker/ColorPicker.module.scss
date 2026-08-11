@@ -1,0 +1,183 @@
+.wrapper {
+    position: relative;
+    min-width: 11.2rem;
+}
+
+.trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-height: 2.4rem;
+    padding: 0.35rem 0.55rem;
+    border: 0.1rem solid var(--border_subtle_color);
+    border-radius: 0.65rem;
+    background: var(--surface_control_color);
+    color: var(--dark_200_color);
+    font: inherit;
+    font-size: 0.76rem;
+    font-weight: 800;
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+        border-color: var(--focus_ring_color);
+    }
+
+    &:focus-visible {
+        outline: 0.16rem solid var(--focus_ring_color);
+        outline-offset: 0.16rem;
+    }
+}
+
+.swatch {
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 0.1rem solid rgba(255, 255, 255, 0.55);
+    border-radius: 0.45rem;
+    box-shadow: inset 0 0 0 0.1rem rgba(0, 0, 0, 0.25);
+}
+
+.trigger_value {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+}
+
+.description {
+    margin: 0.35rem 0 0;
+    color: var(--dark_450_color);
+    font-size: 0.72rem;
+    line-height: 1.35;
+}
+
+.popover {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 0.6rem);
+    right: 0;
+    width: min(19rem, calc(100vw - 2rem));
+    padding: 0.9rem;
+    border: 0.1rem solid var(--border_subtle_color);
+    border-radius: 0.85rem;
+    background: var(--surface_3_color);
+    box-shadow: var(--shadow_card);
+}
+
+.visual_controls {
+    display: grid;
+    place-items: center;
+}
+
+.hue_wheel {
+    position: relative;
+    width: 11.5rem;
+    height: 11.5rem;
+    border-radius: 50%;
+    background: conic-gradient(#FF0000, #FFFF00, #00FF00, #00FFFF, #0000FF, #FF00FF, #FF0000);
+    cursor: crosshair;
+    touch-action: none;
+}
+
+.hue_marker {
+    position: absolute;
+    top: 0.18rem;
+    left: calc(50% - 0.11rem);
+    width: 0.22rem;
+    height: 1.1rem;
+    transform-origin: 50% 5.57rem;
+    border: 0.1rem solid #ffffff;
+    border-radius: 0.15rem;
+    box-shadow: 0 0 0.3rem rgba(0, 0, 0, 0.7);
+    pointer-events: none;
+}
+
+.saturation_plane {
+    position: absolute;
+    inset: 1.9rem;
+    border-radius: 50%;
+    background-image: linear-gradient(to top, #000000, transparent), linear-gradient(to right, #ffffff, transparent);
+    overflow: hidden;
+    cursor: crosshair;
+    touch-action: none;
+}
+
+.plane_marker {
+    position: absolute;
+    width: 0.8rem;
+    height: 0.8rem;
+    --plane-marker-inset: 0.4rem;
+    left: clamp(var(--plane-marker-inset), var(--plane-marker-x), calc(100% - var(--plane-marker-inset)));
+    top: clamp(var(--plane-marker-inset), var(--plane-marker-y), calc(100% - var(--plane-marker-inset)));
+    transform: translate(-50%, -50%);
+    border: 0.15rem solid #ffffff;
+    border-radius: 50%;
+    box-shadow: 0 0 0 0.1rem rgba(0, 0, 0, 0.7);
+    pointer-events: none;
+}
+
+.range_controls {
+    display: grid;
+    gap: 0.55rem;
+    margin-top: 0.9rem;
+
+    label {
+        display: grid;
+        grid-template-columns: 6.3rem minmax(0, 1fr);
+        align-items: center;
+        gap: 0.55rem;
+        color: var(--dark_350_color);
+        font-size: 0.72rem;
+        font-weight: 750;
+    }
+
+    input {
+        width: 100%;
+        accent-color: var(--accent_color);
+    }
+}
+
+.hex_field {
+    display: grid;
+    grid-template-columns: 3rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.55rem;
+    margin-top: 0.8rem;
+    color: var(--dark_300_color);
+    font-size: 0.72rem;
+    font-weight: 800;
+
+    input {
+        min-width: 0;
+        height: 2.25rem;
+        padding: 0 0.65rem;
+        border: 0.1rem solid var(--border_subtle_color);
+        border-radius: 0.5rem;
+        background: var(--surface_control_color);
+        color: var(--dark_100_color);
+        font: inherit;
+        font-variant-numeric: tabular-nums;
+
+        &:focus-visible {
+            outline: 0.16rem solid var(--focus_ring_color);
+            outline-offset: 0.12rem;
+        }
+
+        &[aria-invalid="true"] {
+            border-color: var(--error_bc_color);
+        }
+    }
+}
+
+.error,
+.warning {
+    margin: 0.5rem 0 0;
+    font-size: 0.7rem;
+    line-height: 1.35;
+}
+
+.error {
+    color: var(--error_bc_color);
+}
+
+.warning {
+    color: var(--warning_color);
+}

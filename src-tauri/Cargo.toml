@@ -1,6 +1,6 @@
 [package]
 name = "vrcnt"
-version = "5.4.0"
+version = "5.5.0"
 description = "VRCNT realtime VRChat translation application"
 authors = ["awakenginexe"]
 edition = "2021"

@@ -14,6 +14,7 @@ export { useIsBackendReady } from "./useIsBackendReady";
 export { useWindow } from "./useWindow";
 export * from "./desktopOverlayWindow.js";
 export * from "./desktopOverlaySettings.js";
+export * from "./colorPalette.js";
 export { useIsOpenedConfigPage } from "./useIsOpenedConfigPage";
 export { useIsSoftwareUpdating } from "./useIsSoftwareUpdating";
 export { useNotificationStatus } from "./useNotificationStatus";

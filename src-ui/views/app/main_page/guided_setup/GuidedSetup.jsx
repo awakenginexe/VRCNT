@@ -1,46 +1,37 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useI18n } from "@useI18n";
 import { useLanguageSettings } from "@logics_main";
-import { useDevice, useOthers } from "@logics_configs";
+import { useAppearance, useDevice, useOnboarding, useOthers } from "@logics_configs";
+import { ui_configs } from "@ui_configs";
 import {
     useIsOscAvailable,
     useIsOpenedConfigPage,
     useNotificationStatus,
 } from "@logics_common";
+import { useStdoutToPython } from "@useStdoutToPython";
 import { CustomModernSelect } from "@common_components";
 import { useStore_ExperienceRoute } from "@store";
 import { TopBar } from "../main_section/top_bar/TopBar";
+import { LanguageFlag } from "../sidebar_section/language_settings/LanguageFlag.jsx";
+import { TranscriptionTranslationStep } from "./TranscriptionTranslationStep.jsx";
 import styles from "./GuidedSetup.module.scss";
 
+const SETUP_COMPLETION_TIMEOUT_MS = 8000;
+
 const SETUP_STEPS = [
-    { id: 1, labelKey: "main_page.guided_setup.step_languages" },
-    { id: 2, labelKey: "main_page.guided_setup.step_routing" },
-    { id: 3, labelKey: "main_page.guided_setup.step_audio" },
-    { id: 4, labelKey: "main_page.guided_setup.step_finish" },
+    { id: 1, labelKey: "main_page.guided_setup.step_app_language" },
+    { id: 2, labelKey: "main_page.guided_setup.step_language" },
+    { id: 3, labelKey: "main_page.guided_setup.step_translation" },
+    { id: 4, labelKey: "main_page.guided_setup.step_audio" },
+    { id: 5, labelKey: "main_page.guided_setup.step_transcription_translation" },
+    { id: 6, labelKey: "main_page.guided_setup.step_vrchat" },
 ];
 
 const languageOptionValue = (language) => {
     if (!language?.language || !language?.country) return "";
     return JSON.stringify({ language: language.language, country: language.country });
 };
-
-const decodeLanguageOption = (value) => {
-    if (!value) return null;
-    try {
-        const language = JSON.parse(value);
-        return typeof language?.language === "string" && typeof language?.country === "string"
-            ? language
-            : null;
-    } catch {
-        return null;
-    }
-};
-
-const getLanguageLabel = (language, fallback) => (
-    language?.language && language?.country
-        ? `${language.language} · ${language.country}`
-        : fallback
-);
 
 const toSelectableValues = (data) => {
     if (Array.isArray(data)) return data.filter((value) => typeof value === "string");
@@ -57,38 +48,213 @@ const LanguageSelect = ({
     onChange,
     optional = false,
 }) => {
+    const { t } = useI18n();
     const selectedValue = languageOptionValue(selectedLanguage);
-    const isDisabled = languages.length === 0;
+    const isDisabled = !Array.isArray(languages) || languages.length === 0;
+    const [isOpen, setIsOpen] = useState(false);
+    const [query, setQuery] = useState("");
+    const triggerRef = useRef(null);
+    const searchInputRef = useRef(null);
+    const dialogId = `${id}-dialog`;
+    const searchId = `${id}-search`;
 
-    const selectOptions = useMemo(() => {
-        const list = [];
-        if (optional || selectedValue === "") {
-            list.push({ id: "", title: emptyLabel });
-        }
-        languages.forEach((lang) => {
-            const val = languageOptionValue(lang);
-            list.push({
-                id: val,
-                title: lang.language,
-                subtitle: lang.country,
-                country: lang.country,
-            });
-        });
-        return list;
-    }, [emptyLabel, languages, optional, selectedValue]);
+    const sortedLanguages = useMemo(() => (
+        (Array.isArray(languages) ? languages : [])
+            .filter((language) => language?.language && language?.country)
+            .slice()
+            .sort((first, second) => {
+                const languageOrder = first.language.localeCompare(
+                    second.language,
+                    undefined,
+                    { sensitivity: "base" },
+                );
+                return languageOrder || first.country.localeCompare(
+                    second.country,
+                    undefined,
+                    { sensitivity: "base" },
+                );
+            })
+    ), [languages]);
+
+    const filteredLanguages = useMemo(() => {
+        const normalizedQuery = query.trim().toLocaleLowerCase();
+        if (!normalizedQuery) return sortedLanguages;
+        return sortedLanguages.filter((language) => (
+            `${language.language} ${language.country}`
+                .toLocaleLowerCase()
+                .includes(normalizedQuery)
+        ));
+    }, [query, sortedLanguages]);
+
+    useEffect(() => {
+        if (!isOpen) return undefined;
+
+        setQuery("");
+        const focusFrame = window.requestAnimationFrame(() => searchInputRef.current?.focus());
+        const handleKeyDown = (event) => {
+            if (event.key !== "Escape") return;
+            event.preventDefault();
+            setIsOpen(false);
+            triggerRef.current?.focus();
+        };
+        window.addEventListener("keydown", handleKeyDown);
+
+        return () => {
+            window.cancelAnimationFrame(focusFrame);
+            window.removeEventListener("keydown", handleKeyDown);
+        };
+    }, [isOpen]);
+
+    const closePicker = () => {
+        setIsOpen(false);
+        triggerRef.current?.focus();
+    };
+
+    const chooseLanguage = (language) => {
+        onChange(language);
+        closePicker();
+    };
+
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    const showEmptyOption = (optional || selectedValue === "") && (
+        normalizedQuery === "" || emptyLabel.toLocaleLowerCase().includes(normalizedQuery)
+    );
+
+    const picker = isOpen && typeof document !== "undefined" ? createPortal(
+        <div
+            className={styles.language_picker_backdrop}
+            onMouseDown={(event) => {
+                if (event.target === event.currentTarget) closePicker();
+            }}
+        >
+            <section
+                id={dialogId}
+                className={styles.language_picker_dialog}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={`${dialogId}-title`}
+            >
+                <div className={styles.language_picker_header}>
+                    <div className={styles.language_picker_title_copy}>
+                        <h2 id={`${dialogId}-title`} className={styles.language_picker_title}>{label}</h2>
+                        <p className={styles.language_picker_subtitle}>
+                            {t("main_page.language_selector.picker_detail")}
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        className={styles.language_picker_close}
+                        onClick={closePicker}
+                        aria-label={t("main_page.language_selector.close")}
+                    >
+                        ×
+                    </button>
+                </div>
+                <div className={styles.language_picker_toolbar}>
+                    <label className={styles.language_picker_search} htmlFor={searchId}>
+                        <svg className={styles.language_picker_search_icon} viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m21 20-4.7-4.7a7.5 7.5 0 1 0-1 1L20 21l1-1ZM5.5 10.5a5 5 0 1 1 10 0 5 5 0 0 1-10 0Z" />
+                        </svg>
+                        <input
+                            id={searchId}
+                            ref={searchInputRef}
+                            type="search"
+                            value={query}
+                            onChange={(event) => setQuery(event.target.value)}
+                            placeholder={t("main_page.language_selector.search_placeholder")}
+                            aria-label={t("main_page.language_selector.search_label")}
+                        />
+                    </label>
+                </div>
+                <div className={styles.language_picker_list} role="listbox" aria-label={label}>
+                    {showEmptyOption && (
+                        <button
+                            type="button"
+                            className={styles.language_picker_option}
+                            data-selected={selectedValue === ""}
+                            role="option"
+                            aria-selected={selectedValue === ""}
+                            onClick={() => chooseLanguage(null)}
+                        >
+                            <span className={styles.language_picker_empty_icon} aria-hidden="true">—</span>
+                            <span className={styles.language_picker_option_copy}>
+                                <strong>{emptyLabel}</strong>
+                            </span>
+                            {selectedValue === "" && (
+                                <span className={styles.language_picker_check} aria-hidden="true">✓</span>
+                            )}
+                        </button>
+                    )}
+                    {filteredLanguages.map((language) => {
+                        const value = languageOptionValue(language);
+                        const isSelected = value === selectedValue;
+                        return (
+                            <button
+                                key={value}
+                                type="button"
+                                className={styles.language_picker_option}
+                                data-selected={isSelected}
+                                role="option"
+                                aria-selected={isSelected}
+                                onClick={() => chooseLanguage(language)}
+                            >
+                                <LanguageFlag country={language.country} className={styles.language_picker_flag} />
+                                <span className={styles.language_picker_option_copy}>
+                                    <strong>{language.language}</strong>
+                                    <span>{language.country}</span>
+                                </span>
+                                {isSelected && (
+                                    <span className={styles.language_picker_check} aria-hidden="true">✓</span>
+                                )}
+                            </button>
+                        );
+                    })}
+                    {filteredLanguages.length === 0 && !showEmptyOption && (
+                        <div className={styles.language_picker_empty_result} role="status">
+                            <strong>{t("main_page.language_selector.no_results_title")}</strong>
+                            <span>
+                                {t("main_page.language_selector.no_results_detail", { query: query.trim() })}
+                            </span>
+                        </div>
+                    )}
+                </div>
+            </section>
+        </div>,
+        document.body,
+    ) : null;
 
     return (
         <div className={styles.field}>
-            <CustomModernSelect
-                id={id}
-                label={label}
-                value={selectedValue}
-                options={selectOptions}
+            <label className={styles.field_label} htmlFor={`${id}-trigger`}>{label}</label>
+            <button
+                id={`${id}-trigger`}
+                ref={triggerRef}
+                type="button"
+                className={styles.language_picker_trigger}
+                onClick={() => setIsOpen(true)}
                 disabled={isDisabled}
-                placeholder={emptyLabel}
-                onChange={(val) => onChange(decodeLanguageOption(val))}
-            />
-            {description && <span className={styles.field_description}>{description}</span>}
+                aria-haspopup="dialog"
+                aria-expanded={isOpen}
+                aria-controls={dialogId}
+                aria-label={label}
+            >
+                <span className={styles.language_picker_trigger_content}>
+                    {selectedLanguage ? (
+                        <>
+                            <LanguageFlag country={selectedLanguage.country} className={styles.language_picker_flag} />
+                            <span className={styles.language_picker_option_copy}>
+                                <strong>{selectedLanguage.language}</strong>
+                                <span>{selectedLanguage.country}</span>
+                            </span>
+                        </>
+                    ) : (
+                        <span className={styles.language_picker_placeholder}>{emptyLabel}</span>
+                    )}
+                </span>
+                <span className={styles.language_picker_chevron} aria-hidden="true">⌄</span>
+            </button>
+            {description && <span id={`${id}-description`} className={styles.field_description}>{description}</span>}
+            {picker}
         </div>
     );
 };
@@ -136,10 +302,18 @@ const SetupToggle = ({ id, label, description, checked, disabled, onChange }) =>
 export const GuidedSetup = () => {
     const { t } = useI18n();
     const [step, setStep] = useState(1);
+    const [stepDirection, setStepDirection] = useState("forward");
+    const [completionIntent, setCompletionIntent] = useState(null);
+    const [completionError, setCompletionError] = useState("");
+    const [isSkipConfirmationOpen, setIsSkipConfirmationOpen] = useState(false);
+    const skipCancelButtonRef = useRef(null);
     const { updateExperienceRoute } = useStore_ExperienceRoute();
     const { setIsOpenedConfigPage } = useIsOpenedConfigPage();
-    const { showNotification_Success } = useNotificationStatus();
+    const { showNotification_Success, showNotification_Error } = useNotificationStatus();
+    const { asyncStdoutToPython } = useStdoutToPython();
     const { currentIsOscAvailable } = useIsOscAvailable();
+    const { currentUiLanguage, setUiLanguage } = useAppearance();
+    const { currentSetupCompleted } = useOnboarding();
     const {
         currentSelectableLanguageList,
         currentSelectedPresetTabNumber,
@@ -208,13 +382,92 @@ export const GuidedSetup = () => {
         }
         setSelectedTargetLanguages({ ...language, target_key: targetKey });
     };
-    const finishSetup = () => {
-        showNotification_Success(
-            t("main_page.guided_setup.complete_notification"),
-            { category_id: "guided_setup_complete" },
-        );
-        setIsOpenedConfigPage(false);
-        updateExperienceRoute("live");
+    const isCompletingSetup = completionIntent !== null;
+
+    useEffect(() => {
+        if (!completionIntent) return;
+        if (currentSetupCompleted.data === true) {
+            if (completionIntent.showSuccessNotification) {
+                showNotification_Success(
+                    t("main_page.guided_setup.complete_notification"),
+                    { category_id: "guided_setup_complete" },
+                );
+            }
+            setCompletionIntent(null);
+            setCompletionError("");
+            setIsOpenedConfigPage(false);
+            updateExperienceRoute("live");
+        }
+    }, [
+        completionIntent,
+        currentSetupCompleted.data,
+        setIsOpenedConfigPage,
+        showNotification_Success,
+        t,
+        updateExperienceRoute,
+    ]);
+
+    useEffect(() => {
+        if (!completionIntent) return undefined;
+
+        const timeoutId = window.setTimeout(() => {
+            setCompletionIntent(null);
+            setCompletionError(t("main_page.guided_setup.setup_completion_error"));
+        }, SETUP_COMPLETION_TIMEOUT_MS);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [completionIntent, t]);
+
+    useEffect(() => {
+        if (!isSkipConfirmationOpen) return undefined;
+
+        const previouslyFocused = document.activeElement;
+        skipCancelButtonRef.current?.focus();
+        const handleDocumentKeyDown = (event) => {
+            if (event.key !== "Escape") return;
+            event.preventDefault();
+            setIsSkipConfirmationOpen(false);
+        };
+        document.addEventListener("keydown", handleDocumentKeyDown);
+
+        return () => {
+            document.removeEventListener("keydown", handleDocumentKeyDown);
+            previouslyFocused?.focus?.();
+        };
+    }, [isSkipConfirmationOpen]);
+
+    const completeSetup = async ({ showSuccessNotification = false } = {}) => {
+        if (isCompletingSetup) return;
+
+        setCompletionError("");
+        setCompletionIntent({ showSuccessNotification });
+        const transportResult = await asyncStdoutToPython("/set/data/setup_completed", true);
+
+        if (!transportResult.ok) {
+            setCompletionIntent(null);
+            setCompletionError(t("main_page.guided_setup.setup_completion_error"));
+            showNotification_Error(
+                t("blocking_operation.backend_unavailable"),
+                { category_id: "guided_setup_completion_failed" },
+            );
+        }
+    };
+    const finishSetup = () => completeSetup({ showSuccessNotification: true });
+    const skipSetup = () => completeSetup();
+    const moveToStep = (nextStep) => {
+        const boundedStep = Math.max(1, Math.min(SETUP_STEPS.length, nextStep));
+        if (boundedStep === step) return;
+        setStepDirection(boundedStep > step ? "forward" : "backward");
+        setStep(boundedStep);
+    };
+    const requestSkipSetup = () => {
+        if (isCompletingSetup) return;
+        setIsSkipConfirmationOpen(true);
+    };
+    const cancelSkipSetup = () => setIsSkipConfirmationOpen(false);
+    const confirmSkipSetup = () => {
+        setIsSkipConfirmationOpen(false);
+        skipSetup();
     };
 
     return (
@@ -247,64 +500,118 @@ export const GuidedSetup = () => {
                 </ol>
 
                 <section className={styles.setup_card} aria-live="polite">
+                    <div
+                        key={step}
+                        className={styles.step_transition}
+                        data-direction={stepDirection}
+                    >
                     {step === 1 && (
                         <div className={styles.step_body}>
-                            <p className={styles.eyebrow}>{t("main_page.guided_setup.step_languages")}</p>
-                            <h2>{t("main_page.guided_setup.languages_title")}</h2>
-                            <p className={styles.lead}>{t("main_page.guided_setup.languages_detail")}</p>
-                            <LanguageSelect
-                                id="guided-setup-speaking-language"
-                                label={t("main_page.guided_setup.speaking_language")}
-                                description={t("main_page.guided_setup.speaking_language_detail")}
-                                languages={selectableLanguages}
-                                selectedLanguage={speakingLanguage}
-                                emptyLabel={t("main_page.guided_setup.language_unavailable")}
-                                onChange={chooseSpeakingLanguage}
-                            />
+                            <p className={styles.eyebrow}>{t("main_page.guided_setup.step_app_language")}</p>
+                            <h2>{t("main_page.guided_setup.app_language_title")}</h2>
+                            <p className={styles.lead}>{t("main_page.guided_setup.app_language_detail")}</p>
+                            <div className={styles.app_language_picker}>
+                                <span id="guided-setup-app-language-label" className={styles.field_label}>
+                                    {t("main_page.guided_setup.app_language")}
+                                </span>
+                                <div
+                                    className={styles.app_language_grid}
+                                    role="radiogroup"
+                                    aria-labelledby="guided-setup-app-language-label"
+                                >
+                                    {ui_configs.selectable_ui_languages.map((option) => {
+                                        const isSelected = currentUiLanguage.data === option.id;
+                                        return (
+                                            <button
+                                                key={option.id}
+                                                type="button"
+                                                className={styles.app_language_option}
+                                                role="radio"
+                                                aria-checked={isSelected}
+                                                aria-label={option.label}
+                                                data-selected={isSelected}
+                                                disabled={currentUiLanguage.state === "pending"}
+                                                onClick={() => setUiLanguage(option.id)}
+                                            >
+                                                <span className={styles.app_language_flag} aria-hidden="true">
+                                                    <span className={`fi fi-${option.flag}`} />
+                                                </span>
+                                                <span className={styles.app_language_name}>{option.label}</span>
+                                                {isSelected && (
+                                                    <span className={styles.app_language_check} aria-hidden="true">
+                                                        ✓
+                                                    </span>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
                         </div>
                     )}
 
                     {step === 2 && (
                         <div className={styles.step_body}>
-                            <p className={styles.eyebrow}>{t("main_page.guided_setup.step_routing")}</p>
-                            <h2>{t("main_page.guided_setup.routing_title")}</h2>
-                            <p className={styles.lead}>{t("main_page.guided_setup.routing_detail")}</p>
-                            <div className={styles.field_grid}>
+                            <p className={styles.eyebrow}>{t("main_page.guided_setup.step_language")}</p>
+                            <h2>{t("main_page.guided_setup.language_title")}</h2>
+                            <p className={styles.lead}>{t("main_page.guided_setup.languages_detail")}</p>
+                            <div className={styles.step_stack}>
                                 <LanguageSelect
-                                    id="guided-setup-translation-language"
-                                    label={t("main_page.guided_setup.translation_language")}
-                                    description={t("main_page.guided_setup.translation_language_detail")}
+                                    id="guided-setup-speaking-language"
+                                    label={t("main_page.guided_setup.speaking_language")}
+                                    description={t("main_page.guided_setup.speaking_language_detail")}
                                     languages={selectableLanguages}
-                                    selectedLanguage={translationLanguage}
+                                    selectedLanguage={speakingLanguage}
                                     emptyLabel={t("main_page.guided_setup.language_unavailable")}
-                                    onChange={chooseTranslationLanguage}
+                                    onChange={chooseSpeakingLanguage}
                                 />
-                                <LanguageSelect
-                                    id="guided-setup-target-language-1"
-                                    label={t("main_page.guided_setup.target_language")}
-                                    description={t("main_page.guided_setup.target_language_detail")}
-                                    languages={selectableLanguages}
-                                    selectedLanguage={targetLanguages?.["1"]}
-                                    emptyLabel={t("main_page.guided_setup.language_unavailable")}
-                                    onChange={(language) => chooseTargetLanguage("1", language)}
-                                />
-                                {["2", "3"].map((targetKey) => (
+                                <div className={styles.field_grid}>
                                     <LanguageSelect
-                                        key={targetKey}
-                                        id={`guided-setup-target-language-${targetKey}`}
-                                        label={t("main_page.guided_setup.additional_target", { index: targetKey })}
+                                        id="guided-setup-target-language-1"
+                                        label={t("main_page.guided_setup.target_language")}
+                                        description={t("main_page.guided_setup.target_language_detail")}
                                         languages={selectableLanguages}
-                                        selectedLanguage={targetLanguages?.[targetKey]?.enable ? targetLanguages[targetKey] : null}
-                                        emptyLabel={t("main_page.guided_setup.no_additional_target")}
-                                        optional
-                                        onChange={(language) => chooseTargetLanguage(targetKey, language)}
+                                        selectedLanguage={targetLanguages?.["1"]}
+                                        emptyLabel={t("main_page.guided_setup.language_unavailable")}
+                                        onChange={(language) => chooseTargetLanguage("1", language)}
                                     />
-                                ))}
+                                    {["2", "3"].map((targetKey) => (
+                                        <LanguageSelect
+                                            key={targetKey}
+                                            id={`guided-setup-target-language-${targetKey}`}
+                                            label={t("main_page.guided_setup.additional_target", { index: targetKey })}
+                                            languages={selectableLanguages}
+                                            selectedLanguage={targetLanguages?.[targetKey]?.enable ? targetLanguages[targetKey] : null}
+                                            emptyLabel={t("main_page.guided_setup.no_additional_target")}
+                                            optional
+                                            onChange={(language) => chooseTargetLanguage(targetKey, language)}
+                                        />
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     )}
 
                     {step === 3 && (
+                        <div className={styles.step_body}>
+                            <p className={styles.eyebrow}>{t("main_page.guided_setup.step_translation")}</p>
+                            <h2>{t("main_page.guided_setup.translation_title")}</h2>
+                            <p className={styles.lead}>{t("main_page.guided_setup.understanding_language_detail")}</p>
+                            <div className={styles.app_language_field}>
+                                <LanguageSelect
+                                    id="guided-setup-translation-language"
+                                    label={t("main_page.guided_setup.understanding_language")}
+                                    description={t("main_page.guided_setup.understanding_language_detail")}
+                                    languages={selectableLanguages}
+                                    selectedLanguage={translationLanguage}
+                                    emptyLabel={t("main_page.guided_setup.language_unavailable")}
+                                    onChange={chooseTranslationLanguage}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {step === 4 && (
                         <div className={styles.step_body}>
                             <p className={styles.eyebrow}>{t("main_page.guided_setup.step_audio")}</p>
                             <h2>{t("main_page.guided_setup.audio_title")}</h2>
@@ -363,9 +670,18 @@ export const GuidedSetup = () => {
                         </div>
                     )}
 
-                    {step === 4 && (
+                    {step === 5 && (
                         <div className={styles.step_body}>
-                            <p className={styles.eyebrow}>{t("main_page.guided_setup.step_finish")}</p>
+                            <p className={styles.eyebrow}>{t("main_page.guided_setup.step_transcription_translation")}</p>
+                            <h2>{t("main_page.guided_setup.transcription_translation_title")}</h2>
+                            <p className={styles.lead}>{t("main_page.guided_setup.detail")}</p>
+                            <TranscriptionTranslationStep />
+                        </div>
+                    )}
+
+                    {step === 6 && (
+                        <div className={styles.step_body}>
+                            <p className={styles.eyebrow}>{t("main_page.guided_setup.step_vrchat")}</p>
                             <h2>{t("main_page.guided_setup.finish_title")}</h2>
                             <p className={styles.lead}>{t("main_page.guided_setup.finish_detail")}</p>
                             <div className={styles.output_group}>
@@ -397,32 +713,98 @@ export const GuidedSetup = () => {
                             </aside>
                         </div>
                     )}
+                    </div>
+
+                    {completionError && (
+                        <p className={styles.completion_error} role="alert">
+                            {completionError}
+                        </p>
+                    )}
 
                     <footer className={styles.footer}>
                         <button
                             type="button"
                             className={styles.secondary_button}
-                            disabled={step === 1}
-                            onClick={() => setStep((current) => Math.max(1, current - 1))}
+                            disabled={step === 1 || isCompletingSetup}
+                            onClick={() => moveToStep(step - 1)}
                         >
                             {t("main_page.guided_setup.back")}
                         </button>
-                        {step < SETUP_STEPS.length ? (
+                        <div className={styles.footer_actions}>
                             <button
                                 type="button"
-                                className={styles.primary_button}
-                                onClick={() => setStep((current) => Math.min(SETUP_STEPS.length, current + 1))}
+                                className={styles.secondary_button}
+                                disabled={isCompletingSetup}
+                                onClick={requestSkipSetup}
                             >
-                                {t("main_page.guided_setup.continue")}
+                                {t("main_page.guided_setup.skip")}
                             </button>
-                        ) : (
-                            <button type="button" className={styles.primary_button} onClick={finishSetup}>
-                                {t("main_page.guided_setup.finish")}
-                            </button>
-                        )}
+                            {step === 6 ? (
+                                <button
+                                    type="button"
+                                    className={styles.primary_button}
+                                    disabled={isCompletingSetup}
+                                    onClick={finishSetup}
+                                >
+                                    {t("main_page.guided_setup.finish")}
+                                </button>
+                            ) : (
+                                <button
+                                    type="button"
+                                    className={styles.primary_button}
+                                    disabled={isCompletingSetup}
+                                    onClick={() => moveToStep(step + 1)}
+                                >
+                                    {t("main_page.guided_setup.continue")}
+                                </button>
+                            )}
+                        </div>
                     </footer>
                 </section>
             </main>
+            {isSkipConfirmationOpen && (
+                <div
+                    className={styles.skip_backdrop}
+                    onMouseDown={(event) => {
+                        if (event.target === event.currentTarget) cancelSkipSetup();
+                    }}
+                >
+                    <section
+                        className={styles.skip_dialog}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="guided-setup-skip-title"
+                        aria-describedby="guided-setup-skip-detail"
+                    >
+                        <p className={styles.skip_dialog_eyebrow}>
+                            {t("main_page.guided_setup.skip_confirmation_eyebrow")}
+                        </p>
+                        <h2 className={styles.skip_dialog_title} id="guided-setup-skip-title">
+                            {t("main_page.guided_setup.skip_confirmation_title")}
+                        </h2>
+                        <p className={styles.skip_dialog_detail} id="guided-setup-skip-detail">
+                            {t("main_page.guided_setup.skip_confirmation_detail")}
+                        </p>
+                        <div className={styles.skip_dialog_actions}>
+                            <button
+                                ref={skipCancelButtonRef}
+                                type="button"
+                                className={styles.secondary_button}
+                                onClick={cancelSkipSetup}
+                            >
+                                {t("main_page.guided_setup.skip_confirmation_cancel")}
+                            </button>
+                            <button
+                                type="button"
+                                className={styles.primary_button}
+                                onClick={confirmSkipSetup}
+                            >
+                                {t("main_page.guided_setup.skip_confirmation_confirm")}
+                            </button>
+                        </div>
+                    </section>
+                </div>
+            )}
         </div>
     );
 };

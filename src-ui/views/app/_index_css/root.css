@@ -2,7 +2,7 @@
 @import "./variables.css";
 
 :root {
-    font-size: 62.5%;
+    font-size: 91%;
     color: var(--dark_basic_text_color);
 }
 

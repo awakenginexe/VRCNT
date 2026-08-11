@@ -222,8 +222,12 @@ mapping = {
     "/get/data/ui_language": {"status": True, "variable":controller.getUiLanguage},
     "/set/data/ui_language": {"status": True, "variable":controller.setUiLanguage},
 
+    "/get/data/setup_completed": {"status": True, "variable":controller.getSetupCompleted},
+    "/set/data/setup_completed": {"status": True, "variable":controller.setSetupCompleted},
     "/get/data/main_window_geometry": {"status": True, "variable":controller.getMainWindowGeometry},
     "/set/data/main_window_geometry": {"status": True, "variable":controller.setMainWindowGeometry},
+    "/get/data/app_color_palette": {"status": True, "variable":controller.getAppColorPalette},
+    "/set/data/app_color_palette": {"status": True, "variable":controller.setAppColorPalette},
 
     # Compute device
     "/get/data/compute_mode": {"status": True, "variable":controller.getComputeMode},
@@ -453,6 +457,8 @@ mapping = {
 
     "/get/data/overlay_large_log_settings": {"status": True, "variable":controller.getOverlayLargeLogSettings},
     "/set/data/overlay_large_log_settings": {"status": True, "variable":controller.setOverlayLargeLogSettings},
+    "/get/data/overlay_color_palette": {"status": True, "variable":controller.getOverlayColorPalette},
+    "/set/data/overlay_color_palette": {"status": True, "variable":controller.setOverlayColorPalette},
 
     "/get/data/overlay_show_only_translated_messages": {"status": True, "variable":controller.getOverlayShowOnlyTranslatedMessages},
     "/set/enable/overlay_show_only_translated_messages": {"status": True, "variable":controller.setEnableOverlayShowOnlyTranslatedMessages},

@@ -131,6 +131,32 @@ test("legacy controls retain hydrated values until a profile field arrives", asy
     );
 });
 
+test("live engine summaries prefer the active profile over the stale legacy engine", async () => {
+    const { resolveLiveTranscriptionEngine } = await import(utilsUrl);
+
+    assert.equal(typeof resolveLiveTranscriptionEngine, "function");
+    assert.equal(
+        resolveLiveTranscriptionEngine({
+            legacyEngine: "Google",
+            sendProfile: { engine: "Whisper" },
+            receiveProfile: { engine: "Whisper" },
+        }),
+        "Whisper",
+    );
+    assert.equal(
+        resolveLiveTranscriptionEngine({
+            legacyEngine: "Google",
+            sendProfile: {},
+            receiveProfile: { engine: "Whisper Thai" },
+        }),
+        "Whisper Thai",
+    );
+    assert.equal(
+        resolveLiveTranscriptionEngine({ legacyEngine: "Google" }),
+        "Google",
+    );
+});
+
 test("legacy Model and Provider controls use the styled apply-to-both confirmation", async () => {
     const source = await readFile(path.join(
         root,

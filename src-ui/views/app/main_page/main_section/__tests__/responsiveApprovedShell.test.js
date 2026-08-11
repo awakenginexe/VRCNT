@@ -13,12 +13,13 @@ test("the approved shell keeps visible keyboard focus and reduced-motion support
     assert.match(root, /@media \(prefers-reduced-motion: reduce\)/);
 });
 
-test("the compact desktop shell preserves columns before the narrow single-column breakpoint", () => {
+test("the compact overlay shell keeps independent preview and settings stacks", () => {
     const navigation = readSource("../live_weave_navigation/LiveWeaveNavigation.module.scss");
     const studio = readSource("../../overlay_studio/OverlayStudio.module.scss");
 
     assert.match(navigation, /@media \(max-width: 80rem\)/);
     assert.match(studio, /@media \(max-width: 80rem\)/);
-    assert.match(studio, /grid-template-columns:\s*minmax\(0, 1fr\) minmax\(18rem, 21rem\)/);
-    assert.match(studio, /@media \(max-width: 64rem\)[\s\S]*?grid-template-columns:\s*1fr/);
+    assert.match(studio, /\.studio_grid\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 1\.1fr\) minmax\(30rem, 0\.9fr\)/);
+    assert.match(studio, /\.preview_column\s*,?\s*\.control_grid\s*\{[\s\S]*display:\s*flex[\s\S]*flex-direction:\s*column/);
+    assert.match(studio, /@media \(max-width: 64rem\)[\s\S]*?\.studio_grid\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
 });

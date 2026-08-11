@@ -58,12 +58,12 @@ export const ui_configs = {
     get received_message_format_parts() { return { ...this._default_message_format_parts }; },
 
     selectable_ui_languages: [
-        {id: "en", label: "English"},
-        {id: "ja", label: "日本語"},
-        {id: "ko", label: "한국어"},
-        {id: "th", label: "ไทย"},
-        {id: "zh-Hant", label: "繁體中文"},
-        {id: "zh-Hans", label: "简体中文"},
+        {id: "en", label: "English", flag: "gb-eng"},
+        {id: "ja", label: "日本語", flag: "jp"},
+        {id: "ko", label: "한국어", flag: "kr"},
+        {id: "th", label: "ไทย", flag: "th"},
+        {id: "zh-Hant", label: "繁體中文", flag: "tw"},
+        {id: "zh-Hans", label: "简体中文", flag: "cn"},
     ]
 };
 

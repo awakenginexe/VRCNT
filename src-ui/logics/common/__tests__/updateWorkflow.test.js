@@ -5,9 +5,9 @@ import path from "node:path";
 
 const repoRoot = path.resolve(import.meta.dirname, "../../../..");
 const read = (relativePath) => fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
+const tauriConfig = JSON.parse(read("src-tauri/tauri.conf.json"));
 
 test("Windows release names are explicit and the backend sidecar is VRCNT-branded", () => {
-    const tauriConfig = JSON.parse(read("src-tauri/tauri.conf.json"));
     const capability = read("src-tauri/capabilities/vrct_capability.json");
     const startPython = read("src-ui/views/app/_app_controllers/StartPythonController.jsx");
     const releaseScript = read("utils/release.py");
@@ -28,6 +28,18 @@ test("Windows release names are explicit and the backend sidecar is VRCNT-brande
     for (const locale of ["en", "ja", "ko", "th", "zh-Hans", "zh-Hant"]) {
         assert.match(read(`locales/${locale}.yml`), /quick_setting_latest:/);
     }
+});
+
+test("main window starts at a valid default and enforces the supported minimum", () => {
+    const mainWindow = tauriConfig.app.windows.find((window) => window.label === "main");
+
+    assert.ok(mainWindow, "the main window must be configured");
+    assert.equal(mainWindow.width, 1498);
+    assert.equal(mainWindow.height, 900);
+    assert.equal(mainWindow.minWidth, 1498);
+    assert.equal(mainWindow.minHeight, 711);
+    assert.ok(mainWindow.width >= mainWindow.minWidth);
+    assert.ok(mainWindow.height >= mainWindow.minHeight);
 });
 
 test("the update action uses the signed Tauri updater and relaunches after installation", () => {

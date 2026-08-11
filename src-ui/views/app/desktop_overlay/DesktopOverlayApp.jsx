@@ -14,6 +14,7 @@ import {
     DESKTOP_OVERLAY_WINDOW_CONSTRAINTS,
     estimateDesktopOverlayFitHeight,
     getDesktopOverlayPayloadSignature,
+    getOverlayCssVariables,
     normalizeDesktopOverlayPayload,
     parseDesktopOverlayPayload,
     readDesktopOverlayPayloadRaw,
@@ -279,7 +280,10 @@ export const DesktopOverlayApp = () => {
     return (
         <div
             className={styles.overlay_shell}
-            style={createDesktopOverlayStyle(settings)}
+            style={{
+                ...createDesktopOverlayStyle(settings, payload?.overlayColorPalette),
+                ...getOverlayCssVariables(payload?.overlayColorPalette),
+            }}
             onMouseDown={startDragging}
         >
             <section ref={panelRef} className={styles.overlay_panel}>

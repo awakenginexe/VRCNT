@@ -74,6 +74,22 @@ test("message text scale defaults, clamps, persists, and remains independent fro
     assert.equal(restored.messageTextScale, 130);
 });
 
+test("overlay palettes normalize custom values and migrate legacy accent presets", () => {
+    const custom = normalizeDesktopOverlaySettings({
+        accentColor: "theme-emerald-green",
+        overlayColorPalette: {
+            primary: "#123456",
+            text: "#abcdef",
+        },
+    });
+    assert.equal(custom.overlayColorPalette.primary, "#123456");
+    assert.equal(custom.overlayColorPalette.text, "#ABCDEF");
+
+    const legacy = normalizeDesktopOverlaySettings({ accentColor: "theme-emerald-green" });
+    assert.equal(legacy.overlayColorPalette.primary, "#10B981");
+    assert.equal(legacy.overlayColorPalette.border, "#10B981");
+});
+
 test("fit-to-content size is derived from the real visible log count and remains bounded", () => {
     assert.equal(estimateDesktopOverlayFitHeight({ visibleLogCount: 0 }), 160);
     assert.equal(estimateDesktopOverlayFitHeight({ visibleLogCount: 2 }), 240);
