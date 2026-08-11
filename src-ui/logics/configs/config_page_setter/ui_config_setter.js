@@ -871,6 +871,16 @@ export const SETTINGS_ARRAY = [
         base_endpoint_name: "clipboard",
     },
 
+    // Onboarding
+    {
+        Category: "Onboarding",
+        Base_Name: "SetupCompleted",
+        default_value: false,
+        ui_template_id: "toggle",
+        logics_template_id: "get_set",
+        base_endpoint_name: "setup_completed",
+    },
+
     // Others
     {
         Category: "Others",

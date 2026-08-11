@@ -3,6 +3,7 @@ import { useI18n } from "@useI18n";
 import {
     KeyEventController,
     StartPythonController,
+    FirstRunSetupController,
     GlobalHotKeyController,
     UiLanguageController,
     ConfigPageCloseTriggerController,
@@ -48,6 +49,7 @@ export const App = () => {
             <AppErrorBoundary >
                 <KeyEventController />
                 {isTauri && <StartPythonController />}
+                {isTauri && <FirstRunSetupController />}
                 {isTauri && <GlobalHotKeyController />}
                 <UiLanguageController />
                 <ConfigPageCloseTriggerController />

@@ -10,6 +10,7 @@ export const useDevice = createCategoryHook("Device");
 export const useTranslation = createCategoryHook("Translation");
 export const useTranscription = createCategoryHook("Transcription");
 export const useVr = createCategoryHook("Vr");
+export const useOnboarding = createCategoryHook("Onboarding");
 export const useOthers = createCategoryHook("Others");
 export const useAdvancedSettings = createCategoryHook("AdvancedSettings");
 
