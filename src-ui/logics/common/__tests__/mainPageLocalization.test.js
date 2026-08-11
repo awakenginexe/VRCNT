@@ -199,3 +199,50 @@ test("Live Weave navigation and empty-state copy exists in every locale", () => 
         }
     }
 });
+
+test("redesigned guided setup schema exists in every supported locale", () => {
+    const localeFiles = ["en.yml", "th.yml", "ja.yml", "ko.yml", "zh-Hans.yml", "zh-Hant.yml"];
+    const requiredKeys = [
+        "step_app_language",
+        "step_language",
+        "step_translation",
+        "step_audio",
+        "step_transcription_translation",
+        "step_vrchat",
+        "app_language_title",
+        "language_title",
+        "translation_title",
+        "understanding_language",
+        "understanding_language_detail",
+        "transcription_translation_title",
+        "speech_recognition_engine",
+        "translation_service",
+        "offline_translation_model",
+        "advanced",
+        "outgoing",
+        "incoming",
+        "tiny_whisper_warning",
+        "skip",
+    ];
+    const approvedEnglish = {
+        understanding_language: "Your understanding language",
+        understanding_language_detail: "The language VRCNT translates incoming speech into for you.",
+        skip: "Skip setup",
+        tiny_whisper_warning: "Whisper tiny is mainly suitable for English and may perform poorly in other languages.",
+    };
+
+    for (const localeFile of localeFiles) {
+        const source = readSource(`locales/${localeFile}`);
+        const guidedSetup = yaml.load(source)?.main_page?.guided_setup;
+        for (const key of requiredKeys) {
+            assert.match(source, new RegExp(`\\n\\s+${key}:`), `${localeFile}: ${key}`);
+            assert.equal(typeof guidedSetup?.[key], "string", `${localeFile}: main_page.guided_setup.${key}`);
+            assert.notEqual(guidedSetup[key].trim(), "", `${localeFile}: main_page.guided_setup.${key}`);
+        }
+    }
+
+    const english = yaml.load(readSource("locales/en.yml"))?.main_page?.guided_setup;
+    for (const [key, value] of Object.entries(approvedEnglish)) {
+        assert.equal(english?.[key], value, `en.yml: main_page.guided_setup.${key}`);
+    }
+});
