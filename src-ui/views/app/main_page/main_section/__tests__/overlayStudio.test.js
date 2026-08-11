@@ -37,13 +37,30 @@ test("Overlay Studio stays localized and usable in the minimum desktop workspace
     const styles = readSource("../../overlay_studio/OverlayStudio.module.scss");
     const english = readSource("../../../../../../locales/en.yml");
 
-    assert.match(styles, /grid-template-columns:\s*minmax\(0, 1fr\) minmax\(19rem, 24rem\)/);
+    assert.match(styles, /grid-template-columns:\s*minmax\(19rem, 0\.85fr\) minmax\(0, 1\.5fr\)/);
     assert.match(styles, /@media \(max-width: 80rem\)/);
     assert.match(styles, /:focus-visible/);
     assert.match(english, /overlay_studio:/);
     for (const key of ["fit_to_content", "reset_size", "desktop_preview", "vr_preview", "accent_color"]) {
         assert.match(english, new RegExp(`\\s${key}:`));
     }
+});
+
+test("places geometry and VR controls below the wide desktop preview", () => {
+    const studio = readSource("../../overlay_studio/OverlayStudio.jsx");
+    const styles = readSource("../../overlay_studio/OverlayStudio.module.scss");
+
+    const desktopIndex = studio.indexOf("className={styles.desktop_card}");
+    const controlsIndex = studio.indexOf("className={styles.control_grid}");
+    const geometryIndex = studio.indexOf("className={styles.geometry_card}");
+    const vrIndex = studio.indexOf("className={styles.vr_card}");
+
+    assert.ok(desktopIndex >= 0, "Desktop preview card should remain in Overlay Studio");
+    assert.ok(controlsIndex > desktopIndex, "Control grid should follow the desktop preview");
+    assert.ok(geometryIndex > controlsIndex, "Geometry controls should be inside the moved control grid");
+    assert.ok(vrIndex > controlsIndex, "VR controls should be inside the moved control grid");
+    assert.match(styles, /\.control_grid\s*\{[\s\S]*grid-template-columns:\s*minmax\(19rem, 0\.85fr\) minmax\(0, 1\.5fr\)/);
+    assert.match(styles, /@media \(max-width: 64rem\)[\s\S]*\.control_grid\s*\{[\s\S]*grid-template-columns:\s*1fr/);
 });
 
 test("overlay message text size is localized and independent from overall overlay scale", () => {

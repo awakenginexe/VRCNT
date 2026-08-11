@@ -288,7 +288,7 @@ export const OverlayStudio = () => {
                         </div>
                     </section>
 
-                    <aside className={styles.sidebar}>
+                    <div className={styles.control_grid}>
                         <section className={styles.geometry_card} aria-labelledby="geometry-heading">
                             <h2 id="geometry-heading">{t("main_page.overlay_studio.geometry_title")}</h2>
                             <RangeControl
@@ -439,7 +439,7 @@ export const OverlayStudio = () => {
                             </div>
                             <p className={styles.sync_note}>{t("main_page.overlay_studio.colors.sync_detail")}</p>
                         </section>
-                    </aside>
+                    </div>
                 </div>
                 <p className={styles.feedback} role="status" aria-live="polite">{feedback}</p>
             </main>
