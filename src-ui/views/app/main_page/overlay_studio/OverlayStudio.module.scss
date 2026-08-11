@@ -105,12 +105,16 @@
 .studio_grid {
     display: grid;
     grid-template-columns: minmax(0, 1.1fr) minmax(30rem, 0.9fr);
+    grid-template-areas:
+        "desktop geometry"
+        "vr geometry";
     gap: clamp(1rem, 1.8vw, 1.5rem);
     margin-top: clamp(1rem, 1.8vw, 1.5rem);
 }
 
 .desktop_card {
     min-width: 0;
+    grid-area: desktop;
     padding: clamp(1.15rem, 1.8vw, 1.6rem);
 }
 
@@ -156,15 +160,21 @@
 
 .control_grid {
     min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: clamp(1rem, 1.8vw, 1.5rem);
+    display: contents;
 }
 
 .geometry_card,
 .vr_card {
     min-width: 0;
     padding: 1.3rem;
+}
+
+.geometry_card {
+    grid-area: geometry;
+}
+
+.vr_card {
+    grid-area: vr;
 }
 
 .range_control {
@@ -393,6 +403,10 @@
 @media (max-width: 64rem) {
     .studio_grid {
         grid-template-columns: 1fr;
+        grid-template-areas:
+            "desktop"
+            "geometry"
+            "vr";
     }
 }
 

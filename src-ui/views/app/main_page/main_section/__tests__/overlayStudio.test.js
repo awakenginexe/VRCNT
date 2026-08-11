@@ -46,7 +46,7 @@ test("Overlay Studio stays localized and usable in the minimum desktop workspace
     }
 });
 
-test("keeps the desktop preview beside a stacked settings column", () => {
+test("places Desktop and SteamVR previews left of the geometry settings", () => {
     const studio = readSource("../../overlay_studio/OverlayStudio.jsx");
     const styles = readSource("../../overlay_studio/OverlayStudio.module.scss");
 
@@ -58,10 +58,14 @@ test("keeps the desktop preview beside a stacked settings column", () => {
     assert.ok(desktopIndex >= 0, "Desktop preview card should remain in Overlay Studio");
     assert.ok(controlsIndex > desktopIndex, "Settings column should follow the desktop preview");
     assert.ok(geometryIndex > controlsIndex, "Geometry controls should be inside the settings column");
-    assert.ok(vrIndex > controlsIndex, "VR controls should be inside the settings column");
+    assert.ok(vrIndex > geometryIndex, "VR preview should remain in the existing settings wrapper for shared state");
     assert.match(styles, /\.studio_grid\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 1\.1fr\) minmax\(30rem, 0\.9fr\)/);
-    assert.match(styles, /\.control_grid\s*\{[\s\S]*display:\s*flex[\s\S]*flex-direction:\s*column/);
-    assert.match(styles, /@media \(max-width: 64rem\)[\s\S]*\.studio_grid\s*\{[\s\S]*grid-template-columns:\s*1fr/);
+    assert.match(styles, /grid-template-areas:\s*"desktop geometry"\s*"vr geometry"/);
+    assert.match(styles, /\.control_grid\s*\{[\s\S]*display:\s*contents/);
+    assert.match(styles, /\.desktop_card\s*\{[\s\S]*grid-area:\s*desktop/);
+    assert.match(styles, /\.geometry_card\s*\{[\s\S]*grid-area:\s*geometry/);
+    assert.match(styles, /\.vr_card\s*\{[\s\S]*grid-area:\s*vr/);
+    assert.match(styles, /@media \(max-width: 64rem\)[\s\S]*\.studio_grid\s*\{[\s\S]*grid-template-columns:\s*1fr[\s\S]*grid-template-areas:\s*"desktop"\s*"geometry"\s*"vr"/);
 });
 
 test("overlay message text size is localized and independent from overall overlay scale", () => {
