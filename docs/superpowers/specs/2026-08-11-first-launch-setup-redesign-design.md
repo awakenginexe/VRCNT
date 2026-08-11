@@ -1,6 +1,6 @@
 # First-launch setup redesign
 
-**Date:** 2026-08-11  
+**Date:** 2026-08-11
 **Status:** Approved
 
 ## Summary
