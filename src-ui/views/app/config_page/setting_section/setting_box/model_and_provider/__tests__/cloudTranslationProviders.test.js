@@ -43,6 +43,16 @@ test("model and provider renders cloud translation providers in the translation 
     assert.match(read("../../translation/CloudTranslationProviders.module.scss"), /\.provider_grid\s*\{/);
 });
 
+test("cloud provider cards stack labels above controls", () => {
+    const providerStyles = read("../../translation/CloudTranslationProviders.module.scss");
+    const templateStyles = read("../../_templates/Templates.module.scss");
+
+    assert.match(providerStyles, /\.provider_group\s*\{[^}]*?--settings-template-direction:\s*column/);
+    assert.match(providerStyles, /\.provider_group\s*\{[^}]*?--settings-template-align:\s*stretch/);
+    assert.match(templateStyles, /flex-direction:\s*var\(--settings-template-direction,\s*row\)/);
+    assert.match(templateStyles, /align-items:\s*var\(--settings-template-align,\s*center\)/);
+});
+
 test("DeepSeek delete keeps the status-only route and shared status update", () => {
     const hook = read("../../../../../../../logics/common/useDeepSeekConfiguration.js");
     const routes = read("../../../../../../../logics/useReceiveRoutes.js");
