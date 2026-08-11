@@ -59,6 +59,23 @@ test("the session health pill has centered text without a leading dot", () => {
     assert.match(styles, /\.session_health[\s\S]*text-align:\s*center/);
 });
 
+test("localized navigation items keep their width inside the scroll rail", () => {
+    const styles = readSource("../live_weave_navigation/LiveWeaveNavigation.module.scss");
+
+    assert.match(styles, /\.navigation\s*\{[^}]*?overflow-x:\s*auto/);
+    assert.match(styles, /\.navigation_item\s*\{[^}]*?flex:\s*0\s+0\s+auto/);
+    assert.match(styles, /\.utility_area\s*\{[^}]*?flex:\s*0\s+0\s+auto/);
+    assert.match(styles, /@media\s*\(max-width:\s*100rem\)[\s\S]*?\.navigation\s*\{[^}]*?gap:\s*0\.1rem/);
+    assert.match(
+        styles,
+        /@media\s*\(max-width:\s*100rem\)[\s\S]*?\.navigation_item\s*\{[^}]*?padding-inline:\s*0\.36rem;[^}]*?font-size:\s*0\.84rem/,
+    );
+    assert.match(
+        styles,
+        /@media\s*\(max-width:\s*80rem\)[\s\S]*?\.navigation_item\s*\{[^}]*?padding-inline:\s*0\.42rem/,
+    );
+});
+
 test("the top-right desktop overlay tooltip opens below and inward from the window edge", () => {
     const button = readSource(
         "../../sidebar_section/desktop_overlay_button/DesktopOverlayButton.jsx"

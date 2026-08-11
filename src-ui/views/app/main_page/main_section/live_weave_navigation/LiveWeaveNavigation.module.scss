@@ -56,6 +56,7 @@
 
 .navigation_item {
     border: 0;
+    flex: 0 0 auto;
     min-height: 2.8rem;
     display: inline-flex;
     align-items: center;
@@ -197,6 +198,18 @@
     }
 }
 
+@media (max-width: 100rem) {
+    .navigation {
+        gap: 0.1rem;
+    }
+
+    .navigation_item {
+        gap: 0.3rem;
+        padding-inline: 0.36rem;
+        font-size: 0.84rem;
+    }
+}
+
 @media (max-width: 80rem) {
     .container {
         gap: 0.72rem;
@@ -215,7 +228,7 @@
 
     .navigation_item {
         min-height: 2.55rem;
-        padding-inline: 0.46rem;
+        padding-inline: 0.42rem;
         font-size: 0.8rem;
     }
 
