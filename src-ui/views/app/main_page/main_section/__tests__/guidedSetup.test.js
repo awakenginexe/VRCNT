@@ -14,7 +14,15 @@ test("Guided Setup owns the approved four-step route instead of opening legacy s
     assert.match(mainPage, /<GuidedSetup\s*\/>/);
     assert.doesNotMatch(navigation, /if \(item\.id === "setup"\)/);
     assert.match(setup, /const SETUP_STEPS = \[/);
-    assert.match(setup, /step === 4/);
+    for (const key of [
+        "step_app_language",
+        "step_language",
+        "step_translation",
+        "step_audio",
+        "step_transcription_translation",
+        "step_vrchat",
+    ]) assert.match(setup, new RegExp(key));
+    assert.match(setup, /step === 6/);
     assert.match(setup, /<TopBar\s*\/>/);
 });
 
@@ -22,6 +30,7 @@ test("Guided Setup changes real persisted language, device, and VRChat settings"
     const setup = readSource("../../guided_setup/GuidedSetup.jsx");
 
     for (const hook of [
+        "useAppearance",
         "useLanguageSettings",
         "useDevice",
         "useOthers",
@@ -44,8 +53,12 @@ test("Guided Setup changes real persisted language, device, and VRChat settings"
         assert.match(setup, new RegExp(setter));
     }
     assert.match(setup, /currentSelectableLanguageList/);
+    assert.match(setup, /currentUiLanguage/);
     assert.match(setup, /currentMicDeviceList/);
     assert.match(setup, /currentSpeakerDeviceList/);
+    assert.match(setup, /setUiLanguage/);
+    assert.match(setup, /understanding_language/);
+    assert.match(setup, /setSelectedYourTranslationLanguages/);
     assert.match(setup, /aria-live="polite"/);
     assert.doesNotMatch(setup, /RTX\s*5090|RTX\s*3070|Realtek|CABLE-A|mock|fake/i);
 });

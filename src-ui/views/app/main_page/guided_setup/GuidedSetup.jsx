@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useI18n } from "@useI18n";
 import { useLanguageSettings } from "@logics_main";
-import { useDevice, useOthers } from "@logics_configs";
+import { useAppearance, useDevice, useOthers } from "@logics_configs";
+import { ui_configs } from "@ui_configs";
 import {
     useIsOscAvailable,
     useIsOpenedConfigPage,
@@ -13,10 +14,12 @@ import { TopBar } from "../main_section/top_bar/TopBar";
 import styles from "./GuidedSetup.module.scss";
 
 const SETUP_STEPS = [
-    { id: 1, labelKey: "main_page.guided_setup.step_languages" },
-    { id: 2, labelKey: "main_page.guided_setup.step_routing" },
-    { id: 3, labelKey: "main_page.guided_setup.step_audio" },
-    { id: 4, labelKey: "main_page.guided_setup.step_finish" },
+    { id: 1, labelKey: "main_page.guided_setup.step_app_language" },
+    { id: 2, labelKey: "main_page.guided_setup.step_language" },
+    { id: 3, labelKey: "main_page.guided_setup.step_translation" },
+    { id: 4, labelKey: "main_page.guided_setup.step_audio" },
+    { id: 5, labelKey: "main_page.guided_setup.step_transcription_translation" },
+    { id: 6, labelKey: "main_page.guided_setup.step_vrchat" },
 ];
 
 const languageOptionValue = (language) => {
@@ -140,6 +143,7 @@ export const GuidedSetup = () => {
     const { setIsOpenedConfigPage } = useIsOpenedConfigPage();
     const { showNotification_Success } = useNotificationStatus();
     const { currentIsOscAvailable } = useIsOscAvailable();
+    const { currentUiLanguage, setUiLanguage } = useAppearance();
     const {
         currentSelectableLanguageList,
         currentSelectedPresetTabNumber,
@@ -249,62 +253,85 @@ export const GuidedSetup = () => {
                 <section className={styles.setup_card} aria-live="polite">
                     {step === 1 && (
                         <div className={styles.step_body}>
-                            <p className={styles.eyebrow}>{t("main_page.guided_setup.step_languages")}</p>
-                            <h2>{t("main_page.guided_setup.languages_title")}</h2>
-                            <p className={styles.lead}>{t("main_page.guided_setup.languages_detail")}</p>
-                            <LanguageSelect
-                                id="guided-setup-speaking-language"
-                                label={t("main_page.guided_setup.speaking_language")}
-                                description={t("main_page.guided_setup.speaking_language_detail")}
-                                languages={selectableLanguages}
-                                selectedLanguage={speakingLanguage}
-                                emptyLabel={t("main_page.guided_setup.language_unavailable")}
-                                onChange={chooseSpeakingLanguage}
-                            />
+                            <p className={styles.eyebrow}>{t("main_page.guided_setup.step_app_language")}</p>
+                            <h2>{t("main_page.guided_setup.app_language_title")}</h2>
+                            <p className={styles.lead}>{t("main_page.guided_setup.app_language_detail")}</p>
+                            <div className={styles.app_language_field}>
+                                <CustomModernSelect
+                                    id="guided-setup-app-language"
+                                    label={t("main_page.guided_setup.app_language")}
+                                    value={currentUiLanguage.data ?? ""}
+                                    options={ui_configs.selectable_ui_languages}
+                                    disabled={currentUiLanguage.state === "pending"}
+                                    placeholder={t("main_page.guided_setup.app_language")}
+                                    onChange={setUiLanguage}
+                                />
+                            </div>
                         </div>
                     )}
 
                     {step === 2 && (
                         <div className={styles.step_body}>
-                            <p className={styles.eyebrow}>{t("main_page.guided_setup.step_routing")}</p>
-                            <h2>{t("main_page.guided_setup.routing_title")}</h2>
-                            <p className={styles.lead}>{t("main_page.guided_setup.routing_detail")}</p>
-                            <div className={styles.field_grid}>
+                            <p className={styles.eyebrow}>{t("main_page.guided_setup.step_language")}</p>
+                            <h2>{t("main_page.guided_setup.language_title")}</h2>
+                            <p className={styles.lead}>{t("main_page.guided_setup.languages_detail")}</p>
+                            <div className={styles.step_stack}>
                                 <LanguageSelect
-                                    id="guided-setup-translation-language"
-                                    label={t("main_page.guided_setup.translation_language")}
-                                    description={t("main_page.guided_setup.translation_language_detail")}
+                                    id="guided-setup-speaking-language"
+                                    label={t("main_page.guided_setup.speaking_language")}
+                                    description={t("main_page.guided_setup.speaking_language_detail")}
                                     languages={selectableLanguages}
-                                    selectedLanguage={translationLanguage}
+                                    selectedLanguage={speakingLanguage}
                                     emptyLabel={t("main_page.guided_setup.language_unavailable")}
-                                    onChange={chooseTranslationLanguage}
+                                    onChange={chooseSpeakingLanguage}
                                 />
-                                <LanguageSelect
-                                    id="guided-setup-target-language-1"
-                                    label={t("main_page.guided_setup.target_language")}
-                                    description={t("main_page.guided_setup.target_language_detail")}
-                                    languages={selectableLanguages}
-                                    selectedLanguage={targetLanguages?.["1"]}
-                                    emptyLabel={t("main_page.guided_setup.language_unavailable")}
-                                    onChange={(language) => chooseTargetLanguage("1", language)}
-                                />
-                                {["2", "3"].map((targetKey) => (
+                                <div className={styles.field_grid}>
                                     <LanguageSelect
-                                        key={targetKey}
-                                        id={`guided-setup-target-language-${targetKey}`}
-                                        label={t("main_page.guided_setup.additional_target", { index: targetKey })}
+                                        id="guided-setup-target-language-1"
+                                        label={t("main_page.guided_setup.target_language")}
+                                        description={t("main_page.guided_setup.target_language_detail")}
                                         languages={selectableLanguages}
-                                        selectedLanguage={targetLanguages?.[targetKey]?.enable ? targetLanguages[targetKey] : null}
-                                        emptyLabel={t("main_page.guided_setup.no_additional_target")}
-                                        optional
-                                        onChange={(language) => chooseTargetLanguage(targetKey, language)}
+                                        selectedLanguage={targetLanguages?.["1"]}
+                                        emptyLabel={t("main_page.guided_setup.language_unavailable")}
+                                        onChange={(language) => chooseTargetLanguage("1", language)}
                                     />
-                                ))}
+                                    {["2", "3"].map((targetKey) => (
+                                        <LanguageSelect
+                                            key={targetKey}
+                                            id={`guided-setup-target-language-${targetKey}`}
+                                            label={t("main_page.guided_setup.additional_target", { index: targetKey })}
+                                            languages={selectableLanguages}
+                                            selectedLanguage={targetLanguages?.[targetKey]?.enable ? targetLanguages[targetKey] : null}
+                                            emptyLabel={t("main_page.guided_setup.no_additional_target")}
+                                            optional
+                                            onChange={(language) => chooseTargetLanguage(targetKey, language)}
+                                        />
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     )}
 
                     {step === 3 && (
+                        <div className={styles.step_body}>
+                            <p className={styles.eyebrow}>{t("main_page.guided_setup.step_translation")}</p>
+                            <h2>{t("main_page.guided_setup.translation_title")}</h2>
+                            <p className={styles.lead}>{t("main_page.guided_setup.understanding_language_detail")}</p>
+                            <div className={styles.app_language_field}>
+                                <LanguageSelect
+                                    id="guided-setup-translation-language"
+                                    label={t("main_page.guided_setup.understanding_language")}
+                                    description={t("main_page.guided_setup.understanding_language_detail")}
+                                    languages={selectableLanguages}
+                                    selectedLanguage={translationLanguage}
+                                    emptyLabel={t("main_page.guided_setup.language_unavailable")}
+                                    onChange={chooseTranslationLanguage}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {step === 4 && (
                         <div className={styles.step_body}>
                             <p className={styles.eyebrow}>{t("main_page.guided_setup.step_audio")}</p>
                             <h2>{t("main_page.guided_setup.audio_title")}</h2>
@@ -363,9 +390,17 @@ export const GuidedSetup = () => {
                         </div>
                     )}
 
-                    {step === 4 && (
+                    {step === 5 && (
                         <div className={styles.step_body}>
-                            <p className={styles.eyebrow}>{t("main_page.guided_setup.step_finish")}</p>
+                            <p className={styles.eyebrow}>{t("main_page.guided_setup.step_transcription_translation")}</p>
+                            <h2>{t("main_page.guided_setup.transcription_translation_title")}</h2>
+                            <p className={styles.lead}>{t("main_page.guided_setup.detail")}</p>
+                        </div>
+                    )}
+
+                    {step === 6 && (
+                        <div className={styles.step_body}>
+                            <p className={styles.eyebrow}>{t("main_page.guided_setup.step_vrchat")}</p>
                             <h2>{t("main_page.guided_setup.finish_title")}</h2>
                             <p className={styles.lead}>{t("main_page.guided_setup.finish_detail")}</p>
                             <div className={styles.output_group}>
@@ -407,17 +442,17 @@ export const GuidedSetup = () => {
                         >
                             {t("main_page.guided_setup.back")}
                         </button>
-                        {step < SETUP_STEPS.length ? (
+                        {step === 6 ? (
+                            <button type="button" className={styles.primary_button} onClick={finishSetup}>
+                                {t("main_page.guided_setup.finish")}
+                            </button>
+                        ) : (
                             <button
                                 type="button"
                                 className={styles.primary_button}
                                 onClick={() => setStep((current) => Math.min(SETUP_STEPS.length, current + 1))}
                             >
                                 {t("main_page.guided_setup.continue")}
-                            </button>
-                        ) : (
-                            <button type="button" className={styles.primary_button} onClick={finishSetup}>
-                                {t("main_page.guided_setup.finish")}
                             </button>
                         )}
                     </footer>

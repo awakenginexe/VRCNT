@@ -80,7 +80,7 @@
 
 .progress {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 0.65rem;
     margin: 1rem 0;
     padding: 0;
@@ -159,6 +159,16 @@
     font-size: 1rem;
     font-weight: 600;
     line-height: 1.5;
+}
+
+.app_language_field {
+    width: min(24rem, 100%);
+    min-width: 0;
+}
+
+.step_stack {
+    display: grid;
+    gap: 1rem;
 }
 
 .field_grid {
@@ -358,6 +368,10 @@
 @media (max-width: 80rem) {
     .content {
         width: min(66rem, 100%);
+    }
+
+    .progress {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .progress li strong {
