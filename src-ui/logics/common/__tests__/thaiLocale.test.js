@@ -32,7 +32,7 @@ test("Thai locale has the same translation keys as English", () => {
 test("Thai is selectable as a UI language", () => {
     assert.deepEqual(
         ui_configs.selectable_ui_languages.find((language) => language.id === THAI_UI_LANGUAGE_ID),
-        { id: THAI_UI_LANGUAGE_ID, label: "ไทย" },
+        { id: THAI_UI_LANGUAGE_ID, label: "ไทย", flag: "th" },
     );
 });
 

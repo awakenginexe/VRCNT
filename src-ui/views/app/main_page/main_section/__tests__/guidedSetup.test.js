@@ -26,6 +26,60 @@ test("Guided Setup owns the approved six-step route instead of opening legacy se
     assert.match(setup, /<TopBar\s*\/>/);
 });
 
+test("Guided Setup exposes app languages as visible flag tiles", () => {
+    const setup = readSource("../../guided_setup/GuidedSetup.jsx");
+    const uiConfigs = readSource("../../../../../logics/ui_configs.js");
+
+    assert.match(setup, /app_language_grid/);
+    assert.match(setup, /role="radiogroup"/);
+    assert.match(setup, /app_language_option/);
+    assert.match(setup, /aria-checked=/);
+    assert.doesNotMatch(setup, /id="guided-setup-app-language"/);
+
+    for (const flag of ["gb-eng", "jp", "kr", "th", "cn", "tw"]) {
+        assert.match(uiConfigs, new RegExp(`flag: "${flag}"`));
+    }
+});
+
+test("Guided Setup centers app languages, confirms skip, and animates step changes", () => {
+    const setup = readSource("../../guided_setup/GuidedSetup.jsx");
+    const styles = readSource("../../guided_setup/GuidedSetup.module.scss");
+
+    assert.match(setup, /isSkipConfirmationOpen/);
+    assert.match(setup, /role="dialog"/);
+    assert.match(setup, /aria-modal="true"/);
+    assert.match(setup, /main_page\.guided_setup\.skip_confirmation_title/);
+    assert.match(setup, /const moveToStep =/);
+    assert.match(setup, /data-direction=\{stepDirection\}/);
+    assert.match(styles, /\.app_language_picker\s*\{[\s\S]*?margin-inline:\s*auto;/);
+    assert.match(styles, /@keyframes guided_step_forward/);
+    assert.match(styles, /@keyframes guided_step_backward/);
+    assert.match(styles, /prefers-reduced-motion/);
+});
+
+test("Guided Setup language fields use a searchable, sorted popup picker", () => {
+    const setup = readSource("../../guided_setup/GuidedSetup.jsx");
+    const styles = readSource("../../guided_setup/GuidedSetup.module.scss");
+
+    assert.match(setup, /createPortal/);
+    assert.match(setup, /aria-haspopup="dialog"/);
+    assert.match(setup, /type="search"/);
+    assert.match(setup, /localeCompare/);
+    assert.match(setup, /language_picker_dialog/);
+    assert.match(styles, /\.language_picker_backdrop/);
+    assert.match(styles, /\.language_picker_list/);
+    assert.match(styles, /overflow-y:\s*auto/);
+});
+
+test("Guided Setup lets wheel input over the step body chain to the page scroll owner", () => {
+    const styles = readSource("../../guided_setup/GuidedSetup.module.scss");
+
+    assert.match(
+        styles,
+        /\.step_body\s*\{[\s\S]*?overflow-y:\s*auto;[\s\S]*?overscroll-behavior-y:\s*auto;/,
+    );
+});
+
 test("Guided Setup changes real persisted language, device, and VRChat settings", () => {
     const setup = readSource("../../guided_setup/GuidedSetup.jsx");
 

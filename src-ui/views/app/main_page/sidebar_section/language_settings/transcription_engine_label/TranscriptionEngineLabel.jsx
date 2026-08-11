@@ -10,11 +10,14 @@ import {
     getSelectedDeviceMode,
     isAutoOnlyTranscriptionEngine,
 } from "../transcriptionRuntimeUtils.js";
+import { resolveLiveTranscriptionEngine } from "../../../engines/transcriptionProfileUi.js";
 
 export const TranscriptionEngineLabel = ({ variant = "settings" }) => {
     const { t } = useI18n();
     const {
         currentSelectedTranscriptionEngine,
+        currentTranscriptionProfileSend,
+        currentTranscriptionProfileReceive,
         currentSelectableTranscriptionComputeDeviceList,
         currentSelectedTranscriptionComputeDevice,
         setSelectedTranscriptionComputeDevice,
@@ -33,7 +36,11 @@ export const TranscriptionEngineLabel = ({ variant = "settings" }) => {
         updateIsOpenedTranscriptionEngineSelector,
     } = useStore_IsOpenedTranscriptionEngineSelector();
 
-    const engine = currentSelectedTranscriptionEngine?.data || t("main_page.language_panels.loading");
+    const engine = resolveLiveTranscriptionEngine({
+        legacyEngine: currentSelectedTranscriptionEngine?.data,
+        sendProfile: currentTranscriptionProfileSend?.data,
+        receiveProfile: currentTranscriptionProfileReceive?.data,
+    }) || t("main_page.language_panels.loading");
     const deviceMap = currentSelectableTranscriptionComputeDeviceList?.data ?? {};
     const selectedDevice = currentSelectedTranscriptionComputeDevice?.data ?? null;
     const selectedMode = getSelectedDeviceMode(selectedDevice);
