@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useAppearance } from "@logics_configs";
 
-export const UI_BASE_FONT_SIZE_PERCENT = 70;
+export const UI_BASE_FONT_SIZE_PERCENT = 91;
 
 export const UiSizeController = () => {
     const { currentUiScaling } = useAppearance();

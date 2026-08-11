@@ -46,7 +46,7 @@ test("100% UI size uses the larger root baseline without changing the stored sca
     const controller = readSource("src-ui/views/app/_app_controllers/UiSizeController.jsx");
     const rootCss = readSource("src-ui/views/app/_index_css/root.css");
 
-    assert.match(controller, /UI_BASE_FONT_SIZE_PERCENT\s*=\s*70/);
+    assert.match(controller, /UI_BASE_FONT_SIZE_PERCENT\s*=\s*91/);
     assert.match(controller, /UI_BASE_FONT_SIZE_PERCENT\s*\*\s*currentUiScaling\.data\s*\/\s*100/);
-    assert.match(rootCss, /font-size:\s*70%/);
+    assert.match(rootCss, /font-size:\s*91%/);
 });
