@@ -222,6 +222,8 @@ mapping = {
     "/get/data/ui_language": {"status": True, "variable":controller.getUiLanguage},
     "/set/data/ui_language": {"status": True, "variable":controller.setUiLanguage},
 
+    "/get/data/setup_completed": {"status": True, "variable":controller.getSetupCompleted},
+    "/set/data/setup_completed": {"status": True, "variable":controller.setSetupCompleted},
     "/get/data/main_window_geometry": {"status": True, "variable":controller.getMainWindowGeometry},
     "/set/data/main_window_geometry": {"status": True, "variable":controller.setMainWindowGeometry},
     "/get/data/app_color_palette": {"status": True, "variable":controller.getAppColorPalette},

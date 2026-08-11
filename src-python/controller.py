@@ -3230,6 +3230,15 @@ class Controller:
         return {"status":200, "result":config.MAIN_WINDOW_GEOMETRY}
 
     @staticmethod
+    def getSetupCompleted(*args, **kwargs) -> dict:
+        return {"status": 200, "result": config.SETUP_COMPLETED}
+
+    @staticmethod
+    def setSetupCompleted(data, *args, **kwargs) -> dict:
+        config.SETUP_COMPLETED = data is True
+        return {"status": 200, "result": config.SETUP_COMPLETED}
+
+    @staticmethod
     def getAppColorPalette(*args, **kwargs) -> dict:
         return {"status": 200, "result": config.APP_COLOR_PALETTE}
 

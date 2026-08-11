@@ -120,6 +120,15 @@ def _resolveRenamedUserDataPath(
     return legacy_path
 
 
+def _resolveSetupCompletion(
+    config_file_exists: bool,
+    persisted_value: object = None,
+) -> bool:
+    if isinstance(persisted_value, bool):
+        return persisted_value
+    return bool(config_file_exists)
+
+
 def _copytree_merge(src: str, dst: str) -> None:
     if not os_path.isdir(src):
         return
@@ -937,6 +946,7 @@ class Config:
     FONT_FAMILY = ManagedProperty('FONT_FAMILY', type_=str)
     FONT_DOWNLOAD_POLICY = ManagedProperty('FONT_DOWNLOAD_POLICY', type_=str, allowed=lambda v, inst: v in {"ask", "automatic", "never"})
     UI_LANGUAGE = ManagedProperty('UI_LANGUAGE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_UI_LANGUAGE_LIST)
+    SETUP_COMPLETED = ManagedProperty('SETUP_COMPLETED', type_=bool)
     MAIN_WINDOW_GEOMETRY = ValidatedProperty('MAIN_WINDOW_GEOMETRY', _main_window_geometry_validator, immediate_save=True)
     APP_COLOR_PALETTE = ValidatedProperty('APP_COLOR_PALETTE', _app_color_palette_validator)
 
@@ -1223,6 +1233,7 @@ class Config:
         self._FONT_FAMILY = "VRCNT Noto"
         self._FONT_DOWNLOAD_POLICY = "ask"
         self._UI_LANGUAGE = "en"
+        self._SETUP_COMPLETED = False
         self._MAIN_WINDOW_GEOMETRY = {
             "x_pos": 0,
             "y_pos": 0,
@@ -1464,7 +1475,8 @@ class Config:
 
     def load_config(self):
         self._config_data = {}
-        if os_path.isfile(self.PATH_CONFIG) is not False:
+        config_file_exists = os_path.isfile(self.PATH_CONFIG) is not False
+        if config_file_exists:
             with open(self.PATH_CONFIG, 'r', encoding="utf-8") as fp:
                 if fp.readable() and fp.seek(0, 2) > 0:
                     fp.seek(0)
@@ -1621,6 +1633,11 @@ class Config:
             source_compute_type = getattr(self, "_SELECTED_TRANSCRIPTION_COMPUTE_TYPE_SEND", None)
             if source_compute_type is not None:
                 self.SELECTED_TRANSCRIPTION_COMPUTE_TYPE = source_compute_type
+
+        self._SETUP_COMPLETED = _resolveSetupCompletion(
+            config_file_exists,
+            self._config_data.get("SETUP_COMPLETED"),
+        )
 
         send_profile = self._TRANSCRIPTION_PROFILE_SEND
         self._SELECTED_TRANSCRIPTION_ENGINE = send_profile["engine"]
