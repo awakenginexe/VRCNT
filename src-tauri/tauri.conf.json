@@ -16,10 +16,10 @@
             {
                 "label": "main",
                 "title": "VRCNT",
-                "width": 1450,
+                "width": 1498,
                 "height": 900,
-                "minWidth": 1040,
-                "minHeight": 720,
+                "minWidth": 1498,
+                "minHeight": 711,
                 "resizable": true,
                 "maximizable": true,
                 "minimizable": true,
