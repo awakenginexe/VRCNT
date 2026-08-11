@@ -4,6 +4,7 @@ import { normalizeHexColor } from "../../../logics/common/colorPalette.js";
 import {
     hexToHsv,
     hsvToHex,
+    getContainedPlaneMarkerPosition,
     pointToHue,
     pointToSaturationValue,
 } from "./colorMath.js";
@@ -34,6 +35,7 @@ export const ColorPicker = ({
     const planeRef = useRef(null);
     const wheelRef = useRef(null);
     const isOpen = open ?? internalOpen;
+    const planeMarkerPosition = getContainedPlaneMarkerPosition(hsv);
 
     useEffect(() => {
         const next = normalizeHexColor(value);
@@ -147,7 +149,10 @@ export const ColorPicker = ({
                             >
                                 <span
                                     className={styles.plane_marker}
-                                    style={{ left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%` }}
+                                    style={{
+                                        "--plane-marker-x": `${planeMarkerPosition.x * 100}%`,
+                                        "--plane-marker-y": `${planeMarkerPosition.y * 100}%`,
+                                    }}
                                 />
                             </div>
                         </div>

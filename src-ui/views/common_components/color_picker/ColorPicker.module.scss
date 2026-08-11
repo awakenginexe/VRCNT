@@ -95,6 +95,7 @@
     inset: 1.9rem;
     border-radius: 50%;
     background-image: linear-gradient(to top, #000000, transparent), linear-gradient(to right, #ffffff, transparent);
+    overflow: hidden;
     cursor: crosshair;
     touch-action: none;
 }
@@ -103,6 +104,9 @@
     position: absolute;
     width: 0.8rem;
     height: 0.8rem;
+    --plane-marker-inset: 0.4rem;
+    left: clamp(var(--plane-marker-inset), var(--plane-marker-x), calc(100% - var(--plane-marker-inset)));
+    top: clamp(var(--plane-marker-inset), var(--plane-marker-y), calc(100% - var(--plane-marker-inset)));
     transform: translate(-50%, -50%);
     border: 0.15rem solid #ffffff;
     border-radius: 50%;

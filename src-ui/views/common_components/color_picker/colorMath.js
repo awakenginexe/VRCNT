@@ -48,6 +48,27 @@ export const hsvToHex = ({ h = 0, s = 0, v = 0 } = {}) => {
     return `#${rgb.map((channel) => Math.round((channel + match) * 255).toString(16).padStart(2, "0")).join("").toUpperCase()}`;
 };
 
+const clampUnit = (value) => {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) return 0;
+    return Math.min(1, Math.max(0, numericValue));
+};
+
+export const getContainedPlaneMarkerPosition = ({ s = 0, v = 0 } = {}) => {
+    const rawX = clampUnit(s);
+    const rawY = clampUnit(1 - Number(v));
+    const offsetX = rawX - 0.5;
+    const offsetY = rawY - 0.5;
+    const distance = Math.hypot(offsetX, offsetY);
+    const usableRadius = 0.5 - (0.4 / 7.7);
+    const projectionScale = distance > usableRadius ? usableRadius / distance : 1;
+
+    return {
+        x: 0.5 + (offsetX * projectionScale),
+        y: 0.5 + (offsetY * projectionScale),
+    };
+};
+
 export const pointToSaturationValue = ({ clientX, clientY }, rect) => ({
     s: Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)),
     v: Math.min(1, Math.max(0, 1 - ((clientY - rect.top) / rect.height))),

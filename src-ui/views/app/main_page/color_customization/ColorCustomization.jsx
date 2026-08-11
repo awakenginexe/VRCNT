@@ -1,16 +1,59 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@useI18n";
-import { useAppearance } from "@logics_configs";
+import {
+    UI_SCALE_MARKS,
+    UI_SCALE_MAX,
+    UI_SCALE_MIN,
+    UI_SCALE_STEP,
+    useAppearance,
+    useSliderLogic,
+} from "@logics_configs";
 import { ColorRoleEditor } from "@common_components";
 import {
     APP_COLOR_PALETTE_DEFAULTS,
     APP_COLOR_ROLE_GROUPS,
     getContrastRatio,
     normalizeColorPalette,
+    useWindow,
 } from "@logics_common";
 import { TopBar } from "../main_section/top_bar/TopBar";
 import { ColorThemePreview } from "./ColorThemePreview";
 import styles from "./ColorCustomization.module.scss";
+
+const ScaleControl = ({ id, label, description, value, onChange }) => {
+    const numericValue = Number(value ?? 100);
+    const { ui_value, onChangeFunction } = useSliderLogic({
+        variable: numericValue,
+        setterFunction: onChange,
+        min: UI_SCALE_MIN,
+        max: UI_SCALE_MAX,
+        step: UI_SCALE_STEP,
+        setter_timing: "on_change",
+    });
+
+    return (
+        <div className={styles.scale_control}>
+            <div className={styles.scale_control_header}>
+                <label className={styles.scale_label} htmlFor={id}>{label}</label>
+                <output className={styles.scale_value} htmlFor={id}>{ui_value}%</output>
+            </div>
+            <p className={styles.scale_description}>{description}</p>
+            <input
+                id={id}
+                type="range"
+                min={UI_SCALE_MIN}
+                max={UI_SCALE_MAX}
+                step={UI_SCALE_STEP}
+                value={ui_value}
+                aria-label={label}
+                onChange={(event) => onChangeFunction(Number(event.target.value))}
+            />
+            <div className={styles.scale_marks} aria-hidden="true">
+                {UI_SCALE_MARKS.map((mark) => <span key={mark}>{mark}%</span>)}
+            </div>
+        </div>
+    );
+};
 
 const roleLabelKeys = {
     primary: "primary",
@@ -53,7 +96,12 @@ export const ColorCustomization = () => {
         currentAppColorPalette,
         updateAppColorPalette,
         setAppColorPalette,
+        currentUiScaling,
+        setUiScaling,
+        currentMessageLogUiScaling,
+        setMessageLogUiScaling,
     } = useAppearance();
+    const { asyncUpdateBreakPoint } = useWindow();
     const [feedback, setFeedback] = useState("");
     const persistTimer = useRef(null);
     const palette = useMemo(
@@ -99,6 +147,11 @@ export const ColorCustomization = () => {
         return ratio < 4.5 ? t("config_page.appearance.colors.contrast_warning") : null;
     };
 
+    const updateUiScale = (value) => {
+        setUiScaling(value);
+        void asyncUpdateBreakPoint(value);
+    };
+
     return (
         <div className={styles.page}>
             <TopBar />
@@ -140,6 +193,29 @@ export const ColorCustomization = () => {
                                 composer: t("main_page.live_workspace.composer_placeholder"),
                             }}
                         />
+                        <section className={styles.scale_controls} aria-labelledby="readability-controls-title">
+                            <div className={styles.scale_header}>
+                                <p className={styles.section_kicker}>{t("config_page.appearance.colors.scale_kicker")}</p>
+                                <h3 id="readability-controls-title">{t("config_page.appearance.colors.scale_title")}</h3>
+                                <p>{t("config_page.appearance.colors.scale_description")}</p>
+                            </div>
+                            <div className={styles.scale_list}>
+                                <ScaleControl
+                                    id="customize-ui-size"
+                                    label={t("config_page.appearance.ui_size.label")}
+                                    description={t("config_page.appearance.colors.ui_size_description")}
+                                    value={currentUiScaling.data}
+                                    onChange={updateUiScale}
+                                />
+                                <ScaleControl
+                                    id="customize-message-log-size"
+                                    label={t("config_page.appearance.textbox_ui_size.label")}
+                                    description={t("config_page.appearance.colors.message_log_size_description")}
+                                    value={currentMessageLogUiScaling.data}
+                                    onChange={setMessageLogUiScaling}
+                                />
+                            </div>
+                        </section>
                     </section>
                     <section className={styles.editor_card} aria-labelledby="color-editor-title">
                         <ColorRoleEditor
