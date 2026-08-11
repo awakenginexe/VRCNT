@@ -34,3 +34,17 @@ test("custom slider ends a drag when the pointer is canceled or the window loses
     assert.match(slider, /removeEventListener\("blur"/);
     assert.match(slider, /setPointerCapture/);
 });
+
+test("SteamVR range control holds its draft until pointer release", () => {
+    const workspace = readSource("src-ui/views/app/main_page/overlay_studio/OverlayStudio.jsx");
+    const rangeControl = workspace.match(/const RangeControl = \([\s\S]*?\n\};\n/)?.[0] ?? "";
+
+    assert.ok(rangeControl, "Overlay Studio should define a range control");
+    assert.match(rangeControl, /const \[draftValue, setDraftValue\] = useState\(value\)/);
+    assert.match(rangeControl, /pendingValueRef/);
+    assert.match(rangeControl, /onChange=\{handleRangeChange\}/);
+    assert.match(rangeControl, /setPointerCapture/);
+    assert.match(rangeControl, /releasePointerCapture/);
+    assert.match(rangeControl, /onPointerUp=\{finishRangeDrag\}/);
+    assert.match(rangeControl, /value=\{draftValue\}/);
+});

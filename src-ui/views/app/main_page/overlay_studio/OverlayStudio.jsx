@@ -335,6 +335,7 @@ export const OverlayStudio = () => {
                                     </select>
                                 </label>
                                 <RangeControl
+                                    key={vrMode}
                                     label={t("main_page.overlay_studio.message_text_size")}
                                     value={Math.round((activeVrSettings.message_text_scale ?? 1) * 100)}
                                     min={40}
@@ -456,7 +457,54 @@ export const OverlayStudio = () => {
 };
 
 const RangeControl = ({ label, value, min, max, step = 1, suffix, disabled = false, onChange }) => {
-    const numericValue = Number(value);
+    const [draftValue, setDraftValue] = useState(value);
+    const draftValueRef = useRef(value);
+    const pendingValueRef = useRef(null);
+    const isDraggingRef = useRef(false);
+
+    useEffect(() => {
+        const nextValue = Number(value);
+        if (pendingValueRef.current !== null) {
+            if (nextValue === pendingValueRef.current) {
+                pendingValueRef.current = null;
+            } else {
+                return;
+            }
+        }
+        if (!isDraggingRef.current) {
+            draftValueRef.current = nextValue;
+            setDraftValue(nextValue);
+        }
+    }, [value]);
+
+    const handleRangeChange = (event) => {
+        const nextValue = Number(event.target.value);
+        draftValueRef.current = nextValue;
+        setDraftValue(nextValue);
+    };
+
+    const commitDraftValue = () => {
+        isDraggingRef.current = false;
+        const nextValue = Number(draftValueRef.current);
+        if (pendingValueRef.current === nextValue) return;
+        if (pendingValueRef.current === null && nextValue === Number(value)) return;
+        pendingValueRef.current = nextValue;
+        onChange(nextValue);
+    };
+
+    const startRangeDrag = (event) => {
+        isDraggingRef.current = true;
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+    };
+
+    const finishRangeDrag = (event) => {
+        if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+            event.currentTarget.releasePointerCapture?.(event.pointerId);
+        }
+        commitDraftValue();
+    };
+
+    const numericValue = Number(draftValue);
     const rangeProgress = max > min
         ? Math.min(100, Math.max(0, ((numericValue - min) / (max - min)) * 100))
         : 0;
@@ -464,16 +512,21 @@ const RangeControl = ({ label, value, min, max, step = 1, suffix, disabled = fal
     return (
         <label className={styles.range_control}>
             <span>{label}</span>
-            <strong>{value}{suffix}</strong>
+            <strong>{draftValue}{suffix}</strong>
             <input
                 type="range"
                 min={min}
                 max={max}
                 step={step}
-                value={value}
+                value={draftValue}
                 disabled={disabled}
                 style={{ "--range-progress": `${rangeProgress}%` }}
-                onChange={(event) => onChange(Number(event.target.value))}
+                onChange={handleRangeChange}
+                onPointerDown={startRangeDrag}
+                onPointerUp={finishRangeDrag}
+                onPointerCancel={finishRangeDrag}
+                onKeyUp={commitDraftValue}
+                onBlur={commitDraftValue}
             />
         </label>
     );
