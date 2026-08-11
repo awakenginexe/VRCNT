@@ -30,6 +30,13 @@ export const Slider = (props) => {
     const trackRef = useRef(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
+    const activePointerIdRef = useRef(null);
+    const dragTargetRef = useRef(null);
+    const lastPointerPositionRef = useRef({ clientX: 0, clientY: 0 });
+    const localValueRef = useRef(ui_value);
+    const uiValueRef = useRef(ui_value);
+    const onChangeFunctionRef = useRef(onChangeFunction);
+    const onChangeCommittedFunctionRef = useRef(onChangeCommittedFunction);
 
     const decimalPlaces = step && step.toString().includes('.')
         ? step.toString().split('.')[1].length
@@ -40,13 +47,23 @@ export const Slider = (props) => {
     // Sync localValue with ui_value (from store) only when NOT dragging
     useEffect(() => {
         if (!isDragging) {
+            localValueRef.current = ui_value;
             setLocalValue(ui_value);
         }
     }, [ui_value, isDragging]);
 
+    useEffect(() => {
+        localValueRef.current = localValue;
+        uiValueRef.current = ui_value;
+        onChangeFunctionRef.current = onChangeFunction;
+        onChangeCommittedFunctionRef.current = onChangeCommittedFunction;
+    }, [localValue, ui_value, onChangeFunction, onChangeCommittedFunction]);
+
     const calculateValue = useCallback((clientX, clientY) => {
-        if (!trackRef.current) return localValue;
+        if (!trackRef.current) return localValueRef.current;
         const rect = trackRef.current.getBoundingClientRect();
+        const trackSize = isVertical ? rect.height : rect.width;
+        if (!trackSize) return localValueRef.current;
         let percentage;
         if (isVertical) {
             let y = clientY - rect.top;
@@ -66,49 +83,72 @@ export const Slider = (props) => {
             rawValue = parseFloat(rawValue.toFixed(decimalPlaces));
         }
         return Math.max(min, Math.min(rawValue, max));
-    }, [isVertical, max, min, step, localValue, decimalPlaces]);
+    }, [isVertical, max, min, step, decimalPlaces]);
+
+    const updateFromPointer = useCallback((event) => {
+        if (Number.isFinite(event?.clientX)) lastPointerPositionRef.current.clientX = event.clientX;
+        if (Number.isFinite(event?.clientY)) lastPointerPositionRef.current.clientY = event.clientY;
+        const newValue = calculateValue(
+            lastPointerPositionRef.current.clientX,
+            lastPointerPositionRef.current.clientY,
+        );
+        localValueRef.current = newValue;
+        setLocalValue(newValue);
+        if (newValue !== uiValueRef.current) {
+            onChangeFunctionRef.current(newValue);
+        }
+        return newValue;
+    }, [calculateValue]);
+
+    const finishDragging = useCallback((event) => {
+        const activePointerId = activePointerIdRef.current;
+        if (activePointerId === null) return;
+        if (event?.pointerId !== undefined && event.pointerId !== activePointerId) return;
+
+        const newValue = updateFromPointer(event);
+        onChangeCommittedFunctionRef.current?.(newValue);
+        dragTargetRef.current?.releasePointerCapture?.(activePointerId);
+        dragTargetRef.current = null;
+        activePointerIdRef.current = null;
+        setIsDragging(false);
+    }, [updateFromPointer]);
 
     const handlePointerDown = (e) => {
-        if (e.button !== 0) return; // Only left click
+        if (e.button !== 0 || activePointerIdRef.current !== null) return; // Only left click and one pointer at a time
+        activePointerIdRef.current = e.pointerId;
+        dragTargetRef.current = e.currentTarget;
+        lastPointerPositionRef.current = { clientX: e.clientX, clientY: e.clientY };
+        e.currentTarget.setPointerCapture?.(e.pointerId);
         setIsDragging(true);
-        const newValue = calculateValue(e.clientX, e.clientY);
-        setLocalValue(newValue);
-        if (newValue !== ui_value) {
-            onChangeFunction(newValue);
-        }
+        updateFromPointer(e);
         e.preventDefault();
-
-        // Ensure thumb gets focus-like behavior manually, though we rely on drag state
+        e.stopPropagation();
     };
 
     useEffect(() => {
         if (!isDragging) return;
 
         const handlePointerMove = (e) => {
-            const newValue = calculateValue(e.clientX, e.clientY);
-            setLocalValue(newValue);
-            if (newValue !== ui_value) {
-                onChangeFunction(newValue);
-            }
+            if (e.pointerId !== activePointerIdRef.current) return;
+            updateFromPointer(e);
         };
 
-        const handlePointerUp = (e) => {
-            setIsDragging(false);
-            const newValue = calculateValue(e.clientX, e.clientY);
-            setLocalValue(newValue);
-            if (onChangeCommittedFunction) {
-                onChangeCommittedFunction(newValue);
-            }
-        };
+        const handlePointerUp = (e) => finishDragging(e);
+        const handlePointerCancel = (e) => finishDragging(e);
+        const handleWindowBlur = () => finishDragging();
 
         window.addEventListener("pointermove", handlePointerMove);
         window.addEventListener("pointerup", handlePointerUp);
+        window.addEventListener("pointercancel", handlePointerCancel);
+        window.addEventListener("blur", handleWindowBlur);
 
         return () => {
             window.removeEventListener("pointermove", handlePointerMove);
             window.removeEventListener("pointerup", handlePointerUp);
+            window.removeEventListener("pointercancel", handlePointerCancel);
+            window.removeEventListener("blur", handleWindowBlur);
         };
-    }, [isDragging, calculateValue, onChangeFunction, onChangeCommittedFunction, ui_value]);
+    }, [isDragging, updateFromPointer, finishDragging]);
 
     const handleMouseEnter = (e) => {
         setIsHovered(true);

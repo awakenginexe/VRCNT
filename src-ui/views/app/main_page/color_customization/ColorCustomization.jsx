@@ -30,6 +30,9 @@ const ScaleControl = ({ id, label, description, value, onChange }) => {
         step: UI_SCALE_STEP,
         setter_timing: "on_change",
     });
+    const rangeProgress = UI_SCALE_MAX > UI_SCALE_MIN
+        ? Math.min(100, Math.max(0, ((Number(ui_value) - UI_SCALE_MIN) / (UI_SCALE_MAX - UI_SCALE_MIN)) * 100))
+        : 0;
 
     return (
         <div className={styles.scale_control}>
@@ -46,6 +49,7 @@ const ScaleControl = ({ id, label, description, value, onChange }) => {
                 step={UI_SCALE_STEP}
                 value={ui_value}
                 aria-label={label}
+                style={{ "--range-progress": `${rangeProgress}%` }}
                 onChange={(event) => onChangeFunction(Number(event.target.value))}
             />
             <div className={styles.scale_marks} aria-hidden="true">

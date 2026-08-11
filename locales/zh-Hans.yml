@@ -70,10 +70,10 @@ main_page:
         advanced_models: "Advanced Models"
         all_models: "All Available Models (6)"
         preset:
-            fast_description: "Smallest and fastest. Recommended for most users."
-            balanced_description: "Balanced speed and translation quality."
-            good_description: "Higher translation quality with increased resource usage."
-            precise_description: "Highest quality offline option. Requires significantly more memory and storage."
+            fast_description: "最小且速度最快，推荐大多数用户使用。"
+            balanced_description: "平衡速度与翻译质量。"
+            good_description: "翻译质量更高，但会占用更多资源。"
+            precise_description: "最高质量的离线选项，需要更多内存和存储空间。"
     live_weave:
         navigation:
             live: "实时"

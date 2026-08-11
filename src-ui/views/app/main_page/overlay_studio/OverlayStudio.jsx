@@ -455,18 +455,26 @@ export const OverlayStudio = () => {
     );
 };
 
-const RangeControl = ({ label, value, min, max, step = 1, suffix, disabled = false, onChange }) => (
-    <label className={styles.range_control}>
-        <span>{label}</span>
-        <strong>{value}{suffix}</strong>
-        <input
-            type="range"
-            min={min}
-            max={max}
-            step={step}
-            value={value}
-            disabled={disabled}
-            onChange={(event) => onChange(Number(event.target.value))}
-        />
-    </label>
-);
+const RangeControl = ({ label, value, min, max, step = 1, suffix, disabled = false, onChange }) => {
+    const numericValue = Number(value);
+    const rangeProgress = max > min
+        ? Math.min(100, Math.max(0, ((numericValue - min) / (max - min)) * 100))
+        : 0;
+
+    return (
+        <label className={styles.range_control}>
+            <span>{label}</span>
+            <strong>{value}{suffix}</strong>
+            <input
+                type="range"
+                min={min}
+                max={max}
+                step={step}
+                value={value}
+                disabled={disabled}
+                style={{ "--range-progress": `${rangeProgress}%` }}
+                onChange={(event) => onChange(Number(event.target.value))}
+            />
+        </label>
+    );
+};
