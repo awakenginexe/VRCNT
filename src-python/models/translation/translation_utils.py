@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import shutil
+from contextlib import contextmanager
 from os import path as os_path
 from os import makedirs as os_makedirs
 from os import rename as os_rename
@@ -134,6 +135,44 @@ _CTRANSLATE2_RUNTIME_PREPARED = False
 _CTRANSLATE2_DLL_DIR_HANDLES = []
 
 
+class _FrozenNativeModuleFinder:
+    """Prefer the current packaged native module over stale update leftovers."""
+
+    def __init__(self, module_name: str, module_path: str) -> None:
+        self.module_name = module_name
+        self.module_path = module_path
+
+    def find_spec(self, fullname: str, path=None, target=None):
+        if fullname != self.module_name or not os_path.isfile(self.module_path):
+            return None
+        return importlib.util.spec_from_file_location(fullname, self.module_path)
+
+
+def _getFrozenTokenizersNativeModuleFinder() -> _FrozenNativeModuleFinder | None:
+    frozen_root = getattr(sys, "_MEIPASS", None)
+    if not frozen_root:
+        return None
+    module_path = os_path.join(frozen_root, "tokenizers", "tokenizers.pyd")
+    if not os_path.isfile(module_path):
+        return None
+    return _FrozenNativeModuleFinder("tokenizers.tokenizers", module_path)
+
+
+@contextmanager
+def _preferFrozenTokenizersNativeModule():
+    finder = _getFrozenTokenizersNativeModuleFinder()
+    if finder is not None:
+        sys.meta_path.insert(0, finder)
+    try:
+        yield
+    finally:
+        if finder is not None:
+            try:
+                sys.meta_path.remove(finder)
+            except ValueError:
+                pass
+
+
 def _addDllDirectory(directory: str) -> None:
     if directory and os_path.isdir(directory) and hasattr(os, "add_dll_directory"):
         try:
@@ -257,6 +296,7 @@ def checkCTranslate2Weight(root: str, weight_type: str = "m2m100_418M-ct2-int8")
         _getCtrTranslate2().Translator(path, compute_type=compute_type)
         return True
     except Exception:
+        errorLogging()
         return False
 
 def _tokenizerCachePath(root: str, weight_type: str) -> str:
@@ -305,7 +345,6 @@ def _findLocalTokenizerSnapshot(cache_root: str, tokenizer: str) -> str | None:
 def loadCTranslate2Tokenizer(root: str, weight_type: str = "m2m100_418M-ct2-int8", local_files_only: bool = True, repair_cache: bool = False):
     tokenizer = ctranslate2_weights[weight_type]["tokenizer"]
     tokenizer_path = _tokenizerCachePath(root, weight_type)
-    transformers = _getTransformers()
     if repair_cache and os_path.isdir(tokenizer_path):
         shutil.rmtree(tokenizer_path, ignore_errors=True)
     os_makedirs(tokenizer_path, exist_ok=True)
@@ -321,16 +360,19 @@ def loadCTranslate2Tokenizer(root: str, weight_type: str = "m2m100_418M-ct2-int8
             tokenizer_kwargs["cache_dir"] = tokenizer_path
     else:
         tokenizer_kwargs["cache_dir"] = tokenizer_path
-    return transformers.AutoTokenizer.from_pretrained(
-        pretrained_path,
-        **tokenizer_kwargs,
-    )
+    with _preferFrozenTokenizersNativeModule():
+        transformers = _getTransformers()
+        return transformers.AutoTokenizer.from_pretrained(
+            pretrained_path,
+            **tokenizer_kwargs,
+        )
 
 def checkCTranslate2Tokenizer(root: str, weight_type: str = "m2m100_418M-ct2-int8") -> bool:
     try:
         loadCTranslate2Tokenizer(root, weight_type, local_files_only=True)
         return True
     except Exception:
+        errorLogging()
         return False
 
 def getCTranslate2ModelReadiness(root: str, weight_type: str = "m2m100_418M-ct2-int8") -> dict:
