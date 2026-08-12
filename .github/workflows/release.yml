@@ -118,16 +118,43 @@ jobs:
       - name: Prepare bundled installer tools
         shell: pwsh
         run: |
-          choco install 7zip.commandline -y --no-progress
+          $sevenZipBootstrap = Join-Path $env:RUNNER_TEMP '7zr-26.02.exe'
+          curl.exe -L --fail --retry 5 --retry-all-errors `
+            -o $sevenZipBootstrap `
+            'https://github.com/ip7z/7zip/releases/download/26.02/7zr.exe'
           if ($LASTEXITCODE -ne 0) {
-            throw 'Could not install the 7za build tool.'
+            throw 'Could not download the pinned 7-Zip extraction tool.'
           }
+          $expectedSevenZipBootstrapSha256 = '56b8cc9f4971cef253644fafe54063ed7fdca551d4dee0f8c6baa81b855acd72'
+          $actualSevenZipBootstrapSha256 = (Get-FileHash $sevenZipBootstrap -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualSevenZipBootstrapSha256 -ne $expectedSevenZipBootstrapSha256) {
+            throw "7-Zip extraction tool SHA-256 mismatch: expected $expectedSevenZipBootstrapSha256, got $actualSevenZipBootstrapSha256."
+          }
+
+          $sevenZipArchive = Join-Path $env:RUNNER_TEMP '7z2602-extra.7z'
+          curl.exe -L --fail --retry 5 --retry-all-errors `
+            -o $sevenZipArchive `
+            'https://github.com/ip7z/7zip/releases/download/26.02/7z2602-extra.7z'
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not download the pinned 7-Zip archive.'
+          }
+          $expectedSevenZipArchiveSha256 = '081df9e9311dfd9c9e0e98c1c80180b99bb51e4cb24156b5f3057fe3c259d70a'
+          $actualSevenZipArchiveSha256 = (Get-FileHash $sevenZipArchive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualSevenZipArchiveSha256 -ne $expectedSevenZipArchiveSha256) {
+            throw "7-Zip archive SHA-256 mismatch: expected $expectedSevenZipArchiveSha256, got $actualSevenZipArchiveSha256."
+          }
+
           $toolDir = Join-Path (Get-Location) 'src-tauri/nsis/bin'
           New-Item -ItemType Directory -Path $toolDir -Force | Out-Null
-          $sevenZip = Get-ChildItem $env:ChocolateyInstall/lib -Recurse -Filter 7za.exe |
-            Sort-Object FullName | Select-Object -First 1
+          $sevenZipExtract = Join-Path $env:RUNNER_TEMP '7z2602-extra'
+          New-Item -ItemType Directory -Path $sevenZipExtract -Force | Out-Null
+          & $sevenZipBootstrap x -y $sevenZipArchive "-o$sevenZipExtract" | Out-Null
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not extract the verified 7-Zip archive.'
+          }
+          $sevenZip = Get-Item (Join-Path $sevenZipExtract 'x64/7za.exe')
           if (-not $sevenZip) {
-            throw '7za.exe was not found after installation.'
+            throw 'The verified 7-Zip archive did not contain the x64 7za.exe.'
           }
           Copy-Item $sevenZip.FullName (Join-Path $toolDir '7za.exe') -Force
 

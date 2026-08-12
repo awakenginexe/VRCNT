@@ -99,6 +99,17 @@ test("workflow signs and verifies both package and Tauri updater artifacts", () 
 });
 
 
+test("workflow bootstraps x64 7-Zip from pinned official archives", () => {
+    assert.doesNotMatch(workflow, /choco install 7zip\.commandline/i);
+    assert.match(workflow, /github\.com\/ip7z\/7zip\/releases\/download\/26\.02\/7zr\.exe/);
+    assert.match(workflow, /github\.com\/ip7z\/7zip\/releases\/download\/26\.02\/7z2602-extra\.7z/);
+    assert.match(workflow, /56b8cc9f4971cef253644fafe54063ed7fdca551d4dee0f8c6baa81b855acd72/);
+    assert.match(workflow, /081df9e9311dfd9c9e0e98c1c80180b99bb51e4cb24156b5f3057fe3c259d70a/);
+    assert.match(workflow, /x64[\\/]7za\.exe/);
+    assert.match(workflow, /Get-FileHash .* -Algorithm SHA256/);
+});
+
+
 test("workflow fails on missing, oversized, or mismatched release files", () => {
     assert.match(workflow, /files\.Count -ne 3/);
     assert.match(workflow, /Length -ge \[long\]\$env:MAX_ASSET_SIZE/);
