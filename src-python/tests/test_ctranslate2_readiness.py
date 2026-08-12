@@ -158,6 +158,68 @@ class CTranslate2ReadinessTests(unittest.TestCase):
             model_file.write_bytes(b"corrupt-model")
             self.assertFalse(verify_manifest(str(model_root)))
 
+    def test_weight_check_logs_the_runtime_failure_before_returning_false(self):
+        weight_type = "nllb-200-distilled-600M-ct2-int8"
+        directory_name = translation_utils.ctranslate2_weights[weight_type]["directory_name"]
+
+        with tempfile.TemporaryDirectory() as temporary_root:
+            weight_path = Path(temporary_root, "weights", "ctranslate2", directory_name)
+            weight_path.mkdir(parents=True)
+            for filename in ("config.json", "model.bin", "shared_vocabulary.json"):
+                (weight_path / filename).write_text("{}", encoding="utf-8")
+
+            runtime = Mock()
+            runtime.Translator.side_effect = RuntimeError("packaged CTranslate2 load failed")
+            with (
+                patch.object(translation_utils, "_getCtrTranslate2", return_value=runtime),
+                patch.object(translation_utils, "errorLogging") as log_error,
+            ):
+                self.assertFalse(
+                    translation_utils.checkCTranslate2Weight(temporary_root, weight_type)
+                )
+
+            log_error.assert_called_once()
+
+    def test_tokenizer_check_logs_the_runtime_failure_before_returning_false(self):
+        with (
+            patch.object(
+                translation_utils,
+                "loadCTranslate2Tokenizer",
+                side_effect=RuntimeError("packaged tokenizer load failed"),
+            ),
+            patch.object(translation_utils, "errorLogging") as log_error,
+        ):
+            self.assertFalse(
+                translation_utils.checkCTranslate2Tokenizer(
+                    "test-root",
+                    "nllb-200-distilled-600M-ct2-int8",
+                )
+            )
+
+            log_error.assert_called_once()
+
+    def test_frozen_tokenizer_import_prefers_current_binary_over_stale_abi_binary(self):
+        with tempfile.TemporaryDirectory() as temporary_root:
+            package_path = Path(temporary_root, "tokenizers")
+            package_path.mkdir()
+            current_binary = package_path / "tokenizers.pyd"
+            stale_binary = package_path / "tokenizers.cp311-win_amd64.pyd"
+            current_binary.write_bytes(b"current")
+            stale_binary.write_bytes(b"stale")
+
+            finder = translation_utils._FrozenNativeModuleFinder(
+                "tokenizers.tokenizers",
+                str(current_binary),
+            )
+            module_spec = finder.find_spec(
+                "tokenizers.tokenizers",
+                [str(package_path)],
+                None,
+            )
+
+            self.assertIsNotNone(module_spec)
+            self.assertEqual(Path(module_spec.origin), current_binary)
+
     def test_enable_returns_model_specific_readiness_error_before_loading(self):
         controller = _controller_for_readiness()
         with (
