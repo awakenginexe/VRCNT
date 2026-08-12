@@ -1,5 +1,6 @@
 const ANSI_ESCAPE_PATTERN = /\x1b\[[0-?]*[ -/]*[@-~]/g;
 const ERROR_PATTERN = /\b(traceback|exception|error|failed|fatal)\b/i;
+const PKG_RESOURCES_DEPRECATION_PATTERN = /\bpkg_resources is deprecated as an API\b/i;
 
 export const normalizeSidecarStderr = (line) => {
     return String(line ?? "").replace(ANSI_ESCAPE_PATTERN, "").trim();
@@ -8,6 +9,7 @@ export const normalizeSidecarStderr = (line) => {
 export const isBenignSidecarStderr = (line) => {
     const text = normalizeSidecarStderr(line);
     if (!text) return true;
+    if (PKG_RESOURCES_DEPRECATION_PATTERN.test(text)) return true;
     if (ERROR_PATTERN.test(text)) return false;
 
     const hasTqdmPercentBar = /\d+%\|/.test(text);

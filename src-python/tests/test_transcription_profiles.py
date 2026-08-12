@@ -216,8 +216,13 @@ class TranscriptionProfileControllerTests(unittest.TestCase):
         controller_module.config._TRANSCRIPTION_PROFILE_SEND = deepcopy(whisper)
         controller_module.config._TRANSCRIPTION_PROFILE_RECEIVE = deepcopy(whisper)
 
-        self.controller.setSelectedTranscriptionEngine("Google")
-        response = self.controller.setSelectedTranscriptionEngine("Whisper")
+        with patch.object(
+            controller_module.config,
+            "_SELECTABLE_COMPUTE_DEVICE_LIST",
+            [CPU, CUDA],
+        ):
+            self.controller.setSelectedTranscriptionEngine("Google")
+            response = self.controller.setSelectedTranscriptionEngine("Whisper")
 
         self.assertEqual(response, {"status": 200, "result": "Whisper"})
         for saved in (

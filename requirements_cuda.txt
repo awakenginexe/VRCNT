@@ -1,14 +1,14 @@
-torch==2.7.0
+torch==2.11.0
 --extra-index-url https://download.pytorch.org/whl/cu128
 faster-whisper==1.2.1
-ctranslate2==4.6.0
+ctranslate2==4.8.1
 onnxruntime-gpu==1.19.2
 -f https://k2-fsa.github.io/sherpa/onnx/cuda.html
 sherpa-onnx==1.13.0+cuda12.cudnn9
 vosk==0.3.45
 onnx-asr[hub]==0.11.0
-transformers==4.40.2
-pillow == 10.0.0
+transformers==5.5.0
+pillow == 12.3.0
 PyAudioWPatch == 0.2.12.6
 python-osc == 1.9.0
 PyYAML==6.0.2
@@ -16,15 +16,15 @@ deepl == 1.22.0
 flashtext ==2.7
 pyinstaller==6.10.0
 numpy==1.26.4
-sentencepiece==0.2.0
-openvr==1.26.701
+sentencepiece==0.2.1
+openvr==2.12.1401
 pydub==0.25.1
 psutil==5.9.8
 pycaw==20240210
 websockets==15.0.1
-huggingface_hub==0.32.2
-hf-xet==1.1.2
-setuptools==80.8.0
+huggingface_hub==1.5.0
+hf-xet==1.6.0
+setuptools==83.0.0
 langchain-openai==0.3.32
 langchain-google-genai==2.1.10
 google-genai==1.45.0

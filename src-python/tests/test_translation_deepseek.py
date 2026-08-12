@@ -54,6 +54,10 @@ class DeepSeekClientTests(unittest.TestCase):
                     "'models.translation.translation_deepseek'",
                     spec_source,
                 )
+                self.assertIn(
+                    "'transformers.models': 'py'",
+                    spec_source,
+                )
 
     def test_redaction_removes_bearer_tokens_and_api_key_values(self):
         marker = "not-a-real-secret"

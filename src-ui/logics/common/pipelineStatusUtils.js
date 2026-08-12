@@ -12,6 +12,7 @@ const PIPELINE_OUTCOMES = new Set([
     "running",
     "sending",
     "success",
+    "skipped",
     "slow",
     "fallback",
     "timeout",

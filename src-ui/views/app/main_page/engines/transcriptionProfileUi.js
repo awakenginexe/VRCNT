@@ -28,6 +28,22 @@ export const resolveLiveTranscriptionEngine = ({
     sendProfile?.engine || receiveProfile?.engine || legacyEngine || ""
 );
 
+export const resolveLiveTranscriptionModel = ({
+    legacyEngine,
+    legacyModel,
+    sendProfile,
+    receiveProfile,
+} = {}) => {
+    const engine = resolveLiveTranscriptionEngine({
+        legacyEngine,
+        sendProfile,
+        receiveProfile,
+    });
+    const activeProfile = [sendProfile, receiveProfile]
+        .find((profile) => profile?.engine === engine);
+    return getActiveModel(activeProfile) || legacyModel || "";
+};
+
 export const getActiveModelAvailability = (profile, statusesByProvider) => {
     if (profile?.engine === "Google" || profile?.engine === "Whisper Cloud") return "cloud";
     const selected = getActiveModel(profile);

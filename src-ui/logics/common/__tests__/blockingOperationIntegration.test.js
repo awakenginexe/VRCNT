@@ -14,6 +14,9 @@ const receiveRoutesPath = "src-ui/logics/useReceiveRoutes.js";
 const startPythonPath = (
     "src-ui/views/app/_app_controllers/StartPythonController.jsx"
 );
+const colorThemePath = (
+    "src-ui/views/app/_app_controllers/ColorThemeController.jsx"
+);
 const switchPath = (
     "src-ui/views/app/main_page/sidebar_section/main_function_switch/"
     + "MainFunctionSwitch.jsx"
@@ -426,6 +429,26 @@ test("sidecar startup failures produce terminal InitStatus and deduplicated copy
     );
 
     assert.doesNotMatch(source, /updateIsBackendReady\(false\)/);
+});
+
+test("color theme waits for backend readiness before requesting the saved palette", () => {
+    const source = readSource(colorThemePath);
+
+    assert.match(source, /useIsBackendReady/);
+    const requestEffectStart = source.indexOf("useLayoutEffect(() => {");
+    const requestEffectEnd = source.indexOf("}, [", requestEffectStart);
+    const requestEffectSource = source.slice(requestEffectStart, requestEffectEnd);
+
+    assert.match(
+        requestEffectSource,
+        /currentIsBackendReady\.data\s*!==\s*true/,
+        "palette reads must wait for the sidecar to be available",
+    );
+    assert.match(
+        source,
+        /\}, \[getAppColorPalette, currentIsBackendReady\.data\]\);/,
+        "the palette request must retry after backend readiness changes",
+    );
 });
 
 test("main-function switches keep native semantics and pending focus identity", () => {

@@ -15,3 +15,13 @@ test("isBenignSidecarStderr reports real tracebacks", () => {
         false,
     );
 });
+
+test("isBenignSidecarStderr ignores the PyInstaller pkg_resources deprecation warning", () => {
+    assert.equal(
+        isBenignSidecarStderr(
+            "PyInstaller\\loader\\pyimod02_importers.py:378: UserWarning: "
+            + "pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html.",
+        ),
+        true,
+    );
+});

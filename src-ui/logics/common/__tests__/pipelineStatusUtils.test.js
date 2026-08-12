@@ -154,6 +154,36 @@ test("null-trace metrics stay source-local and never enter the trace dictionary"
     assert.equal(state.latest_source, "speaker");
 });
 
+test("terminal skipped transcription replaces the active running event", () => {
+    let state = createEmptyPipelineStatusState();
+    state = mergePipelineStatusEvent(state, makeEvent({
+        trace_id: null,
+        source: "mic",
+        stage: "transcription",
+        target_slot: null,
+        engine: "Whisper",
+        outcome: "running",
+        duration_ms: null,
+        observed_at_ms: 1_000,
+    }));
+    state = mergePipelineStatusEvent(state, makeEvent({
+        trace_id: null,
+        source: "mic",
+        stage: "transcription",
+        target_slot: null,
+        engine: "Whisper",
+        outcome: "skipped",
+        duration_ms: 24,
+        error_code: "transcription_no_speech",
+        observed_at_ms: 1_001,
+    }));
+
+    const summary = selectPipelineStatusSummary(state, 9_000);
+    assert.equal(summary.transcription.outcome, "skipped");
+    assert.equal(summary.transcription.elapsed_ms, 24);
+    assert.equal(summary.health, "healthy");
+});
+
 test("summary selects the latest source and terminal output duration", () => {
     let state = createEmptyPipelineStatusState();
     state = mergePipelineStatusEvent(state, makeEvent({

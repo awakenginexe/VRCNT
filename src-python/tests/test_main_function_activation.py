@@ -925,11 +925,11 @@ class MainFunctionActivationTests(unittest.TestCase):
             response = controller.setCtranslate2WeightType(
                 "nllb-200-distilled-1.3B-ct2-int8"
             )
+            self.assertEqual(controller_module.config.CTRANSLATE2_WEIGHT_TYPE, "m2m100_418M-ct2-int8")
 
         self.assertEqual(response["status"], 400)
         self.assertEqual(response["result"]["error_code"], "TRANSLATION_MODEL_CHANGE_ACTIVE")
         self.assertEqual(loads, [])
-        self.assertEqual(controller_module.config.CTRANSLATE2_WEIGHT_TYPE, "m2m100_418M-ct2-int8")
         self.assertFalse(parameter_changed)
 
     def test_active_fallback_device_change_reloads_before_returning(self):
@@ -1173,11 +1173,10 @@ class MainFunctionActivationTests(unittest.TestCase):
             ),
         ):
             controller.updateTranslationEngineAndEngineList()
-
-        self.assertEqual(
-            controller_module.config.SELECTED_TRANSLATION_ENGINES,
-            {"1": "CTranslate2"},
-        )
+            self.assertEqual(
+                controller_module.config.SELECTED_TRANSLATION_ENGINES,
+                {"1": "CTranslate2"},
+            )
 
     def test_ctranslate2_translation_enable_waits_for_model_readiness(self):
         controller = _controller_for_activation()

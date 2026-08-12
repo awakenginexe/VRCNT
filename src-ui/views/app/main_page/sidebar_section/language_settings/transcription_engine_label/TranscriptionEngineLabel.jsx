@@ -10,7 +10,10 @@ import {
     getSelectedDeviceMode,
     isAutoOnlyTranscriptionEngine,
 } from "../transcriptionRuntimeUtils.js";
-import { resolveLiveTranscriptionEngine } from "../../../engines/transcriptionProfileUi.js";
+import {
+    resolveLiveTranscriptionEngine,
+    resolveLiveTranscriptionModel,
+} from "../../../engines/transcriptionProfileUi.js";
 
 export const TranscriptionEngineLabel = ({ variant = "settings" }) => {
     const { t } = useI18n();
@@ -54,7 +57,7 @@ export const TranscriptionEngineLabel = ({ variant = "settings" }) => {
         device: activeDevice,
     });
     const selectedComputeType = currentSelectedTranscriptionComputeType?.data ?? "auto";
-    const currentModelName =
+    const legacyModelName =
         engine === "Whisper" ? currentSelectedWhisperWeightType?.data :
         engine === "Whisper Thai" ? currentSelectedWhisperThaiWeightType?.data :
         engine === "Whisper Cloud" ? currentSelectedWhisperCloudModel?.data :
@@ -62,6 +65,12 @@ export const TranscriptionEngineLabel = ({ variant = "settings" }) => {
         engine === "Parakeet" ? currentSelectedParakeetWeightType?.data :
         engine === "SenseVoice" ? currentSelectedSenseVoiceWeightType?.data :
         null;
+    const currentModelName = resolveLiveTranscriptionModel({
+        legacyEngine: currentSelectedTranscriptionEngine?.data,
+        legacyModel: legacyModelName,
+        sendProfile: currentTranscriptionProfileSend?.data,
+        receiveProfile: currentTranscriptionProfileReceive?.data,
+    });
     const liveModelLabel = currentModelName
         ? `${engine} · ${currentModelName}`
         : engine;

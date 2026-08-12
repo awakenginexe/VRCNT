@@ -46,6 +46,7 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=['pandas', 'matplotlib', 'PyQt5'],
+    module_collection_mode={'transformers.models': 'py'},
     noarchive=False,
     optimize=0,
 )

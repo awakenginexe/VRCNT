@@ -1,18 +1,20 @@
 import { useLayoutEffect, useRef } from "react";
 
 import { useAppearance } from "@logics_configs";
-import { getAppCssVariables } from "@logics_common";
+import { getAppCssVariables, useIsBackendReady } from "@logics_common";
 
 export const ColorThemeController = () => {
     const { currentAppColorPalette, getAppColorPalette } = useAppearance();
+    const { currentIsBackendReady } = useIsBackendReady();
     const appliedVariableNames = useRef(new Set());
     const hasRequestedPalette = useRef(false);
 
     useLayoutEffect(() => {
+        if (currentIsBackendReady.data !== true) return;
         if (hasRequestedPalette.current) return;
         hasRequestedPalette.current = true;
         getAppColorPalette?.();
-    }, [getAppColorPalette]);
+    }, [getAppColorPalette, currentIsBackendReady.data]);
 
     useLayoutEffect(() => {
         const palette = currentAppColorPalette?.data;

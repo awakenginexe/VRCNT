@@ -94,6 +94,42 @@ class CTranslate2ReadinessTests(unittest.TestCase):
             ]
         )
 
+    def test_runtime_readiness_loads_an_existing_huggingface_snapshot_locally(self):
+        fake_transformers = Mock()
+        fake_transformers.AutoTokenizer.from_pretrained.return_value = object()
+
+        with tempfile.TemporaryDirectory() as temporary_root:
+            cache_root = (
+                Path(temporary_root)
+                / "weights"
+                / "ctranslate2"
+                / "m2m100_418M-ct2-int8"
+                / "tokenizer"
+            )
+            snapshot = (
+                cache_root
+                / "models--facebook--m2m100_418M"
+                / "snapshots"
+                / "cached-revision"
+            )
+            snapshot.mkdir(parents=True)
+            (snapshot / "tokenizer_config.json").write_text("{}", encoding="utf-8")
+
+            with patch.object(
+                translation_utils,
+                "_getTransformers",
+                return_value=fake_transformers,
+            ):
+                translation_utils.loadCTranslate2Tokenizer(
+                    temporary_root,
+                    "m2m100_418M-ct2-int8",
+                    local_files_only=True,
+                )
+
+        call = fake_transformers.AutoTokenizer.from_pretrained.call_args
+        self.assertEqual(call.args[0], str(snapshot))
+        self.assertTrue(call.kwargs["local_files_only"])
+
     def test_manifest_verification_rejects_a_corrupt_weight_file(self):
         with tempfile.TemporaryDirectory() as temporary_root:
             model_root = Path(temporary_root)
@@ -164,14 +200,14 @@ class CTranslate2ReadinessTests(unittest.TestCase):
             response = controller.setCtranslate2WeightType(
                 "nllb-200-distilled-1.3B-ct2-int8"
             )
+            self.assertEqual(controller_module.config.CTRANSLATE2_WEIGHT_TYPE, previous_weight)
+            load_model.assert_not_called()
 
         self.assertEqual(response["status"], 400)
         self.assertEqual(
             response["result"]["error_code"],
             errors_module.ErrorCode.TRANSLATION_MODEL_CHANGE_ACTIVE.value,
         )
-        self.assertEqual(controller_module.config.CTRANSLATE2_WEIGHT_TYPE, previous_weight)
-        load_model.assert_not_called()
 
     def test_enabling_active_local_fallback_returns_readiness_error(self):
         controller = _controller_for_readiness()
@@ -189,14 +225,14 @@ class CTranslate2ReadinessTests(unittest.TestCase):
             patch.object(model_module.model, "changeTranslatorCTranslate2Model") as load_model,
         ):
             response = controller.setCTranslate2AutoFallback(True)
+            self.assertFalse(controller_module.config.ENABLE_CTRANSLATE2_AUTO_FALLBACK)
+            load_model.assert_not_called()
 
         self.assertEqual(response["status"], 400)
         self.assertEqual(
             response["result"]["error_code"],
             errors_module.ErrorCode.TRANSLATION_MODEL_NOT_READY.value,
         )
-        self.assertFalse(controller_module.config.ENABLE_CTRANSLATE2_AUTO_FALLBACK)
-        load_model.assert_not_called()
 
     def test_download_status_is_not_ready_when_only_weights_are_valid(self):
         controller = object.__new__(Controller)

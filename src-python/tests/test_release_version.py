@@ -78,7 +78,27 @@ class ReleaseVersionTests(unittest.TestCase):
                 ROOT / filename
             ).read_text(encoding="utf-8").splitlines()
             self.assertIn("faster-whisper==1.2.1", requirements)
-            self.assertIn("ctranslate2==4.6.0", requirements)
+            self.assertIn("ctranslate2==4.8.1", requirements)
+
+    def test_cuda_runtime_matches_ctranslate2(self):
+        requirements = (
+            ROOT / "requirements_cuda.txt"
+        ).read_text(encoding="utf-8").splitlines()
+
+        self.assertIn("torch==2.11.0", requirements)
+        self.assertIn(
+            "--extra-index-url https://download.pytorch.org/whl/cu128",
+            requirements,
+        )
+        self.assertIn("ctranslate2==4.8.1", requirements)
+        self.assertIn(
+            "sherpa-onnx==1.13.0+cuda12.cudnn9",
+            requirements,
+        )
+        self.assertNotIn(
+            "--extra-index-url https://download.pytorch.org/whl/cu130",
+            requirements,
+        )
 
 
 if __name__ == "__main__":

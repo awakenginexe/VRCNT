@@ -157,6 +157,27 @@ test("live engine summaries prefer the active profile over the stale legacy engi
     );
 });
 
+test("live model summaries prefer the active profile over the stale legacy model", async () => {
+    const { resolveLiveTranscriptionModel } = await import(utilsUrl);
+
+    assert.equal(typeof resolveLiveTranscriptionModel, "function");
+    assert.equal(
+        resolveLiveTranscriptionModel({
+            legacyEngine: "Whisper",
+            legacyModel: "tiny",
+            sendProfile: {
+                engine: "Whisper",
+                models: { Whisper: "large-v3-turbo" },
+            },
+            receiveProfile: {
+                engine: "Whisper",
+                models: { Whisper: "large-v3-turbo" },
+            },
+        }),
+        "large-v3-turbo",
+    );
+});
+
 test("legacy Model and Provider controls use the styled apply-to-both confirmation", async () => {
     const source = await readFile(path.join(
         root,

@@ -263,6 +263,45 @@ def _tokenizerCachePath(root: str, weight_type: str) -> str:
     directory_name = ctranslate2_weights[weight_type]["directory_name"]
     return os_path.join(root, "weights", "ctranslate2", directory_name, "tokenizer")
 
+
+def _findLocalTokenizerSnapshot(cache_root: str, tokenizer: str) -> str | None:
+    """Find a Hugging Face snapshot that can be loaded without network access.
+
+    Transformers 5.x may require files from the snapshot itself when loading a
+    tokenizer. Older cache layouts can still contain a complete snapshot while
+    a repository-ID lookup fails because the newer config lookup is absent.
+    """
+    repository_cache_name = f"models--{tokenizer.replace('/', '--')}"
+    repository_cache = os_path.join(cache_root, repository_cache_name)
+    snapshots_root = os_path.join(repository_cache, "snapshots")
+    if not os_path.isdir(snapshots_root):
+        return None
+
+    ref_path = os_path.join(repository_cache, "refs", "main")
+    if os_path.isfile(ref_path):
+        try:
+            with open(ref_path, "r", encoding="utf-8") as ref_file:
+                revision = ref_file.read().strip()
+            if revision and os_path.basename(revision) == revision:
+                snapshot_path = os_path.join(snapshots_root, revision)
+                if os_path.isdir(snapshot_path):
+                    return snapshot_path
+        except Exception:
+            pass
+
+    try:
+        snapshots = [
+            os_path.join(snapshots_root, name)
+            for name in os.listdir(snapshots_root)
+            if os_path.isdir(os_path.join(snapshots_root, name))
+        ]
+        if snapshots:
+            return max(snapshots, key=os_path.getmtime)
+    except Exception:
+        pass
+    return None
+
+
 def loadCTranslate2Tokenizer(root: str, weight_type: str = "m2m100_418M-ct2-int8", local_files_only: bool = True, repair_cache: bool = False):
     tokenizer = ctranslate2_weights[weight_type]["tokenizer"]
     tokenizer_path = _tokenizerCachePath(root, weight_type)
@@ -270,10 +309,21 @@ def loadCTranslate2Tokenizer(root: str, weight_type: str = "m2m100_418M-ct2-int8
     if repair_cache and os_path.isdir(tokenizer_path):
         shutil.rmtree(tokenizer_path, ignore_errors=True)
     os_makedirs(tokenizer_path, exist_ok=True)
+    pretrained_path = tokenizer
+    tokenizer_kwargs = {
+        "local_files_only": local_files_only,
+    }
+    if local_files_only:
+        cached_snapshot = _findLocalTokenizerSnapshot(tokenizer_path, tokenizer)
+        if cached_snapshot is not None:
+            pretrained_path = cached_snapshot
+        else:
+            tokenizer_kwargs["cache_dir"] = tokenizer_path
+    else:
+        tokenizer_kwargs["cache_dir"] = tokenizer_path
     return transformers.AutoTokenizer.from_pretrained(
-        tokenizer,
-        cache_dir=tokenizer_path,
-        local_files_only=local_files_only,
+        pretrained_path,
+        **tokenizer_kwargs,
     )
 
 def checkCTranslate2Tokenizer(root: str, weight_type: str = "m2m100_418M-ct2-int8") -> bool:

@@ -89,7 +89,7 @@ class PipelineEndToEndTests(unittest.TestCase):
         updates = []
         finals = []
         metrics = []
-        final_ready = threading.Event()
+        a_final_ready = threading.Event()
         generation = 11
         pipeline = SourcePipeline(
             source=PipelineSource.MIC,
@@ -98,7 +98,10 @@ class PipelineEndToEndTests(unittest.TestCase):
             emit_initial=lambda trace: initial.append((trace.trace_id, trace.original_message)),
             emit_update=updates.append,
             emit_metric=metrics.append,
-            emit_final=lambda task: (finals.append(task), final_ready.set()),
+            emit_final=lambda task: (
+                finals.append(task),
+                a_final_ready.set() if task.trace_id == "trace-a" else None,
+            ),
             is_generation_current=lambda candidate: candidate == generation,
         )
         pipeline.start(generation)
@@ -153,10 +156,10 @@ class PipelineEndToEndTests(unittest.TestCase):
             pipeline.submit_trace(trace("trace-b", fake_transcribe(chunk_b, "B")))
         )
         self.assertIn(("trace-b", "B"), initial)
-        self.assertFalse(final_ready.is_set())
+        self.assertFalse(a_final_ready.is_set())
 
         translator.release_a.set()
-        self.assertTrue(final_ready.wait(WAIT_SECONDS))
+        self.assertTrue(a_final_ready.wait(WAIT_SECONDS))
         pipeline.stop(generation)
 
         a_finals = [task for task in finals if task.trace_id == "trace-a"]
