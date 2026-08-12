@@ -24,7 +24,7 @@ pycaw==20240210
 websockets==15.0.1
 huggingface_hub==1.5.0
 hf-xet==1.6.0
-setuptools==83.0.0
+setuptools==81.0.0
 langchain-openai==0.3.32
 langchain-google-genai==2.1.10
 google-genai==1.45.0
