@@ -220,6 +220,29 @@ class CTranslate2ReadinessTests(unittest.TestCase):
             self.assertIsNotNone(module_spec)
             self.assertEqual(Path(module_spec.origin), current_binary)
 
+    def test_frozen_tokenizer_cleanup_removes_only_stale_distribution_metadata(self):
+        with tempfile.TemporaryDirectory() as temporary_root:
+            current = Path(temporary_root, "tokenizers-0.22.2.dist-info")
+            stale = Path(temporary_root, "tokenizers-0.19.1.dist-info")
+            other = Path(temporary_root, "transformers-5.5.0.dist-info")
+            for distribution, name, version in (
+                (current, "tokenizers", "0.22.2"),
+                (stale, "tokenizers", "0.19.1"),
+                (other, "transformers", "5.5.0"),
+            ):
+                distribution.mkdir()
+                (distribution / "METADATA").write_text(
+                    f"Name: {name}\nVersion: {version}\n",
+                    encoding="utf-8",
+                )
+
+            with patch.object(translation_utils.sys, "_MEIPASS", temporary_root, create=True):
+                translation_utils._removeStaleFrozenTokenizersMetadata()
+
+            self.assertTrue(current.is_dir())
+            self.assertFalse(stale.exists())
+            self.assertTrue(other.is_dir())
+
     def test_enable_returns_model_specific_readiness_error_before_loading(self):
         controller = _controller_for_readiness()
         with (

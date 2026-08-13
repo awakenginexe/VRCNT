@@ -10,6 +10,7 @@ from os import replace as os_replace
 from os import remove as os_remove
 import importlib
 import importlib.util
+import importlib.metadata
 import sys
 from requests import get as requests_get
 from typing import Callable
@@ -133,6 +134,7 @@ _REQUIRED_CTRANSLATE2_RUNTIME_FILES = (
 
 _CTRANSLATE2_RUNTIME_PREPARED = False
 _CTRANSLATE2_DLL_DIR_HANDLES = []
+_TOKENIZERS_DISTRIBUTION_NAME = "tokenizers"
 
 
 class _FrozenNativeModuleFinder:
@@ -156,6 +158,41 @@ def _getFrozenTokenizersNativeModuleFinder() -> _FrozenNativeModuleFinder | None
     if not os_path.isfile(module_path):
         return None
     return _FrozenNativeModuleFinder("tokenizers.tokenizers", module_path)
+
+
+def _removeStaleFrozenTokenizersMetadata() -> None:
+    """Discard updater leftovers that make Transformers read an old version."""
+    frozen_root = getattr(sys, "_MEIPASS", None)
+    if not frozen_root:
+        return
+    try:
+        installed = list(importlib.metadata.distributions(path=[frozen_root]))
+        tokenizers = [
+            distribution
+            for distribution in installed
+            if distribution.metadata.get("Name", "").lower()
+            == _TOKENIZERS_DISTRIBUTION_NAME
+        ]
+    except Exception:
+        return
+    if len(tokenizers) < 2:
+        return
+    try:
+        current = max(
+            tokenizers,
+            key=lambda distribution: tuple(
+                int(part) for part in distribution.version.split(".")
+            ),
+        )
+    except Exception:
+        return
+    for distribution in tokenizers:
+        if distribution is current:
+            continue
+        try:
+            shutil.rmtree(distribution._path, ignore_errors=True)
+        except Exception:
+            pass
 
 
 @contextmanager
@@ -220,6 +257,7 @@ def _getCtrTranslate2():
 
 
 def _getTransformers():
+    _removeStaleFrozenTokenizersMetadata()
     return importlib.import_module("transformers")
 
 def verifyCTranslate2Manifest(path: str) -> bool:

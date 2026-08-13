@@ -6359,7 +6359,7 @@ class Controller:
         self._whisper_available_cache = whisper_available
         self._fallbackSelectedWhisperWeight(startup_whisper_weight_type, whisper_available)
 
-        if not ctranslate2_available or not whisper_available:
+        if not whisper_available:
             self.disableAiModels()
         else:
             self.enableAiModels()

@@ -4,7 +4,7 @@ import { HomepageLinkButton } from "@common_components";
 
 export const useIsVrctAvailable = () => {
     const { currentIsVrctAvailable, updateIsVrctAvailable } = useStore_IsVrctAvailable();
-    const { showNotification_Success, showNotification_Error } = useNotificationStatus();
+    const { showNotification_Error } = useNotificationStatus();
 
     const handleAiModelsAvailability = (is_ai_models_available) => {
         if (is_ai_models_available === false) {

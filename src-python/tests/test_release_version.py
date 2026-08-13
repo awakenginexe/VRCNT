@@ -35,6 +35,9 @@ class ReleaseVersionTests(unittest.TestCase):
                 encoding="utf-8"
             )
         )
+        ui_store = (ROOT / "src-ui" / "logics" / "store.js").read_text(
+            encoding="utf-8"
+        )
 
         self.assertEqual(package["version"], APP_VERSION)
         self.assertEqual(package_lock["version"], APP_VERSION)
@@ -43,6 +46,10 @@ class ReleaseVersionTests(unittest.TestCase):
             APP_VERSION,
         )
         self.assertEqual(tauri["version"], APP_VERSION)
+        self.assertIn(
+            f'createAtomWithHook("{APP_VERSION}", "SoftwareVersion")',
+            ui_store,
+        )
 
     def test_rust_application_package_reports_release_version(self):
         cargo_manifest = tomllib.loads(
@@ -79,6 +86,8 @@ class ReleaseVersionTests(unittest.TestCase):
             ).read_text(encoding="utf-8").splitlines()
             self.assertIn("faster-whisper==1.2.1", requirements)
             self.assertIn("ctranslate2==4.8.1", requirements)
+            self.assertIn("transformers==5.5.0", requirements)
+            self.assertIn("tokenizers==0.22.2", requirements)
 
     def test_cuda_runtime_matches_ctranslate2(self):
         requirements = (

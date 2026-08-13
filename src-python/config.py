@@ -1080,7 +1080,7 @@ class Config:
 
     def init_config(self):
         # Read Only
-        self._VERSION = "5.6.1"
+        self._VERSION = "5.6.2"
         if getattr(sys, 'frozen', False):
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:

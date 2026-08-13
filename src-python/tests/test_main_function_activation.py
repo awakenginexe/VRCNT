@@ -525,6 +525,16 @@ class MainFunctionActivationTests(unittest.TestCase):
             ),
             patch.object(
                 model_module.model,
+                "checkTranslatorCTranslate2ModelWeight",
+                return_value=True,
+            ),
+            patch.object(
+                model_module.model,
+                "checkTranslatorCTranslate2ModelTokenizer",
+                return_value=True,
+            ),
+            patch.object(
+                model_module.model,
                 "isChangedTranslatorParameters",
                 return_value=False,
             ),
@@ -557,6 +567,16 @@ class MainFunctionActivationTests(unittest.TestCase):
                 model_module.model,
                 "isLoadedCTranslate2Model",
                 return_value=False,
+            ),
+            patch.object(
+                model_module.model,
+                "checkTranslatorCTranslate2ModelWeight",
+                return_value=True,
+            ),
+            patch.object(
+                model_module.model,
+                "checkTranslatorCTranslate2ModelTokenizer",
+                return_value=True,
             ),
             patch.object(
                 model_module.model,
@@ -595,6 +615,16 @@ class MainFunctionActivationTests(unittest.TestCase):
                 model_module.model,
                 "isLoadedCTranslate2Model",
                 return_value=False,
+            ),
+            patch.object(
+                model_module.model,
+                "checkTranslatorCTranslate2ModelWeight",
+                return_value=True,
+            ),
+            patch.object(
+                model_module.model,
+                "checkTranslatorCTranslate2ModelTokenizer",
+                return_value=True,
             ),
             patch.object(
                 model_module.model,
@@ -1084,6 +1114,8 @@ class MainFunctionActivationTests(unittest.TestCase):
                 _SELECTED_TRANSLATION_ENGINES={"1": "CTranslate2"},
             ),
             patch.object(model_module.model, "isLoadedCTranslate2Model", side_effect=lambda: loaded),
+            patch.object(model_module.model, "checkTranslatorCTranslate2ModelWeight", return_value=True),
+            patch.object(model_module.model, "checkTranslatorCTranslate2ModelTokenizer", return_value=True),
             patch.object(model_module.model, "isChangedTranslatorParameters", return_value=False),
             patch.object(model_module.model, "unloadTranslatorCTranslate2Model", side_effect=unload_model) as unload,
             patch.object(model_module.model, "changeTranslatorCTranslate2Model", side_effect=load_model) as load,
@@ -1207,6 +1239,8 @@ class MainFunctionActivationTests(unittest.TestCase):
                     return_value=True,
                 ),
                 patch.object(model_module.model, "isLoadedCTranslate2Model", return_value=False),
+                patch.object(model_module.model, "checkTranslatorCTranslate2ModelWeight", return_value=True),
+                patch.object(model_module.model, "checkTranslatorCTranslate2ModelTokenizer", return_value=True),
                 patch.object(model_module.model, "isChangedTranslatorParameters", return_value=False),
                 patch.object(model_module.model, "changeTranslatorCTranslate2Model", side_effect=blocked_change),
                 patch.object(model_module.model, "setChangedTranslatorParameters"),
@@ -1239,6 +1273,8 @@ class MainFunctionActivationTests(unittest.TestCase):
                     _SELECTED_TRANSLATION_ENGINES={"1": "CTranslate2"},
                 ),
                 patch.object(model_module.model, "isLoadedCTranslate2Model", return_value=False),
+                patch.object(model_module.model, "checkTranslatorCTranslate2ModelWeight", return_value=True),
+                patch.object(model_module.model, "checkTranslatorCTranslate2ModelTokenizer", return_value=True),
                 patch.object(model_module.model, "isChangedTranslatorParameters", return_value=False),
                 patch.object(model_module.model, "changeTranslatorCTranslate2Model", side_effect=RuntimeError("load failed")),
                 patch.object(model_module.model, "setChangedTranslatorParameters"),
