@@ -1,7 +1,7 @@
 {
   "name": "vrcnt",
   "private": true,
-  "version": "5.6.2",
+  "version": "5.6.3",
   "type": "module",
   "scripts": {
     "setup-python": "bat\\install.bat",

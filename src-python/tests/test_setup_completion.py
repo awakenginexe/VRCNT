@@ -15,10 +15,10 @@ if "requests" not in sys.modules:
     sys.modules["requests"] = requests_stub
 
 
-def _resolve_setup_completion(*args):
+def _resolve_setup_completion(*args, **kwargs):
     from config import _resolveSetupCompletion
 
-    return _resolveSetupCompletion(*args)
+    return _resolveSetupCompletion(*args, **kwargs)
 
 
 class SetupCompletionTests(unittest.TestCase):
@@ -26,7 +26,16 @@ class SetupCompletionTests(unittest.TestCase):
         self.assertIs(_resolve_setup_completion(False), False)
 
     def test_existing_config_without_state_migrates_to_complete(self):
-        self.assertIs(_resolve_setup_completion(True), True)
+        self.assertIs(
+            _resolve_setup_completion(True, config_data={"FONT_FAMILY": "VRCNT Noto"}),
+            True,
+        )
+
+    def test_installer_language_only_config_starts_incomplete(self):
+        self.assertIs(
+            _resolve_setup_completion(True, config_data={"UI_LANGUAGE": "en"}),
+            False,
+        )
 
     def test_explicit_false_survives_resume(self):
         self.assertIs(_resolve_setup_completion(True, False), False)

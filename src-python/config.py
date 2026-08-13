@@ -123,9 +123,15 @@ def _resolveRenamedUserDataPath(
 def _resolveSetupCompletion(
     config_file_exists: bool,
     persisted_value: object = None,
+    config_data: Optional[Dict[str, Any]] = None,
 ) -> bool:
     if isinstance(persisted_value, bool):
         return persisted_value
+    # The installer writes a language-only config beside the executable. It is
+    # copied into the user data directory on first launch, but it is not proof
+    # that the user has already completed setup.
+    if isinstance(config_data, dict) and set(config_data).issubset({"UI_LANGUAGE"}):
+        return False
     return bool(config_file_exists)
 
 
@@ -1080,7 +1086,7 @@ class Config:
 
     def init_config(self):
         # Read Only
-        self._VERSION = "5.6.2"
+        self._VERSION = "5.6.3"
         if getattr(sys, 'frozen', False):
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
@@ -1637,6 +1643,7 @@ class Config:
         self._SETUP_COMPLETED = _resolveSetupCompletion(
             config_file_exists,
             self._config_data.get("SETUP_COMPLETED"),
+            self._config_data,
         )
 
         send_profile = self._TRANSCRIPTION_PROFILE_SEND
