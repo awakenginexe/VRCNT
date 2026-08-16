@@ -5300,15 +5300,16 @@ class Controller:
             try:
                 verification = download_ctranslate2.downloaded()
             finally:
-                if (
-                    isinstance(verification, tuple)
-                    and len(verification) == 2
-                    and weight_type == config.CTRANSLATE2_WEIGHT_TYPE
-                ):
-                    self._refreshSelectedCTranslate2Readiness(verification)
-                else:
-                    self._refreshSelectedCTranslate2Readiness()
-                self.updateTranslationEngineAndEngineList()
+                with self._translation_activation_lock:
+                    if (
+                        isinstance(verification, tuple)
+                        and len(verification) == 2
+                        and weight_type == config.CTRANSLATE2_WEIGHT_TYPE
+                    ):
+                        self._refreshSelectedCTranslate2Readiness(verification)
+                    else:
+                        self._refreshSelectedCTranslate2Readiness()
+                    self.updateTranslationEngineAndEngineList()
 
         if asynchronous is True:
             self.startThreadingDownloadCtranslate2Weight(
@@ -5615,8 +5616,8 @@ class Controller:
             weight_valid, tokenizer_valid = verified_readiness
 
         is_ready = weight_valid is True and tokenizer_valid is True
-        config._SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[selected_weight_type] = is_ready
-        config._SELECTABLE_TRANSLATION_ENGINE_STATUS["CTranslate2"] = is_ready
+        config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[selected_weight_type] = is_ready
+        config.SELECTABLE_TRANSLATION_ENGINE_STATUS["CTranslate2"] = is_ready
         if hasattr(self, "_ctranslate2_available_cache"):
             self._ctranslate2_available_cache = is_ready
         return is_ready
@@ -5633,12 +5634,12 @@ class Controller:
 
         if refresh_selected and (
             scan_all is False
-            or selected_weight_type in config._SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT
+            or selected_weight_type in config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT
         ):
             self._refreshSelectedCTranslate2Readiness()
             selected_status_updated = True
         elif hasattr(self, "_ctranslate2_available_cache"):
-            config._SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[selected_weight_type] = (
+            config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[selected_weight_type] = (
                 self._ctranslate2_available_cache
             )
             selected_status_updated = True
@@ -5646,7 +5647,7 @@ class Controller:
         if scan_all is True:
             # Keep the selected model authoritative while refreshing every other
             # locally available CTranslate2 model for the model picker.
-            selectable_weight_status = config._SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT
+            selectable_weight_status = config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT
             for weight_type in list(selectable_weight_status.keys()):
                 if selected_status_updated and weight_type == selected_weight_type:
                     continue

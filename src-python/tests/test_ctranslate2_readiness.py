@@ -8,7 +8,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
-from unittest.mock import ANY, Mock, patch
+from unittest.mock import ANY, Mock, call, patch
 
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -48,7 +48,18 @@ def _controller_for_selected_ctranslate2_readiness():
     return controller
 
 
+def _reset_readiness_managed_mapping_wrappers():
+    controller_module.config._wrapper_SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT = None
+    controller_module.config._wrapper_SELECTABLE_TRANSLATION_ENGINE_STATUS = None
+
+
 class CTranslate2ReadinessTests(unittest.TestCase):
+    def setUp(self):
+        _reset_readiness_managed_mapping_wrappers()
+
+    def tearDown(self):
+        _reset_readiness_managed_mapping_wrappers()
+
     def test_balanced_model_has_a_translation_language_mapping(self):
         languages = loadTranslationLanguages(".", force=True)
         mappings = languages["CTranslate2"]
@@ -331,10 +342,13 @@ class CTranslate2ReadinessTests(unittest.TestCase):
 
     def test_download_status_is_not_ready_when_only_weights_are_valid(self):
         controller = object.__new__(Controller)
-        original_status = dict(controller_module.config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT)
+        original_status = dict(
+            controller_module.config._SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT
+        )
         controller_module.config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT = {
             "m2m100_418M-ct2-int8": False,
         }
+        _reset_readiness_managed_mapping_wrappers()
         try:
             with patch.object(
                 model_module.model,
@@ -355,6 +369,7 @@ class CTranslate2ReadinessTests(unittest.TestCase):
             tokenizer_check.assert_called_once_with("m2m100_418M-ct2-int8")
         finally:
             controller_module.config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT = original_status
+            _reset_readiness_managed_mapping_wrappers()
 
     def test_refreshing_selected_model_publishes_ready_status_and_cache(self):
         selected_weight = "m2m100_418M-ct2-int8"
@@ -561,6 +576,331 @@ class CTranslate2ReadinessTests(unittest.TestCase):
             )
             self.assertTrue(controller._ctranslate2_available_cache)
             controller.updateTranslationEngineAndEngineList.assert_called_once_with()
+
+    def test_async_download_completion_is_locked_and_publishes_after_status_event(self):
+        selected_weight = "m2m100_418M-ct2-int8"
+        controller = _controller_for_selected_ctranslate2_readiness()
+        completion = {}
+        events = []
+        downloaded_event = threading.Event()
+        broadcast_event = threading.Event()
+
+        def capture_download_callback(weight_type, progress_callback, end_callback):
+            completion["callback"] = end_callback
+
+        def record_run(status, endpoint, payload):
+            events.append(endpoint)
+            if endpoint == "/run/downloaded_ctranslate2_weight":
+                downloaded_event.set()
+
+        controller.run = Mock(side_effect=record_run)
+        controller.updateTranslationEngineAndEngineList = Mock(
+            side_effect=lambda: (
+                events.append("broadcast"),
+                broadcast_event.set(),
+            )
+        )
+        controller._translation_activation_lock = threading.RLock()
+
+        with (
+            patch.multiple(
+                controller_module.config,
+                _CTRANSLATE2_WEIGHT_TYPE=selected_weight,
+                _SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT={selected_weight: False},
+                _SELECTABLE_TRANSLATION_ENGINE_STATUS={"CTranslate2": False},
+            ),
+            patch.object(
+                controller,
+                "startThreadingDownloadCtranslate2Weight",
+                side_effect=capture_download_callback,
+            ),
+            patch.object(
+                model_module.model,
+                "checkTranslatorCTranslate2ModelWeight",
+                return_value=True,
+            ),
+            patch.object(
+                model_module.model,
+                "checkTranslatorCTranslate2ModelTokenizer",
+                return_value=True,
+            ),
+        ):
+            response = controller.downloadCtranslate2Weight(
+                selected_weight,
+                asynchronous=True,
+            )
+            self.assertEqual(response, {"status": 200, "result": True})
+
+            controller._translation_activation_lock.acquire()
+            worker = threading.Thread(target=completion["callback"])
+            worker.start()
+            try:
+                self.assertTrue(downloaded_event.wait(1))
+                self.assertFalse(broadcast_event.wait(0.05))
+            finally:
+                controller._translation_activation_lock.release()
+            worker.join(1)
+            self.assertFalse(worker.is_alive())
+            self.assertEqual(events, ["/run/downloaded_ctranslate2_weight", "broadcast"])
+            self.assertTrue(
+                controller_module.config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[
+                    selected_weight
+                ]
+            )
+            self.assertTrue(
+                controller_module.config.SELECTABLE_TRANSLATION_ENGINE_STATUS[
+                    "CTranslate2"
+                ]
+            )
+            self.assertTrue(controller._ctranslate2_available_cache)
+            controller.updateTranslationEngineAndEngineList.assert_called_once_with()
+
+    def test_failed_download_publishes_unavailable_after_error_event(self):
+        selected_weight = "m2m100_418M-ct2-int8"
+        controller = _controller_for_selected_ctranslate2_readiness()
+        events = []
+        controller.run = Mock(
+            side_effect=lambda status, endpoint, payload: events.append(endpoint)
+        )
+        controller.updateTranslationEngineAndEngineList = Mock(
+            side_effect=lambda: events.append("broadcast")
+        )
+        with (
+            patch.multiple(
+                controller_module.config,
+                _CTRANSLATE2_WEIGHT_TYPE=selected_weight,
+                _SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT={selected_weight: True},
+                _SELECTABLE_TRANSLATION_ENGINE_STATUS={"CTranslate2": True},
+            ),
+            patch.object(
+                model_module.model,
+                "downloadCTranslate2ModelWeight",
+                return_value=True,
+            ),
+            patch.object(
+                model_module.model,
+                "downloadCTranslate2ModelTokenizer",
+            ),
+            patch.object(
+                model_module.model,
+                "checkTranslatorCTranslate2ModelWeight",
+                return_value=True,
+            ) as weight_check,
+            patch.object(
+                model_module.model,
+                "checkTranslatorCTranslate2ModelTokenizer",
+                return_value=False,
+            ) as tokenizer_check,
+        ):
+            response = controller.downloadCtranslate2Weight(
+                selected_weight,
+                asynchronous=False,
+            )
+            self.assertEqual(response, {"status": 200, "result": True})
+            self.assertEqual(
+                events,
+                ["/run/error_ctranslate2_weight", "broadcast"],
+            )
+            weight_check.assert_called_once_with(selected_weight)
+            tokenizer_check.assert_called_once_with(selected_weight)
+            self.assertFalse(
+                controller_module.config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[
+                    selected_weight
+                ]
+            )
+            self.assertFalse(
+                controller_module.config.SELECTABLE_TRANSLATION_ENGINE_STATUS[
+                    "CTranslate2"
+                ]
+            )
+            self.assertFalse(controller._ctranslate2_available_cache)
+            controller.updateTranslationEngineAndEngineList.assert_called_once_with()
+
+    def test_async_completion_refreshes_the_model_selected_before_completion(self):
+        initial_weight = "m2m100_418M-ct2-int8"
+        current_weight = "nllb-200-distilled-1.3B-ct2-int8"
+        controller = _controller_for_selected_ctranslate2_readiness()
+        completion = {}
+
+        def capture_download_callback(weight_type, progress_callback, end_callback):
+            completion["callback"] = end_callback
+
+        def is_initial_weight(weight_type):
+            return weight_type == initial_weight
+
+        with (
+            patch.multiple(
+                controller_module.config,
+                _ENABLE_TRANSLATION=False,
+                _CTRANSLATE2_WEIGHT_TYPE=initial_weight,
+                _SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT={
+                    initial_weight: False,
+                    current_weight: False,
+                },
+                _SELECTABLE_TRANSLATION_ENGINE_STATUS={"CTranslate2": False},
+            ),
+            patch.object(
+                controller,
+                "startThreadingDownloadCtranslate2Weight",
+                side_effect=capture_download_callback,
+            ),
+            patch.object(
+                model_module.model,
+                "checkTranslatorCTranslate2ModelWeight",
+                side_effect=is_initial_weight,
+            ) as weight_check,
+            patch.object(
+                model_module.model,
+                "checkTranslatorCTranslate2ModelTokenizer",
+                side_effect=is_initial_weight,
+            ) as tokenizer_check,
+            patch.object(model_module.model, "setChangedTranslatorParameters"),
+        ):
+            controller.downloadCtranslate2Weight(
+                initial_weight,
+                asynchronous=True,
+            )
+            selection_response = controller.setCtranslate2WeightType(current_weight)
+            self.assertEqual(
+                selection_response,
+                {"status": 200, "result": current_weight},
+            )
+
+            completion["callback"]()
+
+            self.assertEqual(controller_module.config.CTRANSLATE2_WEIGHT_TYPE, current_weight)
+            self.assertTrue(
+                controller_module.config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[
+                    initial_weight
+                ]
+            )
+            self.assertFalse(
+                controller_module.config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[
+                    current_weight
+                ]
+            )
+            self.assertFalse(
+                controller_module.config.SELECTABLE_TRANSLATION_ENGINE_STATUS[
+                    "CTranslate2"
+                ]
+            )
+            self.assertFalse(controller._ctranslate2_available_cache)
+            weight_check.assert_has_calls(
+                [call(current_weight), call(initial_weight), call(current_weight)]
+            )
+            tokenizer_check.assert_has_calls(
+                [call(current_weight), call(initial_weight), call(current_weight)]
+            )
+
+    def test_non_selected_download_does_not_enable_current_selection(self):
+        selected_weight = "m2m100_418M-ct2-int8"
+        downloaded_weight = "nllb-200-distilled-1.3B-ct2-int8"
+        controller = _controller_for_selected_ctranslate2_readiness()
+
+        def is_downloaded_weight(weight_type):
+            return weight_type == downloaded_weight
+
+        with (
+            patch.multiple(
+                controller_module.config,
+                _CTRANSLATE2_WEIGHT_TYPE=selected_weight,
+                _SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT={
+                    selected_weight: False,
+                    downloaded_weight: False,
+                },
+                _SELECTABLE_TRANSLATION_ENGINE_STATUS={"CTranslate2": False},
+            ),
+            patch.object(
+                model_module.model,
+                "downloadCTranslate2ModelWeight",
+                return_value=True,
+            ),
+            patch.object(
+                model_module.model,
+                "downloadCTranslate2ModelTokenizer",
+            ),
+            patch.object(
+                model_module.model,
+                "checkTranslatorCTranslate2ModelWeight",
+                side_effect=is_downloaded_weight,
+            ) as weight_check,
+            patch.object(
+                model_module.model,
+                "checkTranslatorCTranslate2ModelTokenizer",
+                side_effect=is_downloaded_weight,
+            ) as tokenizer_check,
+        ):
+            response = controller.downloadCtranslate2Weight(
+                downloaded_weight,
+                asynchronous=False,
+            )
+            self.assertEqual(response, {"status": 200, "result": True})
+            weight_check.assert_has_calls([call(downloaded_weight), call(selected_weight)])
+            tokenizer_check.assert_has_calls([call(downloaded_weight), call(selected_weight)])
+            self.assertEqual(
+                controller_module.config.CTRANSLATE2_WEIGHT_TYPE,
+                selected_weight,
+            )
+            self.assertTrue(
+                controller_module.config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[
+                    downloaded_weight
+                ]
+            )
+            self.assertFalse(
+                controller_module.config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[
+                    selected_weight
+                ]
+            )
+            self.assertFalse(
+                controller_module.config.SELECTABLE_TRANSLATION_ENGINE_STATUS[
+                    "CTranslate2"
+                ]
+            )
+            self.assertFalse(controller._ctranslate2_available_cache)
+
+    def test_public_readiness_maps_preserve_cache_and_status_updates(self):
+        selected_weight = "m2m100_418M-ct2-int8"
+        other_weight = "nllb-200-distilled-1.3B-ct2-int8"
+        controller = _controller_for_selected_ctranslate2_readiness()
+        with (
+            patch.multiple(
+                controller_module.config,
+                _CTRANSLATE2_WEIGHT_TYPE=selected_weight,
+                _SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT={
+                    selected_weight: True,
+                    other_weight: False,
+                },
+                _SELECTABLE_TRANSLATION_ENGINE_STATUS={
+                    "CTranslate2": True,
+                    "Other": False,
+                },
+            ),
+            patch.object(
+                model_module.model,
+                "checkTranslatorCTranslate2ModelWeight",
+                return_value=False,
+            ),
+            patch.object(
+                model_module.model,
+                "checkTranslatorCTranslate2ModelTokenizer",
+                return_value=False,
+            ),
+        ):
+            public_weights = controller_module.config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT
+            public_status = controller_module.config.SELECTABLE_TRANSLATION_ENGINE_STATUS
+            controller._ctranslate2_available_cache = False
+
+            controller.updateDownloadedCTranslate2ModelWeight(
+                refresh_selected=False,
+                publish=False,
+            )
+            public_weights[other_weight] = True
+            self.assertFalse(public_weights[selected_weight])
+
+            controller._refreshSelectedCTranslate2Readiness()
+            public_status["Other"] = True
+            self.assertFalse(public_status["CTranslate2"])
+            self.assertFalse(controller._ctranslate2_available_cache)
 
 
 if __name__ == "__main__":
