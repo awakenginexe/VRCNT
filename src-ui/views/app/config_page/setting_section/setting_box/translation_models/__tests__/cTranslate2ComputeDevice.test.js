@@ -51,12 +51,15 @@ test("CTranslate2 compute-device wrapper maps translation settings into ComputeD
     })) {
         assert.match(
             computeDevice,
-            new RegExp(`${prop}\\s*=\\s*\\{\\s*${setting}\\s*\\}`),
+            new RegExp(`(?:^|\\s)${prop}\\s*=\\s*\\{\\s*${setting}\\s*\\}`),
             `ComputeDevice must map ${prop} from ${setting}`,
         );
     }
 
-    assert.match(computeDevice, /dropdownIdPrefix\s*=\s*["']translation["']/);
+    assert.match(
+        computeDevice,
+        /(?:^|\s)dropdownIdPrefix\s*=\s*["']translation["']/,
+    );
     assert.match(
         computeDevice,
         /label=\{t\(\s*["']config_page\.translation\.translation_compute_device\.label["']\s*\)\}/,
