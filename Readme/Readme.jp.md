@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-5.0.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-5.6.3-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>
@@ -31,22 +31,55 @@
 
 VRCNTは、オープンソースプロジェクト [VRCT](https://github.com/misyaguziya/VRCT) をベースとした非公式のVRChat向け翻訳・文字起こしアプリです。レイテンシ（遅延）が重視される会話のために設計されており、クラウドプロバイダーの遅延によってセッションが停止することなく、話した音声が迅速かつ読みやすい翻訳として表示されます。
 
-## VRCNT 5.0.0 プレビュー
+## VRCNT 5.6.3 プレビュー
 
 <p align="center">
-  <img src="../preview/Preview.png" alt="VRCNT 5.0.0 アプリケーションプレビュー" width="960" />
+  <font size="4"><strong>ライブ</strong></font>
 </p>
 
-## VRCNT 5.0.0 の新機能
+<p align="center">
+  <img src="../preview/Live.png" alt="ライブ" width="960" />
+</p>
 
-- UX/UIの改善
-- 発話（Speaking）と聴取（Listening）で別々の文字起こしモデルを選択可能
-- DeepSeek API 翻訳のサポート（実験的機能。動作を保証するものではありません）
-- アプリ内通知およびデスクトップオーバーレイの動作修正
-- デスクトップおよびVRオーバーレイのカスタマイズ機能
-- 新しいガイド付きセットアップ（Guided Setup）
-- 新しい「Engines & Audio」モデル設定（従来のModel & Provider設定も引き続き使用可能）
-- サポートされている全言語での機械翻訳のサポート
+<p align="center">
+  <font size="4"><strong>エンジンと音声</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Engine&Audio.png" alt="エンジンと音声" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>音声モデル</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/SpeechModels.png" alt="音声モデル" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>翻訳モデル</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/TranslationModels.png" alt="翻訳モデル" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>オーバーレイスタジオ</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/OverlayStudio.png" alt="オーバーレイスタジオ" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>カスタマイズ</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Customize.png" alt="カスタマイズ" width="960" />
+</p>
 
 ## 翻訳の品質と貢献
 

@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-5.0.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-5.6.3-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>
@@ -32,22 +32,55 @@ for conversations where latency matters: speech should become readable
 translation quickly, without a slow cloud provider freezing the rest of the
 session.
 
-## VRCNT 5.0.0 preview
+## VRCNT 5.6.3 preview
 
 <p align="center">
-  <img src="../preview/Preview.png" alt="VRCNT 5.0.0 application preview" width="960" />
+  <font size="4"><strong>Live</strong></font>
 </p>
 
-## What's new in VRCNT 5.0.0
+<p align="center">
+  <img src="../preview/Live.png" alt="Live" width="960" />
+</p>
 
-- Improved UX/UI.
-- Selectable transcription models for Speaking and Listening.
-- DeepSeek API translation (experimental; not guaranteed to work).
-- Fixed in-app notification behavior and desktop overlays.
-- Desktop and VR overlay customization.
-- New Guided Setup.
-- New Engines & Audio model settings; the legacy Model & Provider settings remain available.
-- Machine translation support for all supported languages.
+<p align="center">
+  <font size="4"><strong>Engine & Audio</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Engine&Audio.png" alt="Engine & Audio" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>Speech Models</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/SpeechModels.png" alt="Speech Models" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>Translation Models</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/TranslationModels.png" alt="Translation Models" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>Overlay Studio</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/OverlayStudio.png" alt="Overlay Studio" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>Customize</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Customize.png" alt="Customize" width="960" />
+</p>
 
 ## Translation quality and contributions
 

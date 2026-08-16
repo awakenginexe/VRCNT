@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-5.0.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-5.6.3-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>
@@ -31,22 +31,55 @@
 
 VRCNT는 오픈소스 프로젝트인 [VRCT](https://github.com/misyaguziya/VRCT)를 기반으로 제작된 비공식 VRChat 번역 및 음성 텍스트 변환 애플리케이션입니다. 반응 속도(지연 시간)가 중요한 대화를 위해 설계되었으며, 클라우드 서비스의 지연으로 대화 흐름이 멈추지 않고 빠른 실시간 번역을 제공합니다.
 
-## VRCNT 5.0.0 미리보기
+## VRCNT 5.6.3 미리보기
 
 <p align="center">
-  <img src="../preview/Preview.png" alt="VRCNT 5.0.0 애플리케이션 미리보기" width="960" />
+  <font size="4"><strong>라이브</strong></font>
 </p>
 
-## VRCNT 5.0.0의 새로운 기능
+<p align="center">
+  <img src="../preview/Live.png" alt="라이브" width="960" />
+</p>
 
-- 향상된 UX/UI.
-- 말하기(Speaking) 및 듣기(Listening)에 대한 전사(Transcription) 모델 개별 선택 가능.
-- DeepSeek API 번역 지원(실험적 기능이며 동작을 보장하지 않음).
-- 앱 내 알림 동작 및 데스크톱 오버레이 수정.
-- 데스크톱 및 VR 오버레이 사용자 지정 기능.
-- 새로운 가이드 설정(Guided Setup).
-- 새로운 Engines & Audio 모델 설정(기존 Model & Provider 설정도 계속 사용 가능).
-- 지원되는 모든 언어에 대한 기계 번역 지원.
+<p align="center">
+  <font size="4"><strong>엔진 및 오디오</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Engine&Audio.png" alt="엔진 및 오디오" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>음성 모델</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/SpeechModels.png" alt="음성 모델" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>번역 모델</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/TranslationModels.png" alt="번역 모델" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>오버레이 스튜디오</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/OverlayStudio.png" alt="오버레이 스튜디오" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>사용자 지정</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Customize.png" alt="사용자 지정" width="960" />
+</p>
 
 ## 번역 품질 및 기여
 

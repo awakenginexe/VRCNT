@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-5.0.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-5.6.3-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>
@@ -31,22 +31,55 @@
 
 VRCNT 是一款非官方的 VRChat 翻譯與語音轉文字應用，基於開源專案 [VRCT](https://github.com/misyaguziya/VRCT) 開發。它專為對延遲敏感的對話場景設計：語音可被快速轉譯為易讀的翻譯，不會因雲端服務商的卡頓而影響整體對話流程。
 
-## VRCNT 5.0.0 預覽
+## VRCNT 5.6.3 預覽
 
 <p align="center">
-  <img src="../preview/Preview.png" alt="VRCNT 5.0.0 應用預覽" width="960" />
+  <font size="4"><strong>即時</strong></font>
 </p>
 
-## VRCNT 5.0.0 新功能
+<p align="center">
+  <img src="../preview/Live.png" alt="即時" width="960" />
+</p>
 
-- 改進的 UX/UI 介面。
-- 可分別為主講（Speaking）與聆聽（Listening）選擇不同的轉錄模型。
-- 支援 DeepSeek API 翻譯（實驗性功能，不保證完全可用）。
-- 修復應用內通知行為與桌面懸浮窗（Desktop Overlay）。
-- 桌面與 VR 懸浮窗自訂設定。
-- 全新的引導式設定（Guided Setup）。
-- 全新的 Engines & Audio 模型設定選單（保留原有的 Model & Provider 設定）。
-- 為所有支援的語言提供機器翻譯支援。
+<p align="center">
+  <font size="4"><strong>引擎與音效</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Engine&Audio.png" alt="引擎與音效" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>語音模型</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/SpeechModels.png" alt="語音模型" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>翻譯模型</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/TranslationModels.png" alt="翻譯模型" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>覆蓋層工作室</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/OverlayStudio.png" alt="覆蓋層工作室" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>自訂</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Customize.png" alt="自訂" width="960" />
+</p>
 
 ## 翻譯品質與貢獻
 

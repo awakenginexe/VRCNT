@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-5.0.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-5.6.3-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>
@@ -31,22 +31,55 @@
 
 VRCNT เป็นแอปพลิเคชันแปลภาษาและถอดเสียงเป็นข้อความสำหรับ VRChat (อย่างไม่เป็นทางการ) ที่พัฒนาต่อยอดมาจากโปรเจกต์โอเพ่นซอร์ส [VRCT](https://github.com/misyaguziya/VRCT) ถูกออกแบบมาสำหรับการสนทนาที่ต้องการความเร็วและค่าความหน่วงต่ำ (Latency) เพื่อให้เสียงพูดถูกแปลเป็นข้อความได้อย่างรวดเร็ว โดยไม่ต้องรอนานจากบริการคลาวด์ที่อาจทำให้การสนทนาหยุดชะงัก
 
-## ตัวอย่างหน้าตาแอป VRCNT 5.0.0
+## ตัวอย่างหน้าตาแอป VRCNT 5.6.3
 
 <p align="center">
-  <img src="../preview/Preview.png" alt="ตัวอย่างหน้าตาแอปพลิเคชัน VRCNT 5.0.0" width="960" />
+  <font size="4"><strong>สด</strong></font>
 </p>
 
-## มีอะไรใหม่ใน VRCNT 5.0.0
+<p align="center">
+  <img src="../preview/Live.png" alt="สด" width="960" />
+</p>
 
-- ปรับปรุง UX/UI ให้ทันสมัยและใช้งานง่ายยิ่งขึ้น
-- สามารถเลือกโมเดลถอดเสียง (Transcription Models) แยกระหว่างฝั่งพูด (Speaking) และฝั่งฟัง (Listening) ได้
-- รองรับการแปลภาษาผ่าน DeepSeek API (เวอร์ชันทดลอง; อาจยังทำงานได้ไม่สมบูรณ์ในบางกรณี)
-- แก้ไขระบบการแจ้งเตือนภายในแอปและการแสดงผล Desktop Overlay
-- ปรับแต่งการแสดงผล Desktop และ VR Overlay ได้อย่างอิสระ
-- เพิ่มระบบแนะนำการตั้งค่าเริ่มต้น (Guided Setup)
-- เพิ่มเมนูตั้งค่าโมเดล Engines & Audio ใหม่ (ยังคงเมนูตั้งค่า Model & Provider แบบดั้งเดิมไว้)
-- รองรับการแปลภาษาอัตโนมัติ (Machine Translation) ครอบคลุมทุกภาษาที่รองรับ
+<p align="center">
+  <font size="4"><strong>เอนจินและเสียง</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Engine&Audio.png" alt="เอนจินและเสียง" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>โมเดลเสียง</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/SpeechModels.png" alt="โมเดลเสียง" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>โมเดลแปลภาษา</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/TranslationModels.png" alt="โมเดลแปลภาษา" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>สตูดิโอโอเวอร์เลย์</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/OverlayStudio.png" alt="สตูดิโอโอเวอร์เลย์" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>ปรับแต่ง</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Customize.png" alt="ปรับแต่ง" width="960" />
+</p>
 
 ## คุณภาพการแปลและการมีส่วนร่วม
 
