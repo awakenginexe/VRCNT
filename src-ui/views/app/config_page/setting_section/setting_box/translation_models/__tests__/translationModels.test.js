@@ -4,6 +4,9 @@ import test from "node:test";
 
 const readSource = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
+const hasModeConditionalWrapper = (source) =>
+    /\{[^{}]*(?:!?\s*\bisPresetMode\b|\bmode\s*(?:===|!==)\s*["'](?:legacy|presets)["'])\s*(?:&&|\|\||\?)[^{}]*<CTranslate2ComputeDevice\s*\/>/.test(source);
+
 test("translation catalog supports preset-only and full legacy modes", () => {
     const source = readSource("../TranslationModels.jsx");
     assert.match(source, /mode = "legacy"/);
@@ -43,6 +46,38 @@ test("preset cards collapse from two columns in a narrow model workspace contain
     );
 });
 
+test("preset placement detects wrapper-scoped mode conditions without rejecting completed intro or notice expressions", () => {
+    for (const [description, source] of [
+        ["a direct mode conjunction", "{isPresetMode && <CTranslate2ComputeDevice />}"],
+        ["a direct mode ternary", '{mode === "legacy" ? <CTranslate2ComputeDevice /> : null}'],
+        ["a negated mode conjunction", "{!isPresetMode && <CTranslate2ComputeDevice />}"],
+        ["a parenthesized mode ternary", "{(isPresetMode ? <CTranslate2ComputeDevice /> : null)}"],
+    ]) {
+        assert.equal(
+            hasModeConditionalWrapper(source),
+            true,
+            `the shared wrapper must be rejected inside ${description}`,
+        );
+    }
+
+    for (const [description, source] of [
+        [
+            "a completed preset intro expression",
+            '{isPresetMode && <TranslationModelsIntro detail={t("preset")} />}\n<CTranslate2ComputeDevice />',
+        ],
+        [
+            "a completed legacy notice expression",
+            '{mode === "legacy" ? <TranslationModelsNotice /> : null}\n<CTranslate2ComputeDevice />',
+        ],
+    ]) {
+        assert.equal(
+            hasModeConditionalWrapper(source),
+            false,
+            `${description} must not be treated as a conditional wrapper`,
+        );
+    }
+});
+
 test("legacy and preset translation-model consumers share the CTranslate2 compute-device wrapper", () => {
     const models = readSource("../TranslationModels.jsx");
     const legacyConsumer = readSource("../../model_and_provider/ModelAndProvider.jsx");
@@ -65,9 +100,9 @@ test("legacy and preset translation-model consumers share the CTranslate2 comput
         /return\s*\(\s*<div\s+className=\{styles\.container\}>[\s\S]*?(?=<div\s+className=\{styles\.preset_grid\}>)/,
     )?.[0] ?? "";
     assert.match(renderBeforePresetGrid, /<CTranslate2ComputeDevice\s*\/>/);
-    assert.doesNotMatch(
-        renderBeforePresetGrid,
-        /\{\s*(?:isPresetMode\b|mode\s*===\s*["'](?:legacy|presets)["'])[^}]*<CTranslate2ComputeDevice\s*\/>/,
+    assert.equal(
+        hasModeConditionalWrapper(renderBeforePresetGrid),
+        false,
         "the shared wrapper must not be nested in a mode-conditional JSX expression",
     );
     assert.match(
