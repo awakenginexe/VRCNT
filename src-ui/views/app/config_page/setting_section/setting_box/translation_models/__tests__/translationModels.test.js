@@ -42,3 +42,52 @@ test("preset cards collapse from two columns in a narrow model workspace contain
         /@container model-provider-workspace \(max-width: 72rem\) \{[\s\S]*?\.preset_grid \{\s*grid-template-columns: minmax\(0, 1fr\);\s*\}\s*\}/,
     );
 });
+
+test("legacy and preset translation-model consumers share the CTranslate2 compute-device wrapper", () => {
+    const models = readSource("../TranslationModels.jsx");
+    const legacyConsumer = readSource("../../model_and_provider/ModelAndProvider.jsx");
+    const presetConsumer = readSource("../../../../../main_page/translation_models/TranslationModelsHub.jsx");
+
+    assert.match(
+        models,
+        /import\s+\{\s*CTranslate2ComputeDevice\s*\}\s+from\s+["']\.\/CTranslate2ComputeDevice["'];/,
+    );
+    assert.match(models, /<CTranslate2ComputeDevice\s*\/>/);
+    assert.match(legacyConsumer, /<TranslationModels\s*\/>/);
+    assert.match(
+        presetConsumer,
+        /<TranslationModels\s+mode=["']presets["']\s+showDescription=\{false\}\s+onOpenAdvanced=\{openAdvanced\}\s*\/>/,
+    );
+
+    const wrapperPosition = models.indexOf("<CTranslate2ComputeDevice");
+    const modeBranchPosition = models.indexOf("{!isPresetMode ?");
+    assert.ok(
+        wrapperPosition >= 0 && modeBranchPosition > wrapperPosition,
+        "the shared compute-device control must render before the legacy/preset model branch",
+    );
+});
+
+test("legacy Translation reuses the shared CTranslate2 compute-device wrapper", () => {
+    const source = readSource("../../translation/Translation.jsx");
+
+    assert.match(
+        source,
+        /import\s+\{\s*CTranslate2ComputeDevice\s*\}\s+from\s+["']\.\.\/translation_models\/CTranslate2ComputeDevice["'];/,
+    );
+    assert.match(source, /<CTranslate2ComputeDevice\s*\/>/);
+    assert.doesNotMatch(source, /import\s+\{\s*ComputeDevice\s*\}\s+from/);
+
+    for (const setting of [
+        "currentSelectableTranslationComputeDeviceList",
+        "currentSelectedTranslationComputeDevice",
+        "setSelectedTranslationComputeDevice",
+        "currentSelectedTranslationComputeType",
+        "setSelectedTranslationComputeType",
+    ]) {
+        assert.doesNotMatch(
+            source,
+            new RegExp(`\\b${setting}\\b`),
+            `legacy Translation must not map ${setting} directly`,
+        );
+    }
+});
