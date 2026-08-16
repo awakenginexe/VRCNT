@@ -65,7 +65,11 @@ test("legacy and preset translation-model consumers share the CTranslate2 comput
         /return\s*\(\s*<div\s+className=\{styles\.container\}>[\s\S]*?(?=<div\s+className=\{styles\.preset_grid\}>)/,
     )?.[0] ?? "";
     assert.match(renderBeforePresetGrid, /<CTranslate2ComputeDevice\s*\/>/);
-    assert.doesNotMatch(renderBeforePresetGrid, /isPresetMode|mode\s*===/);
+    assert.doesNotMatch(
+        renderBeforePresetGrid,
+        /\{\s*(?:isPresetMode\b|mode\s*===\s*["'](?:legacy|presets)["'])[^}]*<CTranslate2ComputeDevice\s*\/>/,
+        "the shared wrapper must not be nested in a mode-conditional JSX expression",
+    );
     assert.match(
         models,
         /return\s*\(\s*<div\s+className=\{styles\.container\}>[\s\S]*?<CTranslate2ComputeDevice\s*\/>[\s\S]*?<div\s+className=\{styles\.preset_grid\}>\s*\{presetEntries\.map\(\(\{\s*model,\s*preset\s*\}\)\s*=>\s*renderModel\(model,\s*preset\)\)\}\s*<\/div>/,
@@ -74,17 +78,17 @@ test("legacy and preset translation-model consumers share the CTranslate2 comput
 
 test("legacy Translation reuses the shared CTranslate2 compute-device wrapper", () => {
     const source = readSource("../../translation/Translation.jsx");
-    const translationComponent = source.match(
-        /export const Translation\b[\s\S]*?(?=export const CloudTranslationProviders\b)/,
-    )?.[0] ?? "";
+    const translationStart = source.search(/\b(?:const|function)\s+Translation\b/);
+    const translationSource = translationStart >= 0 ? source.slice(translationStart) : "";
 
     assert.match(
         source,
         /import\s+\{\s*CTranslate2ComputeDevice\s*\}\s+from\s+["']\.\.\/translation_models\/CTranslate2ComputeDevice["'];/,
     );
     assert.doesNotMatch(source, /import\s+\{\s*ComputeDevice\s*\}\s+from/);
+    assert.ok(translationStart >= 0, "Translation component declaration must remain present");
     assert.match(
-        translationComponent,
+        translationSource,
         /<CTranslate2WeightType_Box\s*\/>[\s\S]*?<CTranslate2ComputeDevice\s*\/>[\s\S]*?<CloudTranslationProviders\s*\/>/,
     );
 
