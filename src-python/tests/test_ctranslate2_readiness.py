@@ -8,7 +8,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import ANY, Mock, patch
 
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -479,12 +479,12 @@ class CTranslate2ReadinessTests(unittest.TestCase):
                 model_module.model,
                 "checkTranslatorCTranslate2ModelWeight",
                 return_value=True,
-            ),
+            ) as weight_check,
             patch.object(
                 model_module.model,
                 "checkTranslatorCTranslate2ModelTokenizer",
                 return_value=True,
-            ),
+            ) as tokenizer_check,
             patch.object(
                 model_module.model,
                 "setChangedTranslatorParameters",
@@ -495,6 +495,8 @@ class CTranslate2ReadinessTests(unittest.TestCase):
                 inactive_response,
                 {"status": 200, "result": selected_weight},
             )
+            weight_check.assert_called_once_with(selected_weight)
+            tokenizer_check.assert_called_once_with(selected_weight)
             self.assertTrue(
                 controller_module.config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[
                     selected_weight
@@ -522,11 +524,11 @@ class CTranslate2ReadinessTests(unittest.TestCase):
                 model_module.model,
                 "downloadCTranslate2ModelWeight",
                 return_value=True,
-            ),
+            ) as weight_download,
             patch.object(
                 model_module.model,
                 "downloadCTranslate2ModelTokenizer",
-            ),
+            ) as tokenizer_download,
             patch.object(
                 model_module.model,
                 "checkTranslatorCTranslate2ModelWeight",
@@ -543,6 +545,8 @@ class CTranslate2ReadinessTests(unittest.TestCase):
                 asynchronous=False,
             )
             self.assertEqual(response, {"status": 200, "result": True})
+            weight_download.assert_called_once_with(selected_weight, ANY, None)
+            tokenizer_download.assert_called_once_with(selected_weight)
             weight_check.assert_called_once_with(selected_weight)
             tokenizer_check.assert_called_once_with(selected_weight)
             self.assertTrue(
