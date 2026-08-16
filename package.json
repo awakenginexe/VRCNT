@@ -20,7 +20,7 @@
     "dev": "npm run task-kill && npm run clean && npm run update-version && npm run build-python && npm run dev-ui",
     "dev-cuda": "npm run task-kill && npm run clean && npm run update-version && npm run build-python-cuda && npm run dev-ui",
     "dev-ui": "npm run task-kill && npm-run-all --parallel vite tauri-dev",
-    "test:ui": "node --test src-ui/logics/common/__tests__/*.test.js src-ui/views/app/config_page/sidebar_section/__tests__/*.test.js src-ui/views/app/main_page/sidebar_section/main_function_switch/__tests__/*.test.js src-ui/views/app/main_page/main_section/__tests__/*.test.js",
+    "test:ui": "node --test src-ui/logics/common/__tests__/*.test.js src-ui/views/app/config_page/sidebar_section/__tests__/*.test.js src-ui/views/app/config_page/setting_section/setting_box/*/__tests__/*.test.js src-ui/views/app/main_page/sidebar_section/main_function_switch/__tests__/*.test.js src-ui/views/app/main_page/main_section/__tests__/*.test.js",
     "analyze-error": "node utils/analyze_ui_error.js",
     "build": "npm run task-kill && npm run clean && npm run update-version && npm run build-python && npm run vite-build && npm run prepare-installer-tools && npm run tauri-build",
     "build-cuda": "npm run task-kill && npm run clean && npm run update-version && npm run build-python-cuda && npm run vite-build && npm run prepare-installer-tools && npm run tauri-build",

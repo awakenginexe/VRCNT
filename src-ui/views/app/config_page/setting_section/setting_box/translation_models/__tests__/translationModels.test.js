@@ -58,12 +58,11 @@ test("legacy and preset translation-model consumers share the CTranslate2 comput
         presetConsumer,
         /<TranslationModels\s+mode=["']presets["']\s+showDescription=\{false\}\s+onOpenAdvanced=\{openAdvanced\}\s*\/>/,
     );
-
-    const wrapperPosition = models.indexOf("<CTranslate2ComputeDevice");
-    const modeBranchPosition = models.indexOf("{!isPresetMode ?");
-    assert.ok(
-        wrapperPosition >= 0 && modeBranchPosition > wrapperPosition,
-        "the shared compute-device control must render before the legacy/preset model branch",
+    assert.match(models, /mode\s*=\s*["']legacy["']/);
+    assert.match(models, /const\s+isPresetMode\s*=\s*mode\s*===\s*["']presets["']/);
+    assert.match(
+        models,
+        /return\s*\(\s*<div\s+className=\{styles\.container\}>\s*<CTranslate2ComputeDevice\s*\/>[\s\S]*?<div\s+className=\{styles\.preset_grid\}>\s*\{presetEntries\.map\(\(\{\s*model,\s*preset\s*\}\)\s*=>\s*renderModel\(model,\s*preset\)\)\}\s*<\/div>/,
     );
 });
 
@@ -74,8 +73,11 @@ test("legacy Translation reuses the shared CTranslate2 compute-device wrapper", 
         source,
         /import\s+\{\s*CTranslate2ComputeDevice\s*\}\s+from\s+["']\.\.\/translation_models\/CTranslate2ComputeDevice["'];/,
     );
-    assert.match(source, /<CTranslate2ComputeDevice\s*\/>/);
     assert.doesNotMatch(source, /import\s+\{\s*ComputeDevice\s*\}\s+from/);
+    assert.match(
+        source,
+        /export const Translation\s*=\s*\(\)\s*=>\s*\{\s*return\s*\(\s*<>\s*<CTranslate2WeightType_Box\s*\/>\s*<CTranslate2ComputeDevice\s*\/>\s*<CloudTranslationProviders\s*\/>\s*<\/>\s*\);\s*\};/,
+    );
 
     for (const setting of [
         "currentSelectableTranslationComputeDeviceList",

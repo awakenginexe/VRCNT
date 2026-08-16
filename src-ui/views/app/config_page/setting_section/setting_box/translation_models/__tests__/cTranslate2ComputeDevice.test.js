@@ -42,6 +42,21 @@ test("CTranslate2 compute-device wrapper maps translation settings into ComputeD
         );
     }
 
+    for (const [prop, setting] of Object.entries({
+        currentDeviceList: "currentSelectableTranslationComputeDeviceList",
+        currentSelectedDevice: "currentSelectedTranslationComputeDevice",
+        setSelectedDevice: "setSelectedTranslationComputeDevice",
+        currentSelectedComputeType: "currentSelectedTranslationComputeType",
+        setSelectedComputeType: "setSelectedTranslationComputeType",
+    })) {
+        assert.match(
+            computeDevice,
+            new RegExp(`${prop}\\s*=\\s*\\{\\s*${setting}\\s*\\}`),
+            `ComputeDevice must map ${prop} from ${setting}`,
+        );
+    }
+
+    assert.match(computeDevice, /dropdownIdPrefix\s*=\s*["']translation["']/);
     assert.match(
         computeDevice,
         /label=\{t\(\s*["']config_page\.translation\.translation_compute_device\.label["']\s*\)\}/,
