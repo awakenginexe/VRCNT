@@ -1837,7 +1837,7 @@ class Controller:
                 {"weight_type": self.weight_type, "progress": progress},
             )
 
-        def downloaded(self) -> None:
+        def downloaded(self) -> tuple[object, object]:
             is_weight_valid = model.checkTranslatorCTranslate2ModelWeight(self.weight_type)
             is_tokenizer_valid = model.checkTranslatorCTranslate2ModelTokenizer(self.weight_type)
 
@@ -1870,6 +1870,7 @@ class Controller:
                     self.run_mapping["error_ctranslate2_weight"],
                     error_response["result"],
                 )
+            return is_weight_valid, is_tokenizer_valid
 
     class DownloadWhisper:
         def __init__(self, run_mapping:dict, weight_type:str, run:Callable[[int, str, Any], None]) -> None:
@@ -4578,6 +4579,8 @@ class Controller:
                     error,
                     preserve_enabled=True,
                 )
+            self._refreshSelectedCTranslate2Readiness()
+            self.updateTranslationEngineAndEngineList()
             return {"status":200, "result":config.CTRANSLATE2_WEIGHT_TYPE}
 
     @staticmethod
@@ -5292,11 +5295,26 @@ class Controller:
             self.run
             )
 
+        def publish_downloaded() -> None:
+            verification = None
+            try:
+                verification = download_ctranslate2.downloaded()
+            finally:
+                if (
+                    isinstance(verification, tuple)
+                    and len(verification) == 2
+                    and weight_type == config.CTRANSLATE2_WEIGHT_TYPE
+                ):
+                    self._refreshSelectedCTranslate2Readiness(verification)
+                else:
+                    self._refreshSelectedCTranslate2Readiness()
+                self.updateTranslationEngineAndEngineList()
+
         if asynchronous is True:
             self.startThreadingDownloadCtranslate2Weight(
                 weight_type,
                 download_ctranslate2.progressBar,
-                download_ctranslate2.downloaded,
+                publish_downloaded,
                 )
         else:
             try:
@@ -5305,7 +5323,7 @@ class Controller:
             except Exception:
                 errorLogging()
             finally:
-                download_ctranslate2.downloaded()
+                publish_downloaded()
         return {"status":200, "result":True}
 
     def downloadWhisperWeight(self, data:str, asynchronous:bool=True, *args, **kwargs) -> dict:
@@ -5573,25 +5591,75 @@ class Controller:
         cleaned_text = re.sub(pattern, r'\1', text)
         return cleaned_text
 
-    def updateDownloadedCTranslate2ModelWeight(self, scan_all: bool = False) -> None:
-        # キャッシュされた結果を使用（起動時の重複チェックを回避）
-        if hasattr(self, '_ctranslate2_available_cache'):
-            # 起動時のキャッシュを使用: 選択中の重みタイプのみ設定
-            config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[config.CTRANSLATE2_WEIGHT_TYPE] = self._ctranslate2_available_cache
+    def _refreshSelectedCTranslate2Readiness(
+        self,
+        verified_readiness: Optional[tuple[object, object]] = None,
+    ) -> bool:
+        selected_weight_type = config.CTRANSLATE2_WEIGHT_TYPE
+        if verified_readiness is None:
+            try:
+                weight_valid = model.checkTranslatorCTranslate2ModelWeight(
+                    selected_weight_type
+                )
+            except Exception:
+                errorLogging()
+                weight_valid = False
+            try:
+                tokenizer_valid = model.checkTranslatorCTranslate2ModelTokenizer(
+                    selected_weight_type
+                )
+            except Exception:
+                errorLogging()
+                tokenizer_valid = False
+        else:
+            weight_valid, tokenizer_valid = verified_readiness
 
-        if scan_all is False:
-            return
+        is_ready = weight_valid is True and tokenizer_valid is True
+        config._SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[selected_weight_type] = is_ready
+        config._SELECTABLE_TRANSLATION_ENGINE_STATUS["CTranslate2"] = is_ready
+        if hasattr(self, "_ctranslate2_available_cache"):
+            self._ctranslate2_available_cache = is_ready
+        return is_ready
 
-        # すべての重みタイプをチェック（キャッシュされていないものだけ）
-        for weight_type in list(config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT.keys()):
-            # 選択中のウェイトはキャッシュで設定済みなのでスキップ
-            if hasattr(self, '_ctranslate2_available_cache') and weight_type == config.CTRANSLATE2_WEIGHT_TYPE:
-                continue
-            weight_valid = model.checkTranslatorCTranslate2ModelWeight(weight_type)
-            tokenizer_valid = model.checkTranslatorCTranslate2ModelTokenizer(weight_type)
-            config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[weight_type] = (
-                weight_valid is True and tokenizer_valid is True
+    def updateDownloadedCTranslate2ModelWeight(
+        self,
+        scan_all: bool = False,
+        *,
+        refresh_selected: bool = True,
+        publish: Optional[bool] = None,
+    ) -> None:
+        selected_weight_type = config.CTRANSLATE2_WEIGHT_TYPE
+        selected_status_updated = False
+
+        if refresh_selected and (
+            scan_all is False
+            or selected_weight_type in config._SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT
+        ):
+            self._refreshSelectedCTranslate2Readiness()
+            selected_status_updated = True
+        elif hasattr(self, "_ctranslate2_available_cache"):
+            config._SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[selected_weight_type] = (
+                self._ctranslate2_available_cache
             )
+            selected_status_updated = True
+
+        if scan_all is True:
+            # Keep the selected model authoritative while refreshing every other
+            # locally available CTranslate2 model for the model picker.
+            selectable_weight_status = config._SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT
+            for weight_type in list(selectable_weight_status.keys()):
+                if selected_status_updated and weight_type == selected_weight_type:
+                    continue
+                weight_valid = model.checkTranslatorCTranslate2ModelWeight(weight_type)
+                tokenizer_valid = model.checkTranslatorCTranslate2ModelTokenizer(weight_type)
+                selectable_weight_status[weight_type] = (
+                    weight_valid is True and tokenizer_valid is True
+                )
+
+        if publish is None:
+            publish = scan_all is False
+        if publish:
+            self.updateTranslationEngineAndEngineList()
 
     def _selectedCTranslate2LanguageCompatible(self, selected_engines) -> bool:
         """Keep an explicit local-provider selection while its model is offline."""
@@ -6367,7 +6435,10 @@ class Controller:
         self._applyFastStartupTranslationStatus(connected_network, ctranslate2_available)
         self._applyFastStartupTranscriptionStatus(connected_network, whisper_available)
 
-        self.updateDownloadedCTranslate2ModelWeight()
+        self.updateDownloadedCTranslate2ModelWeight(
+            refresh_selected=False,
+            publish=False,
+        )
         self.updateDownloadedWhisperModelWeight()
         self.updateDownloadedWhisperThaiModelWeight()
         self.updateDownloadedVoskModelWeight()
