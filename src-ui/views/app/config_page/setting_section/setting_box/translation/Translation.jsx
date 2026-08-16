@@ -15,7 +15,7 @@ import {
     ConnectionCheckButtonContainer,
 } from "../_templates/Templates";
 
-import { ComputeDevice } from "../_components/compute_device/ComputeDevice";
+import { CTranslate2ComputeDevice } from "../translation_models/CTranslate2ComputeDevice";
 
 import {
     deepl_auth_key_url,
@@ -39,7 +39,7 @@ export const Translation = () => {
     return (
         <>
             <CTranslate2WeightType_Box />
-            <TranslationComputeDevice_Box />
+            <CTranslate2ComputeDevice />
 
             <CloudTranslationProviders />
         </>
@@ -154,29 +154,6 @@ const CTranslate2WeightType_Box = () => {
                 allow_uninstalled_selection={true}
             />
         </>
-    );
-};
-
-const TranslationComputeDevice_Box = () => {
-    const { t } = useI18n();
-    const {
-        currentSelectableTranslationComputeDeviceList,
-        currentSelectedTranslationComputeDevice,
-        setSelectedTranslationComputeDevice,
-        currentSelectedTranslationComputeType,
-        setSelectedTranslationComputeType,
-    } = useTranslation();
-
-    return (
-        <ComputeDevice
-            label={t("config_page.translation.translation_compute_device.label")}
-            dropdownIdPrefix="translation"
-            currentDeviceList={currentSelectableTranslationComputeDeviceList}
-            currentSelectedDevice={currentSelectedTranslationComputeDevice}
-            setSelectedDevice={setSelectedTranslationComputeDevice}
-            currentSelectedComputeType={currentSelectedTranslationComputeType}
-            setSelectedComputeType={setSelectedTranslationComputeType}
-        />
     );
 };
 

@@ -11,6 +11,7 @@ import {
     getPresetMetadata,
     getWeightDisplayName,
 } from "@ui_configs";
+import { CTranslate2ComputeDevice } from "./CTranslate2ComputeDevice";
 import styles from "./TranslationModels.module.scss";
 
 const statusCopy = (t, status, preset) => {
@@ -215,6 +216,8 @@ export const TranslationModels = ({
                     )}
                 </div>
             )}
+
+            <CTranslate2ComputeDevice />
 
             <div className={styles.preset_grid}>
                 {presetEntries.map(({ model, preset }) => renderModel(model, preset))}
