@@ -15,6 +15,39 @@ from speech_recognition import Recognizer, Microphone
 from models.pipeline.pipeline_types import AudioChunk
 
 
+def _validate_audio_source(source: Any) -> Any:
+    """Return an audio source only when its stream can be opened.
+
+    The bundled SpeechRecognition fork catches stream-open failures inside
+    ``Microphone.__enter__`` and returns the source with ``stream`` still set
+    to ``None``. Its ``__exit__`` then tries to close that missing stream,
+    which kills the background listener with an unrelated ``NoneType.close``
+    error. Probe the source before handing it to that listener, and never call
+    ``__exit__`` for a source that did not open.
+    """
+    source.__enter__()
+    if getattr(source, "stream", None) is None:
+        raise OSError("Audio device could not be opened")
+    source.__exit__(None, None, None)
+    return source
+
+
+def _create_microphone(
+    fallback_kwargs: dict[str, Any],
+    **device_kwargs: Any,
+) -> Any:
+    """Create a validated selected source, then try its safe fallback."""
+    try:
+        return _validate_audio_source(Microphone(**device_kwargs))
+    except Exception:
+        try:
+            return _validate_audio_source(Microphone(**fallback_kwargs))
+        except Exception as fallback_error:
+            raise OSError(
+                "Selected and default audio devices could not be opened"
+            ) from fallback_error
+
+
 def _offer_audio(audio_queue: Any, chunk: AudioChunk, on_drop=None) -> None:
     if hasattr(audio_queue, "offer"):
         result = audio_queue.offer(chunk)
@@ -92,46 +125,24 @@ class BaseRecorder:
 
 class SelectedMicRecorder(BaseRecorder):
     def __init__(self, device: dict, energy_threshold: int, dynamic_energy_threshold: bool, record_timeout: int) -> None:
-        # Safely construct Microphone source. If device dict is missing expected keys
-        # or index is out-of-range for the platform, fallback to default device (None)
-        try:
-            device_index = int(device.get('index', -1))
-            sample_rate = int(device.get("defaultSampleRate", 16000))
-            if device_index < 0:
-                # invalid index -> fallback
-                raise ValueError("invalid device index")
-            source = Microphone(
-                device_index=device_index,
-                sample_rate=sample_rate,
-            )
-        except Exception:
-            # Best-effort fallback: use system default microphone
-            try:
-                source = Microphone()
-            except Exception:
-                raise
+        source = _create_microphone(
+            {},
+            device_index=int(device.get('index', -1)),
+            sample_rate=int(device.get("defaultSampleRate", 16000)),
+        )
         super().__init__(source=source, energy_threshold=energy_threshold, dynamic_energy_threshold=dynamic_energy_threshold, record_timeout=record_timeout)
         # self.adjustForNoise()
 
 
 class SelectedSpeakerRecorder(BaseRecorder):
     def __init__(self, device: dict, energy_threshold: int, dynamic_energy_threshold: bool, record_timeout: int) -> None:
-        try:
-            device_index = int(device.get('index', -1))
-            sample_rate = int(device.get("defaultSampleRate", 16000))
-            channels = int(device.get("maxInputChannels", 1))
-            if device_index < 0:
-                raise ValueError("invalid device index")
-            source = Microphone(speaker=True,
-                device_index=device_index,
-                sample_rate=sample_rate,
-                channels=channels
-            )
-        except Exception:
-            try:
-                source = Microphone(speaker=True)
-            except Exception:
-                raise
+        source = _create_microphone(
+            {"speaker": True},
+            speaker=True,
+            device_index=int(device.get('index', -1)),
+            sample_rate=int(device.get("defaultSampleRate", 16000)),
+            channels=int(device.get("maxInputChannels", 1)),
+        )
         super().__init__(source=source, energy_threshold=energy_threshold, dynamic_energy_threshold=dynamic_energy_threshold, record_timeout=record_timeout)
         # self.adjustForNoise()
 
@@ -161,42 +172,24 @@ class BaseEnergyRecorder:
 
 class SelectedMicEnergyRecorder(BaseEnergyRecorder):
     def __init__(self, device: dict) -> None:
-        try:
-            device_index = int(device.get('index', -1))
-            sample_rate = int(device.get("defaultSampleRate", 16000))
-            if device_index < 0:
-                raise ValueError("invalid device index")
-            source = Microphone(
-                device_index=device_index,
-                sample_rate=sample_rate,
-            )
-        except Exception:
-            try:
-                source = Microphone()
-            except Exception:
-                raise
+        source = _create_microphone(
+            {},
+            device_index=int(device.get('index', -1)),
+            sample_rate=int(device.get("defaultSampleRate", 16000)),
+        )
         super().__init__(source=source)
         # self.adjustForNoise()
 
 
 class SelectedSpeakerEnergyRecorder(BaseEnergyRecorder):
     def __init__(self, device: dict) -> None:
-        try:
-            device_index = int(device.get('index', -1))
-            sample_rate = int(device.get("defaultSampleRate", 16000))
-            channels = int(device.get("maxInputChannels", 1))
-            if device_index < 0:
-                raise ValueError("invalid device index")
-            source = Microphone(speaker=True,
-                device_index=device_index,
-                sample_rate=sample_rate,
-                channels=channels
-            )
-        except Exception:
-            try:
-                source = Microphone(speaker=True)
-            except Exception:
-                raise
+        source = _create_microphone(
+            {"speaker": True},
+            speaker=True,
+            device_index=int(device.get('index', -1)),
+            sample_rate=int(device.get("defaultSampleRate", 16000)),
+            channels=int(device.get("maxInputChannels", 1)),
+        )
         super().__init__(source=source)
         # self.adjustForNoise()
 
@@ -277,20 +270,11 @@ class SelectedMicEnergyAndAudioRecorder(BaseEnergyAndAudioRecorder):
         phrase_timeout: int = 1,
         record_timeout: int = 5,
     ) -> None:
-        try:
-            device_index = int(device.get('index', -1))
-            sample_rate = int(device.get("defaultSampleRate", 16000))
-            if device_index < 0:
-                raise ValueError("invalid device index")
-            source = Microphone(
-                device_index=device_index,
-                sample_rate=sample_rate,
-            )
-        except Exception:
-            try:
-                source = Microphone()
-            except Exception:
-                raise
+        source = _create_microphone(
+            {},
+            device_index=int(device.get('index', -1)),
+            sample_rate=int(device.get("defaultSampleRate", 16000)),
+        )
         super().__init__(
             source=source,
             energy_threshold=energy_threshold,
@@ -313,22 +297,13 @@ class SelectedSpeakerEnergyAndAudioRecorder(BaseEnergyAndAudioRecorder):
         record_timeout: int = 5,
     ) -> None:
 
-        try:
-            device_index = int(device.get('index', -1))
-            sample_rate = int(device.get("defaultSampleRate", 16000))
-            channels = int(device.get("maxInputChannels", 1))
-            if device_index < 0:
-                raise ValueError("invalid device index")
-            source = Microphone(speaker=True,
-                device_index=device_index,
-                sample_rate=sample_rate,
-                channels=channels,
-            )
-        except Exception:
-            try:
-                source = Microphone(speaker=True)
-            except Exception:
-                raise
+        source = _create_microphone(
+            {"speaker": True},
+            speaker=True,
+            device_index=int(device.get('index', -1)),
+            sample_rate=int(device.get("defaultSampleRate", 16000)),
+            channels=int(device.get("maxInputChannels", 1)),
+        )
         super().__init__(
             source=source,
             energy_threshold=energy_threshold,

@@ -15,6 +15,7 @@ from models.pipeline.pipeline_types import AudioChunk
 from models.transcription.transcription_recorder import (
     BaseEnergyAndAudioRecorder,
     BaseRecorder,
+    _create_microphone,
     SelectedSpeakerEnergyAndAudioRecorder,
     SelectedSpeakerRecorder,
 )
@@ -26,6 +27,24 @@ class FakeAudio:
 
     def get_raw_data(self):
         return self.raw_data
+
+
+class FakeAudioSource:
+    def __init__(self, opens: bool) -> None:
+        self.opens = opens
+        self.stream = None
+        self.exit_called = False
+
+    def __enter__(self):
+        if self.opens:
+            self.stream = object()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.exit_called = True
+        if self.stream is None:
+            raise AttributeError("'NoneType' object has no attribute 'close'")
+        self.stream = None
 
 
 class FakeRecognizer:
@@ -142,12 +161,42 @@ def make_full_audio_queue():
 
 
 class TranscriptionRecorderConstructorTests(unittest.TestCase):
+    def test_create_microphone_falls_back_without_closing_unopened_source(self):
+        selected_source = FakeAudioSource(opens=False)
+        fallback_source = FakeAudioSource(opens=True)
+
+        with patch(
+            "models.transcription.transcription_recorder.Microphone",
+            side_effect=[selected_source, fallback_source],
+        ):
+            source = _create_microphone({}, device_index=10)
+
+        self.assertIs(source, fallback_source)
+        self.assertFalse(selected_source.exit_called)
+        self.assertTrue(fallback_source.exit_called)
+
+    def test_create_microphone_raises_clear_error_when_no_source_opens(self):
+        selected_source = FakeAudioSource(opens=False)
+        fallback_source = FakeAudioSource(opens=False)
+
+        with patch(
+            "models.transcription.transcription_recorder.Microphone",
+            side_effect=[selected_source, fallback_source],
+        ):
+            with self.assertRaisesRegex(
+                OSError, "Selected and default audio devices could not be opened"
+            ):
+                _create_microphone({}, device_index=10)
+
+        self.assertFalse(selected_source.exit_called)
+        self.assertFalse(fallback_source.exit_called)
+
     def test_speaker_recorders_use_library_default_chunk_size(self):
         constructor_calls = []
 
         def microphone_stub(*args, **kwargs):
             constructor_calls.append((args, kwargs))
-            return object()
+            return FakeAudioSource(opens=True)
 
         device = {
             "index": 7,

@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-5.7.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-5.7.1-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>
@@ -31,7 +31,7 @@
 
 VRCNTは、オープンソースプロジェクト [VRCT](https://github.com/misyaguziya/VRCT) をベースとした非公式のVRChat向け翻訳・文字起こしアプリです。レイテンシ（遅延）が重視される会話のために設計されており、クラウドプロバイダーの遅延によってセッションが停止することなく、話した音声が迅速かつ読みやすい翻訳として表示されます。
 
-## VRCNT 5.7.0 プレビュー
+## VRCNT 5.7.1 プレビュー
 
 <p align="center">
   <font size="4"><strong>ライブ</strong></font>
