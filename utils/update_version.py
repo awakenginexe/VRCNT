@@ -109,7 +109,7 @@ def update_versions():
 
     replace_in_file(
         os.path.join(root, ".github", "workflows", "release.yml"),
-        [(r'(e\.g\. v)[0-9]+\.[0-9]+\.[0-9]+(\))', rf'\g<1>{version}\g<2>', 1)]
+        [(r'(e\.g\. v|for example, v)[0-9]+\.[0-9]+\.[0-9]+(\))', rf'\g<1>{version}\g<2>', 0)]
     )
 
     telemetry_paths = [
