@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-5.6.3-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-5.7.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>
@@ -31,7 +31,7 @@
 
 VRCNT 是一款非官方的 VRChat 翻译与语音转文字应用，基于开源项目 [VRCT](https://github.com/misyaguziya/VRCT) 开发。它专为对延迟敏感的对话场景设计：语音可被快速转换为易读的翻译，不会因云服务商的卡顿而影响整体对话流程。
 
-## VRCNT 5.6.3 预览
+## VRCNT 5.7.0 预览
 
 <p align="center">
   <font size="4"><strong>实时</strong></font>
