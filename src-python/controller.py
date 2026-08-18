@@ -3295,6 +3295,16 @@ class Controller:
         return {"status": 200, "result": config.APP_COLOR_PALETTE}
 
     @staticmethod
+    def getColorReset590(*args, **kwargs) -> dict:
+        return {"status": 200, "result": config.COLOR_RESET_5_9_0}
+
+    @staticmethod
+    def setColorReset590(data, *args, **kwargs) -> dict:
+        config.COLOR_RESET_5_9_0 = 1 if data in (True, 1) else 0
+        config.saveConfigToFile()
+        return {"status": 200, "result": config.COLOR_RESET_5_9_0}
+
+    @staticmethod
     def getAutoMicSelect(*args, **kwargs) -> dict:
         return {"status":200, "result":config.AUTO_MIC_SELECT}
 

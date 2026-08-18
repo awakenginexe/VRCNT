@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-5.7.1-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-5.9.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>
@@ -31,7 +31,7 @@
 
 VRCNT เป็นแอปพลิเคชันแปลภาษาและถอดเสียงเป็นข้อความสำหรับ VRChat (อย่างไม่เป็นทางการ) ที่พัฒนาต่อยอดมาจากโปรเจกต์โอเพ่นซอร์ส [VRCT](https://github.com/misyaguziya/VRCT) ถูกออกแบบมาสำหรับการสนทนาที่ต้องการความเร็วและค่าความหน่วงต่ำ (Latency) เพื่อให้เสียงพูดถูกแปลเป็นข้อความได้อย่างรวดเร็ว โดยไม่ต้องรอนานจากบริการคลาวด์ที่อาจทำให้การสนทนาหยุดชะงัก
 
-## ตัวอย่างหน้าตาแอป VRCNT 5.7.1
+## ตัวอย่างหน้าตาแอป VRCNT 5.9.0
 
 <p align="center">
   <font size="4"><strong>สด</strong></font>

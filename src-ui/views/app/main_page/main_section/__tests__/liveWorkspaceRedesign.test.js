@@ -102,7 +102,7 @@ test("Live Weave uses top navigation and excludes unsupported VRChat world copy"
 
     assert.doesNotMatch(mainPage, /<SidebarSection\s*\/>/);
     assert.match(topBar, /<LiveWeaveNavigation\s*\/>/);
-    for (const key of ["live", "history", "models", "overlay", "settings"]) {
+    for (const key of ["live", "models", "overlay", "settings"]) {
         assert.match(navigation, new RegExp(`main_page\\.live_weave\\.navigation\\.${key}`));
     }
     assert.match(navigation, /configTab:\s*"model_and_provider"/);

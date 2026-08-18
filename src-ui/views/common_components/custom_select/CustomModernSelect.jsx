@@ -22,7 +22,7 @@ export const CustomModernSelect = ({
     onChange,
     disabled = false,
     placeholder = "Select an option...",
-    color = "var(--accent-purple, #9B6DFF)",
+    color = "var(--accent_color, #38BDF8)",
     variant = "default", // "default" | "compact" | "model"
     className,
     ariaLabel,

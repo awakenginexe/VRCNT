@@ -63,7 +63,7 @@ export const MessageContainer = ({ sessionControls = null, pipelineStatus = null
             <div
                 className={styles.log_box_resize_wrapper}
                 ref={log_box_ref}
-                onMouseOver={() => setIsHovered(true)}
+                onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
             >
                 <LogBox />

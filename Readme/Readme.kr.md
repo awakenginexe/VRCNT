@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-5.7.1-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-5.9.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>
@@ -31,7 +31,7 @@
 
 VRCNT는 오픈소스 프로젝트인 [VRCT](https://github.com/misyaguziya/VRCT)를 기반으로 제작된 비공식 VRChat 번역 및 음성 텍스트 변환 애플리케이션입니다. 반응 속도(지연 시간)가 중요한 대화를 위해 설계되었으며, 클라우드 서비스의 지연으로 대화 흐름이 멈추지 않고 빠른 실시간 번역을 제공합니다.
 
-## VRCNT 5.7.1 미리보기
+## VRCNT 5.9.0 미리보기
 
 <p align="center">
   <font size="4"><strong>라이브</strong></font>

@@ -98,47 +98,64 @@
 }
 
 .container.layout_control_rail {
+    width: 100%;
     align-items: stretch;
-    gap: 0.55rem;
+    gap: 0;
+    border-top: 0.1rem solid rgba(255, 255, 255, 0.08);
+    border-bottom: 0.1rem solid rgba(255, 255, 255, 0.08);
 
     .switch_tooltip {
         width: 100%;
+        display: block;
     }
 
     .switch_container {
-        min-height: 4.5rem;
-        padding: 0.8rem 1.1rem;
-        border-radius: 1rem;
-        background: var(--surface_control_color);
+        width: 100%;
+        box-sizing: border-box;
+        min-height: 4.4rem;
+        padding: 0.85rem 1.1rem;
+        border-radius: 0;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        background: rgba(255, 255, 255, 0.025);
+        border: none;
+        border-bottom: 0.1rem solid rgba(255, 255, 255, 0.06);
         box-shadow: none;
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .switch_tooltip:last-child .switch_container {
+        border-bottom: none;
     }
 
     .switch_container:hover {
         transform: none;
-        background: var(--surface_3_color);
+        background: rgba(255, 255, 255, 0.065);
     }
 
     .label_wrapper {
-        gap: 0.85rem;
+        gap: 0.75rem;
     }
 
     .switch_svg {
-        width: 1.7rem;
-        height: 1.7rem;
+        width: 1.5rem;
+        height: 1.5rem;
     }
 
     .switch_label {
-        font-size: 1.18rem;
+        font-size: 1.08rem;
+        font-weight: 850;
     }
 
     .state_badge {
-        margin-top: 0.2rem;
-        font-size: 0.9rem;
+        margin-top: 0.15rem;
+        font-size: 0.82rem;
+        font-weight: 650;
     }
 
     .state_mark {
-        width: 0.65rem;
-        height: 0.65rem;
+        width: 0.55rem;
+        height: 0.55rem;
         border-width: 0.12rem;
     }
 
@@ -147,28 +164,28 @@
     }
 
     .switch_container[data-function="transcription_send"].is_active {
-        border-color: rgba(var(--accent_color_rgb), 0.7);
-        background: color-mix(in srgb, var(--accent_color) 16%, var(--surface_2_color));
+        background: linear-gradient(90deg, rgba(56, 189, 248, 0.22), rgba(99, 102, 241, 0.08));
+        box-shadow: inset 0.35rem 0 0 0 #38bdf8;
     }
 
     .switch_container[data-function="transcription_receive"].is_active {
-        border-color: rgba(91, 226, 181, 0.58);
-        background: rgba(91, 226, 181, 0.1);
+        background: linear-gradient(90deg, rgba(52, 211, 153, 0.22), rgba(56, 189, 248, 0.08));
+        box-shadow: inset 0.35rem 0 0 0 #34d399;
     }
 
     .switch_container[data-function="transcription_receive"].is_active .switch_svg,
     .switch_container[data-function="transcription_receive"].is_active .state_badge {
-        color: var(--success_bc_color);
+        color: #34d399;
     }
 
     .switch_container[data-function="translation"].is_active {
-        border-color: rgba(var(--warning_color_rgb), 0.58);
-        background: rgba(var(--warning_color_rgb), 0.1);
+        background: linear-gradient(90deg, rgba(99, 102, 241, 0.24), rgba(168, 85, 247, 0.1));
+        box-shadow: inset 0.35rem 0 0 0 #818cf8;
     }
 
     .switch_container[data-function="translation"].is_active .switch_svg,
     .switch_container[data-function="translation"].is_active .state_badge {
-        color: var(--warning_color);
+        color: #a78bfa;
     }
 }
 

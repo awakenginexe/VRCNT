@@ -60,6 +60,19 @@ const ModelStatus = ({ status, label }) => (
     </div>
 );
 
+const getTranslationSuitability = (preset, modelId = "") => {
+    if (preset === "fast" || modelId.includes("418M")) {
+        return { tier: "cpu", badge: "⚡ CPU Friendly", speed: "⚡⚡⚡", quality: "⭐⭐" };
+    }
+    if (preset === "balanced" || modelId.includes("600M")) {
+        return { tier: "cpu", badge: "⚖️ CPU/GPU Balanced", speed: "⚡⚡", quality: "⭐⭐⭐" };
+    }
+    if (preset === "good" || modelId.includes("1.3B")) {
+        return { tier: "gpu", badge: "🚀 GPU Recommended", speed: "⚡", quality: "⭐⭐⭐" };
+    }
+    return { tier: "gpu", badge: "🎯 High Precision", speed: "⚡", quality: "⭐⭐⭐⭐" };
+};
+
 const ModelCard = ({
     model,
     preset,
@@ -72,6 +85,7 @@ const ModelCard = ({
     t,
 }) => {
     const metadata = preset ? getPresetMetadata(preset) : model;
+    const suit = getTranslationSuitability(preset, model.id);
     const isDownloading = status.state === "preparing" || status.state === "downloading";
     const canDownload = !selectionPending && !isDownloading && !status.ready;
     const isFailed = status.state === "failed";
@@ -95,6 +109,11 @@ const ModelCard = ({
                         {t("config_page.translation_models.current_selection")}
                     </span>
                 )}
+            </div>
+
+            <div className={styles.suitability_chips}>
+                <span className={styles.suit_badge} data-tier={suit.tier}>{suit.badge}</span>
+                <span className={styles.rating_badge}>{suit.speed} · {suit.quality}</span>
             </div>
 
             <p className={styles.card_description}>

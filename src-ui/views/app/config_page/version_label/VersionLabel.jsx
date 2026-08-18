@@ -2,16 +2,14 @@ import { useState } from "react";
 import clsx from "clsx";
 import styles from "./VersionLabel.module.scss";
 
-import { useSoftwareVersion } from "@logics_common";
 import CopySvg from "@images/copy.svg?react";
 import CheckMarkSvg from "@images/check_mark.svg?react";
+import packageInfo from "@root/package.json";
 
 export const VersionLabel = ({ isCompact = false }) => {
     const [is_copied, setIsCopied] = useState(false);
 
-    const { currentSoftwareVersion } = useSoftwareVersion();
-
-    const software_version_number = currentSoftwareVersion.data;
+    const software_version_number = packageInfo.version;
 
     const version_label = (
         <div className={clsx(styles.version_text_container, {

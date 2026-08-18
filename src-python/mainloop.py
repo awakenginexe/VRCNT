@@ -229,6 +229,8 @@ mapping = {
     "/set/data/main_window_geometry": {"status": True, "variable":controller.setMainWindowGeometry},
     "/get/data/app_color_palette": {"status": True, "variable":controller.getAppColorPalette},
     "/set/data/app_color_palette": {"status": True, "variable":controller.setAppColorPalette},
+    "/get/data/5_9_0_color_reset": {"status": True, "variable":controller.getColorReset590},
+    "/set/data/5_9_0_color_reset": {"status": True, "variable":controller.setColorReset590},
 
     # Compute device
     "/get/data/compute_mode": {"status": True, "variable":controller.getComputeMode},

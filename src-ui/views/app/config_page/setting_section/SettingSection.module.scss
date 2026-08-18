@@ -3,10 +3,10 @@
     height: 100%;
     overflow-y: auto;
     overflow-x: hidden;
-    background: var(--surface_1_color);
+    background: transparent;
     overscroll-behavior-y: contain;
     scrollbar-width: thin;
-    scrollbar-color: var(--border_subtle_color) transparent;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
 
 .container {

@@ -1,12 +1,12 @@
 .container {
-    min-height: 6.6rem;
+    min-height: 6.4rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: 1.2rem 1.4rem;
-    border-bottom: 0.1rem solid rgba(var(--accent_color_rgb), 0.16);
-    background: var(--surface_2_color);
+    padding: 1.4rem 1.8rem;
+    border-bottom: 0.1rem solid rgba(255, 255, 255, 0.08);
+    background: transparent;
 }
 
 .title_copy {
@@ -36,20 +36,27 @@
     flex: 0 0 auto;
     display: grid;
     place-items: center;
-    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.2);
-    border-radius: 0.8rem;
-    background: var(--surface_control_color);
+    border: 0.1rem solid rgba(255, 255, 255, 0.14);
+    border-radius: 1rem;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background: rgba(255, 255, 255, 0.05);
     color: var(--dark_300_color);
+    box-shadow: inset 0 0.1rem 0 0 rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+    transition: all 0.2s ease;
 
     svg {
-        width: 1.8rem;
-        height: 1.8rem;
+        width: 1.6rem;
+        height: 1.6rem;
     }
 
     &:hover {
-        border-color: rgba(var(--accent_color_rgb), 0.42);
-        background: var(--surface_3_color);
-        color: var(--dark_100_color);
+        border-color: rgba(255, 255, 255, 0.3);
+        background: rgba(255, 255, 255, 0.12);
+        color: #ffffff;
+        transform: translateY(-0.1rem);
+        box-shadow: 0 0.4rem 1.4rem rgba(0, 0, 0, 0.25);
     }
 
     &:focus-visible {

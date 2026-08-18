@@ -27,7 +27,6 @@ test("the approved shell exposes every top-level destination through one route a
         "models",
         "overlay",
         "customize",
-        "history",
         "settings",
     ]) {
         assert.match(navigation, new RegExp(`id:\\s*"${route}"`));

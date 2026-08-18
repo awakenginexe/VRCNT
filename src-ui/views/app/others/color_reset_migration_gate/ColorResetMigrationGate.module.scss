@@ -1,0 +1,136 @@
+.overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 120;
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    padding: 1.6rem;
+    background: color-mix(in srgb, var(--canvas_color) 78%, transparent);
+    backdrop-filter: blur(18px) saturate(0.8);
+    animation: color_reset_overlay_in 160ms ease-out;
+}
+
+.card {
+    width: min(52rem, calc(100% - 3.2rem));
+    box-sizing: border-box;
+    padding: clamp(2.2rem, 5vw, 3.4rem);
+    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.28);
+    border-radius: 1.6rem;
+    background: var(--surface_2_color);
+    color: var(--dark_200_color);
+    box-shadow:
+        0 2.8rem 7rem rgba(0, 0, 0, 0.5),
+        inset 0 0.1rem 0 rgba(255, 255, 255, 0.16);
+    animation: color_reset_card_in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+
+    &:focus {
+        outline: none;
+    }
+
+    &:focus-visible {
+        outline: 0.2rem solid var(--accent_color);
+        outline-offset: 0.3rem;
+    }
+}
+
+.title {
+    margin: 0;
+    color: var(--dark_100_color);
+    font-size: clamp(2rem, 4.4vw, 2.8rem);
+    line-height: 1.2;
+    text-wrap: balance;
+}
+
+.description {
+    margin: 1.4rem 0 0;
+    color: var(--dark_250_color);
+    font-size: clamp(1.35rem, 2.7vw, 1.65rem);
+    line-height: 1.5;
+    text-wrap: pretty;
+}
+
+.error {
+    margin: 1.2rem 0 0;
+    color: var(--error_color);
+    font-size: 1.2rem;
+    line-height: 1.45;
+}
+
+.action {
+    width: 100%;
+    min-height: 4.8rem;
+    margin-top: 2.4rem;
+    padding: 0.9rem 1.4rem;
+    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.58);
+    border-radius: 0.9rem;
+    background: var(--accent_gradient);
+    color: var(--dark_100_color);
+    font: inherit;
+    font-size: 1.35rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: transform 160ms ease-out, filter 160ms ease-out;
+
+    &:hover:not(:disabled) {
+        filter: brightness(1.08);
+        transform: translateY(-0.1rem);
+    }
+
+    &:focus-visible {
+        outline: 0.2rem solid var(--accent_color);
+        outline-offset: 0.3rem;
+    }
+
+    &:disabled {
+        cursor: progress;
+        opacity: 0.7;
+    }
+}
+
+@keyframes color_reset_overlay_in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes color_reset_card_in {
+    from {
+        opacity: 0;
+        transform: translateY(0.8rem);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (max-width: 44rem) {
+    .overlay {
+        padding: 1rem;
+    }
+
+    .card {
+        width: calc(100% - 1.2rem);
+        padding: 2rem 1.6rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .overlay,
+    .card,
+    .action {
+        animation: none;
+        transition: none;
+    }
+}
+
+:global(.performance_mode) .overlay {
+    background: color-mix(in srgb, var(--canvas_color) 94%, transparent);
+    backdrop-filter: none;
+    animation: none;
+}
+
+:global(.performance_mode) .card {
+    box-shadow: none;
+    animation: none;
+}

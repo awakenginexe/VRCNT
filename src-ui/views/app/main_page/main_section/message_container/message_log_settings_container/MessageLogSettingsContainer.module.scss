@@ -1,87 +1,145 @@
-$container_height: 18rem;
-$toggle_config_size: 3rem;
-.container {
+.quick_settings_root {
     position: absolute;
-    top: calc(-#{$container_height} + -#{$toggle_config_size});
-    left: 0;
-    height: $container_height;
-    width: 100%;
-    background: var(--surface_overlay_color);
-    transition: top 0.3s ease;
-    padding: 0.6rem;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 120;
     display: flex;
     flex-direction: column;
-    justify-content: center;
     align-items: center;
-    &.to_visible_toggle_bar {
-        top: calc(-#{$container_height} + 1rem);
-        & .config_svg_wrapper {
-            transform: translate(-50%, -50%) rotate(180deg);
-        }
-
-    }
-    &.is_hovered {
-        top: calc(-#{$container_height} + 2rem);
-    }
-    &.is_opened {
-        top: 0;
-        background: var(--surface_overlay_color);
-        backdrop-filter: var(--panel_blur);
-        border-bottom: 0.1rem solid rgba(var(--accent_color_rgb), 0.14);
-        & .config_svg_wrapper {
-            width: 0%;
-            bottom: 0;
-        }
-    }
-    &:not(.is_opened) {
-        cursor: pointer;
-    }
+    pointer-events: none;
 }
 
-.container_relative_wrapper {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-}
-
-.config_svg_wrapper {
-    position: absolute;
-    left: 50%;
-    bottom: -#{$toggle_config_size};
-    transform: translate(-50%, -50%) rotate(0deg);
-    background: var(--surface_control_color);
-    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.14);
-    width: $toggle_config_size;
+.gear_button {
+    width: 3.4rem;
+    height: 3.4rem;
     border-radius: 50%;
-    aspect-ratio: 1 / 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    transition: all 0.3s ease, transform 0.6s ease;
-}
-
-.config_svg {
-    width: calc($toggle_config_size / 1.6);
-    color: var(--dark_350_color);
-}
-
-.others_wrapper {
-    width: 100%;
-    display: flex;
-}
-
-.resend_checkbox_toggle {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 0.6rem 1.2rem;
-    gap: 1rem;
+    display: grid;
+    place-items: center;
+    background: rgba(15, 23, 42, 0.88);
+    border: 0.1rem solid rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(20px) saturate(190%);
+    -webkit-backdrop-filter: blur(20px) saturate(190%);
+    color: #38bdf8;
+    box-shadow:
+        inset 0 0.1rem 0 0 rgba(255, 255, 255, 0.22),
+        0 0.4rem 1.6rem rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    transform: translateY(-1.2rem) scale(0.85);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
     cursor: pointer;
+
     &:hover {
-        background-color: var(--dark_850_color);
+        background: rgba(56, 189, 248, 0.12);
+        border-color: rgba(56, 189, 248, 0.55);
+        color: #e0f2fe;
+        box-shadow:
+            inset 0 0.1rem 0 0 rgba(255, 255, 255, 0.3),
+            0 0.5rem 1.8rem rgba(0, 0, 0, 0.45);
+        transform: translateY(-0.05rem) scale(1.03);
     }
 }
 
-.resend_checkbox_label {
-    font-size: 1.4rem;
+.quick_settings_root.is_visible .gear_button,
+.quick_settings_root.is_opened .gear_button {
+    opacity: 0.95;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+}
+
+.gear_svg {
+    width: 1.8rem;
+    height: 1.8rem;
+    color: inherit;
+    transition: transform 0.4s ease;
+}
+
+.settings_card {
+    position: absolute;
+    top: 4.4rem;
+    width: min(46rem, calc(100vw - 2rem));
+    padding: 1.4rem;
+    border-radius: 1.4rem;
+    border: 0.1rem solid rgba(255, 255, 255, 0.16);
+    backdrop-filter: blur(36px) saturate(200%);
+    -webkit-backdrop-filter: blur(36px) saturate(200%);
+    background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 50%),
+        rgba(10, 16, 32, 0.94);
+    box-shadow:
+        inset 0 0.1rem 0 0 rgba(255, 255, 255, 0.24),
+        0 1.6rem 4.8rem rgba(0, 0, 0, 0.65);
+    color: var(--dark_100_color);
+    pointer-events: auto;
+    animation: popover_in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes popover_in {
+    from {
+        opacity: 0;
+        transform: translateY(-0.8rem) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.card_header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 1rem;
+    border-bottom: 0.1rem solid rgba(255, 255, 255, 0.08);
+}
+
+.card_title {
+    font-size: 1.25rem;
+    font-weight: 850;
+    color: #f8fafc;
+}
+
+.card_close_btn {
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    border: 0.1rem solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    color: #94a3b8;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.12);
+        color: #ffffff;
+    }
+}
+
+.card_content {
+    min-width: 0;
+    padding-top: 1rem;
+
+    > :global(.container) {
+        min-width: 0;
+        gap: 2.4rem;
+        padding: 1.1rem 1.2rem;
+        margin-bottom: 0;
+        align-items: center;
+
+        > :first-child {
+            flex: 0 0 12rem;
+            min-width: 0;
+        }
+
+        > :last-child {
+            flex: 1 1 0;
+            width: auto;
+            min-width: 0;
+            padding-left: 0;
+        }
+    }
 }

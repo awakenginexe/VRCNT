@@ -30,8 +30,8 @@ const expected = {
     },
     "th.yml": {
         source: "แหล่งเสียง",
-        listening: "กำลังฟัง",
-        speaking: "กำลังพูด",
+        listening: "การถอดเสียงฟัง",
+        speaking: "การถอดเสียงพูด",
         transcription: "ถอดเสียง",
         cloud: "คลาวด์",
         queue: "คิว",

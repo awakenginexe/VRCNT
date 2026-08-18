@@ -50,3 +50,28 @@ test("100% UI size uses the larger root baseline without changing the stored sca
     assert.match(controller, /UI_BASE_FONT_SIZE_PERCENT\s*\*\s*currentUiScaling\.data\s*\/\s*100/);
     assert.match(rootCss, /font-size:\s*91%/);
 });
+
+test("Customize exposes custom wallpaper selection, reset, and gaussian blur controls", () => {
+    const workspace = readSource("src-ui/views/app/main_page/color_customization/ColorCustomization.jsx");
+    const app = readSource("src-ui/views/app/App.jsx");
+    const appCss = readSource("src-ui/views/app/App.module.scss");
+    const customBg = readSource("src-ui/logics/common/useCustomBackground.js");
+
+    assert.match(workspace, /useCustomBackground/);
+    assert.match(workspace, /handleFileSelect/);
+    assert.match(workspace, /resetBackgroundToDefault/);
+    assert.match(workspace, /background_section/);
+    assert.match(workspace, /customize-bg-blur/);
+    assert.match(workspace, /customize-bg-dim/);
+
+    assert.match(app, /BackgroundWallpaperController/);
+    assert.match(app, /background_layer/);
+    assert.match(app, /background_overlay/);
+
+    assert.match(appCss, /--app-bg-image/);
+    assert.match(appCss, /--app-bg-blur/);
+    assert.match(appCss, /--app-bg-dim/);
+
+    assert.match(customBg, /DEFAULT_BG_SETTINGS/);
+    assert.match(customBg, /resetToDefault/);
+});
