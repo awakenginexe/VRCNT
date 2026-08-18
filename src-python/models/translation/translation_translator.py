@@ -825,9 +825,14 @@ class Translator:
                     result = tokenizer.decode(tokenizer.convert_tokens_to_ids(decoded_hypothesis))
 
                 elif family == "nllb":
-                    # NLLB behavior: prepend target language code as prefix
-                    tokenizer.src_lang = source_language
-                    source_tokens = tokenizer.convert_ids_to_tokens(tokenizer.encode(message))
+                    # NLLB converted models expect the source language token in
+                    # the source sequence. Transformers 5.x's tokenizer backend
+                    # may not expose the old ``src_lang`` API, so set the token
+                    # sequence explicitly instead of relying on that attribute.
+                    source_tokens = tokenizer.convert_ids_to_tokens(
+                        tokenizer.encode(message, add_special_tokens=False)
+                    )
+                    source_tokens.extend(["</s>", source_language])
                     target_prefix = [target_language]
 
                     results = native_translator.translate_batch(
@@ -835,7 +840,11 @@ class Translator:
                         target_prefix=[target_prefix],
                     )
                     # NLLB output includes target token at start; remove it
-                    decoded_hypothesis = results[0].hypotheses[0][1:]
+                    decoded_hypothesis = [
+                        token
+                        for token in results[0].hypotheses[0][1:]
+                        if token not in {"<unk>", "<pad>", "<s>", "</s>"}
+                    ]
                     result = tokenizer.decode(tokenizer.convert_tokens_to_ids(decoded_hypothesis))
 
                 elif family == "madlad400":

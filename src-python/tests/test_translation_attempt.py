@@ -207,6 +207,41 @@ class RecordingNativeCTranslate2Translator:
         return [SimpleNamespace(hypotheses=[["__en__", "translated"]])]
 
 
+class FakeNllbTokenizer:
+    def __init__(self):
+        self.encode_calls = []
+
+    def encode(self, _message, add_special_tokens=True):
+        self.encode_calls.append(add_special_tokens)
+        return [1, 2, 3, 4] if add_special_tokens else [1, 2]
+
+    @staticmethod
+    def convert_ids_to_tokens(values):
+        return {
+            (1, 2): ["▁hello", "▁world"],
+            (1, 2, 3, 4): ["▁hello", "▁world", "</s>", "<unk>"],
+        }[tuple(values)]
+
+    @staticmethod
+    def convert_tokens_to_ids(values):
+        return list(values)
+
+    @staticmethod
+    def decode(values):
+        return "".join(values)
+
+
+class RecordingNllbTranslator:
+    def __init__(self):
+        self.sources = []
+        self.target_prefixes = []
+
+    def translate_batch(self, sources, **kwargs):
+        self.sources.append(tuple(sources[0]))
+        self.target_prefixes.append(kwargs["target_prefix"])
+        return [SimpleNamespace(hypotheses=[["jpn_Jpan", "translated", "<unk>"]])]
+
+
 class CaptureStartedPipeline:
     """Deterministic source-session boundary for controller integration tests."""
 
@@ -291,6 +326,28 @@ class TranslationAttemptTests(unittest.TestCase):
         self.assertFalse(second.is_alive())
         self.assertEqual(sorted(native.sources), [("ja:first",), ("zh:second",)])
         self.assertEqual(results, ["translated", "translated"])
+
+    def test_nllb_uses_explicit_source_language_and_does_not_surface_unknown_tokens(self):
+        tokenizer = FakeNllbTokenizer()
+        native = RecordingNllbTranslator()
+        self.translator.ctranslate2_translator = native
+        self.translator.ctranslate2_tokenizer = tokenizer
+        self.translator.is_loaded_ctranslate2_model = True
+
+        result = self.translator.translateCTranslate2(
+            "hello world",
+            "eng_Latn",
+            "jpn_Jpan",
+            "nllb-200-distilled-600M-ct2-int8",
+        )
+
+        self.assertEqual(result, "translated")
+        self.assertEqual(tokenizer.encode_calls, [False])
+        self.assertEqual(
+            native.sources,
+            [("▁hello", "▁world", "</s>", "eng_Latn")],
+        )
+        self.assertEqual(native.target_prefixes, [[['jpn_Jpan']]])
 
     def test_unload_waits_for_active_local_inference_and_clears_references(self):
         native = self._mark_ctranslate2_loaded(
