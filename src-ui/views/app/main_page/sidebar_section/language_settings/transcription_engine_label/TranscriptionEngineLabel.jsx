@@ -154,6 +154,7 @@ const LiveTranscriptionEngineQuickPick = () => {
                         <section
                             key={role.id}
                             className={styles.live_role_card}
+                            data-group={role.id === "listening" ? "target" : "speaking"}
                             aria-label={title}
                         >
                             <button

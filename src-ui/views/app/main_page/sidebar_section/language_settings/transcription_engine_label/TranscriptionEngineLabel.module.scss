@@ -230,6 +230,38 @@
         }
     }
 
+    .live_role_card[data-group="speaking"] .live_role_button {
+        border-color: rgba(var(--accent_color_rgb), 0.28);
+        background: color-mix(in srgb, var(--accent_color) 5%, var(--surface_control_color));
+
+        .live_role_heading,
+        .live_role_change {
+            color: var(--primary_200_color);
+        }
+
+        &:hover,
+        &:focus-visible {
+            border-color: rgba(var(--accent_color_rgb), 0.6);
+            background: color-mix(in srgb, var(--accent_color) 10%, var(--surface_control_color));
+        }
+    }
+
+    .live_role_card[data-group="target"] .live_role_button {
+        border-color: rgba(91, 226, 181, 0.28);
+        background: color-mix(in srgb, var(--success_bc_color) 5%, var(--surface_control_color));
+
+        .live_role_heading,
+        .live_role_change {
+            color: var(--success_bc_color);
+        }
+
+        &:hover,
+        &:focus-visible {
+            border-color: rgba(91, 226, 181, 0.6);
+            background: color-mix(in srgb, var(--success_bc_color) 10%, var(--surface_control_color));
+        }
+    }
+
     .live_role_copy {
         min-width: 0;
         display: flex;

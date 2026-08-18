@@ -223,6 +223,7 @@ test("quick transcription picker keeps Speaking and Listening profiles independe
     ), "utf8");
     assert.match(labelSource, /variant === "live_compact"/);
     assert.match(labelSource, /LiveTranscriptionEngineQuickPick/);
+    assert.match(labelSource, /data-group=\{role\.id === "listening" \? "target" : "speaking"\}/);
     assert.match(labelSource, /role=\{role\.id\}/);
 });
 
