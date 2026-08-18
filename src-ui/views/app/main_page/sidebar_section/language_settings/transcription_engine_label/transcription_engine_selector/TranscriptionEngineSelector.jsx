@@ -9,7 +9,7 @@ import { useTranscription, useTranslation } from "@logics_configs";
 import { useIsOpenedConfigPage } from "@logics_common";
 import { QUICK_TRANSCRIPTION_ENGINE_OPTIONS } from "./transcriptionEngineOptions";
 
-export const TranscriptionEngineSelector = ({ selected_id, placement = "settings" }) => {
+export const TranscriptionEngineSelector = ({ selected_id, placement = "settings", role = "all" }) => {
     const columns = chunkArray(QUICK_TRANSCRIPTION_ENGINE_OPTIONS, 2);
 
     return (
@@ -25,6 +25,7 @@ export const TranscriptionEngineSelector = ({ selected_id, placement = "settings
                                     label={label}
                                     is_available={is_available}
                                     is_selected={id === selected_id}
+                                    role={role}
                                 />
                             ))}
                         </div>
@@ -38,6 +39,8 @@ export const TranscriptionEngineSelector = ({ selected_id, placement = "settings
 const EngineBox = (props) => {
     const {
         setSelectedTranscriptionEngine,
+        setSelectedTranscriptionEngineSend,
+        setSelectedTranscriptionEngineReceive,
         currentUseSplitGroqApiKey,
         currentGroqWhisperAuthKey,
     } = useTranscription();
@@ -63,7 +66,12 @@ const EngineBox = (props) => {
                 updateIsOpenedTranscriptionEngineSelector(false);
                 return;
             }
-            setSelectedTranscriptionEngine(props.id);
+            const setEngine = props.role === "speaking"
+                ? setSelectedTranscriptionEngineSend
+                : props.role === "listening"
+                    ? setSelectedTranscriptionEngineReceive
+                    : setSelectedTranscriptionEngine;
+            setEngine(props.id);
         }
         updateIsOpenedTranscriptionEngineSelector(false);
     };

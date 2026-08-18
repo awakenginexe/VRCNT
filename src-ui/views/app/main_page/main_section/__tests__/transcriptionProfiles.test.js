@@ -178,6 +178,45 @@ test("live model summaries prefer the active profile over the stale legacy model
     );
 });
 
+test("quick transcription picker keeps Speaking and Listening profiles independent", async () => {
+    const quickPickUrl = pathToFileURL(path.join(
+        root,
+        "src-ui", "views", "app", "main_page", "sidebar_section",
+        "language_settings", "transcription_engine_label", "transcriptionEngineQuickPick.js",
+    )).href;
+    const { TRANSCRIPTION_ENGINE_QUICK_PICK_ROLES, getQuickPickerProfile } = await import(quickPickUrl);
+
+    assert.deepEqual(
+        TRANSCRIPTION_ENGINE_QUICK_PICK_ROLES.map(({ id }) => id),
+        ["speaking", "listening"],
+    );
+    assert.equal(
+        getQuickPickerProfile("speaking", {
+            engine: "Whisper Thai",
+        }, {
+            engine: "Whisper",
+        }).engine,
+        "Whisper Thai",
+    );
+    assert.equal(
+        getQuickPickerProfile("listening", {
+            engine: "Whisper Thai",
+        }, {
+            engine: "Whisper",
+        }).engine,
+        "Whisper",
+    );
+
+    const selectorSource = await readFile(path.join(
+        root,
+        "src-ui", "views", "app", "main_page", "sidebar_section",
+        "language_settings", "transcription_engine_label", "transcription_engine_selector",
+        "TranscriptionEngineSelector.jsx",
+    ), "utf8");
+    assert.match(selectorSource, /setSelectedTranscriptionEngineSend/);
+    assert.match(selectorSource, /setSelectedTranscriptionEngineReceive/);
+});
+
 test("legacy Model and Provider controls use the styled apply-to-both confirmation", async () => {
     const source = await readFile(path.join(
         root,
