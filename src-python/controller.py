@@ -4382,11 +4382,7 @@ class Controller:
             config.SELECTED_LMSTUDIO_MODEL = None
             self.run(200, self.run_mapping["selectable_lmstudio_model_list"], config.SELECTABLE_LMSTUDIO_MODEL_LIST)
             self.run(200, self.run_mapping["selected_lmstudio_model"], config.SELECTED_LMSTUDIO_MODEL)
-            self.updateDownloadedCTranslate2ModelWeight(scan_all=True)
-            self.updateDownloadedWhisperModelWeight(scan_all=True)
-            self.updateDownloadedVoskModelWeight(scan_all=True)
-            self.updateDownloadedParakeetModelWeight(scan_all=True)
-            self.updateDownloadedSenseVoiceModelWeight(scan_all=True)
+            self._refreshAllModelDownloadStatus()
             self.updateTranslationEngineAndEngineList()
             response = VRCTError.create_exception_error_response(
                 e,
@@ -5778,6 +5774,19 @@ class Controller:
                 continue
             config.SELECTABLE_SENSEVOICE_WEIGHT_TYPE_DICT[weight_type] = model.checkTranscriptionSenseVoiceModelWeight(weight_type)
 
+    def _refreshAllModelDownloadStatus(self) -> None:
+        """Refresh every speech and translation model before publishing startup state."""
+        self.updateDownloadedCTranslate2ModelWeight(
+            scan_all=True,
+            refresh_selected=False,
+            publish=False,
+        )
+        self.updateDownloadedWhisperModelWeight(scan_all=True)
+        self.updateDownloadedWhisperThaiModelWeight(scan_all=True)
+        self.updateDownloadedVoskModelWeight(scan_all=True)
+        self.updateDownloadedParakeetModelWeight(scan_all=True)
+        self.updateDownloadedSenseVoiceModelWeight(scan_all=True)
+
     def _selectedTranscriptionModelWeights(self, provider: str) -> tuple[str, ...]:
         selected = []
         for source in (PipelineSource.MIC, PipelineSource.SPEAKER):
@@ -6436,15 +6445,7 @@ class Controller:
         self._applyFastStartupTranslationStatus(connected_network, ctranslate2_available)
         self._applyFastStartupTranscriptionStatus(connected_network, whisper_available)
 
-        self.updateDownloadedCTranslate2ModelWeight(
-            refresh_selected=False,
-            publish=False,
-        )
-        self.updateDownloadedWhisperModelWeight()
-        self.updateDownloadedWhisperThaiModelWeight()
-        self.updateDownloadedVoskModelWeight()
-        self.updateDownloadedParakeetModelWeight()
-        self.updateDownloadedSenseVoiceModelWeight()
+        self._refreshAllModelDownloadStatus()
         self.updateTranslationEngineAndEngineList()
         self.updateTranscriptionEngine()
         device_manager.setCallbackHostList(self.updateMicHostList)

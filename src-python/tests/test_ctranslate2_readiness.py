@@ -60,6 +60,28 @@ class CTranslate2ReadinessTests(unittest.TestCase):
     def tearDown(self):
         _reset_readiness_managed_mapping_wrappers()
 
+    def test_startup_readiness_refresh_scans_every_local_model_catalog(self):
+        controller = object.__new__(Controller)
+        controller.updateDownloadedCTranslate2ModelWeight = Mock()
+        controller.updateDownloadedWhisperModelWeight = Mock()
+        controller.updateDownloadedWhisperThaiModelWeight = Mock()
+        controller.updateDownloadedVoskModelWeight = Mock()
+        controller.updateDownloadedParakeetModelWeight = Mock()
+        controller.updateDownloadedSenseVoiceModelWeight = Mock()
+
+        controller._refreshAllModelDownloadStatus()
+
+        controller.updateDownloadedCTranslate2ModelWeight.assert_called_once_with(
+            scan_all=True,
+            refresh_selected=False,
+            publish=False,
+        )
+        controller.updateDownloadedWhisperModelWeight.assert_called_once_with(scan_all=True)
+        controller.updateDownloadedWhisperThaiModelWeight.assert_called_once_with(scan_all=True)
+        controller.updateDownloadedVoskModelWeight.assert_called_once_with(scan_all=True)
+        controller.updateDownloadedParakeetModelWeight.assert_called_once_with(scan_all=True)
+        controller.updateDownloadedSenseVoiceModelWeight.assert_called_once_with(scan_all=True)
+
     def test_balanced_model_has_a_translation_language_mapping(self):
         languages = loadTranslationLanguages(".", force=True)
         mappings = languages["CTranslate2"]
