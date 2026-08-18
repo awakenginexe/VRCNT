@@ -24,6 +24,8 @@ import {
 export const TranscriptionEngineLabel = ({ variant = "settings" }) => (
     variant === "settings"
         ? <TranscriptionEngineQuickPick />
+        : variant === "live_compact"
+            ? <LiveTranscriptionEngineQuickPick />
         : <LegacyTranscriptionEngineLabel variant={variant} />
 );
 
@@ -104,6 +106,81 @@ const TranscriptionEngineQuickPick = () => {
                             onToggleSelector={() => toggleRoleSelector(role.id)}
                             t={t}
                         />
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
+const LiveTranscriptionEngineQuickPick = () => {
+    const { t } = useI18n();
+    const {
+        currentTranscriptionProfileSend,
+        currentTranscriptionProfileReceive,
+    } = useTranscription();
+    const {
+        currentIsOpenedTranscriptionEngineSelector,
+        updateIsOpenedTranscriptionEngineSelector,
+    } = useStore_IsOpenedTranscriptionEngineSelector();
+    const [openRole, setOpenRole] = useState(null);
+
+    const sendProfile = currentTranscriptionProfileSend?.data ?? {};
+    const receiveProfile = currentTranscriptionProfileReceive?.data ?? {};
+
+    const toggleRoleSelector = (role) => {
+        const shouldOpen = currentIsOpenedTranscriptionEngineSelector.data !== true
+            || openRole !== role;
+        setOpenRole(shouldOpen ? role : null);
+        updateIsOpenedTranscriptionEngineSelector(shouldOpen);
+    };
+
+    return (
+        <div className={styles.container} data-variant="live_compact">
+            <div className={styles.live_role_grid}>
+                {TRANSCRIPTION_ENGINE_QUICK_PICK_ROLES.map((role) => {
+                    const profile = getQuickPickerProfile(
+                        role.id,
+                        sendProfile,
+                        receiveProfile,
+                    );
+                    const engine = profile.engine || t("main_page.language_panels.loading");
+                    const model = getActiveModel(profile);
+                    const selectorOpen = currentIsOpenedTranscriptionEngineSelector.data === true
+                        && openRole === role.id;
+                    const title = t(role.titleKey);
+
+                    return (
+                        <section
+                            key={role.id}
+                            className={styles.live_role_card}
+                            aria-label={title}
+                        >
+                            <button
+                                type="button"
+                                className={styles.live_role_button}
+                                onClick={() => toggleRoleSelector(role.id)}
+                                aria-expanded={selectorOpen}
+                            >
+                                <span className={styles.live_role_copy}>
+                                    <span className={styles.live_role_heading}>{title}</span>
+                                    <span className={styles.live_role_engine}>{engine}</span>
+                                    {model && (
+                                        <span className={styles.live_role_model}>{model}</span>
+                                    )}
+                                </span>
+                                <span className={styles.live_role_change}>
+                                    {t("main_page.language_panels.change")}
+                                </span>
+                            </button>
+                            {selectorOpen && (
+                                <TranscriptionEngineSelector
+                                    selected_id={engine}
+                                    role={role.id}
+                                    placement="live"
+                                />
+                            )}
+                        </section>
                     );
                 })}
             </div>

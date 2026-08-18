@@ -215,6 +215,15 @@ test("quick transcription picker keeps Speaking and Listening profiles independe
     ), "utf8");
     assert.match(selectorSource, /setSelectedTranscriptionEngineSend/);
     assert.match(selectorSource, /setSelectedTranscriptionEngineReceive/);
+
+    const labelSource = await readFile(path.join(
+        root,
+        "src-ui", "views", "app", "main_page", "sidebar_section",
+        "language_settings", "transcription_engine_label", "TranscriptionEngineLabel.jsx",
+    ), "utf8");
+    assert.match(labelSource, /variant === "live_compact"/);
+    assert.match(labelSource, /LiveTranscriptionEngineQuickPick/);
+    assert.match(labelSource, /role=\{role\.id\}/);
 });
 
 test("legacy Model and Provider controls use the styled apply-to-both confirmation", async () => {
