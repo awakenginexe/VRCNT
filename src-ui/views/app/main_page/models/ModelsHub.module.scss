@@ -6,9 +6,7 @@
     display: grid;
     grid-template-rows: var(--main_page_topbar_height) minmax(0, 1fr);
     overflow: hidden;
-    background:
-        radial-gradient(circle at 82% 3%, rgba(var(--accent_color_rgb), 0.13), transparent 31%),
-        var(--canvas_color);
+    background: transparent;
 }
 
 .content {
@@ -24,10 +22,124 @@
 .recommendation,
 .preset_card,
 .advanced_models {
+    border: 0.1rem solid rgba(255, 255, 255, 0.14);
+    border-radius: 1.15rem;
+    backdrop-filter: blur(28px) saturate(190%);
+    -webkit-backdrop-filter: blur(28px) saturate(190%);
+    background: rgba(12, 17, 32, 0.32);
+    box-shadow:
+        inset 0 0.1rem 0.12rem 0 rgba(255, 255, 255, 0.14),
+        0 1rem 3.6rem rgba(0, 0, 0, 0.28);
+}
+
+.filter_bar {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 1.2rem;
+    overflow-x: auto;
+    padding: 0.2rem 0;
+}
+
+.filter_pill {
+    appearance: none;
     border: 0.1rem solid rgba(255, 255, 255, 0.1);
-    border-radius: 1rem;
-    background: rgba(12, 10, 21, 0.82);
-    box-shadow: 0 1.35rem 3.75rem rgba(0, 0, 0, 0.18);
+    border-radius: 99rem;
+    padding: 0.45rem 0.95rem;
+    background: rgba(15, 21, 35, 0.6);
+    color: var(--dark_300_color);
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 750;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all var(--transition_ui);
+
+    &:hover {
+        color: var(--dark_100_color);
+        background: rgba(var(--accent_color_rgb), 0.12);
+        border-color: rgba(var(--accent_color_rgb), 0.35);
+    }
+
+    &[data-active="true"] {
+        color: #ffffff;
+        background: var(--accent_color);
+        border-color: transparent;
+        box-shadow: 0 0.4rem 1.2rem rgba(var(--accent_color_rgb), 0.35);
+    }
+}
+
+.suitability_chips {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-top: 0.65rem;
+}
+
+.suit_badge {
+    border-radius: 99rem;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    background: rgba(56, 189, 248, 0.14);
+    color: #38bdf8;
+    border: 0.1rem solid rgba(56, 189, 248, 0.28);
+
+    &[data-tier="gpu"] {
+        background: rgba(99, 102, 241, 0.14);
+        color: #818cf8;
+        border-color: rgba(99, 102, 241, 0.28);
+    }
+
+    &[data-tier="cloud"] {
+        background: rgba(167, 139, 250, 0.14);
+        color: #a78bfa;
+        border-color: rgba(167, 139, 250, 0.28);
+    }
+
+    &[data-tier="thai"] {
+        background: rgba(245, 158, 11, 0.14);
+        color: #fbbf24;
+        border-color: rgba(245, 158, 11, 0.28);
+    }
+}
+
+.rating_chip {
+    border-radius: 99rem;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 750;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--dark_200_color);
+}
+
+.model_name_row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.row_suit_badge {
+    border-radius: 99rem;
+    padding: 0.15rem 0.5rem;
+    font-size: 0.68rem;
+    font-weight: 750;
+    background: rgba(56, 189, 248, 0.12);
+    color: #38bdf8;
+}
+
+.model_specs_row {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin-top: 0.2rem;
+}
+
+.row_rating {
+    font-size: 0.72rem;
+    color: var(--dark_350_color);
 }
 
 .hero {

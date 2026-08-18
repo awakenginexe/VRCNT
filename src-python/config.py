@@ -167,6 +167,11 @@ def _load_json_file(path: str) -> Dict[str, Any]:
         return {}
 
 json_serializable_vars = {}
+
+CONFIG_KEY_ALIASES = {
+    "5_9_0_color_reset": "COLOR_RESET_5_9_0",
+}
+
 def json_serializable(var_name):
     def decorator(func):
         json_serializable_vars[var_name] = func
@@ -955,6 +960,17 @@ class Config:
     SETUP_COMPLETED = ManagedProperty('SETUP_COMPLETED', type_=bool)
     MAIN_WINDOW_GEOMETRY = ValidatedProperty('MAIN_WINDOW_GEOMETRY', _main_window_geometry_validator, immediate_save=True)
     APP_COLOR_PALETTE = ValidatedProperty('APP_COLOR_PALETTE', _app_color_palette_validator)
+    COLOR_RESET_5_9_0 = ManagedProperty(
+        'COLOR_RESET_5_9_0',
+        type_=int,
+        allowed={0, 1},
+        immediate_save=True,
+        serialize=False,
+    )
+
+    @json_serializable("5_9_0_color_reset")
+    def _serializeColorReset590(self):
+        return self.COLOR_RESET_5_9_0
 
     # --- Mic-related simple properties ---
     MIC_THRESHOLD = ManagedProperty('MIC_THRESHOLD', type_=int)
@@ -1086,7 +1102,7 @@ class Config:
 
     def init_config(self):
         # Read Only
-        self._VERSION = "5.8.0"
+        self._VERSION = "5.9.0"
         if getattr(sys, 'frozen', False):
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
@@ -1247,6 +1263,7 @@ class Config:
             "height": 654,
         }
         self._APP_COLOR_PALETTE = copy.deepcopy(APP_COLOR_PALETTE_DEFAULTS)
+        self._COLOR_RESET_5_9_0 = 0
         self._AUTO_MIC_SELECT = True
         # device_manager may be unavailable or not initialized; use safe defaults
         try:
@@ -1492,15 +1509,17 @@ class Config:
                         # 読み込み時: serialize=True かつ readonlyでない Descriptor のみ反映。
                         # 未知キー（Descriptorなし）は無視して注入を防止。
                         try:
-                            descriptor = getattr(type(self), key, None)
+                            descriptor_key = CONFIG_KEY_ALIASES.get(key, key)
+                            descriptor = getattr(type(self), descriptor_key, None)
                             if isinstance(descriptor, ManagedProperty):
                                 if descriptor.readonly or not descriptor.serialize:
-                                    continue
-                                setattr(self, key, value)
+                                    if descriptor_key != "COLOR_RESET_5_9_0":
+                                        continue
+                                setattr(self, descriptor_key, value)
                             elif isinstance(descriptor, ValidatedProperty):
                                 if not descriptor.serialize:
                                     continue
-                                setattr(self, key, value)
+                                setattr(self, descriptor_key, value)
                             else:
                                 # 不明キーは破棄（古い/不要/改竄の可能性）
                                 continue

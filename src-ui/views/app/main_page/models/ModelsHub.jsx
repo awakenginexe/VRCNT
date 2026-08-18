@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useI18n } from "@useI18n";
 import { useTranscription, useTranslation } from "@logics_configs";
 import {
@@ -16,6 +16,8 @@ import {
     resolveWhisperRecommendation,
     WHISPER_PRESETS,
     WHISPER_CLOUD_MODELS,
+    getModelSuitability,
+    MODEL_FILTER_CATEGORIES,
 } from "../engines/engineModelUtils";
 import { ModelDownloadProgress } from "./ModelDownloadProgress.jsx";
 import { getModelDownloadState } from "./modelDownloadDisplay.js";
@@ -38,6 +40,7 @@ const PRESET_COPY = {
 
 export const ModelsHub = () => {
     const { t } = useI18n();
+    const [activeFilter, setActiveFilter] = useState("all");
     const { updateExperienceRoute } = useStore_ExperienceRoute();
     const { currentResourceUsage } = useResourceUsage();
     const {
@@ -265,6 +268,20 @@ export const ModelsHub = () => {
                     )}
                 </section>
 
+                <nav className={styles.filter_bar} aria-label="Model Categories">
+                    {MODEL_FILTER_CATEGORIES.map((cat) => (
+                        <button
+                            key={cat.id}
+                            type="button"
+                            className={styles.filter_pill}
+                            data-active={activeFilter === cat.id}
+                            onClick={() => setActiveFilter(cat.id)}
+                        >
+                            {cat.fallback}
+                        </button>
+                    ))}
+                </nav>
+
                 <section className={styles.preset_grid} aria-label={t("main_page.models_hub.presets_label")}>
                     {WHISPER_PRESETS.map((preset) => {
                         const copy = PRESET_COPY[preset.id];
@@ -274,6 +291,7 @@ export const ModelsHub = () => {
                             installedOnly: false,
                         });
                         const downloadState = getModelDownloadState(candidate);
+                        const suit = getModelSuitability("Whisper", candidate?.id);
                         const isActive = false;
                         const isRecommended = recommendation.presetId === preset.id;
                         const actionLabel = candidate?.is_downloaded === true
@@ -287,6 +305,10 @@ export const ModelsHub = () => {
                                     : candidate
                                         ? t("main_page.models_hub.download_model", { size: candidate.capacity ?? "" })
                                         : t("main_page.models_hub.model_unavailable");
+
+                        if (activeFilter !== "all" && suit.tier !== activeFilter && !(activeFilter === "cpu" && preset.id === "fast")) {
+                            return null;
+                        }
 
                         return (
                             <article
@@ -302,6 +324,11 @@ export const ModelsHub = () => {
                                     </div>
                                     {isRecommended && <span className={styles.recommended_badge}>{t("main_page.models_hub.recommended")}</span>}
                                 </header>
+                                <div className={styles.suitability_chips}>
+                                    <span className={styles.suit_badge} data-tier={suit.tier}>{suit.badge}</span>
+                                    <span className={styles.rating_chip} title="Speed Rating">⚡ {"⚡".repeat(suit.speed)}</span>
+                                    <span className={styles.rating_chip} title="Accuracy Rating">⭐ {"⭐".repeat(suit.quality)}</span>
+                                </div>
                                 <dl className={styles.model_facts}>
                                     <div><dt>{t("main_page.models_hub.model_label")}</dt><dd>{candidate?.id ?? t("main_page.models_hub.model_unavailable")}</dd></div>
                                     <div><dt>{t("main_page.models_hub.download_size")}</dt><dd>{candidate?.capacity ?? t("main_page.models_hub.size_not_available")}</dd></div>
@@ -343,12 +370,19 @@ export const ModelsHub = () => {
                             {group.statuses.map((status) => {
                                 const downloadState = getModelDownloadState(status);
                                 const isDownloading = downloadState === "preparing" || downloadState === "downloading";
+                                const suit = getModelSuitability(group.id, status.id);
 
                                 return (
                                     <div key={status.id} className={styles.model_row} data-state={downloadState}>
                                         <div className={styles.model_identity}>
-                                            <strong>{status.label ?? status.display_name ?? status.id}</strong>
-                                            <span>{status.capacity ?? t("main_page.models_hub.size_not_available")}</span>
+                                            <div className={styles.model_name_row}>
+                                                <strong>{status.label ?? status.display_name ?? status.id}</strong>
+                                                <span className={styles.row_suit_badge} data-tier={suit.tier}>{suit.badge}</span>
+                                            </div>
+                                            <div className={styles.model_specs_row}>
+                                                <span>{status.capacity ?? t("main_page.models_hub.size_not_available")}</span>
+                                                <span className={styles.row_rating}>⚡ {"⚡".repeat(suit.speed)} · ⭐ {"⭐".repeat(suit.quality)}</span>
+                                            </div>
                                             {isDownloading && <ModelDownloadProgress status={status} />}
                                         </div>
                                         <span data-ready={downloadState === "installed"} data-state={downloadState}>

@@ -79,3 +79,64 @@ export const resolveWhisperRecommendation = ({ statuses, selectedDevice }) => {
 export const getPresetForModel = (modelId) => (
     WHISPER_PRESETS.find((preset) => preset.candidates.includes(modelId))?.id ?? null
 );
+
+export const MODEL_FILTER_CATEGORIES = [
+    { id: "all", labelKey: "main_page.models_hub.filter_all", fallback: "All Models" },
+    { id: "cpu", labelKey: "main_page.models_hub.filter_cpu", fallback: "⚡ CPU Friendly" },
+    { id: "gpu", labelKey: "main_page.models_hub.filter_gpu", fallback: "🚀 GPU Accelerated" },
+    { id: "cloud", labelKey: "main_page.models_hub.filter_cloud", fallback: "☁️ Cloud Zero-Load" },
+    { id: "thai", labelKey: "main_page.models_hub.filter_thai", fallback: "🇹🇭 Thai Specialist" },
+];
+
+export const getModelSuitability = (engine, modelId = "") => {
+    const id = (modelId || "").toLowerCase();
+    const eng = (engine || "").toLowerCase();
+
+    if (eng.includes("cloud") || id.includes("cloud")) {
+        return {
+            speed: 3,
+            quality: 3,
+            tier: "cloud",
+            badge: "☁️ Zero PC Load",
+            summary: "Groq-hosted Cloud AI · 0% CPU/VRAM usage",
+        };
+    }
+
+    if (eng.includes("thai") || id.includes("thai")) {
+        return {
+            speed: 2,
+            quality: 3,
+            tier: "thai",
+            badge: "🇹🇭 Thai Specialist",
+            summary: "BioDataLab Thonburian fine-tuned for Thai",
+        };
+    }
+
+    if (id.includes("tiny") || id.includes("base") || id.includes("small-") || id === "sensevoice-small-int8") {
+        return {
+            speed: 3,
+            quality: 2,
+            tier: "cpu",
+            badge: "⚡ CPU Friendly",
+            summary: "Ultra-fast response · Lightweight memory footprint",
+        };
+    }
+
+    if (id.includes("small") || id.includes("600m")) {
+        return {
+            speed: 2,
+            quality: 2,
+            tier: "cpu",
+            badge: "⚖️ CPU / GPU Balanced",
+            summary: "Great balance of accuracy and speech speed",
+        };
+    }
+
+    return {
+        speed: 2,
+        quality: 3,
+        tier: "gpu",
+        badge: "🚀 GPU Recommended",
+        summary: "High precision · Best on NVIDIA CUDA GPU",
+    };
+};

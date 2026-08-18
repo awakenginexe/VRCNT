@@ -36,6 +36,10 @@ export const LiveControlRail = () => {
     const {
         currentEnableSendMessageToVrc,
         currentEnableSendReceivedMessageToVrc,
+        currentEnableVrcMicMuteSync,
+        toggleEnableSendMessageToVrc,
+        toggleEnableSendReceivedMessageToVrc,
+        toggleEnableVrcMicMuteSync,
     } = useOthers();
     const sendProfile = currentTranscriptionProfileSend.data ?? {};
     const receiveProfile = currentTranscriptionProfileReceive.data ?? {};
@@ -70,11 +74,6 @@ export const LiveControlRail = () => {
                     <p className={styles.eyebrow}>{t("main_page.live_workspace.control_rail_eyebrow")}</p>
                     <h2 className={styles.title}>{t("main_page.live_workspace.session_controls")}</h2>
                 </div>
-                <span className={styles.session_state} data-active={isSessionActive}>
-                    {isSessionActive
-                        ? t("main_page.live_workspace.session_active")
-                        : t("main_page.live_workspace.session_ready")}
-                </span>
             </header>
 
             <MainFunctionSwitch layout="control_rail" includeForeground={false} />
@@ -128,15 +127,38 @@ export const LiveControlRail = () => {
                             ? t("main_page.live_workspace.osc_ready")
                             : t("main_page.live_workspace.osc_unavailable")}
                     </span>
-                    <span className={styles.output_status} data-ready={currentEnableSendMessageToVrc.data === true}>
+                    <button
+                        type="button"
+                        className={styles.output_button}
+                        data-active={currentEnableSendMessageToVrc.data === true}
+                        onClick={toggleEnableSendMessageToVrc}
+                        title={t("config_page.others.send_message_to_vrc.label")}
+                    >
                         {currentEnableSendMessageToVrc.data === true
                             ? t("main_page.live_workspace.chatbox_sending")
                             : t("main_page.live_workspace.chatbox_off")}
-                    </span>
+                    </button>
+                    <button
+                        type="button"
+                        className={styles.output_button}
+                        data-active={currentEnableVrcMicMuteSync.data === true}
+                        onClick={toggleEnableVrcMicMuteSync}
+                        title={t("config_page.others.vrc_mic_mute_sync.label")}
+                    >
+                        {currentEnableVrcMicMuteSync.data === true
+                            ? t("main_page.live_workspace.mic_sync_on")
+                            : t("main_page.live_workspace.mic_sync_off")}
+                    </button>
                     {currentEnableSendReceivedMessageToVrc.data === true && (
-                        <span className={styles.output_status} data-ready>
+                        <button
+                            type="button"
+                            className={styles.output_button}
+                            data-active={true}
+                            onClick={toggleEnableSendReceivedMessageToVrc}
+                            title={t("config_page.others.send_received_message_to_vrc.label")}
+                        >
                             {t("main_page.live_workspace.incoming_chatbox_sending")}
-                        </span>
+                        </button>
                     )}
                 </div>
             </section>

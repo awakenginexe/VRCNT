@@ -2,16 +2,11 @@ import styles from "./AboutVrct.module.scss";
 import logoBadge from "@images/vrcnt_logo_badge.png";
 import ExternalLink from "@images/external_link.svg?react";
 import { useI18n } from "@useI18n";
-import { useSoftwareVersion } from "@logics_common";
 import packageInfo from "@root/package.json";
 
 export const AboutVrct = () => {
     const { t } = useI18n();
-    const { currentSoftwareVersion } = useSoftwareVersion();
-    const runtimeVersion = currentSoftwareVersion.data;
-    const version = runtimeVersion && runtimeVersion !== "-"
-        ? runtimeVersion
-        : packageInfo.version;
+    const version = packageInfo.version;
 
     return (
         <div className={styles.container}>

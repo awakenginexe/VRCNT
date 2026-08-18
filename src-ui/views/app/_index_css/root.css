@@ -26,8 +26,8 @@ html, body {
     font-family: var(--font_family); /* If not found the font family where 'root:' that is selected by user*/
     border-radius: 10px; /* fixed by px */
     overflow: hidden;
-    background: var(--bg_radial_gradient);
-    background-color: var(--canvas_color);
+    background: transparent;
+    background-color: transparent;
     scroll-behavior: smooth;
 }
 

@@ -552,12 +552,12 @@ test("the app keeps one inert page boundary beneath the native title bar", () =>
     );
     assert.match(
         contentsSource,
-        /className=\{styles\.pages_wrapper\}\s+inert=\{isBlocking \? "" : undefined\}/,
+        /className=\{styles\.pages_wrapper\}\s+inert=\{isBlocking \|\| isColorResetMigrationRequired \? "" : undefined\}/,
     );
     assert.ok(appBody < pagesWrapper && pagesWrapper < overlayBranch);
     assert.match(
         contentsSource,
-        /<div\s+className=\{styles\.pages_wrapper\}[\s\S]*?<ConfigPage \/>[\s\S]*?<MainPage \/>[\s\S]*?<ModalController \/>[\s\S]*?<UpdatingComponent \/>[\s\S]*?<\/div>\s*\{overlayProps \? \(/,
+        /<div\s+className=\{styles\.pages_wrapper\}[\s\S]*?<ConfigPage \/>[\s\S]*?<MainPage \/>[\s\S]*?<ModalController \/>[\s\S]*?<UpdatingComponent \/>[\s\S]*?<\/div>\s*(?:<ColorResetMigrationGate \/>\s*)?\{overlayProps \? \(/,
     );
     assert.match(
         contentsSource,

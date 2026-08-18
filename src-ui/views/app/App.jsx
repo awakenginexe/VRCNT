@@ -1,4 +1,5 @@
 import { useI18n } from "@useI18n";
+import { useAppearance } from "@logics_configs";
 
 import {
     KeyEventController,
@@ -13,6 +14,7 @@ import {
     CornerRadiusController,
     PerformanceModeController,
     ColorThemeController,
+    BackgroundWallpaperController,
 } from "./_app_controllers";
 
 import styles from "./App.module.scss";
@@ -30,10 +32,14 @@ import {
     SnackbarController,
     AppErrorBoundary,
     BlockingOperationOverlay,
+    ColorResetMigrationGate,
 } from "./others";
 
 import {
     useBlockingOperation,
+    useCustomBackground,
+    isColorResetMigrationRequired as shouldRequireColorResetMigration,
+    useIsBackendReady,
     useIsSoftwareUpdating,
     useWindow,
 } from "@logics_common";
@@ -43,9 +49,25 @@ import { isTauriRuntime } from "@logics_common/tauriRuntime.js";
 export const App = () => {
     const { i18n } = useI18n();
     const isTauri = isTauriRuntime();
+    const { bgImage, blur, dim } = useCustomBackground();
 
     return (
         <div className={styles.container}>
+            <div
+                className={styles.background_layer}
+                style={{
+                    backgroundImage: `url("${bgImage}")`,
+                    filter: `blur(${blur}px)`,
+                }}
+                aria-hidden="true"
+            />
+            <div
+                className={styles.background_overlay}
+                style={{
+                    backgroundColor: `rgba(6, 8, 16, ${dim / 100})`,
+                }}
+                aria-hidden="true"
+            />
             <AppErrorBoundary >
                 <KeyEventController />
                 {isTauri && <StartPythonController />}
@@ -59,6 +81,7 @@ export const App = () => {
                 <CornerRadiusController />
                 <PerformanceModeController />
                 <ColorThemeController />
+                <BackgroundWallpaperController />
                 <DesktopOverlayBridge />
                 <Contents key={i18n.language} />
 
@@ -73,6 +96,13 @@ const Contents = () => {
     const { WindowGeometryController } = useWindow();
     const { currentIsSoftwareUpdating } = useIsSoftwareUpdating();
     const { isBlocking, operation } = useBlockingOperation();
+    const { currentIsBackendReady } = useIsBackendReady();
+    const { currentColorReset590 } = useAppearance();
+    const isColorResetMigrationRequired = shouldRequireColorResetMigration({
+        isTauri: isTauriRuntime(),
+        isBackendReady: currentIsBackendReady.data,
+        flagValue: currentColorReset590.data,
+    });
     const overlayProps = operation === null
         ? null
         : (() => {
@@ -119,7 +149,7 @@ const Contents = () => {
                 <UpdateNotificationController />
                 <div
                     className={styles.pages_wrapper}
-                    inert={isBlocking ? "" : undefined}
+                    inert={isBlocking || isColorResetMigrationRequired ? "" : undefined}
                 >
                     {currentIsSoftwareUpdating.data === false ? (
                         <>
@@ -129,6 +159,7 @@ const Contents = () => {
                         </>
                     ) : <UpdatingComponent />}
                 </div>
+                <ColorResetMigrationGate />
                 {overlayProps ? (
                     <BlockingOperationOverlay
                         open={isBlocking}

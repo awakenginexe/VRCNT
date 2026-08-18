@@ -19,7 +19,6 @@ const NAVIGATION_ITEMS = [
     { id: "translation_models", icon: "🌐", labelKey: "main_page.live_weave.navigation.translation_models" },
     { id: "overlay", icon: "🖼", labelKey: "main_page.live_weave.navigation.overlay", configTab: "vr" },
     { id: "customize", icon: "🎨", labelKey: "main_page.live_weave.navigation.customize" },
-    { id: "history", icon: "📜", labelKey: "main_page.live_weave.navigation.history" },
     { id: "settings", icon: "⚙", labelKey: "main_page.live_weave.navigation.settings", configTab: "appearance" },
 ];
 
@@ -46,11 +45,6 @@ export const LiveWeaveNavigation = () => {
 
         if (item.id === "engines" || item.id === "models" || item.id === "translation_models" || item.id === "overlay" || item.id === "customize") {
             setIsOpenedConfigPage(false);
-            return;
-        }
-
-        if (item.id === "history") {
-            store.log_box_ref?.current?.scrollTo({ top: 0, behavior: "smooth" });
             return;
         }
 

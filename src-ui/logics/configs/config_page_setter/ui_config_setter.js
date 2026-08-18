@@ -202,6 +202,14 @@ export const SETTINGS_ARRAY = [
         logics_template_id: "get_set",
         base_endpoint_name: "app_color_palette",
     },
+    {
+        Category: "Appearance",
+        Base_Name: "ColorReset590",
+        default_value: 0,
+        ui_template_id: "internal",
+        logics_template_id: "get_set",
+        base_endpoint_name: "5_9_0_color_reset",
+    },
 
     // Translation
     // CTranslate2/Whisper weights

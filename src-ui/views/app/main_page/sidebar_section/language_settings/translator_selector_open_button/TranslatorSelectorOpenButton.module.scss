@@ -59,17 +59,34 @@
     width: 100%;
 
     .translator_selector_button {
-        min-height: 4.8rem;
-        padding: 0.8rem 1.1rem;
-        border-radius: 1rem;
-        background: var(--surface_control_color);
+        width: 100%;
+        box-sizing: border-box;
+        min-height: 4.4rem;
+        padding: 0.85rem 1.1rem;
+        border-radius: 0;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        background: rgba(255, 255, 255, 0.025);
+        border: none;
+        border-top: 0.1rem solid rgba(255, 255, 255, 0.06);
+        border-bottom: 0.1rem solid rgba(255, 255, 255, 0.06);
+        border-left: 0.35rem solid rgba(99, 102, 241, 0.6);
+        box-shadow: none;
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.065);
+            border-top-color: rgba(255, 255, 255, 0.06);
+            transform: none;
+        }
     }
 
     .label {
-        font-size: 1.15rem;
+        font-size: 1.12rem;
 
         &:first-child {
-            font-size: 0.95rem;
+            font-size: 0.88rem;
+            color: var(--primary_200_color);
         }
     }
 }
