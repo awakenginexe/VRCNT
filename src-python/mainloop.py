@@ -63,6 +63,7 @@ run_mapping = {
     "selected_translation_engines":"/run/selected_translation_engines",
     "translation_engines":"/run/translation_engines",
 
+    "selected_ctranslate2_weight_type":"/run/selected_ctranslate2_weight_type",
     "selected_translation_compute_type":"/run/selected_translation_compute_type",
     "selected_transcription_compute_type":"/run/selected_transcription_compute_type",
     "selected_transcription_compute_device":"/run/selected_transcription_compute_device",

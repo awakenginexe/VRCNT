@@ -312,9 +312,14 @@ class CTranslate2ReadinessTests(unittest.TestCase):
         self.assertFalse(response["result"]["data"]["tokenizer_valid"])
         load_model.assert_not_called()
 
-    def test_active_translation_rejects_ctranslate2_model_change_without_reload(self):
+    def test_active_translation_ctranslate2_model_change_pauses_reloads_and_resumes(self):
         controller = _controller_for_readiness()
+        controller.run_mapping["selected_ctranslate2_weight_type"] = (
+            "/run/selected_ctranslate2_weight_type"
+        )
+        controller.updateTranslationEngineAndEngineList = Mock()
         previous_weight = "m2m100_418M-ct2-int8"
+        selected_weight = "nllb-200-distilled-1.3B-ct2-int8"
         with (
             patch.multiple(
                 controller_module.config,
@@ -322,19 +327,42 @@ class CTranslate2ReadinessTests(unittest.TestCase):
                 _SELECTED_TAB_NO="1",
                 _SELECTED_TRANSLATION_ENGINES={"1": "CTranslate2"},
                 _CTRANSLATE2_WEIGHT_TYPE=previous_weight,
+                _SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT={
+                    previous_weight: True,
+                    selected_weight: True,
+                },
+                _SELECTABLE_TRANSLATION_ENGINE_STATUS={"CTranslate2": True},
             ),
+            patch.object(
+                model_module.model,
+                "isLoadedCTranslate2Model",
+                side_effect=[True, False],
+            ),
+            patch.object(model_module.model, "unloadTranslatorCTranslate2Model") as unload_model,
             patch.object(model_module.model, "changeTranslatorCTranslate2Model") as load_model,
+            patch.object(model_module.model, "setChangedTranslatorParameters") as mark_changed,
+            patch.object(model_module.model, "checkTranslatorCTranslate2ModelWeight", return_value=True),
+            patch.object(model_module.model, "checkTranslatorCTranslate2ModelTokenizer", return_value=True),
         ):
-            response = controller.setCtranslate2WeightType(
-                "nllb-200-distilled-1.3B-ct2-int8"
-            )
-            self.assertEqual(controller_module.config.CTRANSLATE2_WEIGHT_TYPE, previous_weight)
-            load_model.assert_not_called()
+            response = controller.setCtranslate2WeightType(selected_weight)
+            self.assertEqual(controller_module.config.CTRANSLATE2_WEIGHT_TYPE, selected_weight)
+            self.assertIs(controller_module.config.ENABLE_TRANSLATION, True)
 
-        self.assertEqual(response["status"], 400)
-        self.assertEqual(
-            response["result"]["error_code"],
-            errors_module.ErrorCode.TRANSLATION_MODEL_CHANGE_ACTIVE.value,
+        self.assertEqual(response, {"status": 200, "result": selected_weight})
+        unload_model.assert_called_once_with()
+        load_model.assert_called_once_with()
+        self.assertGreaterEqual(mark_changed.call_count, 2)
+        self.assertIn(
+            call(200, "/run/enable_translation", False),
+            controller.run.call_args_list,
+        )
+        self.assertIn(
+            call(200, "/run/enable_translation", True),
+            controller.run.call_args_list,
+        )
+        self.assertIn(
+            call(200, "/run/selected_ctranslate2_weight_type", selected_weight),
+            controller.run.call_args_list,
         )
 
     def test_enabling_active_local_fallback_returns_readiness_error(self):
@@ -467,15 +495,20 @@ class CTranslate2ReadinessTests(unittest.TestCase):
             self.assertFalse(controller._ctranslate2_available_cache)
             controller.updateTranslationEngineAndEngineList.assert_called_once_with()
 
-    def test_model_selection_publishes_new_readiness_but_rejects_active_change(self):
+    def test_model_selection_publishes_new_readiness_for_active_and_inactive_translation(self):
         previous_weight = "m2m100_418M-ct2-int8"
         selected_weight = "nllb-200-distilled-1.3B-ct2-int8"
         controller = _controller_for_selected_ctranslate2_readiness()
 
+        controller.run_mapping["selected_ctranslate2_weight_type"] = (
+            "/run/selected_ctranslate2_weight_type"
+        )
         with (
             patch.multiple(
                 controller_module.config,
                 _ENABLE_TRANSLATION=True,
+                _SELECTED_TAB_NO="1",
+                _SELECTED_TRANSLATION_ENGINES={"1": "CTranslate2"},
                 _CTRANSLATE2_WEIGHT_TYPE=previous_weight,
                 _SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT={
                     previous_weight: False,
@@ -483,24 +516,26 @@ class CTranslate2ReadinessTests(unittest.TestCase):
                 },
                 _SELECTABLE_TRANSLATION_ENGINE_STATUS={"CTranslate2": False},
             ),
+            patch.object(model_module.model, "isLoadedCTranslate2Model", return_value=False),
+            patch.object(model_module.model, "changeTranslatorCTranslate2Model"),
+            patch.object(model_module.model, "checkTranslatorCTranslate2ModelWeight", return_value=True),
+            patch.object(model_module.model, "checkTranslatorCTranslate2ModelTokenizer", return_value=True),
             patch.object(
                 model_module.model,
                 "setChangedTranslatorParameters",
             ) as mark_changed,
         ):
             active_response = controller.setCtranslate2WeightType(selected_weight)
-            self.assertEqual(active_response["status"], 400)
-            self.assertEqual(
-                active_response["result"]["error_code"],
-                errors_module.ErrorCode.TRANSLATION_MODEL_CHANGE_ACTIVE.value,
-            )
+            self.assertEqual(active_response, {"status": 200, "result": selected_weight})
             self.assertEqual(
                 controller_module.config.CTRANSLATE2_WEIGHT_TYPE,
-                previous_weight,
+                selected_weight,
             )
-            mark_changed.assert_not_called()
-            controller.updateTranslationEngineAndEngineList.assert_not_called()
+            self.assertIs(controller_module.config.ENABLE_TRANSLATION, True)
+            self.assertGreaterEqual(mark_changed.call_count, 2)
+            controller.updateTranslationEngineAndEngineList.assert_called_once_with()
 
+        controller.updateTranslationEngineAndEngineList.reset_mock()
         with (
             patch.multiple(
                 controller_module.config,

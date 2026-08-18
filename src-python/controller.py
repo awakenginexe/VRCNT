@@ -2595,6 +2595,17 @@ class Controller:
         except Exception:
             errorLogging()
 
+    def _publishSelectedCTranslate2WeightType(self, weight_type: str) -> None:
+        endpoint = getattr(self, "run_mapping", {}).get(
+            "selected_ctranslate2_weight_type"
+        )
+        if endpoint is None:
+            return
+        try:
+            self.run(200, endpoint, weight_type)
+        except Exception:
+            errorLogging()
+
     @staticmethod
     def _collapseTranslationProviderSelection(selection):
         providers = boundedTranslationProviderSnapshot(selection)
@@ -2737,6 +2748,41 @@ class Controller:
             data=readiness,
             details=readiness,
         )
+
+    def _restoreCTranslate2WeightType(
+        self,
+        weight_type: str,
+        was_enabled: bool,
+    ) -> bool:
+        """Restore the previous local model and activation state after a failed switch."""
+        if config.ENABLE_TRANSLATION is True:
+            disabled_response = self.setDisableTranslation()
+            self._safeActivationEvent("enable_translation", disabled_response)
+
+        config.CTRANSLATE2_WEIGHT_TYPE = weight_type
+        try:
+            model.setChangedTranslatorParameters(True)
+            self._refreshSelectedCTranslate2Readiness()
+            self.updateTranslationEngineAndEngineList()
+        except Exception:
+            errorLogging()
+
+        restored_enabled = False
+        if was_enabled:
+            try:
+                restore_response = self.setEnableTranslation()
+                restored_enabled = (
+                    restore_response.get("status") == 200
+                    and config.ENABLE_TRANSLATION is True
+                )
+            except Exception:
+                errorLogging()
+            self._safeActivationEvent(
+                "enable_translation",
+                {"status": 200, "result": restored_enabled},
+            )
+        self._publishSelectedCTranslate2WeightType(weight_type)
+        return restored_enabled
 
     def setEnableTranslation(self, *args, **kwargs) -> dict:
         with self._translation_activation_lock:
@@ -4554,30 +4600,44 @@ class Controller:
 
     def setCtranslate2WeightType(self, data, *args, **kwargs) -> dict:
         with self._translation_activation_lock:
-            if config.ENABLE_TRANSLATION is True:
-                return VRCTError.create_error_response(
-                    ErrorCode.TRANSLATION_MODEL_CHANGE_ACTIVE,
-                    data=config.CTRANSLATE2_WEIGHT_TYPE,
-                )
+            requested_value = str(data)
             previous_value = config.CTRANSLATE2_WEIGHT_TYPE
-            config.CTRANSLATE2_WEIGHT_TYPE = str(data)
-            model.setChangedTranslatorParameters(True)
+            if requested_value == previous_value:
+                return {"status": 200, "result": previous_value}
+
+            was_enabled = config.ENABLE_TRANSLATION is True
+            if was_enabled:
+                disabled_response = self.setDisableTranslation()
+                self._safeActivationEvent("enable_translation", disabled_response)
+
+            config.CTRANSLATE2_WEIGHT_TYPE = requested_value
             try:
-                self._refreshActiveCTranslate2Readiness()
-            except Exception as error:
-                config.CTRANSLATE2_WEIGHT_TYPE = previous_value
                 model.setChangedTranslatorParameters(True)
-                try:
-                    self._refreshActiveCTranslate2Readiness()
-                except Exception:
-                    errorLogging()
+                self._refreshSelectedCTranslate2Readiness()
+
+                if was_enabled:
+                    enable_response = self.setEnableTranslation()
+                    if enable_response.get("status") != 200:
+                        self._restoreCTranslate2WeightType(
+                            previous_value,
+                            was_enabled=True,
+                        )
+                        return enable_response
+
+                self.updateTranslationEngineAndEngineList()
+                if was_enabled:
+                    self._safeActivationEvent(
+                        "enable_translation",
+                        {"status": 200, "result": True},
+                    )
+                self._publishSelectedCTranslate2WeightType(requested_value)
+                return {"status": 200, "result": requested_value}
+            except Exception as error:
+                self._restoreCTranslate2WeightType(previous_value, was_enabled)
                 return self._translationActivationError(
                     error,
                     preserve_enabled=True,
                 )
-            self._refreshSelectedCTranslate2Readiness()
-            self.updateTranslationEngineAndEngineList()
-            return {"status":200, "result":config.CTRANSLATE2_WEIGHT_TYPE}
 
     @staticmethod
     def getSelectedTranslationComputeType(*args, **kwargs) -> dict:

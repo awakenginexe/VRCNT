@@ -900,6 +900,7 @@ config_page:
         model_failed: "翻譯模型尚未就緒。請在啟用翻譯之前重新下載。"
         active_model: "活動模型"
         model_active_translation_change: "更改翻譯模型前請先停止翻譯。"
+        model_switching: "正在切換翻譯模型……翻譯會暫停片刻，然後自動恢復。"
 
     model_download_error:
         tokenizer: "Tokenizers 下載失敗。請重試。"

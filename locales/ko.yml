@@ -900,6 +900,7 @@ config_page:
         model_failed: "번역 모델을 사용할 수 없습니다. 번역을 활성화하기 전에 다운로드를 다시 시도하세요."
         active_model: "활성 모델"
         model_active_translation_change: "번역 모델을 변경하기 전에 번역을 중지하세요."
+        model_switching: "번역 모델을 변경하는 중입니다… 번역을 잠시 중지한 뒤 자동으로 다시 시작합니다."
 
     model_download_error:
         tokenizer: "토크나이저 다운로드에 실패했습니다. 다시 시도하세요."

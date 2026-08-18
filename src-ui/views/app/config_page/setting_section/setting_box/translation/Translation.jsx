@@ -30,9 +30,7 @@ import {
 import {
     useDeepSeekConfiguration,
     useLLMConnection,
-    useNotificationStatus,
 } from "@logics_common";
-import { useMainFunction } from "@logics_main";
 import styles from "./CloudTranslationProviders.module.scss";
 
 export const Translation = () => {
@@ -107,17 +105,10 @@ const CTranslate2WeightType_Box = () => {
         currentSelectedCTranslate2WeightType,
         setSelectedCTranslate2WeightType,
     } = useTranslation();
-    const { currentTranslationStatus } = useMainFunction();
-    const { showNotification_Error } = useNotificationStatus();
+    const modelSwitching = currentSelectedCTranslate2WeightType?.state === "pending";
 
     const selectFunction = (id) => {
-        if (currentTranslationStatus?.data === true) {
-            showNotification_Error(
-                t("config_page.translation_models.model_active_translation_change"),
-                { category_id: "TRANSLATION_MODEL_CHANGE_ACTIVE" },
-            );
-            return;
-        }
+        if (modelSwitching) return;
         setSelectedCTranslate2WeightType(id);
     };
 
@@ -137,6 +128,11 @@ const CTranslate2WeightType_Box = () => {
 
     return (
         <>
+            {modelSwitching && (
+                <p className={styles.model_switching_notice} role="status" aria-live="polite" aria-busy="true">
+                    {t("config_page.translation_models.model_switching")}
+                </p>
+            )}
             <DownloadModelsContainer
                 label={t(
                     "config_page.translation.ctranslate2_weight_type.label",

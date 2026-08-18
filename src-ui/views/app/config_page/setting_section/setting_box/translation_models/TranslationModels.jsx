@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useI18n } from "@useI18n";
 import { useTranslation } from "@logics_configs";
-import { useMainFunction } from "@logics_main";
-import { useNotificationStatus, getTranslationModelStatus } from "@logics_common";
+import { getTranslationModelStatus } from "@logics_common";
 import {
     getAllTranslationModels,
     getPresetTranslationModels,
@@ -67,13 +66,14 @@ const ModelCard = ({
     selected,
     status,
     statusLabel,
+    selectionPending,
     onSelect,
     onDownload,
     t,
 }) => {
     const metadata = preset ? getPresetMetadata(preset) : model;
     const isDownloading = status.state === "preparing" || status.state === "downloading";
-    const canDownload = !isDownloading && !status.ready;
+    const canDownload = !selectionPending && !isDownloading && !status.ready;
     const isFailed = status.state === "failed";
 
     return (
@@ -81,6 +81,7 @@ const ModelCard = ({
             className={`${styles.card} ${selected ? styles.card_selected : ""}`}
             data-model-id={model.id}
             data-model-status={status.state}
+            aria-busy={selectionPending}
         >
             <div className={styles.card_header}>
                 <div>
@@ -113,7 +114,7 @@ const ModelCard = ({
                 <button
                     className={styles.select_button}
                     type="button"
-                    disabled={selected}
+                    disabled={selected || selectionPending}
                     onClick={() => onSelect(model.id)}
                 >
                     {selected
@@ -154,8 +155,6 @@ export const TranslationModels = ({
         currentSelectedCTranslate2WeightType,
         setSelectedCTranslate2WeightType,
     } = useTranslation();
-    const { currentTranslationStatus } = useMainFunction();
-    const { showNotification_Error } = useNotificationStatus();
     const [showAdvancedModels, setShowAdvancedModels] = useState(false);
 
     const allModels = currentCTranslate2WeightTypeStatus.data || [];
@@ -164,16 +163,10 @@ export const TranslationModels = ({
     const visibleAdvancedModels = mode === "legacy" ? fullCatalog : [];
     const isPresetMode = mode === "presets";
     const selectedWeightType = currentSelectedCTranslate2WeightType?.data;
-    const translationActive = currentTranslationStatus?.data === true;
+    const isSwitchingModel = currentSelectedCTranslate2WeightType?.state === "pending";
 
     const selectModel = (weightType) => {
-        if (translationActive) {
-            showNotification_Error(
-                t("config_page.translation_models.model_active_translation_change"),
-                { category_id: "TRANSLATION_MODEL_CHANGE_ACTIVE" },
-            );
-            return;
-        }
+        if (isSwitchingModel) return;
         setSelectedCTranslate2WeightType(weightType);
     };
 
@@ -193,6 +186,7 @@ export const TranslationModels = ({
                 selected={selected}
                 status={status}
                 statusLabel={statusCopy(t, status, preset)}
+                selectionPending={isSwitchingModel}
                 onSelect={selectModel}
                 onDownload={downloadModel}
                 t={t}
@@ -202,17 +196,30 @@ export const TranslationModels = ({
 
     return (
         <div className={styles.container}>
-            {(showDescription || translationActive) && (
+            {(showDescription || isSwitchingModel) && (
                 <div className={styles.intro}>
                     {showDescription && (
                         <p className={styles.description}>
                             {t("config_page.translation_models.description")}
                         </p>
                     )}
-                    {translationActive && (
-                        <p className={styles.active_notice} role="status">
-                            {t("config_page.translation_models.model_active_translation_change")}
-                        </p>
+                    {isSwitchingModel && (
+                        <div
+                            className={styles.active_notice}
+                            role="status"
+                            aria-live="polite"
+                            aria-busy="true"
+                        >
+                            <span>{t("config_page.translation_models.model_switching")}</span>
+                            <div
+                                className={`${styles.progress_track} ${styles.progress_indeterminate}`}
+                                role="progressbar"
+                                aria-label={t("config_page.translation_models.model_switching")}
+                                aria-busy="true"
+                            >
+                                <span className={styles.progress_fill} />
+                            </div>
+                        </div>
                     )}
                 </div>
             )}

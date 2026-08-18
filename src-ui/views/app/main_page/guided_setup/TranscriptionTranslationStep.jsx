@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { useI18n } from "@useI18n";
-import { useLanguageSettings, useMainFunction } from "@logics_main";
+import { useLanguageSettings } from "@logics_main";
 import { useTranscription, useTranslation } from "@logics_configs";
-import { getTranslationModelStatus, useNotificationStatus } from "@logics_common";
+import { getTranslationModelStatus } from "@logics_common";
 import { getPresetTranslationModels } from "@logics_common/translationModelCatalog.js";
 import { CustomModernSelect } from "@common_components";
 import {
@@ -270,7 +270,6 @@ export const TranscriptionTranslationStep = () => {
     const { t } = useI18n();
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [defaultAuthRequired, setDefaultAuthRequired] = useState(false);
-    const { showNotification_Error } = useNotificationStatus();
     const {
         currentSelectedPresetTabNumber,
         currentTranslationEngines,
@@ -301,7 +300,6 @@ export const TranscriptionTranslationStep = () => {
         setSelectedCTranslate2WeightType,
         currentGroqAuthKey,
     } = useTranslation();
-    const { currentTranslationStatus } = useMainFunction();
 
     const presetKey = currentSelectedPresetTabNumber.data ?? "1";
     const currentProvider = selectedProviderValue(
@@ -349,7 +347,7 @@ export const TranscriptionTranslationStep = () => {
     const selectedOfflineModel = selectedSetupOfflineModel.model;
     const downloadTargetModelId = selectedSetupOfflineModel.downloadTargetModelId;
     const selectedOfflineStatus = getTranslationModelStatus(selectedOfflineModel);
-    const translationActive = currentTranslationStatus?.data === true;
+    const modelSwitching = currentSelectedCTranslate2WeightType?.state === "pending";
     const modelBusy = selectedOfflineStatus.state === "preparing" || selectedOfflineStatus.state === "downloading";
     const engineValue = currentTranscriptionProfileSend.data?.engine ?? "";
     const emptyLabel = t("main_page.engines_workspace.loading_options");
@@ -373,25 +371,11 @@ export const TranscriptionTranslationStep = () => {
     const selectOfflinePreset = (presetId) => {
         const option = offlineOptions.find((item) => item.id === presetId);
         if (!option?.modelId) return;
-        if (translationActive) {
-            showNotification_Error(
-                t("config_page.translation_models.model_active_translation_change"),
-                { category_id: "TRANSLATION_MODEL_CHANGE_ACTIVE" },
-            );
-            return;
-        }
         setSelectedCTranslate2WeightType(option.modelId);
     };
 
     const selectAdvancedOfflineModel = (modelId) => {
         if (!modelId) return;
-        if (translationActive) {
-            showNotification_Error(
-                t("config_page.translation_models.model_active_translation_change"),
-                { category_id: "TRANSLATION_MODEL_CHANGE_ACTIVE" },
-            );
-            return;
-        }
         setSelectedCTranslate2WeightType(modelId);
     };
 
@@ -503,9 +487,9 @@ export const TranscriptionTranslationStep = () => {
                             </button>
                         )}
                     </div>
-                    {translationActive && (
-                        <p className={styles.notice} role="status">
-                            {t("config_page.translation_models.model_active_translation_change")}
+                    {modelSwitching && (
+                        <p className={styles.notice} role="status" aria-live="polite" aria-busy="true">
+                            {t("config_page.translation_models.model_switching")}
                         </p>
                     )}
                 </div>

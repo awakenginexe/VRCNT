@@ -913,14 +913,29 @@ class MainFunctionActivationTests(unittest.TestCase):
         self.assertEqual(response, {"status": 200, "result": "2"})
         self.assertTrue(loaded)
 
-    def test_active_fallback_weight_change_is_rejected_without_reload(self):
+    def test_active_fallback_weight_change_pauses_reloads_and_resumes(self):
         controller = _controller_for_activation()
         parameter_changed = False
+        loaded = True
         loads = []
+
+        controller.run_mapping["selected_ctranslate2_weight_type"] = (
+            "/run/selected_ctranslate2_weight_type"
+        )
+        controller.updateTranslationEngineAndEngineList = Mock()
 
         def set_parameter_changed(value):
             nonlocal parameter_changed
             parameter_changed = value
+
+        def unload_model():
+            nonlocal loaded
+            loaded = False
+
+        def load_model():
+            nonlocal loaded
+            loaded = True
+            loads.append("loaded")
 
         with (
             patch.multiple(
@@ -934,7 +949,7 @@ class MainFunctionActivationTests(unittest.TestCase):
             patch.object(
                 model_module.model,
                 "isLoadedCTranslate2Model",
-                return_value=True,
+                side_effect=lambda: loaded,
             ),
             patch.object(
                 model_module.model,
@@ -948,18 +963,28 @@ class MainFunctionActivationTests(unittest.TestCase):
             ),
             patch.object(
                 model_module.model,
-                "changeTranslatorCTranslate2Model",
-                side_effect=lambda: loads.append("loaded"),
+                "unloadTranslatorCTranslate2Model",
+                side_effect=unload_model,
             ),
+            patch.object(
+                model_module.model,
+                "changeTranslatorCTranslate2Model",
+                side_effect=load_model,
+            ),
+            patch.object(model_module.model, "checkTranslatorCTranslate2ModelWeight", return_value=True),
+            patch.object(model_module.model, "checkTranslatorCTranslate2ModelTokenizer", return_value=True),
         ):
             response = controller.setCtranslate2WeightType(
                 "nllb-200-distilled-1.3B-ct2-int8"
             )
-            self.assertEqual(controller_module.config.CTRANSLATE2_WEIGHT_TYPE, "m2m100_418M-ct2-int8")
+            self.assertEqual(
+                controller_module.config.CTRANSLATE2_WEIGHT_TYPE,
+                "nllb-200-distilled-1.3B-ct2-int8",
+            )
 
-        self.assertEqual(response["status"], 400)
-        self.assertEqual(response["result"]["error_code"], "TRANSLATION_MODEL_CHANGE_ACTIVE")
-        self.assertEqual(loads, [])
+        self.assertEqual(response["status"], 200)
+        self.assertEqual(loads, ["loaded"])
+        self.assertTrue(loaded)
         self.assertFalse(parameter_changed)
 
     def test_active_fallback_device_change_reloads_before_returning(self):

@@ -26,6 +26,6 @@ export const getTranslationModelStatus = (model = {}) => {
     return { state, progress, ready, failed };
 };
 
-export const canSelectTranslationModel = (translationActive) => (
-    translationActive !== true
+export const canSelectTranslationModel = (_translationActive, selectionPending = false) => (
+    selectionPending !== true
 );

@@ -37,7 +37,8 @@ test("ready requires a verified weight and tokenizer", () => {
     );
 });
 
-test("active translation blocks model selection", () => {
-    assert.equal(canSelectTranslationModel(true), false);
+test("active translation can pause while a model selection is applied", () => {
+    assert.equal(canSelectTranslationModel(true), true);
     assert.equal(canSelectTranslationModel(false), true);
+    assert.equal(canSelectTranslationModel(true, true), false);
 });

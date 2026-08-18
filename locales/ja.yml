@@ -900,6 +900,7 @@ config_page:
         model_failed: "翻訳モデルの準備ができていません。ダウンロードを再試行してください。"
         active_model: "現在のモデル"
         model_active_translation_change: "翻訳モデルを変更する前に翻訳を停止してください。"
+        model_switching: "翻訳モデルを切り替えています… 翻訳を一時停止して自動的に再開します。"
 
     model_download_error:
         tokenizer: "トークナイザーのダウンロードに失敗しました。もう一度お試しください。"

@@ -37,6 +37,15 @@ test("translation cards expose determinate and indeterminate progress bars", () 
     assert.match(styles, /prefers-reduced-motion/);
 });
 
+test("active translation model changes show a pending switch instead of being blocked", () => {
+    const source = readSource("../TranslationModels.jsx");
+
+    assert.match(source, /currentSelectedCTranslate2WeightType\?\.state === ["']pending["']/);
+    assert.match(source, /model_switching/);
+    assert.match(source, /aria-live=["']polite["']/);
+    assert.doesNotMatch(source, /if \(translationActive\)/);
+});
+
 test("preset cards collapse from two columns in a narrow model workspace container", () => {
     const styles = readSource("../TranslationModels.module.scss");
 

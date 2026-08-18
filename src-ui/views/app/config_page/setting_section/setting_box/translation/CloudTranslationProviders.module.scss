@@ -12,6 +12,16 @@
     --settings-template-gap: 1rem;
 }
 
+.model_switching_notice {
+    margin: 0 0 1rem;
+    padding: 0.8rem 1rem;
+    border-left: 0.3rem solid var(--warning_color);
+    background: rgba(var(--accent_color_rgb), 0.08);
+    color: var(--dark_200_color);
+    font-size: 1.15rem;
+    line-height: 1.45;
+}
+
 @container model-provider-workspace (max-width: 72rem) {
     .provider_grid {
         grid-template-columns: minmax(0, 1fr);

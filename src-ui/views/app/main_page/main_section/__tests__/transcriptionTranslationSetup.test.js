@@ -262,7 +262,8 @@ test("Transcription and Translation setup step uses the existing runtime contrac
         assert.match(step, new RegExp(label));
     }
 
-    assert.match(step, /TRANSLATION_MODEL_CHANGE_ACTIVE/);
+    assert.match(step, /modelSwitching/);
+    assert.match(step, /model_switching/);
     assert.match(step, /downloadCTranslate2WeightTypeStatus/);
     assert.match(step, /downloadTargetModelId/);
     assert.match(step, /setSelectedCTranslate2WeightType/);

@@ -900,6 +900,7 @@ config_page:
         model_failed: "Translation model is not ready. Retry the download before enabling Translation."
         active_model: "Active Model"
         model_active_translation_change: "Stop Translation before changing the translation model."
+        model_switching: "Changing the translation model… Translation will pause briefly and resume automatically."
 
     model_download_error:
         tokenizer: "Tokenizer download failed. Please try again."
