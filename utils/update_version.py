@@ -86,6 +86,13 @@ def update_versions():
         ]
     )
 
+    replace_in_file(
+        os.path.join(root, "src-ui", "logics", "store.js"),
+        [
+            (r'(createAtomWithHook\(")[^"]+(", "SoftwareVersion"\))', rf'\g<1>{version}\g<2>', 1)
+        ]
+    )
+
     nsis_release_base = (
         f"https://github.com/{release_config.github_owner}/{release_config.github_repo}/releases/download/v${{VERSION}}"
         if not release_config.has_placeholders else ""

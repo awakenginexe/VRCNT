@@ -161,6 +161,19 @@ export const _useBackendErrorHandling = () => {
                 updateTranscriptionReceiveStatus(data);
                 showNotification_Error(message, { category_id: error_code });
                 return;
+            case "TRANSCRIPTION_MODEL_NOT_READY":
+                const sourceLabel = data?.source === "speaker"
+                    ? t("main_page.transcription_receive")
+                    : t("main_page.transcription_send");
+                showNotification_Error(
+                    t("common_error.transcription_model_not_ready", {
+                        engine: data?.engine,
+                        model: data?.weight_type,
+                        source: sourceLabel,
+                    }),
+                    { category_id: error_code },
+                );
+                return;
 
             // ============================================================================
             // ウェイトダウンロード関連エラー (WEIGHT_*)
