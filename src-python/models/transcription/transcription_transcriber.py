@@ -136,7 +136,12 @@ class AudioTranscriber:
         self.transcript_changed_event = Event()
         self.audio_recognizer = Recognizer()
         self.audio_recognizer.operation_timeout = GOOGLE_RECOGNITION_TIMEOUT_SECONDS
-        self.transcription_engine = "Google"
+        self.transcription_engine = (
+            transcription_engine
+            if transcription_engine
+            in ("Whisper", "Whisper Thai", "Vosk", "Parakeet", "SenseVoice")
+            else "Google"
+        )
         self.vosk_recognizer = None
         self.parakeet_model = None
         self.sensevoice_model = None

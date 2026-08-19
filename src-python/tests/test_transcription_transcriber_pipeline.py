@@ -9,7 +9,7 @@ from dataclasses import FrozenInstanceError, fields
 from datetime import datetime, timedelta, timezone
 from threading import Barrier, Event, Lock, Thread
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -532,6 +532,50 @@ class TranscriberPipelineTests(unittest.TestCase):
                 )
 
                 self.assertEqual(transcriber.transcription_engine, engine)
+
+    def test_missing_explicit_vosk_parakeet_and_sensevoice_stay_local(self):
+        cases = (
+            ("Vosk", "vosk-model", "_getVoskHelpers", "vosk_weight_type"),
+            (
+                "Parakeet",
+                "parakeet-model",
+                "_getParakeetHelpers",
+                "parakeet_weight_type",
+            ),
+            (
+                "SenseVoice",
+                "sensevoice-model",
+                "_getSenseVoiceHelpers",
+                "sensevoice_weight_type",
+            ),
+        )
+
+        for engine, weight_type, helper_name, weight_argument in cases:
+            with self.subTest(engine=engine):
+                loader = Mock()
+                check = Mock(return_value=False)
+                with patch.object(
+                    transcriber_module,
+                    helper_name,
+                    return_value=(
+                        loader,
+                        check,
+                    ),
+                ) as helpers:
+                    transcriber = AudioTranscriber(
+                        speaker=False,
+                        source=FakeSource(),
+                        phrase_timeout=3,
+                        max_phrases=10,
+                        transcription_engine=engine,
+                        root="unused-root",
+                        **{weight_argument: weight_type},
+                    )
+
+                self.assertEqual(transcriber.transcription_engine, engine)
+                helpers.assert_called_once_with()
+                check.assert_called_once_with("unused-root", weight_type)
+                loader.assert_not_called()
 
     def test_balanced_profile_uses_beam_two_and_filters_segments(self):
         lease = FakeLease()

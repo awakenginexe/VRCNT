@@ -3493,14 +3493,31 @@ class Controller:
     def getSelectedMicHost(*args, **kwargs) -> dict:
         return {"status":200, "result":config.SELECTED_MIC_HOST}
 
+    def _startTranscriptionAfterDeviceChange(
+        self,
+        source: PipelineSource,
+        start: Callable[[], None],
+    ) -> Optional[dict]:
+        readiness_error = self._transcriptionModelReadinessError(source)
+        if readiness_error is not None:
+            return readiness_error
+        start()
+        return None
+
     def setSelectedMicHost(self, data, *args, **kwargs) -> dict:
         config.SELECTED_MIC_HOST = data
         config.SELECTED_MIC_DEVICE = model.getMicDefaultDevice()
+        response = {"status":200, "result":config.SELECTED_MIC_HOST}
         if config.ENABLE_CHECK_ENERGY_SEND is True:
             self.stopThreadingCheckMicEnergy()
-            self.startThreadingTranscriptionSendMessage()
+            readiness_error = self._startTranscriptionAfterDeviceChange(
+                PipelineSource.MIC,
+                self.startThreadingTranscriptionSendMessage,
+            )
+            if readiness_error is not None:
+                response = readiness_error
         self.run(200, self.run_mapping["selected_mic_device"], config.SELECTED_MIC_DEVICE)
-        return {"status":200, "result":config.SELECTED_MIC_HOST}
+        return response
 
     @staticmethod
     def getSelectedMicDevice(*args, **kwargs) -> dict:
@@ -3508,10 +3525,16 @@ class Controller:
 
     def setSelectedMicDevice(self, data, *args, **kwargs) -> dict:
         config.SELECTED_MIC_DEVICE = data
+        response = {"status":200, "result": config.SELECTED_MIC_DEVICE}
         if config.ENABLE_CHECK_ENERGY_SEND is True:
             self.stopThreadingCheckMicEnergy()
-            self.startThreadingTranscriptionSendMessage()
-        return {"status":200, "result": config.SELECTED_MIC_DEVICE}
+            readiness_error = self._startTranscriptionAfterDeviceChange(
+                PipelineSource.MIC,
+                self.startThreadingTranscriptionSendMessage,
+            )
+            if readiness_error is not None:
+                response = readiness_error
+        return response
 
     @staticmethod
     def getMicThreshold(*args, **kwargs) -> dict:
@@ -3679,10 +3702,16 @@ class Controller:
 
     def setSelectedSpeakerDevice(self, data, *args, **kwargs) -> dict:
         config.SELECTED_SPEAKER_DEVICE = data
+        response = {"status":200, "result":config.SELECTED_SPEAKER_DEVICE}
         if config.ENABLE_CHECK_ENERGY_RECEIVE is True:
             self.stopThreadingCheckSpeakerEnergy()
-            self.startThreadingTranscriptionReceiveMessage()
-        return {"status":200, "result":config.SELECTED_SPEAKER_DEVICE}
+            readiness_error = self._startTranscriptionAfterDeviceChange(
+                PipelineSource.SPEAKER,
+                self.startThreadingTranscriptionReceiveMessage,
+            )
+            if readiness_error is not None:
+                response = readiness_error
+        return response
 
     @staticmethod
     def getSpeakerThreshold(*args, **kwargs) -> dict:
