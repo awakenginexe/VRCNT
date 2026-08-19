@@ -159,11 +159,8 @@
 }
 
 .dropdown_panel {
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 0;
+    position: fixed;
     width: 100%;
-    min-width: 280px;
     max-height: min(360px, 48vh);
     background: rgba(14, 18, 34, 0.96);
     backdrop-filter: blur(32px) saturate(200%);
@@ -175,12 +172,8 @@
         0 24px 60px rgba(0, 0, 0, 0.7);
     z-index: 10000;
     overflow: hidden;
+    box-sizing: border-box;
     animation: fadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-
-    .open_upward & {
-        top: auto;
-        bottom: calc(100% + 6px);
-    }
 }
 
 .options_scroll_area {
@@ -386,15 +379,16 @@
         }
     }
 
-    .dropdown_panel {
-        width: 380px;
-        background: rgba(15, 16, 24, 0.96);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        border: 1px solid rgba(155, 109, 255, 0.3);
-        border-radius: 12px;
-        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(155, 109, 255, 0.12);
-    }
+}
+
+.dropdown_panel[data-variant="model"] {
+    width: 380px;
+    background: rgba(15, 16, 24, 0.96);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(155, 109, 255, 0.3);
+    border-radius: 12px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(155, 109, 255, 0.12);
 
     .option_row {
         padding: 12px 14px;
