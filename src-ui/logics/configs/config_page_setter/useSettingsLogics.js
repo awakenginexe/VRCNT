@@ -220,6 +220,7 @@ export const useSettingsLogics = (settingsArray, Category) => {
                             ? {
                                 ...item,
                                 is_pending: true,
+                                is_cancelling: false,
                                 progress: null,
                                 download_failed: false,
                                 download_error: null,
@@ -236,6 +237,7 @@ export const useSettingsLogics = (settingsArray, Category) => {
                                 ...item,
                                 is_downloaded: true,
                                 is_pending: false,
+                                is_cancelling: false,
                                 download_failed: false,
                                 tokenizer_valid: true,
                                 progress: null,
@@ -254,6 +256,7 @@ export const useSettingsLogics = (settingsArray, Category) => {
                                 ...item,
                                 is_downloaded: false,
                                 is_pending: false,
+                                is_cancelling: false,
                                 download_failed: true,
                                 tokenizer_valid: false,
                                 progress: null,
@@ -263,8 +266,46 @@ export const useSettingsLogics = (settingsArray, Category) => {
                 });
             };
 
+            result[`cancelRequested${base}`] = (id) => {
+                update((old_status) => {
+                    return old_status.data.map((item) =>
+                        id === item.id
+                            ? {
+                                ...item,
+                                is_pending: true,
+                                is_cancelling: true,
+                            }
+                            : item
+                    );
+                });
+            };
+            result[`downloadCancelled${base}`] = (id) => {
+                if (typeof id !== "string") return;
+
+                update((old_status) => {
+                    return old_status.data.map((item) =>
+                        id === item.id
+                            ? {
+                                ...item,
+                                is_pending: false,
+                                is_cancelling: false,
+                                progress: null,
+                                download_failed: false,
+                                download_error: null,
+                            }
+                            : item
+                    );
+                });
+            };
+            result[`cancelled${base}`] = result[`downloadCancelled${base}`];
+
             result[`download${base}`] = (weight_type) => {
+                result[`pending${base}`](weight_type);
                 asyncStdoutToPython(`/run/download_${s.base_endpoint_name}`, weight_type);
+            };
+            result[`cancelDownload${base}`] = (weight_type) => {
+                result[`cancelRequested${base}`](weight_type);
+                asyncStdoutToPython(`/run/cancel_${s.base_endpoint_name}`, weight_type);
             };
 
             continue;

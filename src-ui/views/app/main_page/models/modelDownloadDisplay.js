@@ -7,6 +7,7 @@ export const getDownloadProgress = (status) => {
 export const getModelDownloadState = (status = {}) => {
     const normalizedStatus = status ?? {};
     if (normalizedStatus.downloadable === false) return "unavailable";
+    if (normalizedStatus.is_cancelling === true) return "cancelling";
     if (normalizedStatus.download_failed === true) return "failed";
     if (normalizedStatus.is_downloaded === true) return "installed";
     if (normalizedStatus.is_pending === true) {

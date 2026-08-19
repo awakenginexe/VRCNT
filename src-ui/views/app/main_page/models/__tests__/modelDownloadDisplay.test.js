@@ -21,6 +21,14 @@ test("pending without progress is preparing, not zero percent", () => {
     assert.equal(getModelDownloadState({ is_pending: true, progress: null }), "preparing");
 });
 
+test("cancellation settling takes precedence over download progress", () => {
+    assert.equal(getModelDownloadState({
+        is_pending: true,
+        is_cancelling: true,
+        progress: 0.4,
+    }), "cancelling");
+});
+
 test("numeric progress preserves zero and clamps bounds", () => {
     assert.equal(getDownloadProgress({ is_pending: true, progress: 0 }), 0);
     assert.equal(getDownloadProgress({ is_pending: true, progress: 42 }), 42);
