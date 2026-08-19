@@ -1,11 +1,57 @@
 import clsx from "clsx";
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import styles from "./TranslatorSelector.module.scss";
 import { useI18n } from "@useI18n";
 
 import { chunkArray } from "@utils";
 import { useStore_IsOpenedTranslatorSelector } from "@store";
 import { useLanguageSettings } from "@logics_main";
+import { useFloatingPanelPosition } from "../../../../../../common_components/floating_panel/useFloatingPanelPosition.js";
+
+const LIVE_PANEL_WIDTH = 448;
+const LIVE_PANEL_GAP = 12;
+const LIVE_PANEL_PADDING = 16;
+
+const toFiniteNumber = (value, fallback) => (
+    Number.isFinite(Number(value)) ? Number(value) : fallback
+);
+
+const getLivePanelStyle = (floatingPanelStyle, anchorRef) => {
+    if (
+        typeof window === "undefined"
+        || !anchorRef?.current
+        || floatingPanelStyle.visibility === "hidden"
+    ) {
+        return { style: floatingPanelStyle, horizontalPlacement: "right" };
+    }
+
+    const anchorRect = anchorRef.current.getBoundingClientRect();
+    const anchorLeft = toFiniteNumber(anchorRect.left, 0);
+    const anchorRight = toFiniteNumber(
+        anchorRect.right,
+        anchorLeft + toFiniteNumber(anchorRect.width, 1),
+    );
+    const width = Math.max(1, toFiniteNumber(floatingPanelStyle.width, LIVE_PANEL_WIDTH));
+    const viewportWidth = Math.max(1, toFiniteNumber(window.innerWidth, 1));
+    const maximumLeft = Math.max(
+        LIVE_PANEL_PADDING,
+        viewportWidth - width - LIVE_PANEL_PADDING,
+    );
+    const rightSideLeft = anchorRight + LIVE_PANEL_GAP;
+    const leftSideLeft = anchorLeft - width - LIVE_PANEL_GAP;
+    const fitsRight = rightSideLeft + width <= viewportWidth - LIVE_PANEL_PADDING;
+    const preferredLeft = fitsRight ? rightSideLeft : leftSideLeft;
+    const left = Math.min(
+        Math.max(preferredLeft, LIVE_PANEL_PADDING),
+        maximumLeft,
+    );
+
+    return {
+        style: { ...floatingPanelStyle, left, right: "auto" },
+        horizontalPlacement: fitsRight ? "right" : "left",
+    };
+};
 
 const normalizeSelectedIds = (selected_ids) => (
     Array.isArray(selected_ids)
@@ -38,16 +84,34 @@ export const TranslatorSelector = ({
     translation_engines,
     is_selected_same_language,
     placement = "settings",
+    anchorRef,
 }) => {
     const { t } = useI18n();
     const columns = chunkArray(translation_engines, 2);
+    const isLivePlacement = placement === "live";
+    const { style: floatingPanelStyle, placement: verticalPlacement } = useFloatingPanelPosition(anchorRef, {
+        open: isLivePlacement,
+        width: LIVE_PANEL_WIDTH,
+        gap: LIVE_PANEL_GAP,
+        padding: LIVE_PANEL_PADDING,
+    });
+    const {
+        style: livePanelStyle,
+        horizontalPlacement,
+    } = getLivePanelStyle(floatingPanelStyle, anchorRef);
     const selectedIds = normalizeSelectedIds(selected_ids);
     const primary_id = selectedIds[0] ?? "CTranslate2";
     const secondary_id = selectedIds[1];
     const parallel_enabled = selectedIds.length > 1;
 
-    return (
-        <div className={styles.container} data-placement={placement}>
+    const panel = (
+        <div
+            className={styles.container}
+            data-placement={placement}
+            data-horizontal-placement={isLivePlacement ? horizontalPlacement : undefined}
+            data-vertical-placement={isLivePlacement ? verticalPlacement : undefined}
+            style={isLivePlacement ? livePanelStyle : undefined}
+        >
             <div className={styles.relative_container}>
                 <ParallelTranslationControls
                     primary_id={primary_id}
@@ -89,6 +153,10 @@ export const TranslatorSelector = ({
             </div>
         </div>
     );
+
+    return isLivePlacement && typeof document !== "undefined"
+        ? createPortal(panel, document.body)
+        : panel;
 };
 
 const ParallelTranslationControls = ({primary_id, secondary_id, selected_ids, translation_engines}) => {

@@ -33,11 +33,12 @@
 }
 
 .container[data-placement="live"] {
-    right: 0;
-    left: 0;
-    width: 100%;
-    max-width: 100%;
+    position: fixed;
+    width: min(28rem, calc(100vw - 2rem));
+    max-width: calc(100vw - 2rem);
+    max-height: min(42rem, calc(100vh - 2rem));
     box-sizing: border-box;
+    overflow-y: auto;
     box-shadow: 0 0.8rem 1.6rem rgba(0, 0, 0, 0.5);
 
     .parallel_controls {
