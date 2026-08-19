@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -11,6 +12,7 @@ import { getTranscriptionSwitchReadiness } from "../../sidebar_section/main_func
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "../../../../../../");
+const readSource = (relativePath) => readFileSync(new URL(relativePath, import.meta.url), "utf8");
 
 let viteServer;
 let LiveTranscriptionReadinessBadge;
@@ -42,6 +44,44 @@ const TestIcon = ({ className }) => createElement("svg", { className, "aria-hidd
 const renderWithI18n = (element) => renderToStaticMarkup(
     createElement(I18nextProvider, { i18n }, element),
 );
+
+test("Live places the readiness badge before its feature controls", () => {
+    const rail = readSource("../live_control_rail/LiveControlRail.jsx");
+    const badgeIndex = rail.indexOf("<LiveTranscriptionReadinessBadge");
+    const controlsIndex = rail.indexOf("<MainFunctionSwitch");
+
+    assert.ok(badgeIndex >= 0);
+    assert.ok(controlsIndex >= 0);
+    assert.ok(badgeIndex < controlsIndex);
+    assert.match(rail, /<LiveTranscriptionReadinessBadge\s+readiness=\{readiness\}\s*\/>/);
+});
+
+test("Live controls consume the shared readiness helper and all model status atoms", () => {
+    const rail = readSource("../live_control_rail/LiveControlRail.jsx");
+    const switches = readSource("../../sidebar_section/main_function_switch/MainFunctionSwitch.jsx");
+
+    assert.match(rail, /getAggregateTranscriptionReadiness/);
+    assert.match(switches, /getTranscriptionModelReadiness/);
+    for (const name of [
+        "currentWhisperWeightTypeStatus",
+        "currentWhisperThaiWeightTypeStatus",
+        "currentVoskWeightTypeStatus",
+        "currentParakeetWeightTypeStatus",
+        "currentSenseVoiceWeightTypeStatus",
+    ]) {
+        assert.match(switches, new RegExp(name));
+    }
+});
+
+test("Translation keeps its existing tooltip detail while the backend is unavailable", () => {
+    const switches = readSource("../../sidebar_section/main_function_switch/MainFunctionSwitch.jsx");
+    const translationItem = switches.match(
+        /\{\s*switch_id:\s*"translation"([\s\S]*?)\n        \},/,
+    )?.[1] ?? "";
+
+    assert.match(translationItem, /isDisabled:\s*currentIsBackendReady\.data\s*!==\s*true/);
+    assert.doesNotMatch(translationItem, /disabledReason|disabledDetail/);
+});
 
 test.before(async () => {
     viteServer = await createServer({
