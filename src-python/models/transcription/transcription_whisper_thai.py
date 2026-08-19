@@ -10,10 +10,17 @@ from __future__ import annotations
 from copy import deepcopy
 import os
 from os import path as os_path
+from threading import Event
+from typing import Optional
 
 from huggingface_hub import hf_hub_url, list_repo_files
 
 from .transcription_whisper import _isValidWhisperFile, downloadFile
+from .download_control import (
+    DownloadCancelled,
+    raise_if_download_cancelled,
+    remove_incomplete_download,
+)
 
 
 THAI_WHISPER_MODELS = {
@@ -190,76 +197,96 @@ def downloadWhisperThaiWeight(
     weight_type: str,
     callback=None,
     end_callback=None,
+    cancel_event: Optional[Event] = None,
 ) -> bool:
     """Download one explicitly requested Thai model at its catalog revision."""
 
     metadata = getWhisperThaiModelMeta(weight_type)
     model_path = _whisperThaiModelPath(root, weight_type)
     os.makedirs(model_path, exist_ok=True)
-    if not checkWhisperThaiWeight(root, weight_type):
-        required_files = tuple(metadata["required_files"])
-        try:
-            repository_files = list_repo_files(
-                metadata["repository"],
-                revision=metadata["revision"],
-            )
-            filenames = [
-                filename
-                for filename in repository_files
-                if filename in required_files
-            ]
-        except Exception:
-            filenames = list(required_files)
+    try:
+        raise_if_download_cancelled(cancel_event)
+        if not checkWhisperThaiWeight(root, weight_type):
+            required_files = tuple(metadata["required_files"])
+            try:
+                repository_files = list_repo_files(
+                    metadata["repository"],
+                    revision=metadata["revision"],
+                )
+                filenames = [
+                    filename
+                    for filename in repository_files
+                    if filename in required_files
+                ]
+            except Exception:
+                filenames = list(required_files)
 
-        tokenizer_repository = metadata.get("tokenizer_repository")
-        tokenizer_file = metadata.get("tokenizer_file")
-        if tokenizer_repository and tokenizer_file:
-            # The Small CT2 repository is known not to contain its tokenizer.
-            # Keep the fallback path from ever treating a target-repository
-            # tokenizer as authoritative for this assembled package.
-            filenames = [
-                filename
-                for filename in filenames
-                if filename != tokenizer_file
-            ]
+            tokenizer_repository = metadata.get("tokenizer_repository")
+            tokenizer_file = metadata.get("tokenizer_file")
+            if tokenizer_repository and tokenizer_file:
+                # The Small CT2 repository is known not to contain its tokenizer.
+                # Keep the fallback path from ever treating a target-repository
+                # tokenizer as authoritative for this assembled package.
+                filenames = [
+                    filename
+                    for filename in filenames
+                    if filename != tokenizer_file
+                ]
 
-        for filename in filenames:
-            file_path = os_path.join(model_path, filename)
-            if _isValidWhisperFile(file_path, filename):
-                continue
-            url = hf_hub_url(
-                metadata["repository"],
-                filename,
-                revision=metadata["revision"],
-            )
-            downloadFile(
-                url,
-                file_path,
-                func=callback if filename == "model.bin" else None,
-            )
+            for filename in filenames:
+                raise_if_download_cancelled(cancel_event)
+                file_path = os_path.join(model_path, filename)
+                if _isValidWhisperFile(file_path, filename):
+                    continue
+                url = hf_hub_url(
+                    metadata["repository"],
+                    filename,
+                    revision=metadata["revision"],
+                )
+                download_result = downloadFile(
+                    url,
+                    file_path,
+                    func=callback if filename == "model.bin" else None,
+                    cancel_event=cancel_event,
+                )
+                if not download_result:
+                    raise_if_download_cancelled(cancel_event)
 
-        # The approved Small CT2 conversion intentionally does not package a
-        # tokenizer.  Assemble that one missing runtime artifact only from the
-        # pinned BioDataLab source repository; never borrow a normal Whisper
-        # tokenizer or mark the package ready without it.
-        if tokenizer_repository and tokenizer_file:
-            tokenizer_path = os_path.join(model_path, tokenizer_file)
-            if not _isValidWhisperFile(tokenizer_path, tokenizer_file):
-                tokenizer_revision = metadata.get("tokenizer_revision")
-                try:
-                    source_files = list_repo_files(
-                        tokenizer_repository,
-                        revision=tokenizer_revision,
-                    )
-                except Exception:
-                    source_files = (tokenizer_file,)
-                if tokenizer_file in source_files:
-                    url = hf_hub_url(
-                        tokenizer_repository,
-                        tokenizer_file,
-                        revision=tokenizer_revision,
-                    )
-                    downloadFile(url, tokenizer_path)
-    if callable(end_callback):
-        end_callback()
-    return checkWhisperThaiWeight(root, weight_type)
+            # The approved Small CT2 conversion intentionally does not package a
+            # tokenizer.  Assemble that one missing runtime artifact only from the
+            # pinned BioDataLab source repository; never borrow a normal Whisper
+            # tokenizer or mark the package ready without it.
+            if tokenizer_repository and tokenizer_file:
+                raise_if_download_cancelled(cancel_event)
+                tokenizer_path = os_path.join(model_path, tokenizer_file)
+                if not _isValidWhisperFile(tokenizer_path, tokenizer_file):
+                    tokenizer_revision = metadata.get("tokenizer_revision")
+                    try:
+                        source_files = list_repo_files(
+                            tokenizer_repository,
+                            revision=tokenizer_revision,
+                        )
+                    except Exception:
+                        source_files = (tokenizer_file,)
+                    if tokenizer_file in source_files:
+                        url = hf_hub_url(
+                            tokenizer_repository,
+                            tokenizer_file,
+                            revision=tokenizer_revision,
+                        )
+                        downloadFile(
+                            url,
+                            tokenizer_path,
+                            cancel_event=cancel_event,
+                        )
+        raise_if_download_cancelled(cancel_event)
+        return checkWhisperThaiWeight(root, weight_type)
+    except DownloadCancelled:
+        remove_incomplete_download(
+            model_path,
+            checkWhisperThaiWeight(root, weight_type),
+        )
+        return False
+    finally:
+        if callable(end_callback):
+            end_callback()

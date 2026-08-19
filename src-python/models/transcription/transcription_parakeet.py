@@ -7,10 +7,17 @@ only exposes the ONNX conversion that this runtime can actually execute.
 
 from os import path as os_path, makedirs as os_makedirs
 from json import dump as json_dump
+from threading import Event
 from typing import Callable, Optional, Dict, Any, List, Tuple
 import logging
 
 import numpy as np
+
+from .download_control import (
+    DownloadCancelled,
+    raise_if_download_cancelled,
+    remove_incomplete_download,
+)
 
 try:
     import onnx_asr  # type: ignore
@@ -128,34 +135,40 @@ def downloadParakeetWeight(
     weight_type: str,
     callback: Optional[Callable[[float], None]] = None,
     end_callback: Optional[Callable[[], None]] = None,
+    cancel_event: Optional[Event] = None,
 ) -> None:
-    meta = _MODELS.get(weight_type)
-    if meta is None or meta.get("downloadable") is not True or not _ONNX_ASR_AVAILABLE or not _HF_AVAILABLE:
-        if callable(end_callback):
-            end_callback()
-        return
-
     path = _modelDir(root, weight_type)
-    os_makedirs(path, exist_ok=True)
-
-    if checkParakeetWeight(root, weight_type):
-        if callable(end_callback):
-            end_callback()
-        return
-
     try:
+        raise_if_download_cancelled(cancel_event)
+        meta = _MODELS.get(weight_type)
+        if meta is None or meta.get("downloadable") is not True or not _ONNX_ASR_AVAILABLE or not _HF_AVAILABLE:
+            return
+
+        os_makedirs(path, exist_ok=True)
+
+        if checkParakeetWeight(root, weight_type):
+            raise_if_download_cancelled(cancel_event)
+            return
+
         if callable(callback):
             callback(0.05)
+        raise_if_download_cancelled(cancel_event)
         huggingface_hub.snapshot_download(
             repo_id=meta["repo"],
             local_dir=path,
             allow_patterns=meta["files"],
             local_dir_use_symlinks=False,
         )
+        raise_if_download_cancelled(cancel_event)
         if callable(callback):
             callback(1.0)
+        raise_if_download_cancelled(cancel_event)
         with open(_markerPath(root, weight_type), "w", encoding="utf-8") as f:
             json_dump({"repo": meta["repo"], "backend": "onnx-asr", "model": meta["onnx_asr_model"]}, f)
+        raise_if_download_cancelled(cancel_event)
+    except DownloadCancelled:
+        remove_incomplete_download(path, checkParakeetWeight(root, weight_type))
+        return
     except Exception:
         logger.exception("Failed to download Parakeet model: %s", weight_type)
     finally:

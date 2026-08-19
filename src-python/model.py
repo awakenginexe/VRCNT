@@ -850,32 +850,32 @@ class Model:
     def checkTranscriptionWhisperModelWeight(self, weight_type:str):
         return checkWhisperWeight(config.PATH_DATA, weight_type)
 
-    def downloadWhisperModelWeight(self, weight_type, callback=None, end_callback=None):
-        return downloadWhisperWeight(config.PATH_DATA, weight_type, callback, end_callback)
+    def downloadWhisperModelWeight(self, weight_type, callback=None, end_callback=None, cancel_event=None):
+        return downloadWhisperWeight(config.PATH_DATA, weight_type, callback, end_callback, cancel_event)
 
     def checkTranscriptionWhisperThaiModelWeight(self, weight_type: str):
         return checkWhisperThaiWeight(config.PATH_DATA, weight_type)
 
-    def downloadWhisperThaiModelWeight(self, weight_type, callback=None, end_callback=None):
-        return downloadWhisperThaiWeight(config.PATH_DATA, weight_type, callback, end_callback)
+    def downloadWhisperThaiModelWeight(self, weight_type, callback=None, end_callback=None, cancel_event=None):
+        return downloadWhisperThaiWeight(config.PATH_DATA, weight_type, callback, end_callback, cancel_event)
 
     def checkTranscriptionVoskModelWeight(self, weight_type:str):
         return checkVoskWeight(config.PATH_DATA, weight_type)
 
-    def downloadVoskModelWeight(self, weight_type, callback=None, end_callback=None):
-        return downloadVoskWeight(config.PATH_DATA, weight_type, callback, end_callback)
+    def downloadVoskModelWeight(self, weight_type, callback=None, end_callback=None, cancel_event=None):
+        return downloadVoskWeight(config.PATH_DATA, weight_type, callback, end_callback, cancel_event)
 
     def checkTranscriptionParakeetModelWeight(self, weight_type:str):
         return checkParakeetWeight(config.PATH_DATA, weight_type)
 
-    def downloadParakeetModelWeight(self, weight_type, callback=None, end_callback=None):
-        return downloadParakeetWeight(config.PATH_DATA, weight_type, callback, end_callback)
+    def downloadParakeetModelWeight(self, weight_type, callback=None, end_callback=None, cancel_event=None):
+        return downloadParakeetWeight(config.PATH_DATA, weight_type, callback, end_callback, cancel_event)
 
     def checkTranscriptionSenseVoiceModelWeight(self, weight_type:str):
         return checkSenseVoiceWeight(config.PATH_DATA, weight_type)
 
-    def downloadSenseVoiceModelWeight(self, weight_type, callback=None, end_callback=None):
-        return downloadSenseVoiceWeight(config.PATH_DATA, weight_type, callback, end_callback)
+    def downloadSenseVoiceModelWeight(self, weight_type, callback=None, end_callback=None, cancel_event=None):
+        return downloadSenseVoiceWeight(config.PATH_DATA, weight_type, callback, end_callback, cancel_event)
 
     def resetKeywordProcessor(self):
         self.ensure_initialized()
