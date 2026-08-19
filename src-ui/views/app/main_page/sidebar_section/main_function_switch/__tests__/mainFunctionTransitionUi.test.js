@@ -33,6 +33,10 @@ test("the initiating switch exposes a direction-aware transition state", () => {
         source,
         /aria-disabled=\{currentState\.state\s*===\s*["']pending["']\}/,
     );
+    assert.match(
+        source,
+        /disabled=\{isDisabled\s*\|\|\s*currentState\.state\s*===\s*["']pending["']\}/,
+    );
 });
 
 test("pending switch animation is restrained and reduced-motion safe", () => {

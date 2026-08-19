@@ -451,7 +451,7 @@ test("color theme waits for backend readiness before requesting the saved palett
     );
 });
 
-test("main-function switches keep native semantics and pending focus identity", () => {
+test("main-function switches keep native semantics and pending disabled state", () => {
     const source = readSource(switchPath);
     const styles = readSource(switchStylesPath);
 
@@ -509,7 +509,10 @@ test("main-function switches keep native semantics and pending focus identity", 
         buttonOpeningTag,
         /aria-busy=\{currentState\.state\s*===\s*["']pending["']\}/,
     );
-    assert.match(buttonOpeningTag, /\sdisabled=\{isDisabled\}/);
+    assert.match(
+        buttonOpeningTag,
+        /\sdisabled=\{isDisabled\s*\|\|\s*currentState\.state\s*===\s*["']pending["']\}/,
+    );
     assert.match(
         buttonOpeningTag,
         /aria-disabled=\{currentState\.state\s*===\s*["']pending["']\}/,
@@ -518,7 +521,6 @@ test("main-function switches keep native semantics and pending focus identity", 
         source,
         /if\s*\(isDisabled\s*\|\|\s*currentState\.state\s*===\s*["']pending["']\)\s*return/,
     );
-    assert.doesNotMatch(buttonOpeningTag, /\sdisabled=\{[^}\n]*pending/);
     assert.doesNotMatch(buttonOpeningTag, /tabIndex=\{?-1\}?/);
     assert.doesNotMatch(source, /\.blur\(\)/);
 

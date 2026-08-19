@@ -223,7 +223,7 @@ export const SwitchContainer = ({ switchLabel, switch_id, children, currentState
                 data-state={currentState.state === "pending" ? "pending" : currentState.data === true ? "on" : "off"}
                 data-transition={transition}
                 data-function={switch_id}
-                disabled={isDisabled}
+                disabled={isDisabled || currentState.state === "pending"}
                 aria-disabled={currentState.state === "pending"}
                 className={getClassNames(styles.switch_container)}
                 onMouseEnter={onMouseEnter}
