@@ -1,5 +1,6 @@
 from typing import Callable, Any, List, Optional
 from copy import deepcopy
+from contextlib import nullcontext
 from time import monotonic, sleep
 from queue import Empty
 from subprocess import Popen
@@ -1946,11 +1947,12 @@ class Controller:
             return is_weight_valid, is_tokenizer_valid
 
     class DownloadWhisper:
-        def __init__(self, run_mapping:dict, weight_type:str, run:Callable[[int, str, Any], None], cancel_event:Optional[Event] = None) -> None:
+        def __init__(self, run_mapping:dict, weight_type:str, run:Callable[[int, str, Any], None], cancel_event:Optional[Event] = None, cancellation_lock:Optional[Any] = None) -> None:
             self.run_mapping = run_mapping
             self.weight_type = weight_type
             self.run = run
             self.cancel_event = cancel_event
+            self.cancellation_lock = cancellation_lock
 
         def progressBar(self, progress) -> None:
             printLog("Whisper Weight Download Progress", progress)
@@ -1961,41 +1963,43 @@ class Controller:
             )
 
         def downloaded(self) -> None:
-            if self.cancel_event is not None and self.cancel_event.is_set():
-                self.run(
-                    200,
-                    self.run_mapping.get(
-                        "download_cancelled_whisper_weight",
-                        "/run/download_cancelled_whisper_weight",
-                    ),
-                    self.weight_type,
-                )
-                return
-            if model.checkTranscriptionWhisperModelWeight(self.weight_type) is True:
-                config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT[self.weight_type] = True
+            with self.cancellation_lock or nullcontext():
+                if self.cancel_event is not None and self.cancel_event.is_set():
+                    self.run(
+                        200,
+                        self.run_mapping.get(
+                            "download_cancelled_whisper_weight",
+                            "/run/download_cancelled_whisper_weight",
+                        ),
+                        self.weight_type,
+                    )
+                    return
+                if model.checkTranscriptionWhisperModelWeight(self.weight_type) is True:
+                    config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT[self.weight_type] = True
 
-                self.run(
-                    200,
-                    self.run_mapping["downloaded_whisper_weight"],
-                    self.weight_type,
-                )
-            else:
-                error_response = VRCTError.create_error_response(
-                    ErrorCode.WEIGHT_WHISPER_DOWNLOAD,
-                    data=None
-                )
-                self.run(
-                    error_response["status"],
-                    self.run_mapping["error_whisper_weight"],
-                    error_response["result"],
-                )
+                    self.run(
+                        200,
+                        self.run_mapping["downloaded_whisper_weight"],
+                        self.weight_type,
+                    )
+                else:
+                    error_response = VRCTError.create_error_response(
+                        ErrorCode.WEIGHT_WHISPER_DOWNLOAD,
+                        data=None
+                    )
+                    self.run(
+                        error_response["status"],
+                        self.run_mapping["error_whisper_weight"],
+                        error_response["result"],
+                    )
 
     class DownloadWhisperThai:
-        def __init__(self, run_mapping:dict, weight_type:str, run:Callable[[int, str, Any], None], cancel_event:Optional[Event] = None) -> None:
+        def __init__(self, run_mapping:dict, weight_type:str, run:Callable[[int, str, Any], None], cancel_event:Optional[Event] = None, cancellation_lock:Optional[Any] = None) -> None:
             self.run_mapping = run_mapping
             self.weight_type = weight_type
             self.run = run
             self.cancel_event = cancel_event
+            self.cancellation_lock = cancellation_lock
 
         def progressBar(self, progress) -> None:
             printLog("Whisper Thai Weight Download Progress", progress)
@@ -2006,40 +2010,42 @@ class Controller:
             )
 
         def downloaded(self) -> None:
-            if self.cancel_event is not None and self.cancel_event.is_set():
-                self.run(
-                    200,
-                    self.run_mapping.get(
-                        "download_cancelled_whisper_thai_weight",
-                        "/run/download_cancelled_whisper_thai_weight",
-                    ),
-                    self.weight_type,
-                )
-                return
-            if model.checkTranscriptionWhisperThaiModelWeight(self.weight_type) is True:
-                config.SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_DICT[self.weight_type] = True
-                self.run(
-                    200,
-                    self.run_mapping["downloaded_whisper_thai_weight"],
-                    self.weight_type,
-                )
-            else:
-                error_response = VRCTError.create_error_response(
-                    ErrorCode.WEIGHT_WHISPER_DOWNLOAD,
-                    data={"weight_type": self.weight_type, "engine": "Whisper Thai"},
-                )
-                self.run(
-                    error_response["status"],
-                    self.run_mapping["error_whisper_thai_weight"],
-                    error_response["result"],
-                )
+            with self.cancellation_lock or nullcontext():
+                if self.cancel_event is not None and self.cancel_event.is_set():
+                    self.run(
+                        200,
+                        self.run_mapping.get(
+                            "download_cancelled_whisper_thai_weight",
+                            "/run/download_cancelled_whisper_thai_weight",
+                        ),
+                        self.weight_type,
+                    )
+                    return
+                if model.checkTranscriptionWhisperThaiModelWeight(self.weight_type) is True:
+                    config.SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_DICT[self.weight_type] = True
+                    self.run(
+                        200,
+                        self.run_mapping["downloaded_whisper_thai_weight"],
+                        self.weight_type,
+                    )
+                else:
+                    error_response = VRCTError.create_error_response(
+                        ErrorCode.WEIGHT_WHISPER_DOWNLOAD,
+                        data={"weight_type": self.weight_type, "engine": "Whisper Thai"},
+                    )
+                    self.run(
+                        error_response["status"],
+                        self.run_mapping["error_whisper_thai_weight"],
+                        error_response["result"],
+                    )
 
     class DownloadVosk:
-        def __init__(self, run_mapping:dict, weight_type:str, run:Callable[[int, str, Any], None], cancel_event:Optional[Event] = None) -> None:
+        def __init__(self, run_mapping:dict, weight_type:str, run:Callable[[int, str, Any], None], cancel_event:Optional[Event] = None, cancellation_lock:Optional[Any] = None) -> None:
             self.run_mapping = run_mapping
             self.weight_type = weight_type
             self.run = run
             self.cancel_event = cancel_event
+            self.cancellation_lock = cancellation_lock
 
         def progressBar(self, progress) -> None:
             self.run(
@@ -2049,30 +2055,32 @@ class Controller:
             )
 
         def downloaded(self) -> None:
-            if self.cancel_event is not None and self.cancel_event.is_set():
-                self.run(
-                    200,
-                    self.run_mapping.get(
-                        "download_cancelled_vosk_weight",
-                        "/run/download_cancelled_vosk_weight",
-                    ),
-                    self.weight_type,
-                )
-                return
-            if model.checkTranscriptionVoskModelWeight(self.weight_type) is True:
-                config.SELECTABLE_VOSK_WEIGHT_TYPE_DICT[self.weight_type] = True
-                self.run(
-                    200,
-                    self.run_mapping.get("downloaded_vosk_weight", "downloaded_vosk_weight"),
-                    self.weight_type,
-                )
+            with self.cancellation_lock or nullcontext():
+                if self.cancel_event is not None and self.cancel_event.is_set():
+                    self.run(
+                        200,
+                        self.run_mapping.get(
+                            "download_cancelled_vosk_weight",
+                            "/run/download_cancelled_vosk_weight",
+                        ),
+                        self.weight_type,
+                    )
+                    return
+                if model.checkTranscriptionVoskModelWeight(self.weight_type) is True:
+                    config.SELECTABLE_VOSK_WEIGHT_TYPE_DICT[self.weight_type] = True
+                    self.run(
+                        200,
+                        self.run_mapping.get("downloaded_vosk_weight", "downloaded_vosk_weight"),
+                        self.weight_type,
+                    )
 
     class DownloadParakeet:
-        def __init__(self, run_mapping:dict, weight_type:str, run:Callable[[int, str, Any], None], cancel_event:Optional[Event] = None) -> None:
+        def __init__(self, run_mapping:dict, weight_type:str, run:Callable[[int, str, Any], None], cancel_event:Optional[Event] = None, cancellation_lock:Optional[Any] = None) -> None:
             self.run_mapping = run_mapping
             self.weight_type = weight_type
             self.run = run
             self.cancel_event = cancel_event
+            self.cancellation_lock = cancellation_lock
 
         def progressBar(self, progress) -> None:
             self.run(
@@ -2082,30 +2090,32 @@ class Controller:
             )
 
         def downloaded(self) -> None:
-            if self.cancel_event is not None and self.cancel_event.is_set():
-                self.run(
-                    200,
-                    self.run_mapping.get(
-                        "download_cancelled_parakeet_weight",
-                        "/run/download_cancelled_parakeet_weight",
-                    ),
-                    self.weight_type,
-                )
-                return
-            if model.checkTranscriptionParakeetModelWeight(self.weight_type) is True:
-                config.SELECTABLE_PARAKEET_WEIGHT_TYPE_DICT[self.weight_type] = True
-                self.run(
-                    200,
-                    self.run_mapping.get("downloaded_parakeet_weight", "downloaded_parakeet_weight"),
-                    self.weight_type,
-                )
+            with self.cancellation_lock or nullcontext():
+                if self.cancel_event is not None and self.cancel_event.is_set():
+                    self.run(
+                        200,
+                        self.run_mapping.get(
+                            "download_cancelled_parakeet_weight",
+                            "/run/download_cancelled_parakeet_weight",
+                        ),
+                        self.weight_type,
+                    )
+                    return
+                if model.checkTranscriptionParakeetModelWeight(self.weight_type) is True:
+                    config.SELECTABLE_PARAKEET_WEIGHT_TYPE_DICT[self.weight_type] = True
+                    self.run(
+                        200,
+                        self.run_mapping.get("downloaded_parakeet_weight", "downloaded_parakeet_weight"),
+                        self.weight_type,
+                    )
 
     class DownloadSenseVoice:
-        def __init__(self, run_mapping:dict, weight_type:str, run:Callable[[int, str, Any], None], cancel_event:Optional[Event] = None) -> None:
+        def __init__(self, run_mapping:dict, weight_type:str, run:Callable[[int, str, Any], None], cancel_event:Optional[Event] = None, cancellation_lock:Optional[Any] = None) -> None:
             self.run_mapping = run_mapping
             self.weight_type = weight_type
             self.run = run
             self.cancel_event = cancel_event
+            self.cancellation_lock = cancellation_lock
 
         def progressBar(self, progress) -> None:
             self.run(
@@ -2115,33 +2125,34 @@ class Controller:
             )
 
         def downloaded(self) -> None:
-            if self.cancel_event is not None and self.cancel_event.is_set():
-                self.run(
-                    200,
-                    self.run_mapping.get(
-                        "download_cancelled_sensevoice_weight",
-                        "/run/download_cancelled_sensevoice_weight",
-                    ),
-                    self.weight_type,
-                )
-                return
-            if model.checkTranscriptionSenseVoiceModelWeight(self.weight_type) is True:
-                config.SELECTABLE_SENSEVOICE_WEIGHT_TYPE_DICT[self.weight_type] = True
-                self.run(
-                    200,
-                    self.run_mapping.get("downloaded_sensevoice_weight", "downloaded_sensevoice_weight"),
-                    self.weight_type,
-                )
-            else:
-                error_response = VRCTError.create_error_response(
-                    ErrorCode.WEIGHT_SENSEVOICE_DOWNLOAD,
-                    data=None
-                )
-                self.run(
-                    error_response["status"],
-                    self.run_mapping.get("error_sensevoice_weight", "error_sensevoice_weight"),
-                    error_response["result"],
-                )
+            with self.cancellation_lock or nullcontext():
+                if self.cancel_event is not None and self.cancel_event.is_set():
+                    self.run(
+                        200,
+                        self.run_mapping.get(
+                            "download_cancelled_sensevoice_weight",
+                            "/run/download_cancelled_sensevoice_weight",
+                        ),
+                        self.weight_type,
+                    )
+                    return
+                if model.checkTranscriptionSenseVoiceModelWeight(self.weight_type) is True:
+                    config.SELECTABLE_SENSEVOICE_WEIGHT_TYPE_DICT[self.weight_type] = True
+                    self.run(
+                        200,
+                        self.run_mapping.get("downloaded_sensevoice_weight", "downloaded_sensevoice_weight"),
+                        self.weight_type,
+                    )
+                else:
+                    error_response = VRCTError.create_error_response(
+                        ErrorCode.WEIGHT_SENSEVOICE_DOWNLOAD,
+                        data=None
+                    )
+                    self.run(
+                        error_response["status"],
+                        self.run_mapping.get("error_sensevoice_weight", "error_sensevoice_weight"),
+                        error_response["result"],
+                    )
 
     def micMessage(self, result: dict) -> None:
         self._beginTranscriptionTrace(PipelineSource.MIC, result)
@@ -5563,6 +5574,7 @@ class Controller:
             weight_type,
             self.run,
             cancel_event,
+            self._download_cancellation_lock,
         )
         self._startTranscriptionDownload(
             "Whisper",
@@ -5584,6 +5596,7 @@ class Controller:
             weight_type,
             self.run,
             cancel_event,
+            self._download_cancellation_lock,
         )
         self._startTranscriptionDownload(
             "Whisper Thai",
@@ -5600,7 +5613,13 @@ class Controller:
         weight_type = str(data)
         cancel_event = Event()
         self._registerDownloadCancellation("Vosk", weight_type, cancel_event)
-        dl = self.DownloadVosk(self.run_mapping, weight_type, self.run, cancel_event)
+        dl = self.DownloadVosk(
+            self.run_mapping,
+            weight_type,
+            self.run,
+            cancel_event,
+            self._download_cancellation_lock,
+        )
         self._startTranscriptionDownload(
             "Vosk",
             weight_type,
@@ -5616,7 +5635,13 @@ class Controller:
         weight_type = str(data)
         cancel_event = Event()
         self._registerDownloadCancellation("Parakeet", weight_type, cancel_event)
-        dl = self.DownloadParakeet(self.run_mapping, weight_type, self.run, cancel_event)
+        dl = self.DownloadParakeet(
+            self.run_mapping,
+            weight_type,
+            self.run,
+            cancel_event,
+            self._download_cancellation_lock,
+        )
         self._startTranscriptionDownload(
             "Parakeet",
             weight_type,
@@ -5632,7 +5657,13 @@ class Controller:
         weight_type = str(data)
         cancel_event = Event()
         self._registerDownloadCancellation("SenseVoice", weight_type, cancel_event)
-        dl = self.DownloadSenseVoice(self.run_mapping, weight_type, self.run, cancel_event)
+        dl = self.DownloadSenseVoice(
+            self.run_mapping,
+            weight_type,
+            self.run,
+            cancel_event,
+            self._download_cancellation_lock,
+        )
         self._startTranscriptionDownload(
             "SenseVoice",
             weight_type,

@@ -168,6 +168,9 @@ def downloadFile(
         func: optional callback(progress: float) called with a 0.0-1.0 progress
     """
     temp_path = f"{path}.part"
+    target_existed_before_attempt = os_path.exists(path)
+    partial_touched_by_attempt = False
+    target_created_by_attempt = False
     try:
         raise_if_download_cancelled(cancel_event)
         os_makedirs(os_path.dirname(path), exist_ok=True)
@@ -176,6 +179,7 @@ def downloadFile(
             file_size = int(res.headers.get('content-length', 0))
             total_chunk = 0
             with open(temp_path, 'wb') as file:
+                partial_touched_by_attempt = True
                 for chunk in res.iter_content(chunk_size=1024 * 2000):
                     raise_if_download_cancelled(cancel_event)
                     if not chunk:
@@ -191,10 +195,13 @@ def downloadFile(
                 raise IOError(f"Incomplete download for {path}: {total_chunk}/{file_size}")
         raise_if_download_cancelled(cancel_event)
         os_replace(temp_path, path)
+        target_created_by_attempt = not target_existed_before_attempt
         return True
     except DownloadCancelled:
-        remove_incomplete_download(temp_path, False)
-        remove_incomplete_download(path, False)
+        if partial_touched_by_attempt:
+            remove_incomplete_download(temp_path, False)
+        if target_created_by_attempt:
+            remove_incomplete_download(path, False)
         return False
     except Exception:
         errorLogging()
