@@ -26,8 +26,12 @@ globalThis.localStorage = {
 };
 
 const resources = {
-    "main_page.live_workspace.session_ready": "Ready (localized)",
-    "config_page.translation_models.model_not_ready": "Not Ready (localized)",
+    "main_page.live_workspace.transcription_ready": "Ready (live localized)",
+    "main_page.live_workspace.transcription_not_ready": "Not Ready (live localized)",
+    "main_page.live_workspace.transcription_loading": "Loading (live localized)",
+    "main_page.live_workspace.transcription_detail": "Detail: {{source}} / {{engine}} / {{model}}",
+    "main_page.live_workspace.session_ready": "Ready (fallback)",
+    "config_page.translation_models.model_not_ready": "Not Ready (fallback)",
     "main_page.language_panels.loading": "Loading (localized)",
     "main_page.transcription_send": "Speaking (localized)",
     "main_page.transcription_receive": "Listening (localized)",
@@ -83,6 +87,13 @@ test("Translation keeps its existing tooltip detail while the backend is unavail
     assert.doesNotMatch(translationItem, /disabledReason|disabledDetail/);
 });
 
+test("the readiness badge consumes localized loading and detail copy", () => {
+    const badge = readSource("../live_control_rail/LiveTranscriptionReadinessBadge.jsx");
+
+    assert.match(badge, /t\("main_page\.live_workspace\.transcription_loading"/);
+    assert.match(badge, /t\("main_page\.live_workspace\.transcription_detail",\s*\{[\s\S]*source:\s*sourceLabel[\s\S]*engine:\s*item\.engine[\s\S]*model:\s*item\.model/);
+});
+
 test.before(async () => {
     viteServer = await createServer({
         root,
@@ -122,9 +133,9 @@ test("the rendered badge shows Ready and Loading states", () => {
 
     assert.match(readyMarkup, /role="status"/);
     assert.match(readyMarkup, /data-state="ready"/);
-    assert.match(readyMarkup, /Ready \(localized\)/);
+    assert.match(readyMarkup, /Ready \(live localized\)/);
     assert.match(loadingMarkup, /data-state="loading"/);
-    assert.match(loadingMarkup, /Loading \(localized\)/);
+    assert.match(loadingMarkup, /Loading \(live localized\)/);
 });
 
 test("the rendered badge shows localized sources and cloud credential detail", () => {
@@ -139,9 +150,9 @@ test("the rendered badge shows localized sources and cloud credential detail", (
     }));
 
     assert.match(markup, /data-state="not_ready"/);
-    assert.match(markup, /Not Ready \(localized\)/);
-    assert.match(markup, /Speaking \(localized\) · Whisper · tiny/);
-    assert.match(markup, /Listening \(localized\) · Whisper Cloud · whisper-large-v3-turbo: Credential required/);
+    assert.match(markup, /Not Ready \(live localized\)/);
+    assert.match(markup, /Detail: Speaking \(localized\) \/ Whisper \/ tiny/);
+    assert.match(markup, /Detail: Listening \(localized\) \/ Whisper Cloud \/ whisper-large-v3-turbo: Credential required/);
     assert.doesNotMatch(markup, /Whisper Cloud[^<]*Download required/);
 });
 

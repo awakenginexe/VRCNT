@@ -239,6 +239,10 @@ test("transcription model readiness uses localized source-aware backend copy", (
     assert.match(source, /data\?\.source\s*===\s*"speaker"/);
     assert.match(source, /t\("main_page\.transcription_receive"\)/);
     assert.match(source, /t\("main_page\.transcription_send"\)/);
+    const transcriptionCase = source.match(
+        /case "TRANSCRIPTION_MODEL_NOT_READY":[\s\S]*?return;/,
+    )?.[0] ?? "";
+    assert.match(transcriptionCase, /category_id:\s*error_code/);
     assert.match(
         source,
         /default:\s*[\s\S]*showNotification_Error\(`An error occurred\. Please contact the developers and restart VRCNT\./,

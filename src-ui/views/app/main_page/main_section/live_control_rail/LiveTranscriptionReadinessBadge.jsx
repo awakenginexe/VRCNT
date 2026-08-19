@@ -10,7 +10,9 @@ export const LiveTranscriptionReadinessBadge = ({ readiness }) => {
     const notReadyLabel = t("main_page.live_workspace.transcription_not_ready", {
         defaultValue: t("config_page.translation_models.model_not_ready"),
     });
-    const loadingLabel = t("main_page.language_panels.loading");
+    const loadingLabel = t("main_page.live_workspace.transcription_loading", {
+        defaultValue: t("main_page.language_panels.loading"),
+    });
     const presentation = getLiveTranscriptionReadinessPresentation({
         readiness,
         labels: {
@@ -23,11 +25,15 @@ export const LiveTranscriptionReadinessBadge = ({ readiness }) => {
             },
         },
         formatMissingDetail: (item, sourceLabel) => {
-            const model = `${sourceLabel} · ${item.engine} · ${item.model}`;
+            const detail = t("main_page.live_workspace.transcription_detail", {
+                source: sourceLabel,
+                engine: item.engine,
+                model: item.model,
+            });
             if (item.engine === "Whisper Cloud") {
-                return `${model}: ${t("config_page.common.correct_auth_key_required")}`;
+                return `${detail}: ${t("config_page.common.correct_auth_key_required")}`;
             }
-            return t("config_page.common.model_download.detail", { model });
+            return detail;
         },
     });
     return (
