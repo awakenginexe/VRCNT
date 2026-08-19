@@ -3,7 +3,7 @@ import clsx from "clsx";
 import { createPortal } from "react-dom";
 import styles from "./CustomModernSelect.module.scss";
 import { LanguageFlag } from "../../app/main_page/sidebar_section/language_settings/LanguageFlag.jsx";
-import { useFloatingPanelPosition } from "../../app/main_page/main_section/floating_panel/useFloatingPanelPosition.js";
+import { useFloatingPanelPosition } from "../floating_panel/useFloatingPanelPosition.js";
 
 /**
  * CustomModernSelect — Production-grade Dark Glassmorphism Dropdown Selector

@@ -7,10 +7,6 @@
     font-family: var(--font_family);
     box-sizing: border-box;
 
-    &.is_open {
-        z-index: 10000;
-    }
-
     &.is_disabled {
         opacity: 0.6;
         pointer-events: none;

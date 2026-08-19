@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculateFloatingPanelPosition } from "../floating_panel/useFloatingPanelPosition.js";
+import { calculateFloatingPanelPosition } from "../../../../common_components/floating_panel/useFloatingPanelPosition.js";
 
 const viewport = { width: 900, height: 700 };
 const padding = 16;
