@@ -11,6 +11,10 @@ export const translationSelectionUsesCTranslate2 = (transition) => (
     || primaryTranslationProvider(transition?.proposed) === "CTranslate2"
 );
 
+export const isPageBlockingOperation = ({ isBlocking, operation }) => (
+    isBlocking === true && operation?.id === "startup"
+);
+
 const ACTIVATION_OPERATIONS = [
     {
         id: "translation",
@@ -103,11 +107,16 @@ export const getBlockingOperationCandidate = ({
     return null;
 };
 
-export const getMainFunctionPendingCopyKey = (operationId, elapsedMs) => {
+export const getMainFunctionPendingCopyKey = (
+    operationId,
+    elapsedMs,
+    previousState = false,
+) => {
     const phase = elapsedMs >= LONG_OPERATION_MS
         ? "long"
         : elapsedMs >= WARM_OPERATION_MS ? "warm" : "start";
-    return `main_page.main_function_pending.${operationId}_${phase}`;
+    const direction = previousState ? "stop_" : "";
+    return `main_page.main_function_pending.${operationId}_${direction}${phase}`;
 };
 
 export const resolveFailedMainFunction = ({ endpoint, errorCode }) => (

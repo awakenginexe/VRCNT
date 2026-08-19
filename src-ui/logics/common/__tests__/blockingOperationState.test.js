@@ -5,6 +5,7 @@ import {
     BLOCKING_OPERATION_DELAY_MS,
     getBlockingOperationCandidate,
     getMainFunctionPendingCopyKey,
+    isPageBlockingOperation,
     readBooleanBackendResult,
     resolveFailedMainFunction,
     translationSelectionUsesCTranslate2,
@@ -70,6 +71,25 @@ test("startup progress is clamped at zero", () => {
 
 test("backend readiness removes startup immediately", () => {
     assert.equal(getBlockingOperationCandidate(createInput()), null);
+});
+
+test("only a blocking startup operation blocks the page", () => {
+    assert.equal(isPageBlockingOperation({
+        isBlocking: true,
+        operation: { id: "transcription_send" },
+    }), false);
+    assert.equal(isPageBlockingOperation({
+        isBlocking: true,
+        operation: { id: "startup" },
+    }), true);
+    assert.equal(isPageBlockingOperation({
+        isBlocking: false,
+        operation: { id: "startup" },
+    }), false);
+    assert.equal(isPageBlockingOperation({
+        isBlocking: true,
+        operation: null,
+    }), false);
 });
 
 test("a terminal startup error removes blocking even before backend readiness", () => {
@@ -209,6 +229,17 @@ test("pending copy changes at exactly five and thirty seconds", () => {
             `main_page.main_function_pending.${operationId}_long`,
         );
     }
+});
+
+test("pending old-on state uses direction-aware stop copy", () => {
+    assert.match(
+        getMainFunctionPendingCopyKey("translation", 0, true),
+        /translation_stop_start$/,
+    );
+    assert.equal(
+        getMainFunctionPendingCopyKey("translation", 5_000, true),
+        "main_page.main_function_pending.translation_stop_warm",
+    );
 });
 
 test("failed main-function endpoints resolve to their operation", () => {

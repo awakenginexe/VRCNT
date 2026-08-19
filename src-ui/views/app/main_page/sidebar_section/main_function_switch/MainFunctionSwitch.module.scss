@@ -234,6 +234,10 @@
     &.is_pending {
         cursor: progress;
     }
+    &[data-transition="starting"],
+    &[data-transition="stopping"] {
+        animation: main_function_switch_pending_pulse 1.8s ease-in-out infinite;
+    }
     &.is_pending:hover,
     &.is_pending:active {
         transform: none;
@@ -257,6 +261,25 @@
         background: color-mix(in srgb, var(--accent_color) 12%, var(--surface_3_color));
         border-color: rgba(var(--accent_color_rgb), 0.62);
         box-shadow: inset 0 0.1rem 0 rgba(255, 255, 255, 0.045);
+    }
+}
+
+@keyframes main_function_switch_pending_pulse {
+    0%,
+    100% {
+        border-color: rgba(var(--accent_color_rgb), 0.34);
+        background: color-mix(in srgb, var(--accent_color) 7%, var(--surface_2_color));
+    }
+    50% {
+        border-color: rgba(var(--accent_color_rgb), 0.72);
+        background: color-mix(in srgb, var(--accent_color) 14%, var(--surface_3_color));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .switch_container[data-transition="starting"],
+    .switch_container[data-transition="stopping"] {
+        animation: none;
     }
 }
 

@@ -153,6 +153,9 @@ export const SwitchContainer = ({ switchLabel, switch_id, children, currentState
 
     const { currentIsMainPageCompactMode } = useIsMainPageCompactMode();
     const isCompact = forceCompact || currentIsMainPageCompactMode.data;
+    const transition = currentState.state === "pending"
+        ? currentState.data === true ? "stopping" : "starting"
+        : undefined;
 
     const getClassNames = (baseClass) => clsx(baseClass, {
         [styles.is_compact_mode]: isCompact,
@@ -185,7 +188,11 @@ export const SwitchContainer = ({ switchLabel, switch_id, children, currentState
     }, [currentState.state]);
 
     const getPendingMessage = () => t(
-        getMainFunctionPendingCopyKey(switch_id, pending_elapsed_ms),
+        getMainFunctionPendingCopyKey(
+            switch_id,
+            pending_elapsed_ms,
+            currentState.data === true,
+        ),
     );
     const getStatusLabel = () => {
         if (currentState.state === "pending") return getPendingMessage();
@@ -214,6 +221,7 @@ export const SwitchContainer = ({ switchLabel, switch_id, children, currentState
                 aria-checked={currentState.data === true}
                 aria-busy={currentState.state === "pending"}
                 data-state={currentState.state === "pending" ? "pending" : currentState.data === true ? "on" : "off"}
+                data-transition={transition}
                 data-function={switch_id}
                 disabled={isDisabled}
                 aria-disabled={currentState.state === "pending"}
