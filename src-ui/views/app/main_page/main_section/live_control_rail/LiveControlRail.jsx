@@ -1,7 +1,7 @@
 import { useI18n } from "@useI18n";
 import { useIsOscAvailable } from "@logics_common";
 import { useLanguageSettings, useMainFunction } from "@logics_main";
-import { useOthers, useTranscription } from "@logics_configs";
+import { useOthers, useTranscription, useTranslation } from "@logics_configs";
 
 import MicSvg from "@images/mic.svg?react";
 import HeadphonesSvg from "@images/headphones.svg?react";
@@ -12,6 +12,8 @@ import { TranscriptionEngineLabel } from "../../sidebar_section/language_setting
 import { TranslatorSelectorOpenButton } from "../../sidebar_section/language_settings/translator_selector_open_button/TranslatorSelectorOpenButton";
 import { getRecognitionEngineForGroup } from "../../sidebar_section/language_settings/languageRoutingUtils.js";
 import { PipelineStatus } from "../pipeline_status/PipelineStatus";
+import { getAggregateTranscriptionReadiness } from "../../sidebar_section/language_settings/transcriptionRuntimeUtils.js";
+import { LiveTranscriptionReadinessBadge } from "./LiveTranscriptionReadinessBadge";
 import styles from "./LiveControlRail.module.scss";
 
 export const LiveControlRail = () => {
@@ -24,7 +26,15 @@ export const LiveControlRail = () => {
     const {
         currentTranscriptionProfileSend,
         currentTranscriptionProfileReceive,
+        currentWhisperWeightTypeStatus,
+        currentWhisperThaiWeightTypeStatus,
+        currentVoskWeightTypeStatus,
+        currentParakeetWeightTypeStatus,
+        currentSenseVoiceWeightTypeStatus,
+        currentUseSplitGroqApiKey,
+        currentGroqWhisperAuthKey,
     } = useTranscription();
+    const { currentGroqAuthKey } = useTranslation();
     const {
         currentTranscriptionLanguageCapabilities,
         getCurrentYourLanguages,
@@ -43,6 +53,36 @@ export const LiveControlRail = () => {
     } = useOthers();
     const sendProfile = currentTranscriptionProfileSend.data ?? {};
     const receiveProfile = currentTranscriptionProfileReceive.data ?? {};
+    const loadedData = (current) => current?.state === "ok" ? current.data : undefined;
+    const modelStatusesByEngine = {
+        Whisper: loadedData(currentWhisperWeightTypeStatus),
+        "Whisper Thai": loadedData(currentWhisperThaiWeightTypeStatus),
+        Vosk: loadedData(currentVoskWeightTypeStatus),
+        Parakeet: loadedData(currentParakeetWeightTypeStatus),
+        SenseVoice: loadedData(currentSenseVoiceWeightTypeStatus),
+    };
+    const cloudConfigured = currentUseSplitGroqApiKey.state === "pending"
+        || (currentUseSplitGroqApiKey.data === true && currentGroqWhisperAuthKey.state === "pending")
+        || (currentUseSplitGroqApiKey.data !== true && currentGroqAuthKey.state === "pending")
+        ? undefined
+        : currentUseSplitGroqApiKey.data === true
+            ? Boolean(currentGroqWhisperAuthKey.data)
+            : Boolean(currentGroqAuthKey.data);
+    const readiness = getAggregateTranscriptionReadiness({
+        sendProfile: loadedData(currentTranscriptionProfileSend),
+        receiveProfile: loadedData(currentTranscriptionProfileReceive),
+        modelStatusesByEngine,
+        cloudConfigured,
+    });
+    const readinessForBadge = {
+        ...readiness,
+        missing: readiness.missing.map((item) => ({
+            ...item,
+            detail: t("config_page.common.model_download.detail", {
+                model: `${item.source} · ${item.engine} · ${item.model}`,
+            }),
+        })),
+    };
     const speakingEngine = getRecognitionEngineForGroup({
         group: "speaking",
         sendProfile,
@@ -75,6 +115,8 @@ export const LiveControlRail = () => {
                     <h2 className={styles.title}>{t("main_page.live_workspace.session_controls")}</h2>
                 </div>
             </header>
+
+            <LiveTranscriptionReadinessBadge readiness={readinessForBadge} />
 
             <MainFunctionSwitch layout="control_rail" includeForeground={false} />
 

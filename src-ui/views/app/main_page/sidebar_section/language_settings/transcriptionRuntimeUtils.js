@@ -1,3 +1,5 @@
+import { getActiveModel } from "../../engines/transcriptionProfileUi.js";
+
 const DEFAULT_COMPUTE_TYPE_ORDER = [
     "auto",
     "int8",
@@ -21,6 +23,97 @@ const ENGINE_DEVICE_RULES = {
 };
 
 const AUTO_ONLY_ENGINES = new Set(["Google", "Whisper Cloud", "Parakeet", "Vosk", "SenseVoice"]);
+
+const LOCAL_TRANSCRIPTION_ENGINES = new Set([
+    "Whisper",
+    "Whisper Thai",
+    "Vosk",
+    "Parakeet",
+    "SenseVoice",
+]);
+
+const loadingReadiness = (engine = "", model = "") => ({
+    state: "loading",
+    engine,
+    model,
+    reason: "",
+});
+
+const readyReadiness = (engine, model = "") => ({
+    state: "ready",
+    engine,
+    model,
+    reason: "",
+});
+
+export const getTranscriptionModelReadiness = ({
+    profile,
+    modelStatusesByEngine,
+    cloudConfigured,
+} = {}) => {
+    const engine = profile?.engine ?? "";
+    const model = getActiveModel(profile);
+
+    if (!engine || !profile) return loadingReadiness(engine, model);
+    if (engine === "Google") return readyReadiness(engine, model);
+    if (engine === "Whisper Cloud") {
+        if (cloudConfigured === undefined) return loadingReadiness(engine, model);
+        return cloudConfigured === true
+            ? readyReadiness(engine, model)
+            : {
+                state: "not_ready",
+                engine,
+                model,
+                reason: "The Whisper Cloud Groq credential must be configured before transcription can be enabled.",
+            };
+    }
+    if (!LOCAL_TRANSCRIPTION_ENGINES.has(engine) || !model) return loadingReadiness(engine, model);
+
+    const modelStatuses = modelStatusesByEngine?.[engine];
+    if (!Array.isArray(modelStatuses) || modelStatuses.length === 0) return loadingReadiness(engine, model);
+
+    if (modelStatuses.some((status) => status?.id === model && status?.is_downloaded === true)) {
+        return readyReadiness(engine, model);
+    }
+
+    return {
+        state: "not_ready",
+        engine,
+        model,
+        reason: `The selected ${engine} model must be downloaded before transcription can be enabled.`,
+    };
+};
+
+export const getAggregateTranscriptionReadiness = ({
+    sendProfile,
+    receiveProfile,
+    modelStatusesByEngine,
+    cloudConfigured,
+} = {}) => {
+    const sourceReadiness = [
+        ["Speaking", sendProfile],
+        ["Listening", receiveProfile],
+    ].map(([source, profile]) => ({
+        source,
+        ...getTranscriptionModelReadiness({
+            profile,
+            modelStatusesByEngine,
+            cloudConfigured,
+        }),
+    }));
+    const missing = sourceReadiness
+        .filter((readiness) => readiness.state === "not_ready")
+        .map(({ source, engine, model, reason }) => ({ source, engine, model, reason }));
+
+    return {
+        state: missing.length > 0
+            ? "not_ready"
+            : sourceReadiness.some((readiness) => readiness.state === "loading")
+                ? "loading"
+                : "ready",
+        missing,
+    };
+};
 
 export const getAllowedTranscriptionDeviceModes = (engine) => {
     return ENGINE_DEVICE_RULES[engine] ?? ["cpu"];
