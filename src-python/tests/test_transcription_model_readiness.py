@@ -104,6 +104,61 @@ class TranscriptionModelReadinessTests(unittest.TestCase):
                 check.assert_called_once_with(weight_type)
                 start.assert_not_called()
 
+    def test_active_device_restart_skips_missing_local_model_without_starting_thread(self):
+        cases = (
+            (
+                PipelineSource.MIC,
+                "Whisper",
+                "tiny",
+                "checkTranscriptionWhisperModelWeight",
+                "restartAccessMicDevices",
+                "startThreadingTranscriptionSendMessage",
+                "_ENABLE_TRANSCRIPTION_SEND",
+                "_ENABLE_CHECK_ENERGY_SEND",
+            ),
+            (
+                PipelineSource.SPEAKER,
+                "Whisper Thai",
+                "thai-thonburian-small",
+                "checkTranscriptionWhisperThaiModelWeight",
+                "restartAccessSpeakerDevices",
+                "startThreadingTranscriptionReceiveMessage",
+                "_ENABLE_TRANSCRIPTION_RECEIVE",
+                "_ENABLE_CHECK_ENERGY_RECEIVE",
+            ),
+        )
+
+        for (
+            source,
+            engine,
+            weight_type,
+            check_name,
+            restart_name,
+            start_name,
+            enable_name,
+            energy_name,
+        ) in cases:
+            with self.subTest(source=source, engine=engine):
+                with (
+                    patch.object(controller_module.config, enable_name, True),
+                    patch.object(controller_module.config, energy_name, False),
+                    patch.object(
+                        model_module.model,
+                        "_sourceTranscriptionProfile",
+                        return_value=_profile(engine, weight_type),
+                    ),
+                    patch.object(
+                        model_module.model,
+                        check_name,
+                        return_value=False,
+                    ) as check,
+                    patch.object(self.controller, start_name) as start,
+                ):
+                    getattr(self.controller, restart_name)()
+
+                check.assert_called_once_with(weight_type)
+                start.assert_not_called()
+
     def test_installed_local_model_allows_activation(self):
         with (
             patch.object(controller_module.config, "_ENABLE_TRANSCRIPTION_SEND", False),

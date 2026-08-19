@@ -512,6 +512,27 @@ class TranscriberPipelineTests(unittest.TestCase):
 
         helpers.assert_not_called()
 
+    def test_explicit_local_engine_without_runtime_lease_stays_local(self):
+        cases = (
+            ("Whisper", "tiny"),
+            ("Whisper Thai", "thai-thonburian-small"),
+        )
+
+        for engine, weight_type in cases:
+            with self.subTest(engine=engine):
+                transcriber = AudioTranscriber(
+                    speaker=False,
+                    source=FakeSource(),
+                    phrase_timeout=3,
+                    max_phrases=10,
+                    transcription_engine=engine,
+                    root="unused-root",
+                    whisper_weight_type=weight_type,
+                    pipeline_context=make_pipeline_context(None),
+                )
+
+                self.assertEqual(transcriber.transcription_engine, engine)
+
     def test_balanced_profile_uses_beam_two_and_filters_segments(self):
         lease = FakeLease()
         events = []

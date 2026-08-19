@@ -1821,7 +1821,8 @@ class Controller:
 
     def restartAccessMicDevices(self) -> None:
         if config.ENABLE_TRANSCRIPTION_SEND is True:
-            self.startThreadingTranscriptionSendMessage()
+            if self._transcriptionModelReadinessError(PipelineSource.MIC) is None:
+                self.startThreadingTranscriptionSendMessage()
         if config.ENABLE_CHECK_ENERGY_SEND is True:
             model.startCheckMicEnergy(
                 self.progressBarMicEnergy,
@@ -1829,7 +1830,8 @@ class Controller:
 
     def restartAccessSpeakerDevices(self) -> None:
         if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
-            self.startThreadingTranscriptionReceiveMessage()
+            if self._transcriptionModelReadinessError(PipelineSource.SPEAKER) is None:
+                self.startThreadingTranscriptionReceiveMessage()
         if config.ENABLE_CHECK_ENERGY_RECEIVE is True:
             model.startCheckSpeakerEnergy(
                 self.progressBarSpeakerEnergy,
@@ -2488,6 +2490,13 @@ class Controller:
             effective_transcription_profile(target)
             != effective_transcription_profile(current)
         )
+        if runtime_changed and self._isTranscriptionSourceActive(source):
+            readiness_error = self._transcriptionModelReadinessError(
+                source,
+                target,
+            )
+            if readiness_error is not None:
+                return readiness_error
         setattr(config, self._sourceTranscriptionProfileName(source), target)
         self._syncSourceTranscriptionCompatibilityFields(source)
         if source is PipelineSource.MIC:
@@ -2533,6 +2542,14 @@ class Controller:
                 if effective_transcription_profile(current)
                 != effective_transcription_profile(target)
             )
+            for source in changed_sources:
+                if self._isTranscriptionSourceActive(source):
+                    readiness_error = self._transcriptionModelReadinessError(
+                        source,
+                        target,
+                    )
+                    if readiness_error is not None:
+                        return readiness_error
             send_changed = target != current_send
             receive_changed = target != current_receive
             if send_changed:
@@ -5238,22 +5255,43 @@ class Controller:
             status=500,
         )
 
+    def _isTranscriptionSourceActive(self, source: PipelineSource) -> bool:
+        is_active = getattr(model, "isTranscriptionSourceActive", None)
+        if callable(is_active):
+            return bool(is_active(source))
+        return (
+            config.ENABLE_TRANSCRIPTION_SEND is True
+            if source is PipelineSource.MIC
+            else config.ENABLE_TRANSCRIPTION_RECEIVE is True
+        )
+
     @staticmethod
     def _transcriptionModelReadinessError(
         source: PipelineSource,
+        profile: Optional[dict] = None,
     ) -> Optional[dict]:
-        profile = model._sourceTranscriptionProfile(source)
+        if not isinstance(profile, dict):
+            get_profile = getattr(model, "_sourceTranscriptionProfile", None)
+            if not callable(get_profile):
+                return None
+            profile = get_profile(source)
+        if not isinstance(profile, dict):
+            return None
         engine = profile.get("engine", "")
         weight_type = profile.get("models", {}).get(engine, "")
         local_model_checks = {
-            "Whisper": model.checkTranscriptionWhisperModelWeight,
-            "Whisper Thai": model.checkTranscriptionWhisperThaiModelWeight,
-            "Vosk": model.checkTranscriptionVoskModelWeight,
-            "Parakeet": model.checkTranscriptionParakeetModelWeight,
-            "SenseVoice": model.checkTranscriptionSenseVoiceModelWeight,
+            "Whisper": getattr(model, "checkTranscriptionWhisperModelWeight", None),
+            "Whisper Thai": getattr(
+                model,
+                "checkTranscriptionWhisperThaiModelWeight",
+                None,
+            ),
+            "Vosk": getattr(model, "checkTranscriptionVoskModelWeight", None),
+            "Parakeet": getattr(model, "checkTranscriptionParakeetModelWeight", None),
+            "SenseVoice": getattr(model, "checkTranscriptionSenseVoiceModelWeight", None),
         }
         check_model_weight = local_model_checks.get(engine)
-        if check_model_weight is None or check_model_weight(weight_type) is True:
+        if not callable(check_model_weight) or check_model_weight(weight_type) is True:
             return None
         return VRCTError.create_error_response(
             ErrorCode.TRANSCRIPTION_MODEL_NOT_READY,
@@ -5407,6 +5445,10 @@ class Controller:
                 selected.append(
                     (source, self.stopTranscriptionReceiveMessage, self.startTranscriptionReceiveMessage)
                 )
+
+        for source, _stop, _start in selected:
+            if self._transcriptionModelReadinessError(source) is not None:
+                return False
 
         for _source, stop, _start in selected:
             try:

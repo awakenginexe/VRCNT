@@ -176,11 +176,7 @@ class AudioTranscriber:
         elif transcription_engine == "SenseVoice":
             getSenseVoiceModel, checkSenseVoiceWeight = _getSenseVoiceHelpers()
 
-        if (
-            transcription_engine in ("Whisper", "Whisper Thai")
-            and pipeline_context is not None
-            and pipeline_context.whisper_runtime_lease is not None
-        ):
+        if transcription_engine in ("Whisper", "Whisper Thai"):
             self.transcription_engine = transcription_engine
         elif transcription_engine == "Vosk" and vosk_weight_type and checkVoskWeight(root, vosk_weight_type) is True:
             try:
