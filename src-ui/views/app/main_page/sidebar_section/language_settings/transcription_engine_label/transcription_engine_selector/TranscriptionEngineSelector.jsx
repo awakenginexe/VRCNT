@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import styles from "./TranscriptionEngineSelector.module.scss";
 import { chunkArray } from "@utils";
@@ -63,6 +64,13 @@ export const TranscriptionEngineSelector = ({
 }) => {
     const columns = chunkArray(QUICK_TRANSCRIPTION_ENGINE_OPTIONS, 2);
     const isLivePlacement = placement === "live";
+    const panelRef = useRef(null);
+    const closeRequestedRef = useRef(false);
+    const {
+        updateIsOpenedTranscriptionEngineSelector,
+    } = useStore_IsOpenedTranscriptionEngineSelector();
+    const updateCloseRef = useRef(updateIsOpenedTranscriptionEngineSelector);
+    updateCloseRef.current = updateIsOpenedTranscriptionEngineSelector;
     const { style: floatingPanelStyle, placement: verticalPlacement } = useFloatingPanelPosition(anchorRef, {
         open: isLivePlacement,
         width: LIVE_PANEL_WIDTH,
@@ -73,6 +81,56 @@ export const TranscriptionEngineSelector = ({
         style: livePanelStyle,
         horizontalPlacement,
     } = getLivePanelStyle(floatingPanelStyle, anchorRef);
+    const restoreFocus = useCallback(() => {
+        const anchor = anchorRef?.current;
+        if (anchor && typeof anchor.focus === "function") anchor.focus();
+    }, [anchorRef]);
+    const closeLivePanel = useCallback(() => {
+        if (closeRequestedRef.current) return;
+        closeRequestedRef.current = true;
+        updateCloseRef.current(false);
+        restoreFocus();
+    }, [restoreFocus]);
+    const markLivePanelClosed = useCallback(() => {
+        closeRequestedRef.current = true;
+        restoreFocus();
+    }, [restoreFocus]);
+
+    useEffect(() => {
+        if (!isLivePlacement || typeof document === "undefined") return undefined;
+
+        closeRequestedRef.current = false;
+        const isInsideLiveSurface = (event) => {
+            const panel = panelRef.current;
+            const anchor = anchorRef?.current;
+            const eventPath = typeof event.composedPath === "function"
+                ? event.composedPath()
+                : [];
+            return eventPath.includes(panel)
+                || eventPath.includes(anchor)
+                || panel?.contains(event.target)
+                || anchor?.contains(event.target);
+        };
+        const handleKeyDown = (event) => {
+            if (event.key !== "Escape" && event.key !== "Esc") return;
+            event.preventDefault();
+            closeLivePanel();
+        };
+        const handleOutsideInteraction = (event) => {
+            if (!isInsideLiveSurface(event)) closeLivePanel();
+        };
+
+        document.addEventListener("keydown", handleKeyDown, true);
+        document.addEventListener("pointerdown", handleOutsideInteraction, true);
+        document.addEventListener("click", handleOutsideInteraction, true);
+
+        return () => {
+            document.removeEventListener("keydown", handleKeyDown, true);
+            document.removeEventListener("pointerdown", handleOutsideInteraction, true);
+            document.removeEventListener("click", handleOutsideInteraction, true);
+            if (!closeRequestedRef.current) restoreFocus();
+        };
+    }, [anchorRef, closeLivePanel, isLivePlacement, restoreFocus]);
 
     const panel = (
         <div
@@ -80,6 +138,7 @@ export const TranscriptionEngineSelector = ({
             data-placement={placement}
             data-horizontal-placement={isLivePlacement ? horizontalPlacement : undefined}
             data-vertical-placement={isLivePlacement ? verticalPlacement : undefined}
+            ref={isLivePlacement ? panelRef : undefined}
             style={isLivePlacement ? livePanelStyle : undefined}
         >
             <div className={styles.relative_container}>
@@ -94,6 +153,7 @@ export const TranscriptionEngineSelector = ({
                                     is_available={is_available}
                                     is_selected={id === selected_id}
                                     role={role}
+                                    onClose={isLivePlacement ? markLivePanelClosed : undefined}
                                 />
                             ))}
                         </div>
@@ -126,6 +186,10 @@ const EngineBox = (props) => {
         { [styles.is_selected]: props.is_selected },
         { [styles.is_available]: props.is_available }
     );
+    const closeSelector = () => {
+        updateIsOpenedTranscriptionEngineSelector(false);
+        props.onClose?.();
+    };
 
     const selectEngine = () => {
         if (props.is_selected === false) {
@@ -135,7 +199,7 @@ const EngineBox = (props) => {
             if (props.id === "Whisper Cloud" && !hasCloudKey) {
                 updateSelectedConfigTabId("model_and_provider");
                 setIsOpenedConfigPage(true);
-                updateIsOpenedTranscriptionEngineSelector(false);
+                closeSelector();
                 return;
             }
             const setEngine = props.role === "speaking"
@@ -145,7 +209,7 @@ const EngineBox = (props) => {
                     : setSelectedTranscriptionEngine;
             setEngine(props.id);
         }
-        updateIsOpenedTranscriptionEngineSelector(false);
+        closeSelector();
     };
 
     return (

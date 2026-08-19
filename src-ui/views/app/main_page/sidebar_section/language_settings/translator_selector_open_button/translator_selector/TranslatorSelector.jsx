@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import styles from "./TranslatorSelector.module.scss";
 import { useI18n } from "@useI18n";
@@ -89,6 +89,13 @@ export const TranslatorSelector = ({
     const { t } = useI18n();
     const columns = chunkArray(translation_engines, 2);
     const isLivePlacement = placement === "live";
+    const panelRef = useRef(null);
+    const closeRequestedRef = useRef(false);
+    const {
+        updateIsOpenedTranslatorSelector,
+    } = useStore_IsOpenedTranslatorSelector();
+    const updateCloseRef = useRef(updateIsOpenedTranslatorSelector);
+    updateCloseRef.current = updateIsOpenedTranslatorSelector;
     const { style: floatingPanelStyle, placement: verticalPlacement } = useFloatingPanelPosition(anchorRef, {
         open: isLivePlacement,
         width: LIVE_PANEL_WIDTH,
@@ -99,6 +106,56 @@ export const TranslatorSelector = ({
         style: livePanelStyle,
         horizontalPlacement,
     } = getLivePanelStyle(floatingPanelStyle, anchorRef);
+    const restoreFocus = useCallback(() => {
+        const anchor = anchorRef?.current;
+        if (anchor && typeof anchor.focus === "function") anchor.focus();
+    }, [anchorRef]);
+    const closeLivePanel = useCallback(() => {
+        if (closeRequestedRef.current) return;
+        closeRequestedRef.current = true;
+        updateCloseRef.current(false);
+        restoreFocus();
+    }, [restoreFocus]);
+    const markLivePanelClosed = useCallback(() => {
+        closeRequestedRef.current = true;
+        restoreFocus();
+    }, [restoreFocus]);
+
+    useEffect(() => {
+        if (!isLivePlacement || typeof document === "undefined") return undefined;
+
+        closeRequestedRef.current = false;
+        const isInsideLiveSurface = (event) => {
+            const panel = panelRef.current;
+            const anchor = anchorRef?.current;
+            const eventPath = typeof event.composedPath === "function"
+                ? event.composedPath()
+                : [];
+            return eventPath.includes(panel)
+                || eventPath.includes(anchor)
+                || panel?.contains(event.target)
+                || anchor?.contains(event.target);
+        };
+        const handleKeyDown = (event) => {
+            if (event.key !== "Escape" && event.key !== "Esc") return;
+            event.preventDefault();
+            closeLivePanel();
+        };
+        const handleOutsideInteraction = (event) => {
+            if (!isInsideLiveSurface(event)) closeLivePanel();
+        };
+
+        document.addEventListener("keydown", handleKeyDown, true);
+        document.addEventListener("pointerdown", handleOutsideInteraction, true);
+        document.addEventListener("click", handleOutsideInteraction, true);
+
+        return () => {
+            document.removeEventListener("keydown", handleKeyDown, true);
+            document.removeEventListener("pointerdown", handleOutsideInteraction, true);
+            document.removeEventListener("click", handleOutsideInteraction, true);
+            if (!closeRequestedRef.current) restoreFocus();
+        };
+    }, [anchorRef, closeLivePanel, isLivePlacement, restoreFocus]);
     const selectedIds = normalizeSelectedIds(selected_ids);
     const primary_id = selectedIds[0] ?? "CTranslate2";
     const secondary_id = selectedIds[1];
@@ -110,6 +167,7 @@ export const TranslatorSelector = ({
             data-placement={placement}
             data-horizontal-placement={isLivePlacement ? horizontalPlacement : undefined}
             data-vertical-placement={isLivePlacement ? verticalPlacement : undefined}
+            ref={isLivePlacement ? panelRef : undefined}
             style={isLivePlacement ? livePanelStyle : undefined}
         >
             <div className={styles.relative_container}>
@@ -133,6 +191,7 @@ export const TranslatorSelector = ({
                                     is_secondary_selected={parallel_enabled && (id === secondary_id)}
                                     selected_ids={selectedIds}
                                     translation_engines={translation_engines}
+                                    onClose={isLivePlacement ? markLivePanelClosed : undefined}
                                 />
                             ))}
                         </div>
@@ -303,6 +362,7 @@ const TranslatorBox = (props) => {
             setSelectedTranslationEngines(props.id);
         }
         updateIsOpenedTranslatorSelector(false);
+        props.onClose?.();
     };
 
     return (

@@ -476,16 +476,37 @@ const cssModulePlugin = {
             };`,
             "@store": `const state = () => globalThis.__livePlacementStore;
                 export const useStore_IsOpenedTranscriptionEngineSelector = () => ({
-                    updateIsOpenedTranscriptionEngineSelector: (value) => state().engineClose.push(value),
+                    currentIsOpenedTranscriptionEngineSelector: { data: state().engineOpen === true },
+                    updateIsOpenedTranscriptionEngineSelector: (value) => {
+                        state().engineOpen = value;
+                        state().engineClose.push(value);
+                    },
                 });
                 export const useStore_IsOpenedTranslatorSelector = () => ({
-                    updateIsOpenedTranslatorSelector: (value) => state().translatorClose.push(value),
+                    currentIsOpenedTranslatorSelector: { data: state().translatorOpen === true },
+                    updateIsOpenedTranslatorSelector: (value) => {
+                        state().translatorOpen = value;
+                        state().translatorClose.push(value);
+                    },
                 });
                 export const useStore_SelectedConfigTabId = () => ({
                     updateSelectedConfigTabId: (value) => state().configTabs.push(value),
                 });`,
             "@logics_configs": `const state = () => globalThis.__livePlacementStore;
                 export const useTranscription = () => ({
+                    currentTranscriptionProfileSend: { data: { engine: "Whisper", models: { Whisper: "base" } } },
+                    currentTranscriptionProfileReceive: { data: { engine: "Google", models: {} } },
+                    currentSelectableTranscriptionComputeDeviceList: { data: {
+                        cpu: { device: "cpu", compute_types: ["auto"] },
+                    } },
+                    currentSelectedTranscriptionComputeDeviceSend: { data: { device: "cpu" } },
+                    setSelectedTranscriptionComputeDeviceSend: () => {},
+                    currentSelectedTranscriptionComputeDeviceReceive: { data: { device: "cpu" } },
+                    setSelectedTranscriptionComputeDeviceReceive: () => {},
+                    currentSelectedTranscriptionComputeTypeSend: { data: "auto" },
+                    setSelectedTranscriptionComputeTypeSend: () => {},
+                    currentSelectedTranscriptionComputeTypeReceive: { data: "auto" },
+                    setSelectedTranscriptionComputeTypeReceive: () => {},
                     setSelectedTranscriptionEngine: (value) => state().engineSelections.push(["all", value]),
                     setSelectedTranscriptionEngineSend: (value) => state().engineSelections.push(["speaking", value]),
                     setSelectedTranscriptionEngineReceive: (value) => state().engineSelections.push(["listening", value]),
@@ -497,6 +518,12 @@ const cssModulePlugin = {
                 export const useIsOpenedConfigPage = () => ({ setIsOpenedConfigPage: (value) => state().configPage.push(value) });`,
             "@logics_main": `const state = () => globalThis.__livePlacementStore;
                 export const useLanguageSettings = () => ({
+                    currentSelectedPresetTabNumber: { data: 0 },
+                    currentTranslationEngines: { data: [
+                        { id: "Google", label: "Google", is_available: true, is_default: true },
+                        { id: "CTranslate2", label: "CTranslate2", is_available: true, is_default: false },
+                    ] },
+                    currentSelectedTranslationEngines: { data: [["Google"]] },
                     setSelectedTranslationEngines: (value) => state().translationSelections.push(value),
                     currentCTranslate2AutoFallback: { data: false, state: "ok" },
                     getCTranslate2AutoFallback: () => state().fallbackReads.push(true),
@@ -511,6 +538,10 @@ const engineSelectorPath = "/src-ui/views/app/main_page/sidebar_section/language
     + "transcription_engine_label/transcription_engine_selector/TranscriptionEngineSelector.jsx";
 const translatorSelectorPath = "/src-ui/views/app/main_page/sidebar_section/language_settings/"
     + "translator_selector_open_button/translator_selector/TranslatorSelector.jsx";
+const engineLabelPath = "/src-ui/views/app/main_page/sidebar_section/language_settings/"
+    + "transcription_engine_label/TranscriptionEngineLabel.jsx";
+const translatorButtonPath = "/src-ui/views/app/main_page/sidebar_section/language_settings/"
+    + "translator_selector_open_button/TranslatorSelectorOpenButton.jsx";
 const readSource = (relativePath) => readFileSync(new URL(relativePath, import.meta.url), "utf8");
 
 let ReactRuntime;
@@ -518,6 +549,8 @@ let act;
 let createRoot;
 let TranscriptionEngineSelector;
 let TranslatorSelector;
+let TranscriptionEngineLabel;
+let TranslatorSelectorOpenButton;
 let viteServer;
 
 before(async () => {
@@ -535,6 +568,8 @@ before(async () => {
     });
     ({ TranscriptionEngineSelector } = await viteServer.ssrLoadModule(engineSelectorPath));
     ({ TranslatorSelector } = await viteServer.ssrLoadModule(translatorSelectorPath));
+    ({ TranscriptionEngineLabel } = await viteServer.ssrLoadModule(engineLabelPath));
+    ({ TranslatorSelectorOpenButton } = await viteServer.ssrLoadModule(translatorButtonPath));
 });
 
 after(async () => {
@@ -544,6 +579,8 @@ after(async () => {
 
 const resetStore = () => {
     globalThis.__livePlacementStore = {
+        engineOpen: false,
+        translatorOpen: false,
         engineClose: [],
         translatorClose: [],
         engineSelections: [],
@@ -576,6 +613,18 @@ const renderSelector = async (Component, props, anchorRect) => {
     return { container, root, anchor, anchorRef };
 };
 
+const renderComponent = async (Component, props = {}) => {
+    const container = dom.document.createElement("div");
+    dom.document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+        root.render(ReactRuntime.createElement(Component, props));
+    });
+
+    return { container, root };
+};
+
 const unmountSelector = async ({ container, root }) => {
     await act(async () => root.unmount());
     container.remove();
@@ -587,6 +636,7 @@ const dispatch = async (target, event) => {
 
 const click = (target) => dispatch(target, new MiniEvent("click"));
 const livePanel = () => dom.document.querySelector('[data-placement="live"]');
+const listenerCount = (target, type) => target._listeners.get(type)?.length ?? 0;
 const numberStyle = (element, property) => Number.parseFloat(element.style[property]);
 const buttonWithText = (element, text) => element.querySelectorAll("button")
     .find((button) => button.textContent.includes(text));
@@ -675,6 +725,88 @@ test("wires stable live anchors into both selector families while leaving settin
     }
 });
 
+test("runtime parent components pass the matching live anchor refs and keep settings inline", async () => {
+    const renderRole = async (roleIndex, expectedLeft, expectedSelection) => {
+        resetStore();
+        const rendered = await renderComponent(TranscriptionEngineLabel, {
+            variant: "live_compact",
+        });
+        try {
+            const roleButtons = rendered.container.querySelectorAll("button");
+            assert.equal(roleButtons.length, 2, "live label must render Speaking and Listening anchors");
+            roleButtons[0].setBoundingClientRect({
+                top: 100,
+                bottom: 144,
+                left: 80,
+                right: 180,
+                width: 100,
+                height: 44,
+            });
+            roleButtons[1].setBoundingClientRect({
+                top: 300,
+                bottom: 344,
+                left: 300,
+                right: 400,
+                width: 100,
+                height: 44,
+            });
+
+            await click(roleButtons[roleIndex]);
+            const panel = livePanel();
+            assert.ok(panel, "the selected live role must render its selector");
+            assert.equal(panel.parentNode, dom.document.body);
+            assert.equal(numberStyle(panel, "left"), expectedLeft);
+
+            await click(buttonWithText(panel, "Whisper"));
+            assert.deepEqual(globalThis.__livePlacementStore.engineSelections, [expectedSelection]);
+            assert.equal(dom.document.activeElement === roleButtons[roleIndex], true);
+        } finally {
+            await unmountSelector(rendered);
+        }
+    };
+
+    await renderRole(0, 192, ["speaking", "Whisper Cloud"]);
+    await renderRole(1, 412, ["listening", "Whisper Cloud"]);
+
+    resetStore();
+    globalThis.__livePlacementStore.translatorOpen = true;
+    const liveTranslator = await renderComponent(TranslatorSelectorOpenButton, {
+        variant: "live_compact",
+    });
+    try {
+        const translatorButton = liveTranslator.container.querySelector("button");
+        translatorButton.setBoundingClientRect({
+            top: 220,
+            bottom: 264,
+            left: 120,
+            right: 240,
+            width: 120,
+            height: 44,
+        });
+        await dispatch(dom.window, new MiniEvent("resize", { bubbles: false }));
+        const panel = livePanel();
+        assert.ok(panel, "the live translator selector must render from its parent");
+        assert.equal(panel.parentNode, dom.document.body);
+        assert.equal(numberStyle(panel, "left"), 252);
+    } finally {
+        await unmountSelector(liveTranslator);
+    }
+
+    resetStore();
+    globalThis.__livePlacementStore.translatorOpen = true;
+    const settingsTranslator = await renderComponent(TranslatorSelectorOpenButton, {
+        variant: "settings",
+    });
+    try {
+        const panel = settingsTranslator.container.querySelector('[data-placement="settings"]');
+        assert.ok(panel, "the settings translator selector must still render");
+        assert.equal(panel.parentNode !== dom.document.body, true);
+        assert.notEqual(panel.style.position, "fixed");
+    } finally {
+        await unmountSelector(settingsTranslator);
+    }
+});
+
 test("real live engine selector portals to body, clamps on the right, and keeps selection close callbacks", async () => {
     resetStore();
     const rendered = await renderSelector(TranscriptionEngineSelector, engineProps, {
@@ -698,10 +830,69 @@ test("real live engine selector portals to body, clamps on the right, and keeps 
         const cloudOption = buttonWithText(panel, "Whisper");
         assert.ok(cloudOption, "the live engine option must remain a real button");
         assert.equal(cloudOption.getAttribute("type"), "button");
+        rendered.anchor.focus();
         await click(cloudOption);
         assert.deepEqual(globalThis.__livePlacementStore.engineSelections, [["speaking", "Whisper Cloud"]]);
         assert.deepEqual(globalThis.__livePlacementStore.engineClose, [false]);
+        assert.equal(dom.document.activeElement === rendered.anchor, true);
     } finally {
+        await unmountSelector(rendered);
+    }
+});
+
+test("real live engine lifecycle contains panel interactions, closes on Escape, restores focus, and cleans listeners", async () => {
+    resetStore();
+    const rendered = await renderSelector(TranscriptionEngineSelector, engineProps, {
+        top: 120,
+        bottom: 164,
+        left: 80,
+        right: 180,
+        width: 100,
+        height: 44,
+    });
+    try {
+        const panel = livePanel();
+        assert.equal(listenerCount(dom.document, "keydown"), 1);
+        assert.equal(listenerCount(dom.document, "pointerdown"), 1);
+        assert.equal(listenerCount(dom.document, "click"), 1);
+
+        await click(panel.querySelector("div"));
+        assert.deepEqual(globalThis.__livePlacementStore.engineClose, []);
+
+        rendered.anchor.focus();
+        await dispatch(dom.document, new MiniEvent("keydown", {
+            key: "Escape",
+            bubbles: false,
+        }));
+        assert.deepEqual(globalThis.__livePlacementStore.engineClose, [false]);
+        assert.equal(dom.document.activeElement === rendered.anchor, true);
+    } finally {
+        await unmountSelector(rendered);
+    }
+    assert.equal(listenerCount(dom.document, "keydown"), 0);
+    assert.equal(listenerCount(dom.document, "pointerdown"), 0);
+    assert.equal(listenerCount(dom.document, "click"), 0);
+});
+
+test("real live engine closes on outside pointer interaction and restores its anchor focus", async () => {
+    resetStore();
+    const rendered = await renderSelector(TranscriptionEngineSelector, engineProps, {
+        top: 120,
+        bottom: 164,
+        left: 80,
+        right: 180,
+        width: 100,
+        height: 44,
+    });
+    const outside = dom.document.createElement("div");
+    dom.document.body.appendChild(outside);
+    try {
+        rendered.anchor.focus();
+        await dispatch(outside, new MiniEvent("pointerdown"));
+        assert.deepEqual(globalThis.__livePlacementStore.engineClose, [false]);
+        assert.equal(dom.document.activeElement === rendered.anchor, true);
+    } finally {
+        outside.remove();
         await unmountSelector(rendered);
     }
 });
@@ -756,9 +947,68 @@ test("real live translator selector portals to body and keeps selection close ca
         assert.equal(panel.getAttribute("data-horizontal-placement"), "right");
         assert.ok(buttonWithText(panel, "CTranslate2"));
 
+        rendered.anchor.focus();
         await click(buttonWithText(panel, "CTranslate2"));
         assert.deepEqual(globalThis.__livePlacementStore.translationSelections, ["CTranslate2"]);
         assert.deepEqual(globalThis.__livePlacementStore.translatorClose, [false]);
+        assert.equal(dom.document.activeElement === rendered.anchor, true);
+    } finally {
+        await unmountSelector(rendered);
+    }
+});
+
+test("real live translator lifecycle contains the portaled panel, closes on outside click, restores focus, and cleans listeners", async () => {
+    resetStore();
+    const rendered = await renderSelector(TranslatorSelector, translatorProps, {
+        top: 220,
+        bottom: 264,
+        left: 120,
+        right: 240,
+        width: 120,
+        height: 44,
+    });
+    const outside = dom.document.createElement("div");
+    dom.document.body.appendChild(outside);
+    try {
+        const panel = livePanel();
+        assert.equal(listenerCount(dom.document, "keydown"), 1);
+        assert.equal(listenerCount(dom.document, "pointerdown"), 1);
+        assert.equal(listenerCount(dom.document, "click"), 1);
+
+        await click(panel.querySelector("div"));
+        assert.deepEqual(globalThis.__livePlacementStore.translatorClose, []);
+
+        rendered.anchor.focus();
+        await dispatch(outside, new MiniEvent("click"));
+        assert.deepEqual(globalThis.__livePlacementStore.translatorClose, [false]);
+        assert.equal(dom.document.activeElement === rendered.anchor, true);
+    } finally {
+        outside.remove();
+        await unmountSelector(rendered);
+    }
+    assert.equal(listenerCount(dom.document, "keydown"), 0);
+    assert.equal(listenerCount(dom.document, "pointerdown"), 0);
+    assert.equal(listenerCount(dom.document, "click"), 0);
+});
+
+test("real live translator closes on Escape and restores its anchor focus", async () => {
+    resetStore();
+    const rendered = await renderSelector(TranslatorSelector, translatorProps, {
+        top: 220,
+        bottom: 264,
+        left: 120,
+        right: 240,
+        width: 120,
+        height: 44,
+    });
+    try {
+        rendered.anchor.focus();
+        await dispatch(dom.document, new MiniEvent("keydown", {
+            key: "Escape",
+            bubbles: false,
+        }));
+        assert.deepEqual(globalThis.__livePlacementStore.translatorClose, [false]);
+        assert.equal(dom.document.activeElement === rendered.anchor, true);
     } finally {
         await unmountSelector(rendered);
     }
@@ -783,6 +1033,11 @@ test("settings selector placement remains inline instead of portaled", async () 
         assert.ok(panel, "the settings selector must still render");
         assert.equal(panel.parentNode, rendered.container);
         assert.notEqual(panel.style.position, "fixed");
+        const outside = dom.document.createElement("div");
+        dom.document.body.appendChild(outside);
+        await dispatch(outside, new MiniEvent("click"));
+        outside.remove();
+        assert.deepEqual(globalThis.__livePlacementStore.engineClose, []);
     } finally {
         await unmountSelector(rendered);
     }
