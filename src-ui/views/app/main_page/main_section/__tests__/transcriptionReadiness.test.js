@@ -50,7 +50,7 @@ test("aggregate readiness reports the missing Listening model", async () => {
     }), {
         state: "not_ready",
         missing: [{
-            source: "Listening",
+            source: "receive",
             engine: "Whisper",
             model: "tiny",
             reason: "The selected Whisper model must be downloaded before transcription can be enabled.",
@@ -88,6 +88,11 @@ test("Whisper Cloud follows the configured Groq credential", async () => {
     const { getTranscriptionModelReadiness } = await import(utilsUrl);
     const profile = { engine: "Whisper Cloud", models: { "Whisper Cloud": "whisper-large-v3-turbo" } };
 
-    assert.equal(getTranscriptionModelReadiness({ profile, cloudConfigured: false }).state, "not_ready");
+    assert.deepEqual(getTranscriptionModelReadiness({ profile, cloudConfigured: false }), {
+        state: "not_ready",
+        engine: "Whisper Cloud",
+        model: "whisper-large-v3-turbo",
+        reason: "The Whisper Cloud Groq credential must be configured before transcription can be enabled.",
+    });
     assert.equal(getTranscriptionModelReadiness({ profile, cloudConfigured: true }).state, "ready");
 });

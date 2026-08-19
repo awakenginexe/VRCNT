@@ -14,6 +14,7 @@ import {
 import { useIsBackendReady as useCommonIsBackendReady } from "@logics_common";
 import { getMainFunctionPendingCopyKey } from "@logics_common/blockingOperationState.js";
 import { getMainFunctionTooltipMeta } from "./mainFunctionTooltipMeta.js";
+import { getTranscriptionSwitchReadiness } from "./mainFunctionReadinessUi.js";
 import { useTranscription, useTranslation } from "@logics_configs";
 import { getTranscriptionModelReadiness } from "../language_settings/transcriptionRuntimeUtils.js";
 
@@ -67,13 +68,17 @@ export const MainFunctionSwitch = ({ forceCompact = false, layout = "sidebar", i
         cloudConfigured,
     });
     const isBackendReady = currentIsBackendReady.data === true;
-    const getReadinessDetail = (readiness) => readiness.state === "not_ready"
-        ? t("config_page.common.model_download.detail", {
+    const getReadinessSwitchProps = (readiness) => getTranscriptionSwitchReadiness({
+        readiness,
+        isBackendReady,
+        backendWaitingCopy: t("main_page.language_panels.backend_waiting"),
+        localModelCopy: t("config_page.common.model_download.detail", {
             model: `${readiness.engine} · ${readiness.model}`,
-        })
-        : "";
-    const sendReadinessDetail = getReadinessDetail(sendReadiness);
-    const receiveReadinessDetail = getReadinessDetail(receiveReadiness);
+        }),
+        cloudCredentialCopy: `${readiness.engine} · ${readiness.model}: ${t("config_page.common.correct_auth_key_required")}`,
+    });
+    const sendReadinessSwitchProps = getReadinessSwitchProps(sendReadiness);
+    const receiveReadinessSwitchProps = getReadinessSwitchProps(receiveReadiness);
 
 
     const switch_items = [
@@ -84,8 +89,6 @@ export const MainFunctionSwitch = ({ forceCompact = false, layout = "sidebar", i
             currentState: currentTranslationStatus,
             toggleFunction: toggleTranslation,
             isDisabled: currentIsBackendReady.data !== true,
-            disabledReason: !isBackendReady ? t("main_page.language_panels.backend_waiting") : "",
-            disabledDetail: !isBackendReady ? t("main_page.language_panels.backend_waiting") : "",
         },
         {
             switch_id: "transcription_send",
@@ -93,13 +96,9 @@ export const MainFunctionSwitch = ({ forceCompact = false, layout = "sidebar", i
             SvgComponent: MicSvg,
             currentState: currentTranscriptionSendStatus,
             toggleFunction: toggleTranscriptionSend,
-            isDisabled: currentIsBackendReady.data !== true || sendReadiness.state === "not_ready",
-            disabledReason: !isBackendReady
-                ? t("main_page.language_panels.backend_waiting")
-                : sendReadinessDetail,
-            disabledDetail: !isBackendReady
-                ? t("main_page.language_panels.backend_waiting")
-                : sendReadinessDetail,
+            isDisabled: currentIsBackendReady.data !== true || sendReadinessSwitchProps.isDisabled,
+            disabledReason: sendReadinessSwitchProps.disabledReason,
+            disabledDetail: sendReadinessSwitchProps.disabledDetail,
         },
         {
             switch_id: "transcription_receive",
@@ -107,13 +106,9 @@ export const MainFunctionSwitch = ({ forceCompact = false, layout = "sidebar", i
             SvgComponent: HeadphonesSvg,
             currentState: currentTranscriptionReceiveStatus,
             toggleFunction: toggleTranscriptionReceive,
-            isDisabled: currentIsBackendReady.data !== true || receiveReadiness.state === "not_ready",
-            disabledReason: !isBackendReady
-                ? t("main_page.language_panels.backend_waiting")
-                : receiveReadinessDetail,
-            disabledDetail: !isBackendReady
-                ? t("main_page.language_panels.backend_waiting")
-                : receiveReadinessDetail,
+            isDisabled: currentIsBackendReady.data !== true || receiveReadinessSwitchProps.isDisabled,
+            disabledReason: receiveReadinessSwitchProps.disabledReason,
+            disabledDetail: receiveReadinessSwitchProps.disabledDetail,
         },
         {
             switch_id: "foreground",

@@ -74,15 +74,6 @@ export const LiveControlRail = () => {
         modelStatusesByEngine,
         cloudConfigured,
     });
-    const readinessForBadge = {
-        ...readiness,
-        missing: readiness.missing.map((item) => ({
-            ...item,
-            detail: t("config_page.common.model_download.detail", {
-                model: `${item.source} · ${item.engine} · ${item.model}`,
-            }),
-        })),
-    };
     const speakingEngine = getRecognitionEngineForGroup({
         group: "speaking",
         sendProfile,
@@ -116,7 +107,7 @@ export const LiveControlRail = () => {
                 </div>
             </header>
 
-            <LiveTranscriptionReadinessBadge readiness={readinessForBadge} />
+            <LiveTranscriptionReadinessBadge readiness={readiness} />
 
             <MainFunctionSwitch layout="control_rail" includeForeground={false} />
 

@@ -91,8 +91,8 @@ export const getAggregateTranscriptionReadiness = ({
     cloudConfigured,
 } = {}) => {
     const sourceReadiness = [
-        ["Speaking", sendProfile],
-        ["Listening", receiveProfile],
+        ["send", sendProfile],
+        ["receive", receiveProfile],
     ].map(([source, profile]) => ({
         source,
         ...getTranscriptionModelReadiness({
