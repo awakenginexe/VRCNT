@@ -5811,6 +5811,8 @@ class Controller:
                 or self._transcription_shutdown_requested.is_set()
             ):
                 return False
+            if self._transcriptionModelReadinessError(PipelineSource.MIC) is not None:
+                return False
             return self._startTranscriptionSendMessageUnlocked()
 
     def _waitForDeviceAccessOrShutdown(self) -> bool:
@@ -5879,6 +5881,8 @@ class Controller:
                 self._transcription_shutdown_state != "running"
                 or self._transcription_shutdown_requested.is_set()
             ):
+                return False
+            if self._transcriptionModelReadinessError(PipelineSource.SPEAKER) is not None:
                 return False
             return self._startTranscriptionReceiveMessageUnlocked()
 

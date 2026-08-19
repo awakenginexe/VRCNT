@@ -106,6 +106,67 @@ class TranscriptionModelReadinessTests(unittest.TestCase):
                 check.assert_called_once_with(weight_type)
                 start.assert_not_called()
 
+    def test_direct_public_starts_fail_closed_when_local_model_is_missing(self):
+        cases = (
+            (
+                PipelineSource.MIC,
+                "Whisper",
+                "tiny",
+                "checkTranscriptionWhisperModelWeight",
+                "startTranscriptionSendMessage",
+                "_startTranscriptionSendMessageUnlocked",
+                "startMicTranscript",
+            ),
+            (
+                PipelineSource.SPEAKER,
+                "Whisper Thai",
+                "thai-thonburian-small",
+                "checkTranscriptionWhisperThaiModelWeight",
+                "startTranscriptionReceiveMessage",
+                "_startTranscriptionReceiveMessageUnlocked",
+                "startSpeakerTranscript",
+            ),
+        )
+
+        for (
+            source,
+            engine,
+            weight_type,
+            check_name,
+            start_name,
+            unlocked_name,
+            model_start_name,
+        ) in cases:
+            with self.subTest(source=source, engine=engine):
+                with (
+                    patch.object(
+                        model_module.model,
+                        "_sourceTranscriptionProfile",
+                        return_value=_profile(engine, weight_type),
+                    ),
+                    patch.object(
+                        model_module.model,
+                        check_name,
+                        return_value=False,
+                    ) as check,
+                    patch.object(
+                        self.controller,
+                        "_transcriptionModelReadinessError",
+                        wraps=self.controller._transcriptionModelReadinessError,
+                    ) as readiness,
+                    patch.object(self.controller, unlocked_name) as unlocked,
+                    patch.object(model_module.model, "ensureSourcePipeline") as ensure_pipeline,
+                    patch.object(model_module.model, model_start_name) as model_start,
+                ):
+                    result = getattr(self.controller, start_name)()
+
+                self.assertIs(result, False)
+                readiness.assert_called_once_with(source)
+                check.assert_called_once_with(weight_type)
+                unlocked.assert_not_called()
+                ensure_pipeline.assert_not_called()
+                model_start.assert_not_called()
+
     def test_active_device_restart_skips_missing_local_model_without_starting_thread(self):
         cases = (
             (
