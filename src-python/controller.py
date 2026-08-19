@@ -1839,13 +1839,29 @@ class Controller:
 
     def stopAccessMicDevices(self) -> None:
         if config.ENABLE_TRANSCRIPTION_SEND is True:
-            self.stopThreadingTranscriptionSendMessage()
+            readiness_error = self._transcriptionModelReadinessError(PipelineSource.MIC)
+            if readiness_error is None:
+                self.stopThreadingTranscriptionSendMessage()
+            else:
+                self._safeActivationEvent(
+                    "enable_transcription_send",
+                    readiness_error,
+                )
         if config.ENABLE_CHECK_ENERGY_SEND is True:
             model.stopCheckMicEnergy()
 
     def stopAccessSpeakerDevices(self) -> None:
         if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
-            self.stopThreadingTranscriptionReceiveMessage()
+            readiness_error = self._transcriptionModelReadinessError(
+                PipelineSource.SPEAKER
+            )
+            if readiness_error is None:
+                self.stopThreadingTranscriptionReceiveMessage()
+            else:
+                self._safeActivationEvent(
+                    "enable_transcription_receive",
+                    readiness_error,
+                )
         if config.ENABLE_CHECK_ENERGY_RECEIVE is True:
             model.stopCheckSpeakerEnergy()
 
@@ -3510,6 +3526,7 @@ class Controller:
         response = {"status":200, "result":config.SELECTED_MIC_HOST}
         if config.ENABLE_CHECK_ENERGY_SEND is True:
             self.stopThreadingCheckMicEnergy()
+        if config.ENABLE_TRANSCRIPTION_SEND is True:
             readiness_error = self._startTranscriptionAfterDeviceChange(
                 PipelineSource.MIC,
                 self.startThreadingTranscriptionSendMessage,
@@ -3528,6 +3545,7 @@ class Controller:
         response = {"status":200, "result": config.SELECTED_MIC_DEVICE}
         if config.ENABLE_CHECK_ENERGY_SEND is True:
             self.stopThreadingCheckMicEnergy()
+        if config.ENABLE_TRANSCRIPTION_SEND is True:
             readiness_error = self._startTranscriptionAfterDeviceChange(
                 PipelineSource.MIC,
                 self.startThreadingTranscriptionSendMessage,
@@ -3705,6 +3723,7 @@ class Controller:
         response = {"status":200, "result":config.SELECTED_SPEAKER_DEVICE}
         if config.ENABLE_CHECK_ENERGY_RECEIVE is True:
             self.stopThreadingCheckSpeakerEnergy()
+        if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
             readiness_error = self._startTranscriptionAfterDeviceChange(
                 PipelineSource.SPEAKER,
                 self.startThreadingTranscriptionReceiveMessage,
