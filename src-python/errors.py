@@ -41,6 +41,7 @@ class ErrorCode(str, Enum):
     TRANSCRIPTION_SEND_DISABLED_VRAM = "TRANSCRIPTION_SEND_DISABLED_VRAM"
     TRANSCRIPTION_RECEIVE_DISABLED_VRAM = "TRANSCRIPTION_RECEIVE_DISABLED_VRAM"
     TRANSCRIPTION_START_FAILED = "TRANSCRIPTION_START_FAILED"
+    TRANSCRIPTION_MODEL_NOT_READY = "TRANSCRIPTION_MODEL_NOT_READY"
     
     # ============================================================================
     # ウェイトダウンロード関連エラー (WEIGHT_*)
@@ -252,6 +253,12 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
         "message": "",
         "severity": "error",
         "user_action_required": False,
+    },
+    ErrorCode.TRANSCRIPTION_MODEL_NOT_READY: {
+        "category": ErrorCategory.TRANSCRIPTION,
+        "message": "Selected transcription model is not ready",
+        "severity": "warning",
+        "user_action_required": True,
     },
     
     # ウェイトダウンロードエラー

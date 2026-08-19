@@ -53,6 +53,11 @@ def _transcription_model_patches(source, start):
         patch.object(model_module.model, "stopSourcePipeline"),
         patch.object(model_module.model, "stopMicTranscript"),
         patch.object(model_module.model, "stopSpeakerTranscript"),
+        patch.object(
+            model_module.model,
+            "_sourceTranscriptionProfile",
+            return_value={"engine": "Google", "models": {}},
+        ),
     )
 
 
@@ -98,6 +103,7 @@ class MainFunctionActivationTests(unittest.TestCase):
                 patches[3],
                 patches[4],
                 patches[5],
+                patches[6],
             ):
                 thread = threading.Thread(target=lambda: results.append(setter()))
                 thread.start()
@@ -337,6 +343,11 @@ class MainFunctionActivationTests(unittest.TestCase):
                     patch.object(model_module.model, "stopSourcePipeline"),
                     patch.object(model_module.model, "stopMicTranscript"),
                     patch.object(model_module.model, "stopSpeakerTranscript"),
+                    patch.object(
+                        model_module.model,
+                        "_sourceTranscriptionProfile",
+                        return_value={"engine": "Google", "models": {}},
+                    ),
                 ):
                     response = setter()
 
@@ -372,6 +383,11 @@ class MainFunctionActivationTests(unittest.TestCase):
             patch.object(controller, start_name, side_effect=error),
             patch.object(controller, stop_name) as stop,
             patch.object(model_module.model, "detectVRAMError", return_value=(False, None)),
+            patch.object(
+                controller,
+                "_transcriptionModelReadinessError",
+                return_value=None,
+            ),
         ):
             response = setter()
             self._assert_activation_error(response, expected_code)
@@ -437,6 +453,11 @@ class MainFunctionActivationTests(unittest.TestCase):
                 patch.object(controller, start_name, side_effect=ValueError("vram")),
                 patch.object(controller, stop_name),
                 patch.object(model_module.model, "detectVRAMError", return_value=(True, "low vram")),
+                patch.object(
+                    controller,
+                    "_transcriptionModelReadinessError",
+                    return_value=None,
+                ),
             ):
                 response = setter()
                 self._assert_activation_error(response, code)
@@ -449,6 +470,11 @@ class MainFunctionActivationTests(unittest.TestCase):
             patch.object(controller, "startTranscriptionSendMessage", side_effect=RuntimeError("original")),
             patch.object(controller, "stopTranscriptionSendMessage", side_effect=RuntimeError("cleanup")),
             patch.object(model_module.model, "detectVRAMError", return_value=(False, None)),
+            patch.object(
+                controller,
+                "_transcriptionModelReadinessError",
+                return_value=None,
+            ),
         ):
             response = controller.setEnableTranscriptionSend()
         self._assert_activation_error(response, "TRANSCRIPTION_START_FAILED", status=500)

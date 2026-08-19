@@ -5099,9 +5099,39 @@ class Controller:
             status=500,
         )
 
+    @staticmethod
+    def _transcriptionModelReadinessError(
+        source: PipelineSource,
+    ) -> Optional[dict]:
+        profile = model._sourceTranscriptionProfile(source)
+        engine = profile.get("engine", "")
+        weight_type = profile.get("models", {}).get(engine, "")
+        local_model_checks = {
+            "Whisper": model.checkTranscriptionWhisperModelWeight,
+            "Whisper Thai": model.checkTranscriptionWhisperThaiModelWeight,
+            "Vosk": model.checkTranscriptionVoskModelWeight,
+            "Parakeet": model.checkTranscriptionParakeetModelWeight,
+            "SenseVoice": model.checkTranscriptionSenseVoiceModelWeight,
+        }
+        check_model_weight = local_model_checks.get(engine)
+        if check_model_weight is None or check_model_weight(weight_type) is True:
+            return None
+        return VRCTError.create_error_response(
+            ErrorCode.TRANSCRIPTION_MODEL_NOT_READY,
+            data={
+                "source": source.value,
+                "engine": engine,
+                "weight_type": weight_type,
+                "retryable": True,
+            },
+        )
+
     def setEnableTranscriptionSend(self, *args, **kwargs) -> dict:
         if config.ENABLE_TRANSCRIPTION_SEND is True:
             return {"status": 200, "result": True}
+        readiness_error = self._transcriptionModelReadinessError(PipelineSource.MIC)
+        if readiness_error is not None:
+            return readiness_error
         config.ENABLE_TRANSCRIPTION_SEND = True
         try:
             if self.startTranscriptionSendMessage() is not True:
@@ -5127,6 +5157,9 @@ class Controller:
     def setEnableTranscriptionReceive(self, *args, **kwargs) -> dict:
         if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
             return {"status": 200, "result": True}
+        readiness_error = self._transcriptionModelReadinessError(PipelineSource.SPEAKER)
+        if readiness_error is not None:
+            return readiness_error
         config.ENABLE_TRANSCRIPTION_RECEIVE = True
         try:
             if self.startTranscriptionReceiveMessage() is not True:
