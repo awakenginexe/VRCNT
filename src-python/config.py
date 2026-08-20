@@ -172,6 +172,21 @@ CONFIG_KEY_ALIASES = {
     "5_9_0_color_reset": "COLOR_RESET_5_9_0",
 }
 
+
+def _resolve_color_reset_migration_flag(
+    config_file_exists: bool,
+    config_data: Dict[str, Any],
+) -> int:
+    """Resolve the one-time color migration state without prompting fresh installs."""
+    if not config_file_exists:
+        return 1
+
+    if not isinstance(config_data, dict):
+        return 0
+
+    return 1 if config_data.get("5_9_0_color_reset") in (True, 1) else 0
+
+
 def json_serializable(var_name):
     def decorator(func):
         json_serializable_vars[var_name] = func
@@ -1102,7 +1117,7 @@ class Config:
 
     def init_config(self):
         # Read Only
-        self._VERSION = "5.10.0"
+        self._VERSION = "5.11.0"
         if getattr(sys, 'frozen', False):
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
@@ -1525,6 +1540,11 @@ class Config:
                                 continue
                         except Exception:
                             errorLogging()
+
+        self._COLOR_RESET_5_9_0 = _resolve_color_reset_migration_flag(
+            config_file_exists,
+            self._config_data,
+        )
 
         font_family = getattr(self, "_FONT_FAMILY", None)
         if not isinstance(font_family, str) or not font_family.strip():

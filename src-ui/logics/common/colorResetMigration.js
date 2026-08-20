@@ -9,8 +9,11 @@ export const isColorResetMigrationRequired = ({
     isTauri,
     isBackendReady,
     flagValue,
+    flagState = "ok",
+    isSaving = false,
 }) => (
     isTauri === true
     && isBackendReady === true
+    && (flagState !== "pending" || isSaving === true)
     && !isColorResetMigrationComplete(flagValue)
 );
