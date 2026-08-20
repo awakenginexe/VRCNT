@@ -32,7 +32,7 @@ for conversations where latency matters: speech should become readable
 translation quickly, without a slow cloud provider freezing the rest of the
 session.
 
-## VRCNT 5.9.0 preview
+## VRCNT 5.6.3 preview
 
 <p align="center">
   <font size="4"><strong>Live</strong></font>

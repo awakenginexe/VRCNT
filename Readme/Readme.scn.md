@@ -31,7 +31,7 @@
 
 VRCNT 是一款非官方的 VRChat 翻译与语音转文字应用，基于开源项目 [VRCT](https://github.com/misyaguziya/VRCT) 开发。它专为对延迟敏感的对话场景设计：语音可被快速转换为易读的翻译，不会因云服务商的卡顿而影响整体对话流程。
 
-## VRCNT 5.9.0 预览
+## VRCNT 5.6.3 预览
 
 <p align="center">
   <font size="4"><strong>实时</strong></font>
