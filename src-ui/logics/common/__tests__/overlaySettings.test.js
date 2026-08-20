@@ -38,8 +38,10 @@ test("overlay style values are clamped and booleans preserve defaults", () => {
     assert.equal(settings.text_outline_enabled, true);
 });
 
-test("large mode keeps zero height as automatic sizing", () => {
+test("both modes keep zero height as automatic sizing", () => {
+    const small = normalizeOverlaySettings({ canvas_height: 0 }, "small");
     const settings = normalizeOverlaySettings({ canvas_height: 0 }, "large");
+    assert.equal(small.canvas_height, 0);
     assert.equal(settings.canvas_height, 0);
     assert.equal(OVERLAY_SETTINGS_DEFAULTS.large.canvas_width, 1312);
 });

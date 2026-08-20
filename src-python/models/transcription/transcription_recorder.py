@@ -48,22 +48,23 @@ def _create_microphone(
             ) from fallback_error
 
 
-def _offer_audio(audio_queue: Any, chunk: AudioChunk, on_drop=None) -> None:
+def _offer_audio(audio_queue: Any, chunk: AudioChunk, on_drop=None) -> bool:
     if hasattr(audio_queue, "offer"):
         result = audio_queue.offer(chunk)
         if result.dropped is not None and on_drop is not None:
             on_drop(result.dropped)
-        return
+        return bool(result.accepted)
     try:
         audio_queue.put_nowait(chunk)
     except Full:
         pass
     else:
-        return
+        return True
 
     # Conventional queues have no atomic replace operation. Bound recovery so
     # a continuously contended queue cannot make the capture callback spin.
     displaced_chunks = []
+    accepted = False
     for _ in range(2):
         try:
             displaced = audio_queue.get_nowait()
@@ -77,11 +78,13 @@ def _offer_audio(audio_queue: Any, chunk: AudioChunk, on_drop=None) -> None:
         except Full:
             continue
         else:
+            accepted = True
             break
 
     if on_drop is not None:
         for displaced in displaced_chunks:
             on_drop(displaced)
+    return accepted
 
 
 class BaseRecorder:
@@ -237,8 +240,8 @@ class BaseEnergyAndAudioRecorder:
                 spoken_at=datetime.now(),
                 captured_at_monotonic=captured_at,
             )
-            _offer_audio(audio_queue, chunk, on_drop)
-            if on_audio_chunk is not None:
+            accepted = _offer_audio(audio_queue, chunk, on_drop)
+            if accepted and on_audio_chunk is not None:
                 on_audio_chunk(captured_at)
             if on_heartbeat is not None:
                 on_heartbeat(captured_at)

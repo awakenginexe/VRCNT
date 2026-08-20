@@ -531,7 +531,7 @@ class Controller:
         self,
         source: PipelineSource,
         result: dict,
-    ) -> None:
+    ) -> bool:
         message = result["text"]
         language = result["language"]
         if isinstance(message, bool) and message is False:
@@ -540,23 +540,23 @@ class Controller:
                 self.run_mapping.get("error_device", "/run/error_device"),
                 {"message": f"No {source.value} device detected", "data": None},
             )
-            return
+            return False
         if not isinstance(message, str) or not message:
-            return
+            return False
         if model.checkKeywords(message):
             self.run(
                 200,
                 self.run_mapping.get("word_filter", "/run/word_filter"),
                 {"message": f"Detected by word filter: {message}"},
             )
-            return
+            return False
         repeat = (
             model.detectRepeatSendMessage(message)
             if source is PipelineSource.MIC
             else model.detectRepeatReceiveMessage(message)
         )
         if repeat:
-            return
+            return False
 
         output_config = self._outputConfigSnapshot()
         target_snapshots = (
@@ -604,7 +604,7 @@ class Controller:
             started_at_monotonic=result.get("started_at_monotonic", monotonic()),
             output_config=output_config,
         )
-        pipeline.submit_trace(trace)
+        return bool(pipeline.submit_trace(trace))
 
     def _emitTranslationUpdate(self, update: TranslationUpdate) -> None:
         self.run(
@@ -2228,11 +2228,11 @@ class Controller:
                         error_response["result"],
                     )
 
-    def micMessage(self, result: dict) -> None:
-        self._beginTranscriptionTrace(PipelineSource.MIC, result)
+    def micMessage(self, result: dict) -> bool:
+        return self._beginTranscriptionTrace(PipelineSource.MIC, result)
 
-    def speakerMessage(self, result:dict) -> None:
-        self._beginTranscriptionTrace(PipelineSource.SPEAKER, result)
+    def speakerMessage(self, result:dict) -> bool:
+        return self._beginTranscriptionTrace(PipelineSource.SPEAKER, result)
 
     def chatMessage(self, data) -> dict:
         id = data["id"]

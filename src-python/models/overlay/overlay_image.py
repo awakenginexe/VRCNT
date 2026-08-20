@@ -729,7 +729,7 @@ class OverlayImage:
         background_color = ui_colors["background_color"]
         background_outline_color = ui_colors["background_outline_color"]
         stroke_width = style["text_outline_width"] if style["text_outline_enabled"] else 0
-        stroke_fill = background_color
+        stroke_fill = background_outline_color
 
         # テキストボックス画像のリストを作成
         textbox_images = []
@@ -894,7 +894,7 @@ class OverlayImage:
         )
         text_color = text_colors[f"text_color_{size}"]
         stroke_width = style["text_outline_width"] if style["text_outline_enabled"] else 0
-        stroke_fill = text_colors["background_color"]
+        stroke_fill = text_colors["background_outline_color"]
         outer_padding = ui_size["padding"] * (2 if size == "large" else 1)
         content_width = max(1, style["canvas_width"] - (ui_size["margin"] * 2))
         inner_width = max(1, content_width - (outer_padding * 2))
@@ -950,7 +950,7 @@ class OverlayImage:
         )
         text_color = text_colors[f"text_color_{size}"]
         stroke_width = style["text_outline_width"] if style["text_outline_enabled"] else 0
-        stroke_fill = text_colors["background_color"]
+        stroke_fill = text_colors["background_outline_color"]
         font_family = self.LANGUAGES.get(language, self.LANGUAGES["Default"])
         font_orig = self._get_font(font_family, font_size)
         ruby_size = max(1, int(font_size * ruby_font_scale))
@@ -1119,7 +1119,7 @@ class OverlayImage:
         text_color = ui_color[f"text_color_{message_type}"]
         text_color_time = ui_color["text_color_time"]
         stroke_width = style["text_outline_width"] if style["text_outline_enabled"] else 0
-        stroke_fill = ui_color["background_color"]
+        stroke_fill = ui_color["background_outline_color"]
 
         text = "Receive" if message_type == "receive" else "Send"
         font = self._get_font(self.LANGUAGES["Default"], font_size)

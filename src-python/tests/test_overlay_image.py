@@ -25,6 +25,7 @@ class OverlayImageStyleTests(unittest.TestCase):
             size="large",
         )
         self.assertEqual(transparent["background_color"][3], 0)
+        self.assertGreater(transparent["background_outline_color"][3], 0)
         self.assertEqual(solid["background_color"][3], 255)
 
     def test_small_style_controls_output_canvas(self):

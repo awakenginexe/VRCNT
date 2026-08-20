@@ -104,7 +104,7 @@ export const OverlayStudio = () => {
         vrMode,
     );
     const activeVrHeight = activeVrSettings.canvas_height || 304;
-    const isVrAutoHeight = vrMode === "large" && activeVrSettings.canvas_height === 0;
+    const isVrAutoHeight = activeVrSettings.canvas_height === 0;
     const activeVrEnabled = vrMode === "large"
         ? currentIsEnabledOverlayLargeLog.data === true
         : currentIsEnabledOverlaySmallLog.data === true;

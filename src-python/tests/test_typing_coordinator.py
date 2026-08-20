@@ -41,6 +41,18 @@ class TypingCoordinatorTests(unittest.TestCase):
         self.coordinator.end_processing()
         self.assertEqual(self.events, ["start", "stop"])
 
+    def test_processing_is_counted_until_every_phrase_finishes(self):
+        self.coordinator.begin_processing()
+        self.coordinator.begin_processing()
+
+        self.coordinator.end_processing()
+        self.assertEqual(self.events, ["start"])
+        self.assertTrue(self.coordinator.active)
+
+        self.coordinator.end_processing()
+        self.assertEqual(self.events, ["start", "stop"])
+        self.assertFalse(self.coordinator.active)
+
     def test_reset_is_idempotent_and_clears_processing(self):
         self.coordinator.begin_processing()
         self.coordinator.reset()

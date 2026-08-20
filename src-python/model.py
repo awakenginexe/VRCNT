@@ -1618,6 +1618,15 @@ class Model:
                 at=captured_at,
             )
 
+    def _recordAudioDrop(
+        self,
+        source: PipelineSource,
+        audio_queue: _MetricAudioQueue,
+    ) -> None:
+        audio_queue.record_drop()
+        if source is PipelineSource.MIC:
+            self.endMicTypingProcessing()
+
     def _recordAudioChunk(
         self,
         source: PipelineSource,
@@ -1665,7 +1674,7 @@ class Model:
         audio_queue: _MetricAudioQueue,
     ) -> dict[str, Callable]:
         return {
-            "on_drop": lambda _chunk: audio_queue.record_drop(),
+            "on_drop": lambda _chunk: self._recordAudioDrop(source, audio_queue),
             "on_heartbeat": lambda captured_at: self._recordCaptureHeartbeat(
                 source,
                 generation,
@@ -2007,6 +2016,13 @@ class Model:
             def sendMicTranscript():
                 if stop_event.is_set():
                     return
+                consumed_count = 0
+                trace_submitted = False
+
+                def on_audio_consumed():
+                    nonlocal consumed_count
+                    consumed_count += 1
+
                 try:
                     selected_your_languages = config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]
                     languages, countries = _runtimeTranscriptionLanguageLists(
@@ -2024,6 +2040,7 @@ class Model:
                             config.MIC_NO_REPEAT_NGRAM_SIZE,
                             config.MIC_VAD_FILTER,
                             config.MIC_VAD_PARAMETERS,
+                            on_audio_consumed=on_audio_consumed,
                         )
                         if (
                             res
@@ -2034,9 +2051,13 @@ class Model:
                             )
                         ):
                             result = transcriber.getTranscript()
-                            fnc(result)
+                            trace_submitted = bool(fnc(result))
                 except Exception:
                     errorLogging()
+                finally:
+                    retained_count = 1 if trace_submitted and consumed_count > 0 else 0
+                    for _ in range(max(0, consumed_count - retained_count)):
+                        self.endMicTypingProcessing()
 
             def endMicTranscript():
                 stop_event.set()

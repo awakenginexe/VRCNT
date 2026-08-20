@@ -237,7 +237,7 @@ class ControllerProgressivePipelineTests(unittest.TestCase):
             },
             _ENABLE_TRANSCRIPTION_SEND=True,
         ):
-            controller.micMessage(
+            accepted = controller.micMessage(
                 {
                     "text": "recognized",
                     "language": "English",
@@ -245,6 +245,7 @@ class ControllerProgressivePipelineTests(unittest.TestCase):
                 }
             )
 
+        self.assertTrue(accepted)
         self.assertEqual(events[0][0], "run")
         payload = events[0][3]
         self.assertRegex(payload["trace_id"], r"^mic-[0-9a-f-]{36}$")
@@ -294,6 +295,11 @@ class ControllerProgressivePipelineTests(unittest.TestCase):
             [target.target_slot for target in pipeline.traces[0].targets],
             ["1", "2", "3"],
         )
+
+    def test_empty_mic_transcript_is_not_admitted_to_processing(self):
+        controller = controller_module.Controller()
+
+        self.assertFalse(controller.micMessage({"text": "", "language": "English"}))
 
     def test_speaker_initial_event_uses_one_preferred_target_and_complete_snapshot(self):
         events = []

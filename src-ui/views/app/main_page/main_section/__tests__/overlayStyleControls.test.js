@@ -23,8 +23,18 @@ test("Overlay Studio exposes the full VR style surface for both modes", () => {
     }
     assert.match(studio, /currentOverlayShowOnlyTranslatedMessages/);
     assert.match(studio, /currentOverlayShowOnlyReceivedMessages/);
+    assert.match(studio, /const isVrAutoHeight = activeVrSettings\.canvas_height === 0/);
     assert.doesNotMatch(studio, /<option value="transparent_black"/);
     assert.match(styles, /\.mode_tabs\s*\{/);
+});
+
+test("legacy VR background selection keeps the new opacity setting in sync", () => {
+    const legacyVr = readSource("../../../config_page/setting_section/setting_box/vr/Vr.jsx");
+
+    assert.match(
+        legacyVr,
+        /selectFunction\(\{\s*background_mode:\s*selected_data\.selected_id,\s*background_opacity:\s*selected_data\.selected_id === "solid_black" \? 100 : 71,\s*\}\)/,
+    );
 });
 
 test("Overlay Studio localizes the VR visibility and style controls", () => {
