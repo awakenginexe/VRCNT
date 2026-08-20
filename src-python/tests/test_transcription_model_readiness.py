@@ -216,11 +216,48 @@ class TranscriptionModelReadinessTests(unittest.TestCase):
                         return_value=False,
                     ) as check,
                     patch.object(self.controller, start_name) as start,
+                    patch.object(self.controller, "_safeActivationEvent") as notify,
                 ):
                     getattr(self.controller, restart_name)()
 
                 check.assert_called_once_with(weight_type)
                 start.assert_not_called()
+                notify.assert_any_call(
+                    "enable_transcription_send"
+                    if source is PipelineSource.MIC
+                    else "enable_transcription_receive",
+                    ANY,
+                )
+
+    def test_device_stop_always_stops_transcription_before_readiness_is_checked(self):
+        cases = (
+            (
+                PipelineSource.MIC,
+                "stopAccessMicDevices",
+                "stopThreadingTranscriptionSendMessage",
+                "_ENABLE_TRANSCRIPTION_SEND",
+                "checkTranscriptionWhisperModelWeight",
+            ),
+            (
+                PipelineSource.SPEAKER,
+                "stopAccessSpeakerDevices",
+                "stopThreadingTranscriptionReceiveMessage",
+                "_ENABLE_TRANSCRIPTION_RECEIVE",
+                "checkTranscriptionWhisperThaiModelWeight",
+            ),
+        )
+
+        for source, stop_name, stop_thread_name, enable_name, check_name in cases:
+            with self.subTest(source=source):
+                with (
+                    patch.object(controller_module.config, enable_name, True),
+                    patch.object(model_module.model, check_name) as check,
+                    patch.object(self.controller, stop_thread_name) as stop,
+                ):
+                    getattr(self.controller, stop_name)()
+
+                check.assert_not_called()
+                stop.assert_called_once_with()
 
     def test_direct_device_setters_block_missing_active_local_model(self):
         cases = (
@@ -368,7 +405,7 @@ class TranscriptionModelReadinessTests(unittest.TestCase):
                 stop.assert_called_once_with()
                 start.assert_not_called()
 
-    def test_automatic_device_callbacks_preflight_before_stopping_missing_model(self):
+    def test_automatic_device_callbacks_stop_before_restart_readiness_failure(self):
         cases = (
             (
                 PipelineSource.MIC,
@@ -455,11 +492,17 @@ class TranscriptionModelReadinessTests(unittest.TestCase):
                     before_callback()
                     after_callback()
 
-                self.assertEqual(events[0], "readiness")
-                stop.assert_not_called()
+                self.assertEqual(events[0], "stop")
+                self.assertEqual(events[1], "readiness")
+                stop.assert_called_once_with()
                 start.assert_not_called()
-                notify.assert_called_once_with(state_endpoint, ANY)
-                readiness_response = notify.call_args.args[1]
+                self.assertEqual(notify.call_count, 2)
+                notify.assert_any_call(state_endpoint, ANY)
+                readiness_response = next(
+                    call.args[1]
+                    for call in notify.call_args_list
+                    if call.args[1].get("status") == 400
+                )
                 self.assertEqual(readiness_response["status"], 400)
                 self.assertEqual(
                     readiness_response["result"]["error_code"],

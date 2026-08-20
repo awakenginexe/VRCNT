@@ -168,6 +168,56 @@ class TranscriptionDownloadCancellationTests(unittest.TestCase):
             {"status": 200, "result": False},
         )
 
+    def test_duplicate_download_target_is_rejected_without_replacing_cancellation_owner(self):
+        controller = object.__new__(Controller)
+        controller.run_mapping = {
+            "download_progress_whisper_weight": "/run/download_progress_whisper_weight",
+            "downloaded_whisper_weight": "/run/downloaded_whisper_weight",
+            "download_cancelled_whisper_weight": "/run/download_cancelled_whisper_weight",
+            "error_whisper_weight": "/run/error_whisper_weight",
+        }
+        controller.run = Mock()
+        controller._download_cancellation_events = {}
+        controller._download_cancellation_lock = threading.Lock()
+        worker_started = threading.Event()
+        worker_release = threading.Event()
+        worker_finished = threading.Event()
+
+        def blocked_download(weight_type, callback, end_callback, cancel_event=None):
+            del callback, end_callback
+            self.assertEqual(weight_type, "tiny")
+            self.assertIsNotNone(cancel_event)
+            worker_started.set()
+            self.assertTrue(worker_release.wait(2.0))
+            worker_finished.set()
+            return False
+
+        with patch.object(
+            controller_module.model,
+            "downloadWhisperModelWeight",
+            side_effect=blocked_download,
+        ) as download:
+            first = controller.downloadWhisperWeight("tiny", asynchronous=True)
+            self.assertEqual(first, {"status": 200, "result": True})
+            self.assertTrue(worker_started.wait(2.0))
+
+            second = controller.downloadWhisperWeight("tiny", asynchronous=True)
+
+            self.assertEqual(second["status"], 409)
+            self.assertEqual(second["result"]["data"]["weight_type"], "tiny")
+            self.assertEqual(download.call_count, 1)
+            self.assertEqual(
+                controller.cancelWhisperWeight("tiny"),
+                {"status": 200, "result": True},
+            )
+            worker_release.set()
+            self.assertTrue(worker_finished.wait(2.0))
+
+        self.assertEqual(
+            controller.cancelWhisperWeight("tiny"),
+            {"status": 200, "result": False},
+        )
+
     def test_cancelled_whisper_callback_emits_cancelled_route_without_installing(self):
         events = []
         cancel_event = threading.Event()
@@ -274,6 +324,66 @@ class TranscriptionDownloadCancellationTests(unittest.TestCase):
                         )
                     ],
                 )
+                self.assertFalse(installed_value)
+
+    def test_failed_local_download_callbacks_emit_settling_error_routes(self):
+        families = (
+            (
+                "vosk",
+                Controller.DownloadVosk,
+                "checkTranscriptionVoskModelWeight",
+                "SELECTABLE_VOSK_WEIGHT_TYPE_DICT",
+            ),
+            (
+                "parakeet",
+                Controller.DownloadParakeet,
+                "checkTranscriptionParakeetModelWeight",
+                "SELECTABLE_PARAKEET_WEIGHT_TYPE_DICT",
+            ),
+        )
+
+        for family, callback_type, check_name, selectable_name in families:
+            with self.subTest(family=family):
+                weight_type = f"failed-{family}"
+                events = []
+                callback = callback_type(
+                    {
+                        f"downloaded_{family}_weight": f"/run/downloaded_{family}_weight",
+                        f"download_cancelled_{family}_weight": f"/run/download_cancelled_{family}_weight",
+                        f"error_{family}_weight": f"/run/error_{family}_weight",
+                    },
+                    weight_type,
+                    lambda status, endpoint, payload: events.append(
+                        (status, endpoint, payload)
+                    ),
+                    threading.Event(),
+                    cancellation_lock=threading.Lock(),
+                )
+
+                with patch.object(
+                    controller_module.model,
+                    check_name,
+                    return_value=False,
+                ), patch.dict(
+                    getattr(controller_module.config, selectable_name),
+                    {weight_type: False},
+                    clear=False,
+                ):
+                    callback.downloaded()
+                    installed_value = getattr(
+                        controller_module.config,
+                        selectable_name,
+                    )[weight_type]
+
+                self.assertEqual(len(events), 1)
+                status, endpoint, payload = events[0]
+                self.assertEqual(status, 400)
+                self.assertEqual(endpoint, f"/run/error_{family}_weight")
+                self.assertEqual(
+                    payload["error_code"],
+                    "WEIGHT_TRANSCRIPTION_DOWNLOAD",
+                )
+                self.assertEqual(payload["data"]["weight_type"], weight_type)
                 self.assertFalse(installed_value)
 
     def test_downloaded_callback_and_cancel_endpoint_settle_atomically(self):

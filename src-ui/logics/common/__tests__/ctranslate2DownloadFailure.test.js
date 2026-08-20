@@ -27,3 +27,19 @@ test("model readiness errors are handled before generic translation activation e
     assert.match(errorHandler, /TRANSLATION_MODEL_NOT_READY/);
     assert.match(errorHandler, /TRANSLATION_MODEL_CHANGE_ACTIVE/);
 });
+
+test("transcription download errors settle the matching model row", () => {
+    const errorHandler = read("src-ui/logics/_useBackendErrorHandling.js");
+
+    assert.match(errorHandler, /settleTranscriptionDownloadFailure\(endpoint, data\?\.weight_type\)/);
+    for (const endpoint of [
+        "/run/error_whisper_weight",
+        "/run/error_whisper_thai_weight",
+        "/run/error_vosk_weight",
+        "/run/error_parakeet_weight",
+        "/run/error_sensevoice_weight",
+    ]) {
+        assert.match(errorHandler, new RegExp(endpoint.replaceAll("/", "\\/")));
+    }
+    assert.match(errorHandler, /WEIGHT_TRANSCRIPTION_DOWNLOAD/);
+});

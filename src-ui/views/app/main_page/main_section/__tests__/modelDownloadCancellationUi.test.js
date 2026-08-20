@@ -26,6 +26,11 @@ test("generated model downloads expose immediate pending and cooperative cancell
     assert.match(categoryApi, /const cancelDownloadKey = `cancelDownload\$\{base\}`/);
     assert.match(categoryApi, /const downloadCancelledKey = `downloadCancelled\$\{base\}`/);
     assert.match(routes, /endpoint: `\/run\/download_cancelled_\$\{ep\}`[\s\S]*?method_name: `downloadCancelled\$\{base\}`/);
+    assert.doesNotMatch(
+        routes,
+        /endpoint: `\/run\/download_\$\{ep\}`[\s\S]*?method_name: `downloaded\$\{base\}`/,
+        "the immediate download request acknowledgement must not mark a model installed",
+    );
 });
 test("advanced model rows expose one cancel action while a download is active", async () => {
     const modelsHub = await read(

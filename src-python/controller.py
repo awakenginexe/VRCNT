@@ -132,9 +132,13 @@ class Controller:
         engine: str,
         weight_type: str,
         cancel_event: Event,
-    ) -> None:
+    ) -> bool:
         with self._download_cancellation_lock:
-            self._download_cancellation_events[(engine, weight_type)] = cancel_event
+            key = (engine, weight_type)
+            if key in self._download_cancellation_events:
+                return False
+            self._download_cancellation_events[key] = cancel_event
+            return True
 
     def _unregisterDownloadCancellation(
         self,
@@ -159,6 +163,20 @@ class Controller:
         return {
             "status": 200,
             "result": self._cancelDownload(engine, str(data)),
+        }
+
+    @staticmethod
+    def _downloadInProgressResponse(engine: str, weight_type: str) -> dict:
+        return {
+            "status": 409,
+            "result": {
+                "error_code": "DOWNLOAD_IN_PROGRESS",
+                "message": "A download for this model is already in progress",
+                "data": {
+                    "engine": engine,
+                    "weight_type": weight_type,
+                },
+            },
         }
 
     def _startTranscriptionDownload(
@@ -1821,8 +1839,16 @@ class Controller:
 
     def restartAccessMicDevices(self) -> None:
         if config.ENABLE_TRANSCRIPTION_SEND is True:
-            if self._transcriptionModelReadinessError(PipelineSource.MIC) is None:
+            readiness_error = self._transcriptionModelReadinessError(PipelineSource.MIC)
+            if readiness_error is None:
                 self.startThreadingTranscriptionSendMessage()
+            else:
+                config.ENABLE_TRANSCRIPTION_SEND = False
+                self._safeActivationEvent("enable_transcription_send", readiness_error)
+                self._safeActivationEvent(
+                    "enable_transcription_send",
+                    {"status": 200, "result": False},
+                )
         if config.ENABLE_CHECK_ENERGY_SEND is True:
             model.startCheckMicEnergy(
                 self.progressBarMicEnergy,
@@ -1830,8 +1856,16 @@ class Controller:
 
     def restartAccessSpeakerDevices(self) -> None:
         if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
-            if self._transcriptionModelReadinessError(PipelineSource.SPEAKER) is None:
+            readiness_error = self._transcriptionModelReadinessError(PipelineSource.SPEAKER)
+            if readiness_error is None:
                 self.startThreadingTranscriptionReceiveMessage()
+            else:
+                config.ENABLE_TRANSCRIPTION_RECEIVE = False
+                self._safeActivationEvent("enable_transcription_receive", readiness_error)
+                self._safeActivationEvent(
+                    "enable_transcription_receive",
+                    {"status": 200, "result": False},
+                )
         if config.ENABLE_CHECK_ENERGY_RECEIVE is True:
             model.startCheckSpeakerEnergy(
                 self.progressBarSpeakerEnergy,
@@ -1839,29 +1873,13 @@ class Controller:
 
     def stopAccessMicDevices(self) -> None:
         if config.ENABLE_TRANSCRIPTION_SEND is True:
-            readiness_error = self._transcriptionModelReadinessError(PipelineSource.MIC)
-            if readiness_error is None:
-                self.stopThreadingTranscriptionSendMessage()
-            else:
-                self._safeActivationEvent(
-                    "enable_transcription_send",
-                    readiness_error,
-                )
+            self.stopThreadingTranscriptionSendMessage()
         if config.ENABLE_CHECK_ENERGY_SEND is True:
             model.stopCheckMicEnergy()
 
     def stopAccessSpeakerDevices(self) -> None:
         if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
-            readiness_error = self._transcriptionModelReadinessError(
-                PipelineSource.SPEAKER
-            )
-            if readiness_error is None:
-                self.stopThreadingTranscriptionReceiveMessage()
-            else:
-                self._safeActivationEvent(
-                    "enable_transcription_receive",
-                    readiness_error,
-                )
+            self.stopThreadingTranscriptionReceiveMessage()
         if config.ENABLE_CHECK_ENERGY_RECEIVE is True:
             model.stopCheckSpeakerEnergy()
 
@@ -2003,7 +2021,7 @@ class Controller:
                 else:
                     error_response = VRCTError.create_error_response(
                         ErrorCode.WEIGHT_WHISPER_DOWNLOAD,
-                        data=None
+                        data={"weight_type": self.weight_type, "engine": "Whisper"},
                     )
                     self.run(
                         error_response["status"],
@@ -2091,6 +2109,19 @@ class Controller:
                         self.run_mapping.get("downloaded_vosk_weight", "downloaded_vosk_weight"),
                         self.weight_type,
                     )
+                else:
+                    error_response = VRCTError.create_error_response(
+                        ErrorCode.WEIGHT_TRANSCRIPTION_DOWNLOAD,
+                        data={"weight_type": self.weight_type, "engine": "Vosk"},
+                    )
+                    self.run(
+                        error_response["status"],
+                        self.run_mapping.get(
+                            "error_vosk_weight",
+                            "/run/error_vosk_weight",
+                        ),
+                        error_response["result"],
+                    )
 
     class DownloadParakeet:
         def __init__(self, run_mapping:dict, weight_type:str, run:Callable[[int, str, Any], None], cancel_event:Optional[Event] = None, cancellation_lock:Optional[Any] = None) -> None:
@@ -2125,6 +2156,19 @@ class Controller:
                         200,
                         self.run_mapping.get("downloaded_parakeet_weight", "downloaded_parakeet_weight"),
                         self.weight_type,
+                    )
+                else:
+                    error_response = VRCTError.create_error_response(
+                        ErrorCode.WEIGHT_TRANSCRIPTION_DOWNLOAD,
+                        data={"weight_type": self.weight_type, "engine": "Parakeet"},
+                    )
+                    self.run(
+                        error_response["status"],
+                        self.run_mapping.get(
+                            "error_parakeet_weight",
+                            "/run/error_parakeet_weight",
+                        ),
+                        error_response["result"],
                     )
 
     class DownloadSenseVoice:
@@ -2164,7 +2208,7 @@ class Controller:
                 else:
                     error_response = VRCTError.create_error_response(
                         ErrorCode.WEIGHT_SENSEVOICE_DOWNLOAD,
-                        data=None
+                        data={"weight_type": self.weight_type, "engine": "SenseVoice"},
                     )
                     self.run(
                         error_response["status"],
@@ -5658,7 +5702,8 @@ class Controller:
     def downloadWhisperWeight(self, data:str, asynchronous:bool=True, *args, **kwargs) -> dict:
         weight_type = str(data)
         cancel_event = Event()
-        self._registerDownloadCancellation("Whisper", weight_type, cancel_event)
+        if not self._registerDownloadCancellation("Whisper", weight_type, cancel_event):
+            return self._downloadInProgressResponse("Whisper", weight_type)
         download_whisper = self.DownloadWhisper(
             self.run_mapping,
             weight_type,
@@ -5680,7 +5725,8 @@ class Controller:
     def downloadWhisperThaiWeight(self, data:str, asynchronous:bool=True, *args, **kwargs) -> dict:
         weight_type = str(data)
         cancel_event = Event()
-        self._registerDownloadCancellation("Whisper Thai", weight_type, cancel_event)
+        if not self._registerDownloadCancellation("Whisper Thai", weight_type, cancel_event):
+            return self._downloadInProgressResponse("Whisper Thai", weight_type)
         download_whisper_thai = self.DownloadWhisperThai(
             self.run_mapping,
             weight_type,
@@ -5702,7 +5748,8 @@ class Controller:
     def downloadVoskWeight(self, data:str, asynchronous:bool=True, *args, **kwargs) -> dict:
         weight_type = str(data)
         cancel_event = Event()
-        self._registerDownloadCancellation("Vosk", weight_type, cancel_event)
+        if not self._registerDownloadCancellation("Vosk", weight_type, cancel_event):
+            return self._downloadInProgressResponse("Vosk", weight_type)
         dl = self.DownloadVosk(
             self.run_mapping,
             weight_type,
@@ -5724,7 +5771,8 @@ class Controller:
     def downloadParakeetWeight(self, data:str, asynchronous:bool=True, *args, **kwargs) -> dict:
         weight_type = str(data)
         cancel_event = Event()
-        self._registerDownloadCancellation("Parakeet", weight_type, cancel_event)
+        if not self._registerDownloadCancellation("Parakeet", weight_type, cancel_event):
+            return self._downloadInProgressResponse("Parakeet", weight_type)
         dl = self.DownloadParakeet(
             self.run_mapping,
             weight_type,
@@ -5746,7 +5794,8 @@ class Controller:
     def downloadSenseVoiceWeight(self, data:str, asynchronous:bool=True, *args, **kwargs) -> dict:
         weight_type = str(data)
         cancel_event = Event()
-        self._registerDownloadCancellation("SenseVoice", weight_type, cancel_event)
+        if not self._registerDownloadCancellation("SenseVoice", weight_type, cancel_event):
+            return self._downloadInProgressResponse("SenseVoice", weight_type)
         dl = self.DownloadSenseVoice(
             self.run_mapping,
             weight_type,

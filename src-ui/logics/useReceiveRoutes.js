@@ -396,12 +396,6 @@ const buildRouteMetaList = () => {
                 method_name: `downloadCancelled${base}`,
             });
             generated.push({
-                endpoint: `/run/download_${ep}`,
-                ns: namespace_module,
-                hook_name: hookName,
-                method_name: `downloaded${base}`,
-            });
-            generated.push({
                 endpoint: `/get/data/${ep}`,
                 ns: namespace_module,
                 hook_name: hookName,

@@ -54,6 +54,7 @@ run_mapping = {
     "download_cancelled_vosk_weight":"/run/download_cancelled_vosk_weight",
     "error_vosk_weight":"/run/error_vosk_weight",
     "download_progress_parakeet_weight":"/run/download_progress_parakeet_weight",
+    "downloaded_parakeet_weight":"/run/downloaded_parakeet_weight",
     "download_cancelled_parakeet_weight":"/run/download_cancelled_parakeet_weight",
     "error_parakeet_weight":"/run/error_parakeet_weight",
     "download_progress_sensevoice_weight":"/run/download_progress_sensevoice_weight",
