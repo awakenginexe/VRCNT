@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-5.9.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-5.10.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>
@@ -32,7 +32,7 @@ for conversations where latency matters: speech should become readable
 translation quickly, without a slow cloud provider freezing the rest of the
 session.
 
-## VRCNT 5.9.0 preview
+## VRCNT 5.6.3 preview
 
 <p align="center">
   <font size="4"><strong>Live</strong></font>

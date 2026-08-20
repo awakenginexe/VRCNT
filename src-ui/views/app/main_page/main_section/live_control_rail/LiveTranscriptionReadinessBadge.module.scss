@@ -1,0 +1,41 @@
+.badge {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin: 0 1.1rem;
+    padding: 0.7rem 0.8rem;
+    border: 0.1rem solid rgba(148, 163, 184, 0.35);
+    border-radius: 0.7rem;
+    background: rgba(148, 163, 184, 0.08);
+    color: var(--dark_250_color);
+    font-size: 0.8rem;
+    font-weight: 800;
+}
+
+.badge[data-state="ready"] {
+    border-color: rgba(52, 211, 153, 0.5);
+    background: rgba(52, 211, 153, 0.12);
+    color: #34d399;
+}
+
+.badge[data-state="not_ready"] {
+    border-color: rgba(248, 113, 113, 0.5);
+    background: rgba(248, 113, 113, 0.1);
+    color: #f87171;
+}
+
+.badge[data-state="loading"] {
+    color: var(--dark_400_color);
+}
+
+.label {
+    font-size: 0.84rem;
+    font-weight: 900;
+}
+
+.detail {
+    color: inherit;
+    font-size: 0.74rem;
+    font-weight: 700;
+    line-height: 1.35;
+}

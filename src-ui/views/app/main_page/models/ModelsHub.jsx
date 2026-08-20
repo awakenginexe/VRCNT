@@ -46,14 +46,19 @@ export const ModelsHub = () => {
     const {
         currentWhisperWeightTypeStatus,
         downloadWhisperWeightTypeStatus,
+        cancelDownloadWhisperWeightTypeStatus,
         currentWhisperThaiWeightTypeStatus,
         downloadWhisperThaiWeightTypeStatus,
+        cancelDownloadWhisperThaiWeightTypeStatus,
         currentVoskWeightTypeStatus,
         downloadVoskWeightTypeStatus,
+        cancelDownloadVoskWeightTypeStatus,
         currentParakeetWeightTypeStatus,
         downloadParakeetWeightTypeStatus,
+        cancelDownloadParakeetWeightTypeStatus,
         currentSenseVoiceWeightTypeStatus,
         downloadSenseVoiceWeightTypeStatus,
+        cancelDownloadSenseVoiceWeightTypeStatus,
         currentTranscriptionProfileSend,
         setTranscriptionProfileSend,
         currentUseSplitGroqApiKey,
@@ -65,11 +70,11 @@ export const ModelsHub = () => {
 
     const statuses = currentWhisperWeightTypeStatus.data ?? [];
     const modelGroups = [
-        { id: "Whisper", statuses, download: downloadWhisperWeightTypeStatus },
-        { id: "Whisper Thai", statuses: currentWhisperThaiWeightTypeStatus.data ?? [], download: downloadWhisperThaiWeightTypeStatus },
-        { id: "Vosk", statuses: currentVoskWeightTypeStatus.data ?? [], download: downloadVoskWeightTypeStatus },
-        { id: "Parakeet", statuses: currentParakeetWeightTypeStatus.data ?? [], download: downloadParakeetWeightTypeStatus },
-        { id: "SenseVoice", statuses: currentSenseVoiceWeightTypeStatus.data ?? [], download: downloadSenseVoiceWeightTypeStatus },
+        { id: "Whisper", statuses, download: downloadWhisperWeightTypeStatus, cancel: cancelDownloadWhisperWeightTypeStatus },
+        { id: "Whisper Thai", statuses: currentWhisperThaiWeightTypeStatus.data ?? [], download: downloadWhisperThaiWeightTypeStatus, cancel: cancelDownloadWhisperThaiWeightTypeStatus },
+        { id: "Vosk", statuses: currentVoskWeightTypeStatus.data ?? [], download: downloadVoskWeightTypeStatus, cancel: cancelDownloadVoskWeightTypeStatus },
+        { id: "Parakeet", statuses: currentParakeetWeightTypeStatus.data ?? [], download: downloadParakeetWeightTypeStatus, cancel: cancelDownloadParakeetWeightTypeStatus },
+        { id: "SenseVoice", statuses: currentSenseVoiceWeightTypeStatus.data ?? [], download: downloadSenseVoiceWeightTypeStatus, cancel: cancelDownloadSenseVoiceWeightTypeStatus },
     ];
     const selectedDevice = currentTranscriptionProfileSend.data?.device ?? {};
     const recommendation = useMemo(() => resolveWhisperRecommendation({
@@ -193,7 +198,7 @@ export const ModelsHub = () => {
         const statusItem = statuses.find((s) => s.id === selectedId);
         if (statusItem?.is_downloaded === true) {
             updateExperienceRoute("engines");
-        } else if (statusItem) {
+        } else if (statusItem && statusItem.is_pending !== true) {
             downloadWhisperWeightTypeStatus(selectedId);
         }
     };
@@ -298,13 +303,15 @@ export const ModelsHub = () => {
                             ? isActive
                                 ? t("main_page.models_hub.active_model")
                                 : t("main_page.models_hub.select_model")
-                            : downloadState === "preparing" || downloadState === "downloading"
-                                ? t("main_page.models_hub.downloading")
-                                : downloadState === "failed"
-                                    ? t("main_page.models_hub.retry_download")
-                                    : candidate
-                                        ? t("main_page.models_hub.download_model", { size: candidate.capacity ?? "" })
-                                        : t("main_page.models_hub.model_unavailable");
+                            : downloadState === "cancelling"
+                                ? t("main_page.models_hub.cancelling_download")
+                                : downloadState === "preparing" || downloadState === "downloading"
+                                    ? t("main_page.models_hub.downloading")
+                                    : downloadState === "failed"
+                                        ? t("main_page.models_hub.retry_download")
+                                        : candidate
+                                            ? t("main_page.models_hub.download_model", { size: candidate.capacity ?? "" })
+                                            : t("main_page.models_hub.model_unavailable");
 
                         if (activeFilter !== "all" && suit.tier !== activeFilter && !(activeFilter === "cpu" && preset.id === "fast")) {
                             return null;
@@ -337,18 +344,23 @@ export const ModelsHub = () => {
                                         <dt>{t("main_page.models_hub.status_label")}</dt>
                                         <dd>{downloadState === "installed"
                                             ? t("main_page.models_hub.installed")
-                                            : downloadState === "preparing"
-                                                ? t("main_page.models_hub.preparing_download")
-                                                : downloadState === "downloading"
-                                                    ? t("main_page.models_hub.downloading")
-                                                    : downloadState === "failed"
-                                                        ? t("main_page.models_hub.download_failed")
-                                                        : downloadState === "unavailable"
-                                                            ? t("main_page.models_hub.model_unavailable")
-                                                            : t("main_page.models_hub.download_needed")}</dd>
+                                            : downloadState === "cancelling"
+                                                ? t("main_page.models_hub.cancelling_download")
+                                                : downloadState === "preparing"
+                                                    ? t("main_page.models_hub.preparing_download")
+                                                    : downloadState === "downloading"
+                                                        ? t("main_page.models_hub.downloading")
+                                                        : downloadState === "failed"
+                                                            ? t("main_page.models_hub.download_failed")
+                                                            : downloadState === "unavailable"
+                                                                ? t("main_page.models_hub.model_unavailable")
+                                                                : t("main_page.models_hub.download_needed")}</dd>
                                     </div>
                                 </dl>
-                                <ModelDownloadProgress status={candidate} />
+                                <ModelDownloadProgress
+                                    status={candidate}
+                                    onCancel={() => candidate?.id && cancelDownloadWhisperWeightTypeStatus(candidate.id)}
+                                />
                                 <button
                                     type="button"
                                     className={styles.preset_button}
@@ -370,6 +382,7 @@ export const ModelsHub = () => {
                             {group.statuses.map((status) => {
                                 const downloadState = getModelDownloadState(status);
                                 const isDownloading = downloadState === "preparing" || downloadState === "downloading";
+                                const isCancelling = downloadState === "cancelling";
                                 const suit = getModelSuitability(group.id, status.id);
 
                                 return (
@@ -383,34 +396,46 @@ export const ModelsHub = () => {
                                                 <span>{status.capacity ?? t("main_page.models_hub.size_not_available")}</span>
                                                 <span className={styles.row_rating}>⚡ {"⚡".repeat(suit.speed)} · ⭐ {"⭐".repeat(suit.quality)}</span>
                                             </div>
-                                            {isDownloading && <ModelDownloadProgress status={status} />}
+                                            {(isDownloading || isCancelling) && (
+                                                <ModelDownloadProgress
+                                                    status={status}
+                                                    onCancel={() => group.cancel(status.id)}
+                                                />
+                                            )}
                                         </div>
                                         <span data-ready={downloadState === "installed"} data-state={downloadState}>
                                             {downloadState === "installed"
                                                 ? t("main_page.models_hub.installed")
-                                                : downloadState === "preparing"
-                                                    ? t("main_page.models_hub.preparing_download")
-                                                    : downloadState === "downloading"
-                                                        ? t("main_page.models_hub.downloading")
-                                                        : downloadState === "failed"
-                                                            ? t("main_page.models_hub.download_failed")
-                                                            : downloadState === "unavailable"
-                                                                ? t("main_page.models_hub.model_unavailable")
-                                                                : t("main_page.models_hub.download_needed")}
+                                                : downloadState === "cancelling"
+                                                    ? t("main_page.models_hub.cancelling_download")
+                                                    : downloadState === "preparing"
+                                                        ? t("main_page.models_hub.preparing_download")
+                                                        : downloadState === "downloading"
+                                                            ? t("main_page.models_hub.downloading")
+                                                            : downloadState === "failed"
+                                                                ? t("main_page.models_hub.download_failed")
+                                                                : downloadState === "unavailable"
+                                                                    ? t("main_page.models_hub.model_unavailable")
+                                                                    : t("main_page.models_hub.download_needed")}
                                         </span>
                                         <button
                                             type="button"
-                                            disabled={isDownloading || downloadState === "unavailable"}
+                                            disabled={isCancelling || isDownloading || downloadState === "unavailable"}
                                             onClick={() => {
                                                 if (downloadState === "installed") updateExperienceRoute("engines");
+                                                else if (isDownloading || isCancelling) return;
                                                 else group.download(status.id);
                                             }}
                                         >
                                             {downloadState === "installed"
                                                 ? t("main_page.models_hub.select_model")
-                                                : downloadState === "failed"
-                                                    ? t("main_page.models_hub.retry_download")
-                                                    : t("main_page.models_hub.download")}
+                                                : isCancelling
+                                                    ? t("main_page.models_hub.cancelling_download")
+                                                    : isDownloading
+                                                        ? t("main_page.models_hub.downloading")
+                                                        : downloadState === "failed"
+                                                            ? t("main_page.models_hub.retry_download")
+                                                            : t("main_page.models_hub.download")}
                                         </button>
                                     </div>
                                 );

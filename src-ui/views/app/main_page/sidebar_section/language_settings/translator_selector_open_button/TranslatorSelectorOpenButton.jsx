@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { useI18n } from "@useI18n";
 import styles from "./TranslatorSelectorOpenButton.module.scss";
 import { TranslatorSelector } from "./translator_selector/TranslatorSelector";
@@ -5,6 +6,7 @@ import { useStore_IsOpenedTranslatorSelector } from "@store";
 import { useLanguageSettings } from "@logics_main";
 
 export const TranslatorSelectorOpenButton = ({ variant = "settings" }) => {
+    const translatorButtonRef = useRef(null);
     const { t } = useI18n();
     const {
         currentSelectedPresetTabNumber,
@@ -47,6 +49,7 @@ export const TranslatorSelectorOpenButton = ({ variant = "settings" }) => {
             <button
                 type="button"
                 className={styles.translator_selector_button}
+                ref={translatorButtonRef}
                 onClick={openTranslatorSelector}
                 aria-expanded={currentIsOpenedTranslatorSelector.data}
             >
@@ -58,6 +61,7 @@ export const TranslatorSelectorOpenButton = ({ variant = "settings" }) => {
                     selected_ids={selected_engine_ids}
                     translation_engines={translation_engines}
                     is_selected_same_language={is_selected_same_language}
+                    anchorRef={variant === "live_compact" ? translatorButtonRef : undefined}
                     placement={variant === "live_compact" ? "live" : "settings"}
                 />
             }

@@ -11,6 +11,13 @@ import json
 import zipfile
 import io
 from requests import get as requests_get
+from threading import Event
+
+from .download_control import (
+    DownloadCancelled,
+    raise_if_download_cancelled,
+    remove_incomplete_download,
+)
 
 try:
     import vosk  # type: ignore
@@ -171,6 +178,7 @@ def downloadVoskWeight(
     weight_type: str,
     callback: Optional[Callable[[float], None]] = None,
     end_callback: Optional[Callable[[], None]] = None,
+    cancel_event: Optional[Event] = None,
 ) -> None:
     meta = _MODELS.get(weight_type)
     if meta is None:
@@ -179,29 +187,37 @@ def downloadVoskWeight(
         return
 
     model_dir = _modelDir(root, weight_type)
-    os_makedirs(model_dir, exist_ok=True)
-
-    if checkVoskWeight(root, weight_type):
-        if callable(end_callback):
-            end_callback()
-        return
-
     try:
+        raise_if_download_cancelled(cancel_event)
+        os_makedirs(model_dir, exist_ok=True)
+
+        if checkVoskWeight(root, weight_type):
+            raise_if_download_cancelled(cancel_event)
+            return
+
         response = requests_get(meta["url"], stream=True, timeout=60)
         response.raise_for_status()
         file_size = int(response.headers.get("content-length", 0))
         buf = io.BytesIO()
         total = 0
         for chunk in response.iter_content(chunk_size=1024 * 1024):
+            raise_if_download_cancelled(cancel_event)
             if not chunk:
                 continue
             buf.write(chunk)
             total += len(chunk)
             if callable(callback) and file_size:
                 callback(total / file_size)
+            raise_if_download_cancelled(cancel_event)
+        raise_if_download_cancelled(cancel_event)
         _safeExtractZip(buf.getvalue(), model_dir)
+        raise_if_download_cancelled(cancel_event)
         if callable(callback):
             callback(1.0)
+        raise_if_download_cancelled(cancel_event)
+    except DownloadCancelled:
+        remove_incomplete_download(model_dir, checkVoskWeight(root, weight_type))
+        return
     except Exception:
         pass
     finally:

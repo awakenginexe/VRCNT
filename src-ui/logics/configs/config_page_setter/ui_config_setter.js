@@ -1062,6 +1062,10 @@ const buildCategoryApiFromSettings = (settings, settingsArray, Category, extraFu
             const downloadedKey = `downloaded${base}`;
             const downloadFailedKey = `downloadFailed${base}`;
             const downloadKey = `download${base}`;
+            const cancelDownloadKey = `cancelDownload${base}`;
+            const cancelRequestedKey = `cancelRequested${base}`;
+            const downloadCancelledKey = `downloadCancelled${base}`;
+            const cancelledKey = `cancelled${base}`;
 
             if (typeof settings[updateDownloadProgressKey] === "function") api[updateDownloadProgressKey] = settings[updateDownloadProgressKey];
             if (typeof settings[updateDownloadedKey] === "function") api[updateDownloadedKey] = settings[updateDownloadedKey];
@@ -1069,6 +1073,10 @@ const buildCategoryApiFromSettings = (settings, settingsArray, Category, extraFu
             if (typeof settings[downloadedKey] === "function") api[downloadedKey] = settings[downloadedKey];
             if (typeof settings[downloadFailedKey] === "function") api[downloadFailedKey] = settings[downloadFailedKey];
             if (typeof settings[downloadKey] === "function") api[downloadKey] = settings[downloadKey];
+            if (typeof settings[cancelDownloadKey] === "function") api[cancelDownloadKey] = settings[cancelDownloadKey];
+            if (typeof settings[cancelRequestedKey] === "function") api[cancelRequestedKey] = settings[cancelRequestedKey];
+            if (typeof settings[downloadCancelledKey] === "function") api[downloadCancelledKey] = settings[downloadCancelledKey];
+            if (typeof settings[cancelledKey] === "function") api[cancelledKey] = settings[cancelledKey];
 
             const updateFromBackendKey = `updateFromBackend${base}`;
             if (typeof settings[updateFromBackendKey] === "function") api[updateFromBackendKey] = settings[updateFromBackendKey];

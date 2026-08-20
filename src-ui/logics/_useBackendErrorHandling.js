@@ -38,6 +38,12 @@ export const _useBackendErrorHandling = () => {
         updateSpeakerPhraseTimeout,
         updateSpeakerMaxWords,
         updateGroqWhisperAuthKey,
+
+        downloadFailedWhisperWeightTypeStatus,
+        downloadFailedWhisperThaiWeightTypeStatus,
+        downloadFailedVoskWeightTypeStatus,
+        downloadFailedParakeetWeightTypeStatus,
+        downloadFailedSenseVoiceWeightTypeStatus,
     } = useTranscription();
 
     const { updateTranslationStatus, updateTranscriptionSendStatus, updateTranscriptionReceiveStatus } = useMainFunction();
@@ -85,6 +91,19 @@ export const _useBackendErrorHandling = () => {
         updateIsOllamaConnected,
         updateIsLMStudioConnected,
     } = useLLMConnection();
+
+    const settleTranscriptionDownloadFailure = (endpoint, weightType) => {
+        if (typeof weightType !== "string") return;
+        const settleByEndpoint = {
+            "/run/error_whisper_weight": downloadFailedWhisperWeightTypeStatus,
+            "/run/error_whisper_thai_weight": downloadFailedWhisperThaiWeightTypeStatus,
+            "/run/error_vosk_weight": downloadFailedVoskWeightTypeStatus,
+            "/run/error_parakeet_weight": downloadFailedParakeetWeightTypeStatus,
+            "/run/error_sensevoice_weight": downloadFailedSenseVoiceWeightTypeStatus,
+        };
+        const settle = settleByEndpoint[endpoint];
+        if (typeof settle === "function") settle(weightType);
+    };
 
     const errorHandling_Backend = ({error_code, message, data, endpoint, result}) => {
         switch (error_code) {
@@ -161,6 +180,19 @@ export const _useBackendErrorHandling = () => {
                 updateTranscriptionReceiveStatus(data);
                 showNotification_Error(message, { category_id: error_code });
                 return;
+            case "TRANSCRIPTION_MODEL_NOT_READY":
+                const sourceLabel = data?.source === "speaker"
+                    ? t("main_page.transcription_receive")
+                    : t("main_page.transcription_send");
+                showNotification_Error(
+                    t("common_error.transcription_model_not_ready", {
+                        engine: data?.engine,
+                        model: data?.weight_type,
+                        source: sourceLabel,
+                    }),
+                    { category_id: error_code },
+                );
+                return;
 
             // ============================================================================
             // ウェイトダウンロード関連エラー (WEIGHT_*)
@@ -187,9 +219,15 @@ export const _useBackendErrorHandling = () => {
                 );
                 return;
             case "WEIGHT_WHISPER_DOWNLOAD":
+                settleTranscriptionDownloadFailure(endpoint, data?.weight_type);
                 showNotification_Error(t("common_error.failed_download_weight_whisper"), { category_id: error_code });
                 return;
+            case "WEIGHT_TRANSCRIPTION_DOWNLOAD":
+                settleTranscriptionDownloadFailure(endpoint, data?.weight_type);
+                showNotification_Error(message, { category_id: error_code });
+                return;
             case "WEIGHT_SENSEVOICE_DOWNLOAD":
+                settleTranscriptionDownloadFailure(endpoint, data?.weight_type);
                 showNotification_Error(t("common_error.failed_download_weight_sensevoice"), { category_id: error_code });
                 return;
 

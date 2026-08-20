@@ -333,6 +333,24 @@
     font-variant-numeric: tabular-nums;
 }
 
+.download_progress_actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.download_cancel_button {
+    min-height: 1.8rem;
+    border: 0.1rem solid rgba(255, 180, 189, 0.42);
+    border-radius: 0.45rem;
+    padding: 0 0.55rem;
+    color: #ffb4bd;
+    background: rgba(255, 180, 189, 0.08);
+    font: inherit;
+    font-size: 0.7rem;
+    font-weight: 800;
+}
+
 .download_progress_track {
     position: relative;
     height: 0.42rem;
@@ -426,7 +444,8 @@
 }
 
 .model_row > span[data-state="preparing"],
-.model_row > span[data-state="downloading"] {
+.model_row > span[data-state="downloading"],
+.model_row > span[data-state="cancelling"] {
     color: var(--accent_color);
 }
 
@@ -442,7 +461,8 @@
 .back_button:hover:not(:disabled),
 .recommendation_button:hover:not(:disabled),
 .preset_button:hover:not(:disabled),
-.model_row button:hover:not(:disabled) {
+.model_row button:hover:not(:disabled),
+.download_cancel_button:hover:not(:disabled) {
     transform: translateY(-0.1rem);
 }
 
@@ -450,6 +470,7 @@
 .recommendation_button:focus-visible,
 .preset_button:focus-visible,
 .model_row button:focus-visible,
+.download_cancel_button:focus-visible,
 .advanced_models summary:focus-visible {
     outline: 0.2rem solid rgba(var(--accent_color_rgb), 0.9);
     outline-offset: 0.18rem;

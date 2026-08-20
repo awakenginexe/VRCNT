@@ -8,6 +8,7 @@ import importlib.util
 import os
 import sys
 import time
+from threading import Event
 from os import path as os_path, makedirs as os_makedirs
 from json import dump as json_dump
 import json
@@ -16,6 +17,11 @@ import logging
 
 import numpy as np
 from utils import errorLogging, printLog
+from .download_control import (
+    DownloadCancelled,
+    raise_if_download_cancelled,
+    remove_incomplete_download,
+)
 
 try:
     import sherpa_onnx  # type: ignore
@@ -172,51 +178,58 @@ def downloadSenseVoiceWeight(
     weight_type: str,
     callback: Optional[Callable[[float], None]] = None,
     end_callback: Optional[Callable[[], None]] = None,
+    cancel_event: Optional[Event] = None,
 ) -> bool:
     meta = _MODELS.get(weight_type)
-    if meta is None or meta.get("downloadable") is not True or not _HF_AVAILABLE:
-        if callable(end_callback):
-            end_callback()
-        return False
-
     path = _modelDir(root, weight_type)
-    os_makedirs(path, exist_ok=True)
-
-    if checkSenseVoiceWeight(root, weight_type):
-        if callable(callback):
-            callback(1.0)
-        if callable(end_callback):
-            end_callback()
-        return True
-
     try:
+        raise_if_download_cancelled(cancel_event)
+        if meta is None or meta.get("downloadable") is not True or not _HF_AVAILABLE:
+            return False
+
+        os_makedirs(path, exist_ok=True)
+
+        if checkSenseVoiceWeight(root, weight_type):
+            raise_if_download_cancelled(cancel_event)
+            if callable(callback):
+                callback(1.0)
+            return True
+
         if callable(_disable_hf_progress_bars):
             _disable_hf_progress_bars()
 
         max_attempts = len(_DOWNLOAD_RETRY_DELAYS_SECONDS) + 1
         for attempt in range(max_attempts):
             try:
+                raise_if_download_cancelled(cancel_event)
                 if callable(callback):
                     callback(0.05)
+                raise_if_download_cancelled(cancel_event)
                 huggingface_hub.snapshot_download(
                     repo_id=meta["repo"],
                     local_dir=path,
                     allow_patterns=meta["files"],
                     local_dir_use_symlinks=False,
                 )
+                raise_if_download_cancelled(cancel_event)
                 missing_files = [
                     fname for fname in meta.get("files", [])
                     if not os_path.isfile(os_path.join(path, fname))
                 ]
                 if missing_files:
                     raise IOError(f"Incomplete SenseVoice download, missing files: {missing_files}")
+                raise_if_download_cancelled(cancel_event)
                 with open(_markerPath(root, weight_type), "w", encoding="utf-8") as f:
                     json_dump({"repo": meta["repo"], "backend": "sherpa-onnx", "onnx_file": meta["onnx_file"]}, f)
+                raise_if_download_cancelled(cancel_event)
                 if not checkSenseVoiceWeight(root, weight_type):
                     raise IOError(f"Downloaded SenseVoice model did not pass validation: {weight_type}")
                 if callable(callback):
                     callback(1.0)
+                raise_if_download_cancelled(cancel_event)
                 return True
+            except DownloadCancelled:
+                raise
             except Exception:
                 logger.exception(
                     "Failed to download SenseVoice model %s on attempt %s/%s",
@@ -226,6 +239,9 @@ def downloadSenseVoiceWeight(
                 )
                 if attempt < len(_DOWNLOAD_RETRY_DELAYS_SECONDS):
                     time.sleep(_DOWNLOAD_RETRY_DELAYS_SECONDS[attempt])
+        return False
+    except DownloadCancelled:
+        remove_incomplete_download(path, checkSenseVoiceWeight(root, weight_type))
         return False
     finally:
         if callable(end_callback):

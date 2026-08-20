@@ -85,6 +85,102 @@ class TranscriptionProfileControllerTests(unittest.TestCase):
             (PipelineSource.MIC,)
         )
 
+    def test_active_profile_change_to_missing_local_model_is_rejected_before_commit(self):
+        cases = (
+            ("Whisper", "tiny", "checkTranscriptionWhisperModelWeight"),
+            (
+                "Whisper Thai",
+                "thai-thonburian-small",
+                "checkTranscriptionWhisperThaiModelWeight",
+            ),
+        )
+
+        for engine, weight_type, check_name in cases:
+            with self.subTest(engine=engine):
+                controller_module.config._TRANSCRIPTION_PROFILE_SEND = profile("Google")
+                controller_module.config._TRANSCRIPTION_PROFILE_RECEIVE = profile("Google")
+                original = deepcopy(controller_module.config.TRANSCRIPTION_PROFILE_SEND)
+                self.controller._requestTranscriptionSourcesRestartLocked.reset_mock()
+                publish = Mock()
+                self.controller._publishSourceTranscriptionProfile = publish
+
+                with (
+                    patch.object(
+                        controller_module.model,
+                        "isTranscriptionSourceActive",
+                        return_value=True,
+                    ),
+                    patch.object(
+                        controller_module.model,
+                        check_name,
+                        return_value=False,
+                    ) as check,
+                ):
+                    response = self.controller.setTranscriptionProfileSend(
+                        {"engine": engine, "models": {engine: weight_type}}
+                    )
+
+                self.assertEqual(response["status"], 400)
+                self.assertEqual(
+                    response["result"]["error_code"],
+                    "TRANSCRIPTION_MODEL_NOT_READY",
+                )
+                self.assertEqual(response["result"]["data"]["source"], "mic")
+                self.assertEqual(response["result"]["data"]["engine"], engine)
+                self.assertEqual(
+                    response["result"]["data"]["weight_type"],
+                    weight_type,
+                )
+                self.assertEqual(
+                    controller_module.config.TRANSCRIPTION_PROFILE_SEND,
+                    original,
+                )
+                publish.assert_not_called()
+                self.controller._requestTranscriptionSourcesRestartLocked.assert_not_called()
+                check.assert_called_once_with(weight_type)
+
+    def test_active_apply_to_both_rejects_missing_local_model_before_any_commit(self):
+        controller_module.config._TRANSCRIPTION_PROFILE_SEND = profile("Google")
+        controller_module.config._TRANSCRIPTION_PROFILE_RECEIVE = profile("Google")
+        original_send = deepcopy(controller_module.config.TRANSCRIPTION_PROFILE_SEND)
+        original_receive = deepcopy(controller_module.config.TRANSCRIPTION_PROFILE_RECEIVE)
+        self.controller._requestTranscriptionSourcesRestartLocked.reset_mock()
+        publish = Mock()
+        self.controller._publishSourceTranscriptionProfile = publish
+
+        with (
+            patch.object(
+                controller_module.model,
+                "isTranscriptionSourceActive",
+                return_value=True,
+            ),
+            patch.object(
+                controller_module.model,
+                "checkTranscriptionWhisperModelWeight",
+                return_value=False,
+            ) as check,
+        ):
+            response = self.controller.setTranscriptionProfileAll(
+                {"engine": "Whisper", "models": {"Whisper": "tiny"}}
+            )
+
+        self.assertEqual(response["status"], 400)
+        self.assertEqual(
+            response["result"]["error_code"],
+            "TRANSCRIPTION_MODEL_NOT_READY",
+        )
+        self.assertEqual(
+            controller_module.config.TRANSCRIPTION_PROFILE_SEND,
+            original_send,
+        )
+        self.assertEqual(
+            controller_module.config.TRANSCRIPTION_PROFILE_RECEIVE,
+            original_receive,
+        )
+        publish.assert_not_called()
+        self.controller._requestTranscriptionSourcesRestartLocked.assert_not_called()
+        check.assert_called_once_with("tiny")
+
     def test_engine_catalog_exposes_cloud_and_every_local_provider(self):
         response = self.controller.getTranscriptionEngines()
 
@@ -511,6 +607,35 @@ class TranscriptionProfileRuntimeTests(unittest.TestCase):
         self.assertIsNotNone(speaker)
         self.assertEqual(len(loads), 1)
         speaker.close()
+
+    def test_different_whisper_source_profiles_use_independent_runtime_managers(self):
+        instance = object.__new__(Model)
+        loads = []
+        unloaded = []
+        instance.whisper_runtime_manager = WhisperRuntimeManager(
+            factory=lambda root, key: loads.append((root, key)) or object(),
+            unload=unloaded.append,
+        )
+        send = profile("Whisper Thai")
+        receive = profile("Whisper", whisper="tiny")
+
+        with (
+            patch.object(model_module.config, "_TRANSCRIPTION_PROFILE_SEND", send, create=True),
+            patch.object(model_module.config, "_TRANSCRIPTION_PROFILE_RECEIVE", receive, create=True),
+            patch.object(model_module, "checkWhisperWeight", return_value=True),
+            patch.object(model_module, "checkWhisperThaiWeight", return_value=True),
+            patch.object(model_module, "resolveWhisperComputeType", return_value="int8"),
+        ):
+            mic = instance._acquireWhisperRuntimeLease(PipelineSource.MIC)
+            speaker = instance._acquireWhisperRuntimeLease(PipelineSource.SPEAKER)
+
+        self.assertIsNotNone(mic)
+        self.assertIsNotNone(speaker)
+        self.assertEqual(len(loads), 2)
+        self.assertNotEqual(loads[0][1].weight_type, loads[1][1].weight_type)
+        mic.close()
+        speaker.close()
+        self.assertEqual(len(unloaded), 2)
 
 
 if __name__ == "__main__":

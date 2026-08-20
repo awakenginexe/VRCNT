@@ -38,6 +38,7 @@ from models.transcription.transcription_whisper_cloud import (
     resolve_whisper_cloud_api_key,
 )
 from models.transcription.whisper_runtime import (
+    WhisperRuntimeBusy,
     WhisperRuntimeKey,
     WhisperRuntimeLease,
     WhisperRuntimeManager,
@@ -301,6 +302,7 @@ class Model:
         self.clipboard = Clipboard()
         self.telemetry = Telemetry()
         self.whisper_runtime_manager = WhisperRuntimeManager()
+        self._source_whisper_runtime_managers: dict[PipelineSource, WhisperRuntimeManager] = {}
         self._transcription_pipeline_metric_lock = RLock()
         self.transcription_pipeline_metrics = deque(
             maxlen=TRANSCRIPTION_PIPELINE_METRIC_HISTORY_SIZE
@@ -367,6 +369,33 @@ class Model:
         profile = cls._sourceTranscriptionProfile(source)
         return profile["engine"], profile["device"], profile["compute_type"]
 
+    def _sourceWhisperRuntimeManager(
+        self,
+        source: Optional[PipelineSource],
+    ) -> WhisperRuntimeManager:
+        """Return a source fallback when the shared runtime has another key.
+
+        Matching source profiles still use the primary manager so they share a
+        single loaded model. When microphone and speaker select different
+        local Whisper weights, each source gets its own manager because a
+        faster-whisper model cannot swap weights while it still has leases.
+        """
+        if source is None:
+            return self.whisper_runtime_manager
+        managers = getattr(self, "_source_whisper_runtime_managers", None)
+        if not isinstance(managers, dict):
+            managers = {}
+            self._source_whisper_runtime_managers = managers
+        manager = managers.get(source)
+        if manager is None:
+            primary_manager = self.whisper_runtime_manager
+            manager = WhisperRuntimeManager(
+                factory=getattr(primary_manager, "_factory", None),
+                unload=getattr(primary_manager, "_unload", None),
+            )
+            managers[source] = manager
+        return manager
+
     def _acquireWhisperRuntimeLease(
         self,
         source: Optional[PipelineSource] = None,
@@ -396,7 +425,15 @@ class Model:
             device_index=device_index,
             compute_type=compute_type,
         )
-        return self.whisper_runtime_manager.acquire(config.PATH_DATA, key)
+        try:
+            return self.whisper_runtime_manager.acquire(config.PATH_DATA, key)
+        except WhisperRuntimeBusy:
+            if source is None:
+                raise
+            return self._sourceWhisperRuntimeManager(source).acquire(
+                config.PATH_DATA,
+                key,
+            )
 
     def _recordTranscriptionPipelineMetric(
         self,
@@ -790,7 +827,8 @@ class Model:
         except Exception:
             errorLogging()
             try:
-                self.whisper_runtime_manager.retry_failed_unload()
+                manager = getattr(lease, "_manager", self.whisper_runtime_manager)
+                manager.retry_failed_unload()
             except Exception:
                 errorLogging()
                 raise
@@ -850,32 +888,32 @@ class Model:
     def checkTranscriptionWhisperModelWeight(self, weight_type:str):
         return checkWhisperWeight(config.PATH_DATA, weight_type)
 
-    def downloadWhisperModelWeight(self, weight_type, callback=None, end_callback=None):
-        return downloadWhisperWeight(config.PATH_DATA, weight_type, callback, end_callback)
+    def downloadWhisperModelWeight(self, weight_type, callback=None, end_callback=None, cancel_event=None):
+        return downloadWhisperWeight(config.PATH_DATA, weight_type, callback, end_callback, cancel_event)
 
     def checkTranscriptionWhisperThaiModelWeight(self, weight_type: str):
         return checkWhisperThaiWeight(config.PATH_DATA, weight_type)
 
-    def downloadWhisperThaiModelWeight(self, weight_type, callback=None, end_callback=None):
-        return downloadWhisperThaiWeight(config.PATH_DATA, weight_type, callback, end_callback)
+    def downloadWhisperThaiModelWeight(self, weight_type, callback=None, end_callback=None, cancel_event=None):
+        return downloadWhisperThaiWeight(config.PATH_DATA, weight_type, callback, end_callback, cancel_event)
 
     def checkTranscriptionVoskModelWeight(self, weight_type:str):
         return checkVoskWeight(config.PATH_DATA, weight_type)
 
-    def downloadVoskModelWeight(self, weight_type, callback=None, end_callback=None):
-        return downloadVoskWeight(config.PATH_DATA, weight_type, callback, end_callback)
+    def downloadVoskModelWeight(self, weight_type, callback=None, end_callback=None, cancel_event=None):
+        return downloadVoskWeight(config.PATH_DATA, weight_type, callback, end_callback, cancel_event)
 
     def checkTranscriptionParakeetModelWeight(self, weight_type:str):
         return checkParakeetWeight(config.PATH_DATA, weight_type)
 
-    def downloadParakeetModelWeight(self, weight_type, callback=None, end_callback=None):
-        return downloadParakeetWeight(config.PATH_DATA, weight_type, callback, end_callback)
+    def downloadParakeetModelWeight(self, weight_type, callback=None, end_callback=None, cancel_event=None):
+        return downloadParakeetWeight(config.PATH_DATA, weight_type, callback, end_callback, cancel_event)
 
     def checkTranscriptionSenseVoiceModelWeight(self, weight_type:str):
         return checkSenseVoiceWeight(config.PATH_DATA, weight_type)
 
-    def downloadSenseVoiceModelWeight(self, weight_type, callback=None, end_callback=None):
-        return downloadSenseVoiceWeight(config.PATH_DATA, weight_type, callback, end_callback)
+    def downloadSenseVoiceModelWeight(self, weight_type, callback=None, end_callback=None, cancel_event=None):
+        return downloadSenseVoiceWeight(config.PATH_DATA, weight_type, callback, end_callback, cancel_event)
 
     def resetKeywordProcessor(self):
         self.ensure_initialized()
@@ -2912,7 +2950,7 @@ class Model:
         self.telemetry.init(enabled=enabled, app_version=app_version)
 
     def shutdownTranscriptionPipelines(self) -> None:
-        """Stop both source pipelines, then retire the one shared runtime.
+        """Stop both source pipelines, then retire every Whisper runtime.
 
         Recorder and pipeline callbacks already executing are cooperative
         boundaries: they cannot be force-cancelled, so shutdown waits for them.
@@ -2933,12 +2971,21 @@ class Model:
                 if first_error is None:
                     first_error = error
                 errorLogging()
-        try:
-            self.whisper_runtime_manager.shutdown()
-        except Exception as error:
-            if first_error is None:
-                first_error = error
-            errorLogging()
+        managers = [self.whisper_runtime_manager]
+        managers.extend(
+            getattr(self, "_source_whisper_runtime_managers", {}).values()
+        )
+        seen_managers = set()
+        for manager in managers:
+            if id(manager) in seen_managers:
+                continue
+            seen_managers.add(id(manager))
+            try:
+                manager.shutdown()
+            except Exception as error:
+                if first_error is None:
+                    first_error = error
+                errorLogging()
         if first_error is not None:
             raise first_error
 

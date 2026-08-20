@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import clsx from "clsx";
 import { useI18n } from "@useI18n";
 import styles from "./TranscriptionEngineLabel.module.scss";
@@ -124,6 +124,8 @@ const LiveTranscriptionEngineQuickPick = () => {
         updateIsOpenedTranscriptionEngineSelector,
     } = useStore_IsOpenedTranscriptionEngineSelector();
     const [openRole, setOpenRole] = useState(null);
+    const speakingButtonRef = useRef(null);
+    const listeningButtonRef = useRef(null);
 
     const sendProfile = currentTranscriptionProfileSend?.data ?? {};
     const receiveProfile = currentTranscriptionProfileReceive?.data ?? {};
@@ -149,6 +151,9 @@ const LiveTranscriptionEngineQuickPick = () => {
                     const selectorOpen = currentIsOpenedTranscriptionEngineSelector.data === true
                         && openRole === role.id;
                     const title = t(role.titleKey);
+                    const anchorRef = role.id === "speaking"
+                        ? speakingButtonRef
+                        : listeningButtonRef;
 
                     return (
                         <section
@@ -160,6 +165,7 @@ const LiveTranscriptionEngineQuickPick = () => {
                             <button
                                 type="button"
                                 className={styles.live_role_button}
+                                ref={anchorRef}
                                 onClick={() => toggleRoleSelector(role.id)}
                                 aria-expanded={selectorOpen}
                             >
@@ -178,6 +184,7 @@ const LiveTranscriptionEngineQuickPick = () => {
                                 <TranscriptionEngineSelector
                                     selected_id={engine}
                                     role={role.id}
+                                    anchorRef={anchorRef}
                                     placement="live"
                                 />
                             )}

@@ -12,11 +12,17 @@ The functions are defensive: failures are caught and reported by the caller.
 from os import path as os_path, makedirs as os_makedirs, remove as os_remove, replace as os_replace
 import importlib
 from requests import get as requests_get
+from threading import Event
 from typing import Callable, Optional
 import huggingface_hub
 import logging
 import json
 from utils import errorLogging, getBestComputeType
+from .download_control import (
+    DownloadCancelled,
+    raise_if_download_cancelled,
+    remove_incomplete_download,
+)
 
 logger = logging.getLogger('faster_whisper')
 logger.setLevel(logging.CRITICAL)
@@ -148,7 +154,12 @@ def _normalizeWhisperTokenizerFile(tokenizer_path: str) -> bool:
         raise
     return True
 
-def downloadFile(url: str, path: str, func: Optional[Callable[[float], None]] = None) -> bool:
+def downloadFile(
+    url: str,
+    path: str,
+    func: Optional[Callable[[float], None]] = None,
+    cancel_event: Optional[Event] = None,
+) -> bool:
     """Download a file from `url` to `path`.
 
     Args:
@@ -157,32 +168,46 @@ def downloadFile(url: str, path: str, func: Optional[Callable[[float], None]] = 
         func: optional callback(progress: float) called with a 0.0-1.0 progress
     """
     temp_path = f"{path}.part"
+    target_existed_before_attempt = os_path.exists(path)
+    partial_touched_by_attempt = False
+    target_created_by_attempt = False
     try:
+        raise_if_download_cancelled(cancel_event)
         os_makedirs(os_path.dirname(path), exist_ok=True)
         with requests_get(url, stream=True, timeout=(10, 120)) as res:
             res.raise_for_status()
             file_size = int(res.headers.get('content-length', 0))
             total_chunk = 0
             with open(temp_path, 'wb') as file:
+                partial_touched_by_attempt = True
                 for chunk in res.iter_content(chunk_size=1024 * 2000):
+                    raise_if_download_cancelled(cancel_event)
                     if not chunk:
                         continue
                     file.write(chunk)
                     total_chunk += len(chunk)
                     if callable(func) and file_size:
                         func(total_chunk / file_size)
+                    raise_if_download_cancelled(cancel_event)
             if total_chunk <= 0:
                 raise IOError(f"Empty download for {path}")
             if file_size and total_chunk < file_size:
                 raise IOError(f"Incomplete download for {path}: {total_chunk}/{file_size}")
+        raise_if_download_cancelled(cancel_event)
         os_replace(temp_path, path)
+        target_created_by_attempt = not target_existed_before_attempt
         return True
+    except DownloadCancelled:
+        if partial_touched_by_attempt:
+            remove_incomplete_download(temp_path, False)
+        if target_created_by_attempt:
+            remove_incomplete_download(path, False)
+        return False
     except Exception:
         errorLogging()
         for broken_path in (temp_path, path):
             try:
-                if os_path.exists(broken_path):
-                    os_remove(broken_path)
+                remove_incomplete_download(broken_path, False)
             except Exception:
                 pass
         return False
@@ -212,6 +237,7 @@ def downloadWhisperWeight(
     weight_type: str,
     callback: Optional[Callable[[float], None]] = None,
     end_callback: Optional[Callable[[], None]] = None,
+    cancel_event: Optional[Event] = None,
 ) -> bool:
     """Ensure Whisper weight files are present locally; download them if missing.
 
@@ -223,27 +249,42 @@ def downloadWhisperWeight(
     """
     path = os_path.join(root, "weights", "whisper", weight_type)
     os_makedirs(path, exist_ok=True)
-    if not checkWhisperWeight(root, weight_type):
-        try:
-            filenames = [filename for filename in huggingface_hub.list_repo_files(_MODELS[weight_type]) if filename in _FILENAMES]
-        except Exception:
-            errorLogging()
-            filenames = _FILENAMES
-
-        for filename in filenames:
-            file_path = os_path.join(path, filename)
-            if _isValidWhisperFile(file_path, filename):
-                continue
+    try:
+        raise_if_download_cancelled(cancel_event)
+        if not checkWhisperWeight(root, weight_type):
             try:
-                if os_path.exists(file_path):
-                    os_remove(file_path)
+                filenames = [filename for filename in huggingface_hub.list_repo_files(_MODELS[weight_type]) if filename in _FILENAMES]
             except Exception:
-                pass
-            url = huggingface_hub.hf_hub_url(_MODELS[weight_type], filename)
-            downloadFile(url, file_path, func=callback if filename == "model.bin" else None)
-    if callable(end_callback):
-        end_callback()
-    return checkWhisperWeight(root, weight_type)
+                errorLogging()
+                filenames = _FILENAMES
+
+            for filename in filenames:
+                raise_if_download_cancelled(cancel_event)
+                file_path = os_path.join(path, filename)
+                if _isValidWhisperFile(file_path, filename):
+                    continue
+                try:
+                    if os_path.exists(file_path):
+                        os_remove(file_path)
+                except Exception:
+                    pass
+                url = huggingface_hub.hf_hub_url(_MODELS[weight_type], filename)
+                download_result = downloadFile(
+                    url,
+                    file_path,
+                    func=callback if filename == "model.bin" else None,
+                    cancel_event=cancel_event,
+                )
+                if not download_result:
+                    raise_if_download_cancelled(cancel_event)
+        raise_if_download_cancelled(cancel_event)
+        return checkWhisperWeight(root, weight_type)
+    except DownloadCancelled:
+        remove_incomplete_download(path, checkWhisperWeight(root, weight_type))
+        return False
+    finally:
+        if callable(end_callback):
+            end_callback()
 
 def getWhisperModel(
     root: str,

@@ -43,7 +43,10 @@ import {
     useIsSoftwareUpdating,
     useWindow,
 } from "@logics_common";
-import { getMainFunctionPendingCopyKey } from "@logics_common/blockingOperationState.js";
+import {
+    getMainFunctionPendingCopyKey,
+    isPageBlockingOperation,
+} from "@logics_common/blockingOperationState.js";
 import { isTauriRuntime } from "@logics_common/tauriRuntime.js";
 
 export const App = () => {
@@ -95,7 +98,14 @@ const Contents = () => {
     const { t } = useI18n();
     const { WindowGeometryController } = useWindow();
     const { currentIsSoftwareUpdating } = useIsSoftwareUpdating();
-    const { isBlocking, operation } = useBlockingOperation();
+    const {
+        isBlocking: isBlockingOperation,
+        operation,
+    } = useBlockingOperation();
+    const isBlocking = isPageBlockingOperation({
+        isBlocking: isBlockingOperation,
+        operation,
+    });
     const { currentIsBackendReady } = useIsBackendReady();
     const { currentColorReset590 } = useAppearance();
     const isColorResetMigrationRequired = shouldRequireColorResetMigration({

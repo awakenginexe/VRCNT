@@ -142,12 +142,21 @@ test("all activation start, warm, and long copy remains present in every locale"
         "translation_start",
         "translation_warm",
         "translation_long",
+        "translation_stop_start",
+        "translation_stop_warm",
+        "translation_stop_long",
         "transcription_send_start",
         "transcription_send_warm",
         "transcription_send_long",
+        "transcription_send_stop_start",
+        "transcription_send_stop_warm",
+        "transcription_send_stop_long",
         "transcription_receive_start",
         "transcription_receive_warm",
         "transcription_receive_long",
+        "transcription_receive_stop_start",
+        "transcription_receive_stop_warm",
+        "transcription_receive_stop_long",
     ];
 
     for (const localeFile of localeFiles) {
@@ -158,6 +167,86 @@ test("all activation start, warm, and long copy remains present in every locale"
             assert.notEqual(pending[key].trim(), "", `${localeFile}:${key} empty`);
         }
     }
+});
+
+test("safety and download localization has matching keys and interpolation tokens", () => {
+    const requiredKeys = {
+        liveWorkspace: [
+            "transcription_ready",
+            "transcription_not_ready",
+            "transcription_loading",
+            "transcription_detail",
+        ],
+        modelsHub: [
+            "cancel_download",
+            "cancelling_download",
+        ],
+    };
+    const expectedTokens = {
+        transcription_model_not_ready: ["engine", "model", "source"],
+        transcription_detail: ["engine", "model", "source"],
+    };
+
+    for (const localeFile of localeFiles) {
+        const locale = yaml.load(readSource(`locales/${localeFile}`));
+        const commonError = locale?.common_error ?? {};
+        const liveWorkspace = locale?.main_page?.live_workspace ?? {};
+        const modelsHub = locale?.main_page?.models_hub ?? {};
+
+        assert.equal(
+            typeof commonError.transcription_model_not_ready,
+            "string",
+            `${localeFile}:common_error.transcription_model_not_ready type`,
+        );
+        assert.notEqual(
+            commonError.transcription_model_not_ready.trim(),
+            "",
+            `${localeFile}:common_error.transcription_model_not_ready empty`,
+        );
+        assert.deepEqual(
+            interpolationTokens(commonError.transcription_model_not_ready),
+            expectedTokens.transcription_model_not_ready,
+            `${localeFile}:common_error.transcription_model_not_ready interpolation`,
+        );
+
+        for (const key of requiredKeys.liveWorkspace) {
+            assert.equal(typeof liveWorkspace[key], "string", `${localeFile}:live_workspace.${key} type`);
+            assert.notEqual(liveWorkspace[key].trim(), "", `${localeFile}:live_workspace.${key} empty`);
+            if (expectedTokens[key]) {
+                assert.deepEqual(
+                    interpolationTokens(liveWorkspace[key]),
+                    expectedTokens[key],
+                    `${localeFile}:live_workspace.${key} interpolation`,
+                );
+            }
+        }
+
+        for (const key of requiredKeys.modelsHub) {
+            assert.equal(typeof modelsHub[key], "string", `${localeFile}:models_hub.${key} type`);
+            assert.notEqual(modelsHub[key].trim(), "", `${localeFile}:models_hub.${key} empty`);
+        }
+    }
+});
+
+test("transcription model readiness uses localized source-aware backend copy", () => {
+    const source = readSource("src-ui/logics/_useBackendErrorHandling.js");
+
+    assert.match(source, /case "TRANSCRIPTION_MODEL_NOT_READY":/);
+    assert.match(source, /common_error\.transcription_model_not_ready/);
+    assert.match(source, /engine:\s*data\?\.engine/);
+    assert.match(source, /model:\s*data\?\.weight_type/);
+    assert.match(source, /source:\s*sourceLabel/);
+    assert.match(source, /data\?\.source\s*===\s*"speaker"/);
+    assert.match(source, /t\("main_page\.transcription_receive"\)/);
+    assert.match(source, /t\("main_page\.transcription_send"\)/);
+    const transcriptionCase = source.match(
+        /case "TRANSCRIPTION_MODEL_NOT_READY":[\s\S]*?return;/,
+    )?.[0] ?? "";
+    assert.match(transcriptionCase, /category_id:\s*error_code/);
+    assert.match(
+        source,
+        /default:\s*[\s\S]*showNotification_Error\(`An error occurred\. Please contact the developers and restart VRCNT\./,
+    );
 });
 
 test("overlay, banner, transport, and lifecycle surfaces use locale keys", () => {
