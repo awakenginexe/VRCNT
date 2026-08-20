@@ -606,6 +606,38 @@ test("renders the real open listbox through document.body with fixed geometry an
     }
 });
 
+test("uses the rendered panel height so a short top-page menu stays below its trigger", async () => {
+    const rendered = await renderSelect();
+    try {
+        rendered.trigger.setBoundingClientRect({
+            top: 500,
+            bottom: 540,
+            left: 80,
+            right: 320,
+            width: 240,
+            height: 40,
+        });
+        await click(rendered.trigger);
+
+        const openListbox = listbox();
+        assert.ok(openListbox);
+        openListbox.setBoundingClientRect({
+            top: 0,
+            bottom: 120,
+            left: 0,
+            right: 240,
+            width: 240,
+            height: 120,
+        });
+        await dispatch(dom.window, new MiniEvent("resize", { bubbles: false }));
+
+        assert.equal(openListbox.getAttribute("data-placement"), "below");
+        assert.equal(Number.parseFloat(openListbox.style.top), 546);
+    } finally {
+        await unmountSelect(rendered);
+    }
+});
+
 test("keeps the real portaled listbox open for inside events and closes it for outside events", async () => {
     const rendered = await renderSelect();
     const outside = dom.document.createElement("div");

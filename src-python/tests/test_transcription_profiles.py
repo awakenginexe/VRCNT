@@ -608,6 +608,35 @@ class TranscriptionProfileRuntimeTests(unittest.TestCase):
         self.assertEqual(len(loads), 1)
         speaker.close()
 
+    def test_different_whisper_source_profiles_use_independent_runtime_managers(self):
+        instance = object.__new__(Model)
+        loads = []
+        unloaded = []
+        instance.whisper_runtime_manager = WhisperRuntimeManager(
+            factory=lambda root, key: loads.append((root, key)) or object(),
+            unload=unloaded.append,
+        )
+        send = profile("Whisper Thai")
+        receive = profile("Whisper", whisper="tiny")
+
+        with (
+            patch.object(model_module.config, "_TRANSCRIPTION_PROFILE_SEND", send, create=True),
+            patch.object(model_module.config, "_TRANSCRIPTION_PROFILE_RECEIVE", receive, create=True),
+            patch.object(model_module, "checkWhisperWeight", return_value=True),
+            patch.object(model_module, "checkWhisperThaiWeight", return_value=True),
+            patch.object(model_module, "resolveWhisperComputeType", return_value="int8"),
+        ):
+            mic = instance._acquireWhisperRuntimeLease(PipelineSource.MIC)
+            speaker = instance._acquireWhisperRuntimeLease(PipelineSource.SPEAKER)
+
+        self.assertIsNotNone(mic)
+        self.assertIsNotNone(speaker)
+        self.assertEqual(len(loads), 2)
+        self.assertNotEqual(loads[0][1].weight_type, loads[1][1].weight_type)
+        mic.close()
+        speaker.close()
+        self.assertEqual(len(unloaded), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

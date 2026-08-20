@@ -44,6 +44,7 @@ export const CustomModernSelect = ({
         width: variant === "model" ? 380 : "anchor",
         gap: 6,
         padding: 12,
+        panelRef: listboxRef,
     });
 
     const selectedOption = options.find((opt) => opt.id === value || opt.value === value);

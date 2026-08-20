@@ -1,4 +1,3 @@
-@import "@scss_mixins";
 .container {
     display: flex;
     flex-direction: column;
@@ -236,7 +235,7 @@
     }
     &[data-transition="starting"],
     &[data-transition="stopping"] {
-        animation: main_function_switch_pending_pulse 1.8s ease-in-out infinite;
+        animation: main_function_switch_pending_breathe 2.6s ease-in-out infinite;
     }
     &.is_pending:hover,
     &.is_pending:active {
@@ -264,15 +263,31 @@
     }
 }
 
-@keyframes main_function_switch_pending_pulse {
+@keyframes main_function_switch_pending_breathe {
     0%,
     100% {
-        border-color: rgba(var(--accent_color_rgb), 0.34);
-        background: color-mix(in srgb, var(--accent_color) 7%, var(--surface_2_color));
+        border-color: rgba(var(--accent_color_rgb), 0.28);
+        background: color-mix(in srgb, var(--accent_color) 4%, var(--surface_2_color));
+        box-shadow: 0 0 0 rgba(var(--accent_color_rgb), 0);
     }
     50% {
-        border-color: rgba(var(--accent_color_rgb), 0.72);
-        background: color-mix(in srgb, var(--accent_color) 14%, var(--surface_3_color));
+        border-color: rgba(var(--accent_color_rgb), 0.56);
+        background: color-mix(in srgb, var(--accent_color) 9%, var(--surface_3_color));
+        box-shadow: 0 0 1.35rem rgba(var(--accent_color_rgb), 0.12);
+    }
+}
+
+@keyframes main_function_switch_pending_blink {
+    0%,
+    100% {
+        opacity: 0.42;
+        transform: scale(0.88);
+        box-shadow: 0 0 0 rgba(var(--accent_color_rgb), 0);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.08);
+        box-shadow: 0 0 0.9rem rgba(var(--accent_color_rgb), 0.5);
     }
 }
 
@@ -280,6 +295,11 @@
     .switch_container[data-transition="starting"],
     .switch_container[data-transition="stopping"] {
         animation: none;
+    }
+
+    .state_mark.is_pending {
+        animation: none;
+        opacity: 0.75;
     }
 }
 
@@ -377,6 +397,7 @@ $pending_label_color: var(--dark_500_color);
     }
     &.is_pending {
         border-color: var(--warning_color);
+        animation: main_function_switch_pending_blink 2.1s ease-in-out infinite;
     }
     &.is_disabled {
         border-color: var(--dark_600_color);
@@ -417,10 +438,6 @@ $pending_label_color: var(--dark_500_color);
     &.is_compact_mode.is_active {
         display: block;
     }
-}
-
-.loader {
-    @include loader(2rem, 0.2rem, left, 50%);
 }
 
 .toggle_control {

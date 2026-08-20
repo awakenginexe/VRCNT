@@ -59,6 +59,34 @@ test("places a tall floating panel above an anchor near the bottom edge", () => 
     assert.ok(position.maxHeight > 0);
 });
 
+test("keeps an anchor-start panel aligned to the anchor and scrollable below it", () => {
+    const anchorRect = {
+        top: 500,
+        bottom: 540,
+        left: 80,
+        right: 320,
+        width: 240,
+        height: 40,
+    };
+
+    const position = calculateFloatingPanelPosition({
+        anchorRect,
+        panelSize: { width: 400, height: 240 },
+        viewport: { width: 900, height: 600 },
+        gap,
+        padding,
+        verticalAlignment: "anchor-start",
+    });
+
+    assert.deepEqual(position, {
+        top: 500,
+        left: 80,
+        width: 400,
+        maxHeight: 84,
+        placement: "anchor-start",
+    });
+});
+
 test("clamps a floating panel inside horizontal viewport padding", () => {
     const anchorRect = {
         top: 100,

@@ -39,14 +39,19 @@ test("the initiating switch exposes a direction-aware transition state", () => {
     );
 });
 
-test("pending switch animation is restrained and reduced-motion safe", () => {
+test("pending switches use a soft blink instead of a rotating loader", () => {
+    const source = readSource(switchPath);
     const styles = readSource(stylesPath);
 
+    assert.match(source, /styles\.state_mark/);
+    assert.doesNotMatch(source, /styles\.loader/);
     assert.match(
         styles,
         /&\[data-transition=["']starting["']\][\s\S]*?animation:\s*[\w-]+\s+[\w.-]+\s+ease-in-out\s+infinite/,
     );
-    assert.match(styles, /@keyframes\s+[\w-]+[\s\S]*?border-color[\s\S]*?background/);
+    assert.match(styles, /\.state_mark[\s\S]*?&\.is_pending[\s\S]*?animation:\s*[\w-]+\s+[\w.-]+\s+ease-in-out\s+infinite/);
+    assert.match(styles, /@keyframes\s+main_function_switch_pending_breathe[\s\S]*?border-color[\s\S]*?background/);
+    assert.match(styles, /@keyframes\s+main_function_switch_pending_blink[\s\S]*?opacity[\s\S]*?box-shadow/);
     assert.match(
         styles,
         /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?animation:\s*none/,

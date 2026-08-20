@@ -249,10 +249,6 @@ export const SwitchContainer = ({ switchLabel, switch_id, children, currentState
                 </span>
 
                 <span className={getClassNames(styles.switch_indicator)}></span>
-                {(currentState.state === "pending")
-                    ? <span className={styles.loader}></span>
-                    : null
-                }
             </button>
         </Tooltip>
     );

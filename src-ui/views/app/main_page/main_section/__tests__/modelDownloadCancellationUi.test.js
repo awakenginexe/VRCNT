@@ -27,3 +27,23 @@ test("generated model downloads expose immediate pending and cooperative cancell
     assert.match(categoryApi, /const downloadCancelledKey = `downloadCancelled\$\{base\}`/);
     assert.match(routes, /endpoint: `\/run\/download_cancelled_\$\{ep\}`[\s\S]*?method_name: `downloadCancelled\$\{base\}`/);
 });
+test("advanced model rows expose one cancel action while a download is active", async () => {
+    const modelsHub = await read(
+        "src-ui",
+        "views",
+        "app",
+        "main_page",
+        "models",
+        "ModelsHub.jsx",
+    );
+
+    assert.match(modelsHub, /onCancel=\{\(\) => group\.cancel\(status\.id\)\}/);
+    assert.match(
+        modelsHub,
+        /disabled=\{\s*isCancelling\s*\|\|\s*isDownloading\s*\|\|\s*downloadState === "unavailable"\s*\}/,
+    );
+    assert.doesNotMatch(
+        modelsHub,
+        /else if \(isDownloading\) group\.cancel\(status\.id\)/,
+    );
+});

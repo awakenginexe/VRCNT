@@ -420,21 +420,22 @@ export const ModelsHub = () => {
                                         </span>
                                         <button
                                             type="button"
-                                            disabled={isCancelling || downloadState === "unavailable"}
+                                            disabled={isCancelling || isDownloading || downloadState === "unavailable"}
                                             onClick={() => {
                                                 if (downloadState === "installed") updateExperienceRoute("engines");
-                                                else if (isDownloading) group.cancel(status.id);
-                                                else if (isCancelling) return;
+                                                else if (isDownloading || isCancelling) return;
                                                 else group.download(status.id);
                                             }}
                                         >
                                             {downloadState === "installed"
                                                 ? t("main_page.models_hub.select_model")
-                                                : isDownloading || isCancelling
-                                                    ? t("main_page.models_hub.cancel_download")
-                                                    : downloadState === "failed"
-                                                        ? t("main_page.models_hub.retry_download")
-                                                        : t("main_page.models_hub.download")}
+                                                : isCancelling
+                                                    ? t("main_page.models_hub.cancelling_download")
+                                                    : isDownloading
+                                                        ? t("main_page.models_hub.downloading")
+                                                        : downloadState === "failed"
+                                                            ? t("main_page.models_hub.retry_download")
+                                                            : t("main_page.models_hub.download")}
                                         </button>
                                     </div>
                                 );
