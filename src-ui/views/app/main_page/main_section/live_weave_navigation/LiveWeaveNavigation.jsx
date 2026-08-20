@@ -14,7 +14,6 @@ import styles from "./LiveWeaveNavigation.module.scss";
 
 const NAVIGATION_ITEMS = [
     { id: "live", icon: "⚡", labelKey: "main_page.live_weave.navigation.live" },
-    { id: "engines", icon: "⚙", labelKey: "main_page.live_weave.navigation.engines", configTab: "model_and_provider" },
     { id: "models", icon: "🧠", labelKey: "main_page.live_weave.navigation.models", configTab: "model_and_provider" },
     { id: "translation_models", icon: "🌐", labelKey: "main_page.live_weave.navigation.translation_models" },
     { id: "overlay", icon: "🖼", labelKey: "main_page.live_weave.navigation.overlay", configTab: "vr" },
@@ -43,7 +42,7 @@ export const LiveWeaveNavigation = () => {
             return;
         }
 
-        if (item.id === "engines" || item.id === "models" || item.id === "translation_models" || item.id === "overlay" || item.id === "customize") {
+        if (item.id === "models" || item.id === "translation_models" || item.id === "overlay" || item.id === "customize") {
             setIsOpenedConfigPage(false);
             return;
         }

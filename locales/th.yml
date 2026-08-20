@@ -79,10 +79,9 @@ main_page:
         navigation:
             live: "สด"
             setup: "ตั้งค่าเริ่มต้น"
-            engines: "เอนจินและเสียง"
             history: "ประวัติ"
-            models: "โมเดลเสียง"
-            translation_models: "โมเดลแปลภาษา"
+            models: "การรู้จำเสียง"
+            translation_models: "ตัวเลือกการแปล"
             overlay: "สตูดิโอโอเวอร์เลย์"
             customize: "ปรับแต่ง"
             settings: "การตั้งค่า"
@@ -245,7 +244,7 @@ main_page:
         loading_options: "กำลังโหลดตัวเลือกที่ใช้งานได้…"
     models_hub:
         eyebrow: "คลังโมเดลเสียง"
-        title: "โมเดลเสียง"
+        title: "การรู้จำเสียง"
         detail: "เลือกโมเดลที่ติดตั้งแล้วให้เหมาะกับเครื่อง หรือดาวน์โหลดโมเดลที่ใช้งานได้ก่อนเลือก"
         back_to_live: "กลับไปที่ Live"
         automatic_label: "อัตโนมัติ — แนะนำ"
@@ -312,6 +311,12 @@ main_page:
         vr_enabled: "เปิดใช้"
         vr_scale: "ขนาด {{scale}}%"
         vr_mode: "โหมดโอเวอร์เลย์"
+        background_transparency: "ความโปร่งใสพื้นหลัง (0% โปร่งใส · 100% ทึบ)"
+        border_enabled: "แสดงเส้นขอบ"
+        text_outline: "เส้นขอบข้อความ"
+        outline_size: "ขนาดเส้นขอบ"
+        show_only_translated: "แสดงเฉพาะข้อความแปลแล้ว"
+        show_only_received: "แสดงเฉพาะข้อความที่ได้รับ"
         small_overlay: "บรรทัดเดียว"
         large_overlay: "หลายบรรทัด"
         background: "พื้นหลัง"
@@ -576,7 +581,7 @@ main_page:
 
     translation_models:
         eyebrow: "การแปลแบบออฟไลน์"
-        title: "โมเดลแปลภาษา"
+        title: "ตัวเลือกการแปล"
         detail: "เลือกโปรไฟล์คุณภาพที่เตรียมไว้สำหรับการแปลแบบออฟไลน์ โมเดลขั้นสูงยังคงใช้งานได้ในการตั้งค่า"
         back_to_live: "กลับไปยังไลฟ์"
         advanced_models: "เปิดโมเดลขั้นสูง"
@@ -640,7 +645,7 @@ config_page:
             unable_to_use_osc_query: "เนื่องจากการตั้งค่า OSC IP Address ไม่สามารถรับข้อมูล OSC ได้ ฟีเจอร์นี้จึงไม่พร้อมใช้งานในขณะนี้"
 
     model_and_provider:
-        speech_models: "โมเดลเสียงพูด"
+        speech_models: "การรู้จำเสียง"
         cloud_translation_providers:
             title: "ผู้ให้บริการแปลภาษาบนคลาวด์"
             description: "ตั้งค่าคีย์ API และการเชื่อมต่อผู้ให้บริการในเครื่องสำหรับการแปลบนคลาวด์และ LLM"

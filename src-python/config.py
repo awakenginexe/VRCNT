@@ -496,6 +496,88 @@ OVERLAY_ACCENT_COLORS = {
 
 OVERLAY_BACKGROUND_MODES = ("transparent_black", "solid_black")
 
+OVERLAY_STYLE_DEFAULTS = {
+    "small": {
+        "background_opacity": 71,
+        "border_enabled": True,
+        "text_outline_enabled": False,
+        "text_outline_width": 0,
+        "canvas_width": 3940,
+        "canvas_height": 0,
+    },
+    "large": {
+        "background_opacity": 71,
+        "border_enabled": True,
+        "text_outline_enabled": False,
+        "text_outline_width": 0,
+        "canvas_width": 1312,
+        "canvas_height": 0,
+    },
+}
+
+
+def _overlay_numeric_value(value, fallback):
+    if isinstance(value, bool):
+        return fallback
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
+def _overlay_int_value(value, fallback, minimum, maximum):
+    numeric = _overlay_numeric_value(value, fallback)
+    return int(round(minimum if numeric < minimum else maximum if numeric > maximum else numeric))
+
+
+def _overlay_bool_value(value, fallback):
+    return value if isinstance(value, bool) else fallback
+
+
+def normalize_overlay_settings(settings: Optional[dict], mode: str) -> dict:
+    selected_mode = "large" if mode == "large" else "small"
+    defaults = OVERLAY_STYLE_DEFAULTS[selected_mode]
+    source = settings if isinstance(settings, dict) else {}
+    legacy_opacity = 100 if source.get("background_mode") == "solid_black" else 71
+    height_fallback = defaults["canvas_height"]
+    height_value = source.get("canvas_height", height_fallback)
+    normalized_height = (
+        0
+        if _overlay_numeric_value(height_value, height_fallback) == 0
+        else _overlay_int_value(height_value, height_fallback, 64, 2048)
+    )
+    normalized = dict(source)
+    normalized.update({
+        "background_opacity": _overlay_int_value(
+            source.get("background_opacity", legacy_opacity),
+            legacy_opacity,
+            0,
+            100,
+        ),
+        "border_enabled": _overlay_bool_value(
+            source.get("border_enabled"),
+            defaults["border_enabled"],
+        ),
+        "text_outline_enabled": _overlay_bool_value(
+            source.get("text_outline_enabled"),
+            defaults["text_outline_enabled"],
+        ),
+        "text_outline_width": _overlay_int_value(
+            source.get("text_outline_width"),
+            defaults["text_outline_width"],
+            0,
+            12,
+        ),
+        "canvas_width": _overlay_int_value(
+            source.get("canvas_width"),
+            defaults["canvas_width"],
+            640,
+            7680,
+        ),
+        "canvas_height": normalized_height,
+    })
+    return normalized
+
 APP_COLOR_PALETTE_DEFAULTS = {
     "primary": "#9B6DFF",
     "secondary": "#A87CFF",
@@ -636,6 +718,10 @@ def _overlay_small_validator(val, inst):
             new[key] = v
         elif key == 'background_mode' and isinstance(v, str) and v in OVERLAY_BACKGROUND_MODES:
             new[key] = v
+    new.update({
+        key: normalize_overlay_settings(val, "small")[key]
+        for key in OVERLAY_STYLE_DEFAULTS["small"]
+    })
     return new
 
 def _overlay_large_validator(val, inst):
@@ -660,6 +746,10 @@ def _overlay_large_validator(val, inst):
             new[key] = v
         elif key == 'background_mode' and isinstance(v, str) and v in OVERLAY_BACKGROUND_MODES:
             new[key] = v
+    new.update({
+        key: normalize_overlay_settings(val, "large")[key]
+        for key in OVERLAY_STYLE_DEFAULTS["large"]
+    })
     return new
 
 def _format_validator_send(val, inst):
@@ -1056,6 +1146,7 @@ class Config:
     OVERLAY_SMALL_LOG = ManagedProperty('OVERLAY_SMALL_LOG', type_=bool)
     OVERLAY_LARGE_LOG = ManagedProperty('OVERLAY_LARGE_LOG', type_=bool)
     OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES = ManagedProperty('OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES', type_=bool)
+    OVERLAY_SHOW_ONLY_RECEIVED_MESSAGES = ManagedProperty('OVERLAY_SHOW_ONLY_RECEIVED_MESSAGES', type_=bool)
     SEND_MESSAGE_TO_VRC = ManagedProperty('SEND_MESSAGE_TO_VRC', type_=bool)
     SEND_RECEIVED_MESSAGE_TO_VRC = ManagedProperty('SEND_RECEIVED_MESSAGE_TO_VRC', type_=bool)
     LOGGER_FEATURE = ManagedProperty('LOGGER_FEATURE', type_=bool)
@@ -1425,6 +1516,7 @@ class Config:
             "background_mode": "transparent_black",
             "tracker": "HMD",
         }
+        self._OVERLAY_SMALL_LOG_SETTINGS.update(OVERLAY_STYLE_DEFAULTS["small"])
         self._OVERLAY_LARGE_LOG = False
         self._OVERLAY_LARGE_LOG_SETTINGS = {
             "x_pos": 0.0,
@@ -1443,7 +1535,9 @@ class Config:
             "tracker": "LeftHand",
             "log_order": "oldest_first",
         }
+        self._OVERLAY_LARGE_LOG_SETTINGS.update(OVERLAY_STYLE_DEFAULTS["large"])
         self._OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES = False
+        self._OVERLAY_SHOW_ONLY_RECEIVED_MESSAGES = False
         self._SEND_MESSAGE_TO_VRC = True
         self._SEND_RECEIVED_MESSAGE_TO_VRC = False
         self._LOGGER_FEATURE = False

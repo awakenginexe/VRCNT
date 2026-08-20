@@ -79,10 +79,9 @@ main_page:
         navigation:
             live: "Live"
             setup: "Guided Setup"
-            engines: "Engines & Audio"
             history: "History"
-            models: "Speech Models"
-            translation_models: "Translation Models"
+            models: "Speech Recognition"
+            translation_models: "Translator Option"
             overlay: "Overlay Studio"
             customize: "Customize"
             settings: "Settings"
@@ -245,7 +244,7 @@ main_page:
         loading_options: "Loading available options…"
     models_hub:
         eyebrow: "Speech model library"
-        title: "Speech Models"
+        title: "Speech Recognition"
         detail: "Pick an installed model for your machine, or download an available model before selecting it."
         back_to_live: "Back to Live"
         automatic_label: "Automatic — Recommended"
@@ -312,6 +311,12 @@ main_page:
         vr_enabled: "Enabled"
         vr_scale: "Scale {{scale}}%"
         vr_mode: "Overlay mode"
+        background_transparency: "Background transparency (0% transparent · 100% solid)"
+        border_enabled: "Show border"
+        text_outline: "Text outline"
+        outline_size: "Outline size"
+        show_only_translated: "Show only translated messages"
+        show_only_received: "Show only received messages"
         small_overlay: "Single line"
         large_overlay: "Multiple lines"
         background: "Background"
@@ -576,7 +581,7 @@ main_page:
 
     translation_models:
         eyebrow: "Offline translation"
-        title: "Translation Models"
+        title: "Translator Option"
         detail: "Choose a ready-made quality profile for offline translation. Advanced models stay available in Settings."
         back_to_live: "Back to Live"
         advanced_models: "Open advanced models"
@@ -640,7 +645,7 @@ config_page:
             unable_to_use_osc_query: "Due to the OSC IP Address settings, OSC data cannot be received, so this feature is currently unavailable."
 
     model_and_provider:
-        speech_models: "Speech Models"
+        speech_models: "Speech Recognition"
         cloud_translation_providers:
             title: "Cloud Translation Providers"
             description: "Configure API keys and local provider connections for cloud and LLM translation."

@@ -28,6 +28,116 @@ OVERLAY_BACKGROUND_ALPHA = {
 MESSAGE_TEXT_SCALE_MIN = 0.4
 MESSAGE_TEXT_SCALE_MAX = 2.0
 
+OVERLAY_STYLE_DEFAULTS = {
+    "small": {
+        "background_opacity": 71,
+        "border_enabled": True,
+        "text_outline_enabled": False,
+        "text_outline_width": 0,
+        "canvas_width": 3940,
+        "canvas_height": 0,
+    },
+    "large": {
+        "background_opacity": 71,
+        "border_enabled": True,
+        "text_outline_enabled": False,
+        "text_outline_width": 0,
+        "canvas_width": 1312,
+        "canvas_height": 0,
+    },
+}
+
+
+def _style_number(value, fallback):
+    if isinstance(value, bool):
+        return fallback
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
+def _style_integer(value, fallback, minimum, maximum):
+    numeric = _style_number(value, fallback)
+    return int(round(minimum if numeric < minimum else maximum if numeric > maximum else numeric))
+
+
+def _normalize_overlay_style(style: Optional[dict], mode: str) -> dict:
+    selected_mode = "large" if mode == "large" else "small"
+    defaults = OVERLAY_STYLE_DEFAULTS[selected_mode]
+    source = style if isinstance(style, dict) else {}
+    legacy_opacity = 100 if source.get("background_mode") == "solid_black" else 71
+    height_value = source.get("canvas_height", defaults["canvas_height"])
+    normalized_height = (
+        0
+        if _style_number(height_value, 0) == 0
+        else _style_integer(height_value, defaults["canvas_height"], 64, 2048)
+    )
+    return {
+        **source,
+        "background_opacity": _style_integer(
+            source.get("background_opacity", legacy_opacity),
+            legacy_opacity,
+            0,
+            100,
+        ),
+        "border_enabled": (
+            source["border_enabled"]
+            if isinstance(source.get("border_enabled"), bool)
+            else defaults["border_enabled"]
+        ),
+        "text_outline_enabled": (
+            source["text_outline_enabled"]
+            if isinstance(source.get("text_outline_enabled"), bool)
+            else defaults["text_outline_enabled"]
+        ),
+        "text_outline_width": _style_integer(
+            source.get("text_outline_width"),
+            defaults["text_outline_width"],
+            0,
+            12,
+        ),
+        "canvas_width": _style_integer(
+            source.get("canvas_width"),
+            defaults["canvas_width"],
+            640,
+            7680,
+        ),
+        "canvas_height": normalized_height,
+    }
+
+
+def _compose_overlay_canvas(
+    content: Image,
+    background_color: Tuple[int, int, int, int],
+    border_color: Tuple[int, int, int, int],
+    border_enabled: bool,
+    width: int,
+    height: int,
+    radius: int,
+) -> Image:
+    canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    if content.width > 0 and content.height > 0:
+        source_left = max(0, (content.width - width) // 2)
+        source_top = max(0, (content.height - height) // 2)
+        source_right = min(content.width, source_left + width)
+        source_bottom = min(content.height, source_top + height)
+        source = content.crop((source_left, source_top, source_right, source_bottom))
+        target_left = max(0, (width - source.width) // 2)
+        target_top = max(0, (height - source.height) // 2)
+        canvas.alpha_composite(source, (target_left, target_top))
+
+    background = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(background)
+    draw.rounded_rectangle(
+        [(0, 0), (max(0, width - 1), max(0, height - 1))],
+        radius=min(radius, width // 2, height // 2),
+        fill=background_color,
+        outline=border_color if border_enabled else None,
+        width=5 if border_enabled else 0,
+    )
+    return Image.alpha_composite(background, canvas)
+
 def _hex_color_to_rgb(value: object, fallback: Tuple[int, int, int]) -> Tuple[int, int, int]:
     if not isinstance(value, str):
         return fallback
@@ -118,10 +228,14 @@ class OverlayImage:
         }
 
     @staticmethod
-    def resolveOverlayColors(accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", size: str = "small", color_palette: Optional[dict] = None) -> dict:
+    def resolveOverlayColors(accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", size: str = "small", color_palette: Optional[dict] = None, background_opacity: Optional[int] = None) -> dict:
         accent_rgb = OVERLAY_ACCENT_COLORS.get(accent_color, OVERLAY_ACCENT_COLORS["theme-neon-cyan"])
-        background_alpha = OVERLAY_BACKGROUND_ALPHA.get(background_mode, OVERLAY_BACKGROUND_ALPHA["transparent_black"])
-        outline_alpha = 255 if background_mode == "solid_black" else 220
+        if background_opacity is None:
+            background_alpha = OVERLAY_BACKGROUND_ALPHA.get(background_mode, OVERLAY_BACKGROUND_ALPHA["transparent_black"])
+        else:
+            background_alpha = _style_integer(background_opacity, 71, 0, 100)
+            background_alpha = round(255 * background_alpha / 100)
+        outline_alpha = 255 if background_alpha == 255 else 220
 
         if isinstance(color_palette, dict):
             primary_rgb = _palette_color(color_palette, "primary", accent_rgb)
@@ -161,8 +275,14 @@ class OverlayImage:
         }
 
     @staticmethod
-    def getUiColorSmallLog(accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", color_palette: Optional[dict] = None) -> dict:
-        return OverlayImage.resolveOverlayColors(accent_color, background_mode, "small", color_palette)
+    def getUiColorSmallLog(accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", color_palette: Optional[dict] = None, background_opacity: Optional[int] = None) -> dict:
+        return OverlayImage.resolveOverlayColors(
+            accent_color,
+            background_mode,
+            "small",
+            color_palette,
+            background_opacity,
+        )
 
     def _resolve_font_path(self, font_family: str | Tuple[str, ...] | List[str]) -> str:
         candidates = (font_family,) if isinstance(font_family, str) else tuple(font_family)
@@ -228,7 +348,7 @@ class OverlayImage:
     def _measure_script_text(self, text: str, size: int, language: Optional[str] = None) -> int:
         return max((sum(self._measure_text(run_text, font) for run_text, font in self._script_font_runs(line, size, language)) for line in (text or "").split("\n")), default=0)
 
-    def _draw_script_text(self, draw: ImageDraw.ImageDraw, position, text: str, fill, size: int, anchor: str = "lt", language: Optional[str] = None) -> None:
+    def _draw_script_text(self, draw: ImageDraw.ImageDraw, position, text: str, fill, size: int, anchor: str = "lt", language: Optional[str] = None, stroke_width: int = 0, stroke_fill=None) -> None:
         if "\n" in text:
             lines = text.split("\n")
             line_height = max((self._line_height(font) for line in lines for _, font in self._script_font_runs(line, size, language)), default=size)
@@ -238,7 +358,17 @@ class OverlayImage:
             elif len(anchor) > 1 and anchor[1] == "b":
                 y -= line_height * len(lines)
             for index, line in enumerate(lines):
-                self._draw_script_text(draw, (x, y + (index * line_height)), line, fill, size, f"{anchor[0]}t", language)
+                self._draw_script_text(
+                    draw,
+                    (x, y + (index * line_height)),
+                    line,
+                    fill,
+                    size,
+                    f"{anchor[0]}t",
+                    language,
+                    stroke_width,
+                    stroke_fill,
+                )
             return
         runs = self._script_font_runs(text, size, language)
         if not runs:
@@ -255,7 +385,15 @@ class OverlayImage:
         elif len(anchor) > 1 and anchor[1] == "b":
             y -= line_height
         for run_text, font in runs:
-            draw.text((x, y), run_text, fill, anchor="lt", stroke_width=0, font=font)
+            draw.text(
+                (x, y),
+                run_text,
+                fill,
+                anchor="lt",
+                stroke_width=stroke_width,
+                stroke_fill=stroke_fill if stroke_fill is not None else fill,
+                font=font,
+            )
             x += self._measure_text(run_text, font)
 
     def _wrap_script_text_to_width(self, text: str, size: int, max_width: int, language: Optional[str] = None) -> List[str]:
@@ -337,7 +475,7 @@ class OverlayImage:
                 wrapped_lines.append(current)
         return wrapped_lines or [""]
 
-    def createTextboxSmallLog(self, text: str, language: str, text_color: Tuple[int, int, int], base_width: int, base_height: int, font_size: int) -> Image:
+    def createTextboxSmallLog(self, text: str, language: str, text_color: Tuple[int, int, int], base_width: int, base_height: int, font_size: int, stroke_width: int = 0, stroke_fill=None) -> Image:
         if text is None:
             text = ""
         # Initial image for width measurement
@@ -357,10 +495,20 @@ class OverlayImage:
         draw = ImageDraw.Draw(img)
         text_x = base_width // 2
         text_y = text_height // 2
-        self._draw_script_text(draw, (text_x, text_y), text, text_color, font_size, anchor="mm", language=language)
+        self._draw_script_text(
+            draw,
+            (text_x, text_y),
+            text,
+            text_color,
+            font_size,
+            anchor="mm",
+            language=language,
+            stroke_width=stroke_width,
+            stroke_fill=stroke_fill if stroke_fill is not None else text_color,
+        )
         return img
 
-    def renderRubyBlock(self, transliteration: List[dict], language: str, base_width: int, base_font_size: int, ruby_font_scale: float, ruby_line_spacing: int, text_color: Tuple[int, int, int]) -> Optional[Image.Image]:
+    def renderRubyBlock(self, transliteration: List[dict], language: str, base_width: int, base_font_size: int, ruby_font_scale: float, ruby_line_spacing: int, text_color: Tuple[int, int, int], stroke_width: int = 0, stroke_fill=None) -> Optional[Image.Image]:
         # Build romaji and hiragana lines.
         romaji_line = " ".join([t.get("hepburn", "") for t in transliteration if t.get("hepburn")])
         hira_line = " ".join([t.get("hira", "") for t in transliteration if t.get("hira")])
@@ -384,19 +532,44 @@ class OverlayImage:
         draw = ImageDraw.Draw(ruby_img)
         current_y = outer_padding + ruby_size // 2
         if romaji_line:
-            draw.text((romaji_x + romaji_width // 2, current_y), romaji_line, text_color, anchor="mm", font=font_ruby)
+            draw.text(
+                (romaji_x + romaji_width // 2, current_y),
+                romaji_line,
+                text_color,
+                anchor="mm",
+                stroke_width=stroke_width,
+                stroke_fill=stroke_fill if stroke_fill is not None else text_color,
+                font=font_ruby,
+            )
             current_y += ruby_size + (ruby_line_spacing if hira_line else 0)
         if hira_line:
-            draw.text((hira_x + hira_width // 2, current_y), hira_line, text_color, anchor="mm", font=font_ruby)
+            draw.text(
+                (hira_x + hira_width // 2, current_y),
+                hira_line,
+                text_color,
+                anchor="mm",
+                stroke_width=stroke_width,
+                stroke_fill=stroke_fill if stroke_fill is not None else text_color,
+                font=font_ruby,
+            )
         return ruby_img
 
-    def createTextboxSmallLogWithRubyTokens(self, message: str, transliteration: List[dict], language: str, text_color: Tuple[int, int, int], base_width: int, font_size: int, ruby_font_scale: float, ruby_line_spacing: int, ruby_original_spacing: int) -> Image:
+    def createTextboxSmallLogWithRubyTokens(self, message: str, transliteration: List[dict], language: str, text_color: Tuple[int, int, int], base_width: int, font_size: int, ruby_font_scale: float, ruby_line_spacing: int, ruby_original_spacing: int, stroke_width: int = 0, stroke_fill=None) -> Image:
         """Render a single textbox (original message) with per-token centered ruby (romaji above hiragana) over each original token.
 
         When wrapping occurs, splits tokens into lines and renders ruby above each line separately.
         """
         if not message or not transliteration:
-            return self.createTextboxSmallLog(message, language, text_color, base_width, self.getUiSizeSmallLog()["height"], font_size)
+            return self.createTextboxSmallLog(
+                message,
+                language,
+                text_color,
+                base_width,
+                self.getUiSizeSmallLog()["height"],
+                font_size,
+                stroke_width,
+                stroke_fill,
+            )
 
         # Obtain font instances
         font_family = self.LANGUAGES.get(language, self.LANGUAGES["Default"])
@@ -429,7 +602,16 @@ class OverlayImage:
             token_infos.append((orig, hira, romaji, layout_w))
 
         if not token_infos:
-            return self.createTextboxSmallLog(message, language, text_color, base_width, self.getUiSizeSmallLog()["height"], font_size)
+            return self.createTextboxSmallLog(
+                message,
+                language,
+                text_color,
+                base_width,
+                self.getUiSizeSmallLog()["height"],
+                font_size,
+                stroke_width,
+                stroke_fill,
+            )
 
         # Split tokens into lines based on base_width * 0.9
         max_line_width = base_width * 0.9
@@ -478,33 +660,76 @@ class OverlayImage:
             for orig, hira, romaji, w in line_tokens:
                 token_center_x = cursor_x + w // 2
                 if romaji_y is not None and romaji:
-                    draw.text((token_center_x, romaji_y), romaji, text_color, anchor="mm", font=font_ruby)
+                    draw.text(
+                        (token_center_x, romaji_y),
+                        romaji,
+                        text_color,
+                        anchor="mm",
+                        stroke_width=stroke_width,
+                        stroke_fill=stroke_fill if stroke_fill is not None else text_color,
+                        font=font_ruby,
+                    )
                 if hira_y is not None and hira:
-                    draw.text((token_center_x, hira_y), hira, text_color, anchor="mm", font=font_ruby)
-                draw.text((token_center_x, orig_y), orig, text_color, anchor="mm", font=font_orig)
+                    draw.text(
+                        (token_center_x, hira_y),
+                        hira,
+                        text_color,
+                        anchor="mm",
+                        stroke_width=stroke_width,
+                        stroke_fill=stroke_fill if stroke_fill is not None else text_color,
+                        font=font_ruby,
+                    )
+                draw.text(
+                    (token_center_x, orig_y),
+                    orig,
+                    text_color,
+                    anchor="mm",
+                    stroke_width=stroke_width,
+                    stroke_fill=stroke_fill if stroke_fill is not None else text_color,
+                    font=font_orig,
+                )
                 cursor_x += w
 
             line_images.append(line_img)
 
         # Concatenate all lines vertically
         if not line_images:
-            return self.createTextboxSmallLog(message, language, text_color, base_width, self.getUiSizeSmallLog()["height"], font_size)
+            return self.createTextboxSmallLog(
+                message,
+                language,
+                text_color,
+                base_width,
+                self.getUiSizeSmallLog()["height"],
+                font_size,
+                stroke_width,
+                stroke_fill,
+            )
         
         result_img = line_images[0]
         for line_img in line_images[1:]:
             result_img = self.concatenateImagesVertically(result_img, line_img, margin=0)
         return result_img
 
-    def createOverlayImageSmallLog(self, message: str, your_language: str, translation: List[str] = [], target_language: List[str] = [], transliteration_message: List[dict] = [], transliteration_translation: List[List[dict]] = [], ruby_font_scale: float = 0.5, ruby_line_spacing: int = 4, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", message_text_scale: float = 1.0, color_palette: Optional[dict] = None) -> Image:
+    def createOverlayImageSmallLog(self, message: str, your_language: str, translation: List[str] = [], target_language: List[str] = [], transliteration_message: List[dict] = [], transliteration_translation: List[List[dict]] = [], ruby_font_scale: float = 0.5, ruby_line_spacing: int = 4, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", message_text_scale: float = 1.0, color_palette: Optional[dict] = None, overlay_style: Optional[dict] = None) -> Image:
         # UI設定を取得
+        style = _normalize_overlay_style(overlay_style, "small")
         ui_size = self.getUiSizeSmallLog()
-        width, height = ui_size["width"], ui_size["height"]
+        outer_padding = 50
+        width = max(1, style["canvas_width"] - (outer_padding * 2))
+        height = max(1, style["canvas_height"] or ui_size["height"])
         font_size = _scaled_message_font_size(ui_size["font_size"], message_text_scale)
 
-        ui_colors = self.getUiColorSmallLog(accent_color, background_mode, color_palette)
+        ui_colors = self.getUiColorSmallLog(
+            accent_color,
+            background_mode,
+            color_palette,
+            style["background_opacity"],
+        )
         text_color = ui_colors["text_color"]
         background_color = ui_colors["background_color"]
         background_outline_color = ui_colors["background_outline_color"]
+        stroke_width = style["text_outline_width"] if style["text_outline_enabled"] else 0
+        stroke_fill = background_color
 
         # テキストボックス画像のリストを作成
         textbox_images = []
@@ -514,7 +739,16 @@ class OverlayImage:
         ruby_original_spacing = 2  # Narrow vertical gap between hiragana block and original text.
         if translation and target_language:
             if message:
-                base_msg_img = self.createTextboxSmallLog(message, your_language, text_color, width, height, font_size)
+                base_msg_img = self.createTextboxSmallLog(
+                    message,
+                    your_language,
+                    text_color,
+                    width,
+                    height,
+                    font_size,
+                    stroke_width,
+                    stroke_fill,
+                )
                 textbox_images.append(base_msg_img)
             for trans, lang, translite in zip(translation, target_language, transliteration_translation):
                 try:
@@ -528,10 +762,21 @@ class OverlayImage:
                         ruby_font_scale,
                         ruby_line_spacing,
                         ruby_original_spacing,
+                        stroke_width,
+                        stroke_fill,
                     )
                 except Exception:
                     errorLogging()
-                    trans_img = self.createTextboxSmallLog(trans, lang, text_color, width, height, font_size)
+                    trans_img = self.createTextboxSmallLog(
+                        trans,
+                        lang,
+                        text_color,
+                        width,
+                        height,
+                        font_size,
+                        stroke_width,
+                        stroke_fill,
+                    )
                 textbox_images.append(trans_img)
         else:
             # 翻訳無しモード
@@ -547,18 +792,48 @@ class OverlayImage:
                         ruby_font_scale,
                         ruby_line_spacing,
                         ruby_original_spacing,
+                        stroke_width,
+                        stroke_fill,
                     )
                 except Exception:
                     errorLogging()
-                    base_msg_img = self.createTextboxSmallLog(message, your_language, text_color, width, height, font_size)
+                    base_msg_img = self.createTextboxSmallLog(
+                        message,
+                        your_language,
+                        text_color,
+                        width,
+                        height,
+                        font_size,
+                        stroke_width,
+                        stroke_fill,
+                    )
                     try:
-                        ruby_img = self.renderRubyBlock(transliteration_message, your_language, width, font_size, ruby_font_scale, ruby_line_spacing, text_color)
+                        ruby_img = self.renderRubyBlock(
+                            transliteration_message,
+                            your_language,
+                            width,
+                            font_size,
+                            ruby_font_scale,
+                            ruby_line_spacing,
+                            text_color,
+                            stroke_width,
+                            stroke_fill,
+                        )
                         if ruby_img is not None:
                             base_msg_img = self.concatenateImagesVertically(ruby_img, base_msg_img)
                     except Exception:
                         errorLogging()
             else:
-                base_msg_img = self.createTextboxSmallLog(message, your_language, text_color, width, height, font_size)
+                base_msg_img = self.createTextboxSmallLog(
+                    message,
+                    your_language,
+                    text_color,
+                    width,
+                    height,
+                    font_size,
+                    stroke_width,
+                    stroke_fill,
+                )
             textbox_images.append(base_msg_img)
 
         # すべてのテキストボックスを縦に結合
@@ -566,18 +841,23 @@ class OverlayImage:
         for textbox_img in textbox_images[1:]:
             img = self.concatenateImagesVertically(img, textbox_img)
 
-        # 画像周囲にUIパディングを追加して、文字が端に張り付かないようにする
-        ui_outer_padding = 50
-        img = self.addImageMargin(img, ui_outer_padding, ui_outer_padding, ui_outer_padding, ui_outer_padding, (0, 0, 0, 0))
-
-        # 角丸背景を作成
-        background = Image.new("RGBA", img.size, (0, 0, 0, 0))
-        draw = ImageDraw.Draw(background)
-        draw.rounded_rectangle([(0, 0), img.size], radius=50, fill=background_color, outline=background_outline_color, width=5)
-
-        # 背景とテキストを合成
-        img = Image.alpha_composite(background, img)
-        return img
+        img = self.addImageMargin(
+            img,
+            outer_padding,
+            outer_padding,
+            outer_padding,
+            outer_padding,
+            (0, 0, 0, 0),
+        )
+        return _compose_overlay_canvas(
+            img,
+            background_color,
+            background_outline_color,
+            style["border_enabled"],
+            style["canvas_width"],
+            style["canvas_height"] or img.height,
+            50,
+        )
 
     @staticmethod
     def getUiSizeLargeLog() -> dict:
@@ -592,39 +872,85 @@ class OverlayImage:
         }
 
     @staticmethod
-    def getUiColorLargeLog(accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", color_palette: Optional[dict] = None) -> dict:
-        return OverlayImage.resolveOverlayColors(accent_color, background_mode, "large", color_palette)
+    def getUiColorLargeLog(accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", color_palette: Optional[dict] = None, background_opacity: Optional[int] = None) -> dict:
+        return OverlayImage.resolveOverlayColors(
+            accent_color,
+            background_mode,
+            "large",
+            color_palette,
+            background_opacity,
+        )
 
-    def createTextImageLargeLog(self, message_type: str, size: str, text: str, language: str, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", message_text_scale: float = 1.0, color_palette: Optional[dict] = None) -> Image:
+    def createTextImageLargeLog(self, message_type: str, size: str, text: str, language: str, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", message_text_scale: float = 1.0, color_palette: Optional[dict] = None, overlay_style: Optional[dict] = None) -> Image:
+        style = _normalize_overlay_style(overlay_style, "large")
         ui_size = self.getUiSizeLargeLog()
         base_font_size = ui_size["font_size_large"] if size == "large" else ui_size["font_size_small"]
         font_size = _scaled_message_font_size(base_font_size, message_text_scale)
-        text_color = self.getUiColorLargeLog(accent_color, background_mode, color_palette)[f"text_color_{size}"]
+        text_colors = self.getUiColorLargeLog(
+            accent_color,
+            background_mode,
+            color_palette,
+            style["background_opacity"],
+        )
+        text_color = text_colors[f"text_color_{size}"]
+        stroke_width = style["text_outline_width"] if style["text_outline_enabled"] else 0
+        stroke_fill = text_colors["background_color"]
         outer_padding = ui_size["padding"] * (2 if size == "large" else 1)
-        inner_width = ui_size["width"] - (outer_padding * 2)
+        content_width = max(1, style["canvas_width"] - (ui_size["margin"] * 2))
+        inner_width = max(1, content_width - (outer_padding * 2))
         line_spacing = max(6, font_size // 4)
         lines = self._wrap_script_text_to_width(text or "", font_size, inner_width, language)
         line_height = max((self._line_height(font) for _, font in self._script_font_runs(text or "A", font_size, language)), default=font_size)
         text_height = (outer_padding * 2) + (line_height * len(lines)) + (line_spacing * max(0, len(lines) - 1))
-        img = Image.new("RGBA", (ui_size["width"], text_height), (0, 0, 0, 0))
+        img = Image.new("RGBA", (content_width, text_height), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
         for index, line in enumerate(lines):
             text_y = outer_padding + (index * (line_height + line_spacing))
             if message_type == "receive":
-                self._draw_script_text(draw, (outer_padding, text_y), line, text_color, font_size, anchor="lt", language=language)
+                self._draw_script_text(
+                    draw,
+                    (outer_padding, text_y),
+                    line,
+                    text_color,
+                    font_size,
+                    anchor="lt",
+                    language=language,
+                    stroke_width=stroke_width,
+                    stroke_fill=stroke_fill,
+                )
             else:
-                self._draw_script_text(draw, (ui_size["width"] - outer_padding, text_y), line, text_color, font_size, anchor="rt", language=language)
+                self._draw_script_text(
+                    draw,
+                    (content_width - outer_padding, text_y),
+                    line,
+                    text_color,
+                    font_size,
+                    anchor="rt",
+                    language=language,
+                    stroke_width=stroke_width,
+                    stroke_fill=stroke_fill,
+                )
         return img
 
-    def createTextboxLargeLogWithRubyTokens(self, message_type: str, size: str, message: str, transliteration: List[dict], language: str, ruby_font_scale: float, ruby_line_spacing: int, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", message_text_scale: float = 1.0, color_palette: Optional[dict] = None) -> Image:
+    def createTextboxLargeLogWithRubyTokens(self, message_type: str, size: str, message: str, transliteration: List[dict], language: str, ruby_font_scale: float, ruby_line_spacing: int, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", message_text_scale: float = 1.0, color_palette: Optional[dict] = None, overlay_style: Optional[dict] = None) -> Image:
         """Render a large-log textbox with per-token centered ruby above each original token.
 
         When wrapping occurs, splits tokens into lines and renders ruby above each line separately.
         """
+        style = _normalize_overlay_style(overlay_style, "large")
         ui_size = self.getUiSizeLargeLog()
+        content_width = max(1, style["canvas_width"] - (ui_size["margin"] * 2))
         base_font_size = ui_size["font_size_large"] if size == "large" else ui_size["font_size_small"]
         font_size = _scaled_message_font_size(base_font_size, message_text_scale)
-        text_color = self.getUiColorLargeLog(accent_color, background_mode, color_palette)[f"text_color_{size}"]
+        text_colors = self.getUiColorLargeLog(
+            accent_color,
+            background_mode,
+            color_palette,
+            style["background_opacity"],
+        )
+        text_color = text_colors[f"text_color_{size}"]
+        stroke_width = style["text_outline_width"] if style["text_outline_enabled"] else 0
+        stroke_fill = text_colors["background_color"]
         font_family = self.LANGUAGES.get(language, self.LANGUAGES["Default"])
         font_orig = self._get_font(font_family, font_size)
         ruby_size = max(1, int(font_size * ruby_font_scale))
@@ -641,6 +967,7 @@ class OverlayImage:
                 background_mode,
                 message_text_scale,
                 color_palette,
+                style,
             )
 
         # Measure token widths
@@ -675,10 +1002,11 @@ class OverlayImage:
                 background_mode,
                 message_text_scale,
                 color_palette,
+                style,
             )
 
         # Split tokens into lines based on base_width * 0.9
-        base_width = ui_size["width"]
+        base_width = content_width
         max_line_width = base_width * 0.9
         lines = []
         current_line = []
@@ -726,10 +1054,34 @@ class OverlayImage:
             for orig, hira, romaji, w in line_tokens:
                 token_center_x = cursor_x + w // 2
                 if romaji_y is not None and romaji:
-                    draw.text((token_center_x, romaji_y), romaji, text_color, anchor="mm", font=font_ruby)
+                    draw.text(
+                        (token_center_x, romaji_y),
+                        romaji,
+                        text_color,
+                        anchor="mm",
+                        stroke_width=stroke_width,
+                        stroke_fill=stroke_fill,
+                        font=font_ruby,
+                    )
                 if hira_y is not None and hira:
-                    draw.text((token_center_x, hira_y), hira, text_color, anchor="mm", font=font_ruby)
-                draw.text((token_center_x, orig_y), orig, text_color, anchor="mm", font=font_orig)
+                    draw.text(
+                        (token_center_x, hira_y),
+                        hira,
+                        text_color,
+                        anchor="mm",
+                        stroke_width=stroke_width,
+                        stroke_fill=stroke_fill,
+                        font=font_ruby,
+                    )
+                draw.text(
+                    (token_center_x, orig_y),
+                    orig,
+                    text_color,
+                    anchor="mm",
+                    stroke_width=stroke_width,
+                    stroke_fill=stroke_fill,
+                    font=font_orig,
+                )
                 cursor_x += w
 
             line_images.append(line_img)
@@ -743,6 +1095,7 @@ class OverlayImage:
                 language,
                 message_text_scale=message_text_scale,
                 color_palette=color_palette,
+                overlay_style=style,
             )
         
         result_img = line_images[0]
@@ -750,34 +1103,91 @@ class OverlayImage:
             result_img = self.concatenateImagesVertically(result_img, line_img, margin=0)
         return result_img
 
-    def createTextImageMessageType(self, message_type: str, date_time: str, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", color_palette: Optional[dict] = None) -> Image:
+    def createTextImageMessageType(self, message_type: str, date_time: str, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", color_palette: Optional[dict] = None, overlay_style: Optional[dict] = None) -> Image:
+        style = _normalize_overlay_style(overlay_style, "large")
         ui_size = self.getUiSizeLargeLog()
         font_size = ui_size["font_size_small"]
         ui_padding = ui_size["padding"] * 2
+        content_width = max(1, style["canvas_width"] - (ui_size["margin"] * 2))
 
-        ui_color = self.getUiColorLargeLog(accent_color, background_mode, color_palette)
+        ui_color = self.getUiColorLargeLog(
+            accent_color,
+            background_mode,
+            color_palette,
+            style["background_opacity"],
+        )
         text_color = ui_color[f"text_color_{message_type}"]
         text_color_time = ui_color["text_color_time"]
+        stroke_width = style["text_outline_width"] if style["text_outline_enabled"] else 0
+        stroke_fill = ui_color["background_color"]
 
         text = "Receive" if message_type == "receive" else "Send"
         font = self._get_font(self.LANGUAGES["Default"], font_size)
         label_gap = max(16, font_size // 2)
         text_height = self._line_height(font) + ui_padding
         time_width = self._measure_text(date_time, font)
-        img = Image.new("RGBA", (ui_size["width"], text_height), (0, 0, 0, 0))
+        img = Image.new("RGBA", (content_width, text_height), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
         text_y = ui_padding // 2
         if message_type == "receive":
-            draw.text((ui_padding, text_y), date_time, text_color_time, anchor="lt", stroke_width=0, font=font)
-            draw.text((ui_padding + time_width + label_gap, text_y), text, text_color, anchor="lt", stroke_width=0, font=font)
+            draw.text(
+                (ui_padding, text_y),
+                date_time,
+                text_color_time,
+                anchor="lt",
+                stroke_width=stroke_width,
+                stroke_fill=stroke_fill,
+                font=font,
+            )
+            draw.text(
+                (ui_padding + time_width + label_gap, text_y),
+                text,
+                text_color,
+                anchor="lt",
+                stroke_width=stroke_width,
+                stroke_fill=stroke_fill,
+                font=font,
+            )
         else:
-            draw.text((ui_size["width"] - ui_padding, text_y), text, text_color, anchor="rt", stroke_width=0, font=font)
-            draw.text((ui_size["width"] - ui_padding - self._measure_text(text, font) - label_gap, text_y), date_time, text_color_time, anchor="rt", stroke_width=0, font=font)
+            draw.text(
+                (content_width - ui_padding, text_y),
+                text,
+                text_color,
+                anchor="rt",
+                stroke_width=stroke_width,
+                stroke_fill=stroke_fill,
+                font=font,
+            )
+            draw.text(
+                (
+                    content_width
+                    - ui_padding
+                    - self._measure_text(text, font)
+                    - label_gap,
+                    text_y,
+                ),
+                date_time,
+                text_color_time,
+                anchor="rt",
+                stroke_width=stroke_width,
+                stroke_fill=stroke_fill,
+                font=font,
+            )
         return img
 
-    def createTextboxLargeLog(self, message_type: str, message: Optional[str] = None, your_language: Optional[str] = None, translation: List[str] = [], target_language: List[str] = [], date_time: Optional[str] = None, transliteration_message: Optional[List[dict]] = None, transliteration_translation: Optional[List[List[dict]]] = None, ruby_font_scale: float = 0.5, ruby_line_spacing: int = 4, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", message_text_scale: float = 1.0, color_palette: Optional[dict] = None) -> Image:
+    def createTextboxLargeLog(self, message_type: str, message: Optional[str] = None, your_language: Optional[str] = None, translation: List[str] = [], target_language: List[str] = [], date_time: Optional[str] = None, transliteration_message: Optional[List[dict]] = None, transliteration_translation: Optional[List[List[dict]]] = None, ruby_font_scale: float = 0.5, ruby_line_spacing: int = 4, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", message_text_scale: float = 1.0, color_palette: Optional[dict] = None, overlay_style: Optional[dict] = None) -> Image:
+        style = _normalize_overlay_style(overlay_style, "large")
         # テキスト画像のリストを作成
-        images = [self.createTextImageMessageType(message_type, date_time, accent_color, background_mode, color_palette)]
+        images = [
+            self.createTextImageMessageType(
+                message_type,
+                date_time,
+                accent_color,
+                background_mode,
+                color_palette,
+                style,
+            )
+        ]
 
         # 翻訳がある場合
         if translation and target_language:
@@ -792,6 +1202,7 @@ class OverlayImage:
                     background_mode,
                     message_text_scale,
                     color_palette,
+                    style,
                 )
                 images.append(small_img)
 
@@ -810,6 +1221,7 @@ class OverlayImage:
                         background_mode,
                         message_text_scale,
                         color_palette,
+                        style,
                     )
                 except Exception:
                     errorLogging()
@@ -822,6 +1234,7 @@ class OverlayImage:
                         background_mode,
                         message_text_scale,
                         color_palette,
+                        style,
                     )
                 images.append(large_img)
         else:
@@ -839,6 +1252,7 @@ class OverlayImage:
                     background_mode,
                     message_text_scale,
                     color_palette,
+                    style,
                 )
             except Exception:
                 errorLogging()
@@ -861,8 +1275,14 @@ class OverlayImage:
 
         return combined_img
 
-    def createOverlayImageLargeLog(self, message_type: str, message: Optional[str] = None, your_language: Optional[str] = None, translation: List[str] = [], target_language: List[str] = [], transliteration_message: List[dict] = [], transliteration_translation: List[List[dict]] = [], ruby_font_scale: float = 0.5, ruby_line_spacing: int = 4, newest_first: bool = False, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", message_text_scale: float = 1.0, color_palette: Optional[dict] = None) -> Image:
-        ui_color = self.getUiColorLargeLog(accent_color, background_mode, color_palette)
+    def createOverlayImageLargeLog(self, message_type: str, message: Optional[str] = None, your_language: Optional[str] = None, translation: List[str] = [], target_language: List[str] = [], transliteration_message: List[dict] = [], transliteration_translation: List[List[dict]] = [], ruby_font_scale: float = 0.5, ruby_line_spacing: int = 4, newest_first: bool = False, accent_color: str = "theme-neon-cyan", background_mode: str = "transparent_black", message_text_scale: float = 1.0, color_palette: Optional[dict] = None, overlay_style: Optional[dict] = None) -> Image:
+        style = _normalize_overlay_style(overlay_style, "large")
+        ui_color = self.getUiColorLargeLog(
+            accent_color,
+            background_mode,
+            color_palette,
+            style["background_opacity"],
+        )
         background_color = ui_color["background_color"]
         background_outline_color = ui_color["background_outline_color"]
 
@@ -902,6 +1322,7 @@ class OverlayImage:
                 background_mode=background_mode,
                 message_text_scale=message_text_scale,
                 color_palette=color_palette,
+                overlay_style=style,
             ) for log in visible_logs
             ]
 
@@ -910,12 +1331,16 @@ class OverlayImage:
             img = self.concatenateImagesVertically(img, i, ui_clause_margin)
         img = self.addImageMargin(img, ui_margin, ui_margin, ui_margin, ui_margin, (0, 0, 0, 0))
 
-        width, height = img.size
-        background = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(background)
-        draw.rounded_rectangle([(0, 0), (width, height)], radius=ui_radius, fill=background_color, outline=background_outline_color, width=5)
-        img = Image.alpha_composite(background, img)
-        return img
+        target_height = style["canvas_height"] or img.height
+        return _compose_overlay_canvas(
+            img,
+            background_color,
+            background_outline_color,
+            style["border_enabled"],
+            style["canvas_width"],
+            target_height,
+            ui_radius,
+        )
 
 if __name__ == "__main__":
     overlay = OverlayImage()

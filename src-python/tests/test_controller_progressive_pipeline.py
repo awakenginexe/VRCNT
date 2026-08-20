@@ -57,6 +57,7 @@ def _output_snapshot(**overrides):
         "overlay_small_log": True,
         "overlay_large_log": True,
         "overlay_show_only_translated_messages": False,
+        "overlay_show_only_received_messages": False,
         "enable_clipboard": True,
         "logger_feature": True,
         "convert_message_to_hiragana": False,
@@ -490,6 +491,7 @@ class ControllerProgressivePipelineTests(unittest.TestCase):
                 controller._finalizeMicOutput(task)
 
         self.assertNotIn("sensitive telemetry detail", str(raised.exception))
+        fake_model.endMicTypingProcessing.assert_called_once_with()
         self.assertEqual(
             events,
             [
@@ -812,8 +814,16 @@ class ControllerProgressivePipelineTests(unittest.TestCase):
             ["2"],
         )
         small_args = instance.overlay_image.createOverlayImageSmallLog.call_args.args
+        small_kwargs = instance.overlay_image.createOverlayImageSmallLog.call_args.kwargs
         self.assertEqual(small_args[2], ["deux"])
         self.assertEqual(small_args[3], ["French"])
+        self.assertEqual(
+            small_kwargs["overlay_style"],
+            model_module.normalize_overlay_settings(
+                model_module.config.OVERLAY_SMALL_LOG_SETTINGS,
+                "small",
+            ),
+        )
 
         instance.createOverlayImageLargeLog(
             "receive",
@@ -826,8 +836,93 @@ class ControllerProgressivePipelineTests(unittest.TestCase):
             ["2"],
         )
         large_args = instance.overlay_image.createOverlayImageLargeLog.call_args.args
+        large_kwargs = instance.overlay_image.createOverlayImageLargeLog.call_args.kwargs
         self.assertEqual(large_args[3], ["deux"])
         self.assertEqual(large_args[4], ["French"])
+        self.assertEqual(
+            large_kwargs["overlay_style"],
+            model_module.normalize_overlay_settings(
+                model_module.config.OVERLAY_LARGE_LOG_SETTINGS,
+                "large",
+            ),
+        )
+
+    def test_received_only_hides_mic_overlay_but_preserves_mic_osc_output(self):
+        controller = controller_module.Controller()
+        controller.run = Mock()
+        controller._is_overlay_available = Mock(return_value=True)
+        fake_model = self._effect_model()
+        task = FinalOutputTask(
+            trace_id="mic-received-only",
+            generation=0,
+            source=PipelineSource.MIC,
+            original_message="spoken",
+            source_language="English",
+            original_transliteration=(),
+            targets=(TranslationTarget("1", "Japanese", "Japan"),),
+            translations=(
+                TranslationUpdate(
+                    "mic-received-only",
+                    "1",
+                    TranslationStatus.SUCCESS,
+                    "Google",
+                    "translated",
+                    (),
+                    1,
+                    0,
+                    None,
+                ),
+            ),
+            output_config=_output_snapshot(overlay_show_only_received_messages=True),
+            started_at_monotonic=1.0,
+        )
+
+        with patch.object(controller_module, "model", fake_model):
+            controller._finalizeMicOutput(task)
+
+        fake_model.oscSendMessage.assert_called_once()
+        fake_model.createOverlayImageSmallLog.assert_not_called()
+        fake_model.createOverlayImageLargeLog.assert_not_called()
+        fake_model.updateOverlaySmallLog.assert_not_called()
+        fake_model.updateOverlayLargeLog.assert_not_called()
+
+    def test_received_only_keeps_speaker_overlay_visible(self):
+        controller = controller_module.Controller()
+        controller.run = Mock()
+        controller._is_overlay_available = Mock(return_value=True)
+        fake_model = self._effect_model()
+        task = FinalOutputTask(
+            trace_id="speaker-received-only",
+            generation=0,
+            source=PipelineSource.SPEAKER,
+            original_message="heard",
+            source_language="English",
+            original_transliteration=(),
+            targets=(TranslationTarget("1", "Japanese", "Japan"),),
+            translations=(
+                TranslationUpdate(
+                    "speaker-received-only",
+                    "1",
+                    TranslationStatus.SUCCESS,
+                    "Google",
+                    "translated",
+                    (),
+                    1,
+                    0,
+                    None,
+                ),
+            ),
+            output_config=_output_snapshot(overlay_show_only_received_messages=True),
+            started_at_monotonic=1.0,
+        )
+
+        with patch.object(controller_module, "model", fake_model):
+            controller._finalizeSpeakerOutput(task)
+
+        fake_model.createOverlayImageSmallLog.assert_called_once()
+        fake_model.createOverlayImageLargeLog.assert_called_once()
+        fake_model.updateOverlaySmallLog.assert_called_once_with("small-image")
+        fake_model.updateOverlayLargeLog.assert_called_once_with("large-image")
 
     def test_speaker_failure_keeps_original_only_metadata_without_translated_effects(self):
         controller = controller_module.Controller()

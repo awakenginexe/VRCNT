@@ -79,10 +79,9 @@ main_page:
         navigation:
             live: "ライブ"
             setup: "セットアップ"
-            engines: "エンジンと音声"
             history: "履歴"
-            models: "音声モデル"
-            translation_models: "翻訳モデル"
+            models: "音声認識"
+            translation_models: "翻訳オプション"
             overlay: "オーバーレイスタジオ"
             customize: "カスタマイズ"
             settings: "設定"
@@ -245,7 +244,7 @@ main_page:
         loading_options: "利用可能な項目を読み込み中…"
     models_hub:
         eyebrow: "音声モデルライブラリー"
-        title: "音声モデル"
+        title: "音声認識"
         detail: "PCに合うインストール済みモデルを選ぶか、利用可能なモデルをダウンロードしてから選択します。"
         back_to_live: "Liveに戻る"
         automatic_label: "自動 — 推奨"
@@ -312,6 +311,12 @@ main_page:
         vr_enabled: "有効"
         vr_scale: "スケール {{scale}}%"
         vr_mode: "オーバーレイ モード"
+        background_transparency: "背景の透明度（0% 透明・100% 不透明）"
+        border_enabled: "境界線を表示"
+        text_outline: "文字のアウトライン"
+        outline_size: "アウトラインの太さ"
+        show_only_translated: "翻訳メッセージのみ表示"
+        show_only_received: "受信メッセージのみ表示"
         small_overlay: "1 行"
         large_overlay: "複数行"
         background: "背景"
@@ -576,7 +581,7 @@ main_page:
 
     translation_models:
         eyebrow: "オフライン翻訳"
-        title: "翻訳モデル"
+        title: "翻訳オプション"
         detail: "オフライン翻訳用の既成品質プロファイルを選択します。高度なモデルは設定から引き続き利用できます。"
         back_to_live: "ライブに戻る"
         advanced_models: "高度なモデルを開く"
@@ -640,7 +645,7 @@ config_page:
             unable_to_use_osc_query: "OSC IP Address の設定によりOSCデータの受信ができないため、現在この機能は使用できません。"
 
     model_and_provider:
-        speech_models: "音声モデル"
+        speech_models: "音声認識"
         cloud_translation_providers:
             title: "クラウド翻訳プロバイダー"
             description: "クラウドおよびLLM翻訳用のAPIキーとローカルプロバイダー接続を設定します。"

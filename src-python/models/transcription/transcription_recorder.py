@@ -227,6 +227,8 @@ class BaseEnergyAndAudioRecorder:
         *,
         on_drop=None,
         on_heartbeat=None,
+        on_voice_activity=None,
+        on_audio_chunk=None,
     ) -> None:
         def audioRecordCallback(_, audio):
             captured_at = time.perf_counter()
@@ -236,6 +238,8 @@ class BaseEnergyAndAudioRecorder:
                 captured_at_monotonic=captured_at,
             )
             _offer_audio(audio_queue, chunk, on_drop)
+            if on_audio_chunk is not None:
+                on_audio_chunk(captured_at)
             if on_heartbeat is not None:
                 on_heartbeat(captured_at)
 
@@ -243,6 +247,9 @@ class BaseEnergyAndAudioRecorder:
             captured_at = time.perf_counter()
             if energy_queue is not None:
                 energy_queue.put(energy)
+            if on_voice_activity is not None:
+                threshold = getattr(self.recorder, "energy_threshold", 0)
+                on_voice_activity(energy > threshold, captured_at)
             if on_heartbeat is not None:
                 on_heartbeat(captured_at)
 
@@ -252,7 +259,9 @@ class BaseEnergyAndAudioRecorder:
             phrase_time_limit=self.phrase_time_limit,
             callback_energy=(
                 energyRecordCallback
-                if energy_queue is not None or on_heartbeat is not None
+                if energy_queue is not None
+                or on_heartbeat is not None
+                or on_voice_activity is not None
                 else None
             ),
             phrase_timeout=self.phrase_timeout,

@@ -873,6 +873,14 @@ export const SETTINGS_ARRAY = [
     },
     {
         Category: "Vr",
+        Base_Name: "OverlayShowOnlyReceivedMessages",
+        default_value: false,
+        ui_template_id: "toggle",
+        logics_template_id: "toggle_enable_disable",
+        base_endpoint_name: "overlay_show_only_received_messages",
+    },
+    {
+        Category: "Vr",
         Base_Name: "VoiceTypingMode",
         default_value: false,
         ui_template_id: "toggle",

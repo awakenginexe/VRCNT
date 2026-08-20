@@ -102,7 +102,7 @@ export const TranslatorSelector = ({
         gap: LIVE_PANEL_GAP,
         padding: LIVE_PANEL_PADDING,
         panelRef,
-        verticalAlignment: "anchor-start",
+        verticalAlignment: "anchor-end",
     });
     const {
         style: livePanelStyle,

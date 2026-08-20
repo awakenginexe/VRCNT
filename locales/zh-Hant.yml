@@ -79,10 +79,9 @@ main_page:
         navigation:
             live: "即時"
             setup: "引導設定"
-            engines: "引擎與音效"
             history: "歷史紀錄"
-            models: "語音模型"
-            translation_models: "翻譯模型"
+            models: "語音辨識"
+            translation_models: "翻譯選項"
             overlay: "覆蓋層工作室"
             customize: "自訂"
             settings: "設定"
@@ -245,7 +244,7 @@ main_page:
         loading_options: "正在載入可用選項…"
     models_hub:
         eyebrow: "語音模型資料庫"
-        title: "語音模型"
+        title: "語音辨識"
         detail: "選擇適合此電腦的已安裝模型，或先下載可用模型再選取。"
         back_to_live: "返回 Live"
         automatic_label: "自動 — 建議"
@@ -312,6 +311,12 @@ main_page:
         vr_enabled: "已啟用"
         vr_scale: "縮放 {{scale}}%"
         vr_mode: "疊加層模式"
+        background_transparency: "背景透明度（0% 透明 · 100% 不透明）"
+        border_enabled: "顯示邊框"
+        text_outline: "文字描邊"
+        outline_size: "描邊大小"
+        show_only_translated: "只顯示翻譯訊息"
+        show_only_received: "只顯示接收訊息"
         small_overlay: "單行"
         large_overlay: "多行"
         background: "背景"
@@ -576,7 +581,7 @@ main_page:
 
     translation_models:
         eyebrow: "離線翻譯"
-        title: "翻譯模型"
+        title: "翻譯選項"
         detail: "為離線翻譯選擇預設品質設定檔。進階模型仍可在「設定」中使用。"
         back_to_live: "返回即時"
         advanced_models: "開啟進階模型"
@@ -640,7 +645,7 @@ config_page:
             unable_to_use_osc_query: "由於 OSC IP Address 的設定無法接收 OSC 資料，目前無法使用此功能。"
 
     model_and_provider:
-        speech_models: "語音模型"
+        speech_models: "語音辨識"
         cloud_translation_providers:
             title: "雲端翻譯服務商"
             description: "設定雲端與 LLM 翻譯所需的 API 金鑰及本機服務商連線。"

@@ -79,10 +79,9 @@ main_page:
         navigation:
             live: "实时"
             setup: "引导设置"
-            engines: "引擎和音频"
             history: "历史记录"
-            models: "语音模型"
-            translation_models: "翻译模型"
+            models: "语音识别"
+            translation_models: "翻译选项"
             overlay: "叠加层工作室"
             customize: "自定义"
             settings: "设置"
@@ -245,7 +244,7 @@ main_page:
         loading_options: "正在加载可用选项…"
     models_hub:
         eyebrow: "语音模型库"
-        title: "语音模型"
+        title: "语音识别"
         detail: "选择适合此计算机的已安装模型，或先下载可用模型再选择。"
         back_to_live: "返回 Live"
         automatic_label: "自动 — 推荐"
@@ -312,6 +311,12 @@ main_page:
         vr_enabled: "已启用"
         vr_scale: "缩放 {{scale}}%"
         vr_mode: "叠加层模式"
+        background_transparency: "背景透明度（0% 透明 · 100% 不透明）"
+        border_enabled: "显示边框"
+        text_outline: "文字描边"
+        outline_size: "描边大小"
+        show_only_translated: "仅显示翻译消息"
+        show_only_received: "仅显示接收消息"
         small_overlay: "单行"
         large_overlay: "多行"
         background: "背景"
@@ -576,7 +581,7 @@ main_page:
 
     translation_models:
         eyebrow: "离线翻译"
-        title: "翻译模型"
+        title: "翻译选项"
         detail: "为离线翻译选择预设质量配置。高级模型仍可在“设置”中使用。"
         back_to_live: "返回实时"
         advanced_models: "打开高级模型"
@@ -640,7 +645,7 @@ config_page:
             unable_to_use_osc_query: "由于 OSC IP Address 的设置无法接收 OSC 数据，目前无法使用此功能。"
 
     model_and_provider:
-        speech_models: "语音模型"
+        speech_models: "语音识别"
         cloud_translation_providers:
             title: "云端翻译服务商"
             description: "配置云端和 LLM 翻译所需的 API 密钥及本地服务商连接。"

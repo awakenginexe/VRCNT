@@ -79,10 +79,9 @@ main_page:
         navigation:
             live: "라이브"
             setup: "초기 설정"
-            engines: "엔진 및 오디오"
             history: "기록"
-            models: "음성 모델"
-            translation_models: "번역 모델"
+            models: "음성 인식"
+            translation_models: "번역 옵션"
             overlay: "오버레이 스튜디오"
             customize: "사용자 지정"
             settings: "설정"
@@ -245,7 +244,7 @@ main_page:
         loading_options: "사용 가능한 옵션을 불러오는 중…"
     models_hub:
         eyebrow: "음성 모델 라이브러리"
-        title: "음성 모델"
+        title: "음성 인식"
         detail: "컴퓨터에 맞는 설치된 모델을 선택하거나, 사용 가능한 모델을 다운로드한 뒤 선택하세요."
         back_to_live: "라이브로 돌아가기"
         automatic_label: "자동 — 권장"
@@ -312,6 +311,12 @@ main_page:
         vr_enabled: "사용"
         vr_scale: "크기 {{scale}}%"
         vr_mode: "오버레이 모드"
+        background_transparency: "배경 투명도 (0% 투명 · 100% 불투명)"
+        border_enabled: "테두리 표시"
+        text_outline: "텍스트 외곽선"
+        outline_size: "외곽선 크기"
+        show_only_translated: "번역된 메시지만 표시"
+        show_only_received: "수신된 메시지만 표시"
         small_overlay: "한 줄"
         large_overlay: "여러 줄"
         background: "배경"
@@ -576,7 +581,7 @@ main_page:
 
     translation_models:
         eyebrow: "오프라인 번역"
-        title: "번역 모델"
+        title: "번역 옵션"
         detail: "오프라인 번역을 위한 미리 구성된 품질 프로필을 선택하세요. 고급 모델은 설정에서 계속 사용할 수 있습니다."
         back_to_live: "라이브로 돌아가기"
         advanced_models: "고급 모델 열기"
@@ -640,7 +645,7 @@ config_page:
             unable_to_use_osc_query:
 
     model_and_provider:
-        speech_models: "음성 모델"
+        speech_models: "음성 인식"
         cloud_translation_providers:
             title: "클라우드 번역 제공업체"
             description: "클라우드 및 LLM 번역을 위한 API 키와 로컬 제공업체 연결을 설정합니다."

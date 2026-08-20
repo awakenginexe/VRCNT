@@ -50,6 +50,16 @@ export const calculateFloatingPanelPosition = ({
         1,
         toFiniteNumber(panelSize.height, DEFAULT_PANEL_HEIGHT),
     );
+
+    if (verticalAlignment === "anchor-end") {
+        const bottom = clamp(anchorBottom, safePadding, viewportHeight - safePadding);
+        const maxHeight = Math.max(1, bottom - safePadding);
+        const height = Math.min(desiredHeight, maxHeight);
+        const top = Math.max(safePadding, bottom - height);
+
+        return { top, left, width, maxHeight, placement: "anchor-end" };
+    }
+
     const spaceBelow = Math.max(1, viewportHeight - anchorBottom - safeGap - safePadding);
     const spaceAbove = Math.max(1, anchorTop - safeGap - safePadding);
     const fitsBelow = spaceBelow >= desiredHeight;

@@ -5,6 +5,7 @@ import {
     useStore_SelectedConfigTabId,
 } from "@store";
 import { TranslationModels } from "../../config_page/setting_section/setting_box/translation_models/TranslationModels";
+import { TranslationRoutingCard } from "../engines/TranslationRoutingCard.jsx";
 import { TopBar } from "../main_section/top_bar/TopBar";
 import styles from "./TranslationModelsHub.module.scss";
 
@@ -39,6 +40,8 @@ export const TranslationModelsHub = () => {
                         {t("main_page.translation_models.back_to_live")}
                     </button>
                 </section>
+
+                <TranslationRoutingCard />
 
                 <section
                     className={styles.catalog}
