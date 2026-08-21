@@ -54,6 +54,8 @@ class ColorResetMigrationResolutionTests(unittest.TestCase):
             instance.load_config()
 
             self.assertEqual(instance.COLOR_RESET_5_9_0, 1)
+            self.assertEqual(instance.APP_COLOR_PALETTE["primary"], "#38BDF8")
+            self.assertEqual(instance.APP_COLOR_PALETTE["gradientEnd"], "#6366F1")
             saved = json.loads(config_path.read_text(encoding="utf-8"))
             self.assertEqual(saved["5_9_0_color_reset"], 1)
 
