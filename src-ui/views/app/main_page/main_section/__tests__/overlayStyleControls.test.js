@@ -83,6 +83,24 @@ test("Overlay Studio exposes VR transform, tracker, and diagnostic sample contro
     }
 });
 
+test("active diagnostic styling uses a valid red error token", () => {
+    const styles = readSource("../../overlay_studio/OverlayStudio.module.scss");
+    const activePanelStart = styles.indexOf('.sample_text_panel[data-active="true"] {');
+    const activeButtonStart = styles.indexOf('.sample_text_panel[data-active="true"] .sample_text_button {');
+    const descriptionStart = styles.indexOf(".sample_text_description", activeButtonStart);
+
+    assert.notEqual(activePanelStart, -1);
+    assert.notEqual(activeButtonStart, -1);
+    assert.notEqual(descriptionStart, -1);
+
+    const activePanelStyles = styles.slice(activePanelStart, activeButtonStart);
+    const activeButtonStyles = styles.slice(activeButtonStart, descriptionStart);
+    assert.match(activePanelStyles, /var\(--error_color\)/);
+    assert.match(activeButtonStyles, /var\(--error_color\)/);
+    assert.doesNotMatch(activePanelStyles, /--error_color_rgb/);
+    assert.doesNotMatch(activeButtonStyles, /--error_color_rgb/);
+});
+
 test("Thai terminology uses transcription instead of recognition wording", () => {
     const thai = readSource("../../../../../../locales/th.yml");
 

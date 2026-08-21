@@ -527,10 +527,10 @@
 }
 
 .sample_text_panel[data-active="true"] {
-    border-color: rgba(var(--error_color_rgb), 0.88);
-    background: rgba(var(--error_color_rgb), 0.14);
+    border-color: color-mix(in srgb, var(--error_color) 88%, transparent);
+    background: color-mix(in srgb, var(--error_color) 14%, transparent);
     box-shadow:
-        0 0 1.4rem rgba(var(--error_color_rgb), 0.2),
+        0 0 1.4rem color-mix(in srgb, var(--error_color) 20%, transparent),
         inset 0 0.1rem 0 0 rgba(255, 255, 255, 0.12);
 }
 
@@ -564,14 +564,14 @@
 }
 
 .sample_text_panel[data-active="true"] .sample_text_button {
-    border-color: rgba(var(--error_color_rgb), 0.95);
-    background: rgba(var(--error_color_rgb), 0.3);
+    border-color: color-mix(in srgb, var(--error_color) 95%, transparent);
+    background: color-mix(in srgb, var(--error_color) 30%, transparent);
     color: var(--dark_100_color);
 
     &:hover,
     &:focus-visible {
-        background: rgba(var(--error_color_rgb), 0.45);
-        box-shadow: 0 0 1rem rgba(var(--error_color_rgb), 0.28);
+        background: color-mix(in srgb, var(--error_color) 45%, transparent);
+        box-shadow: 0 0 1rem color-mix(in srgb, var(--error_color) 28%, transparent);
     }
 }
 
@@ -589,9 +589,9 @@
 
 .sample_text_warning {
     padding: 0.65rem 0.75rem;
-    border: 0.1rem solid rgba(var(--error_color_rgb), 0.5);
+    border: 0.1rem solid color-mix(in srgb, var(--error_color) 50%, transparent);
     border-radius: 0.55rem;
-    background: rgba(var(--error_color_rgb), 0.16);
+    background: color-mix(in srgb, var(--error_color) 16%, transparent);
     color: var(--dark_100_color);
     font-weight: 800;
 }
