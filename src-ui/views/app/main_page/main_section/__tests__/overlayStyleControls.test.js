@@ -54,3 +54,38 @@ test("Overlay Studio localizes the VR visibility and style controls", () => {
         }
     }
 });
+
+test("Overlay Studio exposes VR transform, tracker, and diagnostic sample controls", () => {
+    const studio = readSource("../../overlay_studio/OverlayStudio.jsx");
+    const styles = readSource("../../overlay_studio/OverlayStudio.module.scss");
+
+    for (const setting of [
+        "x_pos",
+        "y_pos",
+        "z_pos",
+        "x_rotation",
+        "y_rotation",
+        "z_rotation",
+        "tracker",
+    ]) {
+        assert.match(studio, new RegExp(setting));
+    }
+    assert.match(studio, /sendTextToOverlay/);
+    assert.match(studio, /sample_text_active_warning/);
+    assert.match(styles, /\.vr_transform_controls\s*\{/);
+    assert.match(styles, /\.sample_text_panel\s*\{/);
+    assert.match(styles, /\.sample_text_panel\[data-active="true"\]/);
+
+    for (const locale of ["en", "ja", "ko", "th", "zh-Hans", "zh-Hant"]) {
+        const source = readSource(`../../../../../../locales/${locale}.yml`);
+        assert.match(source, /sample_text_title:/, `${locale} is missing the sample-text title`);
+        assert.match(source, /sample_text_active_warning:/, `${locale} is missing the sample-text warning`);
+    }
+});
+
+test("Thai terminology uses transcription instead of recognition wording", () => {
+    const thai = readSource("../../../../../../locales/th.yml");
+
+    assert.doesNotMatch(thai, /การรู้จำเสียง/);
+    assert.match(thai, /การถอดเสียง/);
+});
