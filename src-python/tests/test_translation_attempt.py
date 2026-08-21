@@ -1356,7 +1356,13 @@ class TypedChatTranslationTests(unittest.TestCase):
 
 
 class ControllerTranslationSanitizationTests(unittest.TestCase):
-    def _config_patch(self, *, send_only_translated=False, overlay_only_translated=False):
+    def _config_patch(
+        self,
+        *,
+        send_only_translated=False,
+        overlay_only_translated=False,
+        overlay_only_received=False,
+    ):
         return patch.multiple(
             controller_module.config,
             _SELECTED_TAB_NO="1",
@@ -1386,6 +1392,7 @@ class ControllerTranslationSanitizationTests(unittest.TestCase):
             _OVERLAY_SMALL_LOG=True,
             _OVERLAY_LARGE_LOG=True,
             _OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES=overlay_only_translated,
+            _OVERLAY_SHOW_ONLY_RECEIVED_MESSAGES=overlay_only_received,
             _LOGGER_FEATURE=True,
             _ENABLE_TRANSCRIPTION_SEND=True,
             _ENABLE_TRANSCRIPTION_RECEIVE=True,
@@ -1584,6 +1591,19 @@ class ControllerTranslationSanitizationTests(unittest.TestCase):
         fake_model.logger.info.assert_called_once_with("[CHAT] hello (translated)")
         self.assertEqual(current_selection, {"1": ["Google", "Bing"]})
         controller.changeToCTranslate2Process.assert_not_called()
+
+    def test_chat_received_only_hides_send_overlay_but_keeps_osc(self):
+        fake_model = self._fake_model()
+        fake_model.getInputTranslate.return_value = (["translated", False], [True, False])
+        controller = self._controller()
+
+        with patch.object(controller_module, "model", fake_model), self._config_patch(
+            overlay_only_received=True,
+        ):
+            controller.chatMessage({"id": "chat-received-only", "message": "hello"})
+
+        fake_model.oscSendMessage.assert_called_once()
+        fake_model.createOverlayImageLargeLog.assert_not_called()
 
     def test_chat_total_failure_suppresses_translated_only_side_effects(self):
         fake_model = self._fake_model()

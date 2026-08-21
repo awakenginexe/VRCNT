@@ -172,6 +172,32 @@ test("quick engine menus open below their triggers without clipping their option
     assert.match(liveBar, /z-index:\s*20/);
 });
 
+test("translator popout matches the quick model selector visual treatment", () => {
+    const translatorStyles = readSource(
+        "../../sidebar_section/language_settings/translator_selector_open_button/"
+        + "translator_selector/TranslatorSelector.module.scss",
+    );
+    const translatorSelector = readSource(
+        "../../sidebar_section/language_settings/translator_selector_open_button/"
+        + "translator_selector/TranslatorSelector.jsx",
+    );
+
+    assert.match(translatorSelector, /const LIVE_PANEL_WIDTH = 400/);
+    assert.match(translatorStyles, /width:\s*min\(25rem,\s*calc\(100vw - 2rem\)\)/);
+    assert.match(translatorStyles, /backdrop-filter:\s*blur\(28px\)\s+saturate\(190%\)/);
+    assert.match(translatorStyles, /background:\s*rgba\(14,\s*18,\s*32,\s*0\.92\)/);
+    assert.match(translatorStyles, /border-radius:\s*1\.25rem/);
+    assert.match(translatorStyles, /\.box\s*\{[\s\S]*background:\s*rgba\(255,\s*255,\s*255,\s*0\.04\)/);
+    assert.match(translatorStyles, /\.box\s*\{[\s\S]*border:\s*0\.1rem\s+solid\s+rgba\(255,\s*255,\s*255,\s*0\.08\)/);
+    assert.match(
+        translatorStyles,
+        /&\.is_primary\s*\{[\s\S]*linear-gradient\(135deg,\s*rgba\(99,\s*102,\s*241,\s*0\.32\),\s*rgba\(56,\s*189,\s*248,\s*0\.18\)\)/,
+    );
+    assert.match(translatorStyles, /\.parallel_controls\s*\{[\s\S]*background:\s*rgba\(255,\s*255,\s*255,\s*0\.04\)/);
+    assert.doesNotMatch(translatorStyles, /background:\s*var\(--surface_overlay_color\)/);
+    assert.doesNotMatch(translatorStyles, /width:\s*min\(28rem/);
+});
+
 test("language selection defaults to a searchable dialog and retains the legacy VR layout", () => {
     const selector = readSource("../language_selector/LanguageSelector.jsx");
     const openButton = readSource(

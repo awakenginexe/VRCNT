@@ -3,6 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
+import { isColorResetMigrationRequired } from "../colorResetMigration.js";
+
 const repoRoot = path.resolve(import.meta.dirname, "../../../..");
 
 const readSource = (relativePath) => {
@@ -11,6 +13,34 @@ const readSource = (relativePath) => {
         ? fs.readFileSync(absolutePath, "utf8")
         : "";
 };
+
+test("the migration gate waits for the backend flag to settle", () => {
+    assert.equal(isColorResetMigrationRequired({
+        isTauri: true,
+        isBackendReady: true,
+        flagValue: 0,
+        flagState: "pending",
+    }), false);
+});
+
+test("a loaded legacy flag still requires the migration", () => {
+    assert.equal(isColorResetMigrationRequired({
+        isTauri: true,
+        isBackendReady: true,
+        flagValue: 0,
+        flagState: "ok",
+    }), true);
+});
+
+test("the migration gate stays visible while its completion is being saved", () => {
+    assert.equal(isColorResetMigrationRequired({
+        isTauri: true,
+        isBackendReady: true,
+        flagValue: 0,
+        flagState: "pending",
+        isSaving: true,
+    }), true);
+});
 
 test("5.9.0 color migration persists an exact zero-to-one flag in VRCNTData", () => {
     const config = readSource("src-python/config.py");
@@ -43,6 +73,8 @@ test("the migration gate resets application roles and has no escape action", () 
     assert.match(gate, /updateAppColorPalette\(resetPalette\)/);
     assert.match(gate, /setAppColorPalette\(resetPalette\)/);
     assert.match(gate, /setColorReset590\(1\)/);
+    assert.match(gate, /flagState:\s*currentColorReset590\.state/);
+    assert.match(gate, /isSaving:\s*isResetting/);
     assert.match(gate, /role="dialog"/);
     assert.match(gate, /aria-modal="true"/);
     assert.equal((gate.match(/<button\b/g) ?? []).length, 1);

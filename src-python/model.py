@@ -17,10 +17,11 @@ from packaging.version import parse
 from flashtext import KeywordProcessor
 
 from device_manager import device_manager
-from config import config
+from config import config, normalize_overlay_settings
 
 from models.translation.translation_translator import Translator
 from models.osc.osc import OSCHandler
+from models.osc.typing_coordinator import TypingCoordinator
 from models.transcription.transcription_recorder import SelectedMicEnergyAndAudioRecorder, SelectedSpeakerEnergyAndAudioRecorder
 from models.transcription.transcription_recorder import SelectedMicEnergyRecorder, SelectedSpeakerEnergyRecorder
 from models.pipeline.pipeline_types import (
@@ -292,6 +293,10 @@ class Model:
         self.transliterator = None
         self.watchdog = Watchdog(config.WATCHDOG_TIMEOUT, config.WATCHDOG_INTERVAL)
         self.osc_handler = OSCHandler(config.OSC_IP_ADDRESS, config.OSC_PORT)
+        self._typing_coordinator = TypingCoordinator(
+            on_start=self._startMicTypingIndicator,
+            on_stop=self._stopMicTypingIndicator,
+        )
         self.websocket_server = None
         self.websocket_server_loop = False
         self.websocket_server_alive = False
@@ -510,6 +515,25 @@ class Model:
                 self._source_heartbeat_timestamps = {}
         self._ensureTranscriptionMetricState()
 
+    def _ensureTypingCoordinator(self) -> TypingCoordinator:
+        """Backfill typing state for focused/bare Model instances."""
+        coordinator = getattr(self, "_typing_coordinator", None)
+        if not all(
+            callable(getattr(coordinator, method, None))
+            for method in (
+                "update_voice_activity",
+                "begin_processing",
+                "end_processing",
+                "reset",
+            )
+        ):
+            coordinator = TypingCoordinator(
+                on_start=self._startMicTypingIndicator,
+                on_stop=self._stopMicTypingIndicator,
+            )
+            self._typing_coordinator = coordinator
+        return coordinator
+
     def _emitTranscriptionLifecycleMetric(
         self,
         source: PipelineSource,
@@ -518,6 +542,8 @@ class Model:
         outcome: str,
         queue_depth: int = 0,
         dropped_count: int = 0,
+        queue_age_ms: Optional[int] = None,
+        duration_ms: Optional[int] = None,
         error_code: Optional[str] = None,
         engine: Optional[str] = None,
     ) -> None:
@@ -530,8 +556,8 @@ class Model:
                 engine=engine,
                 target_slot=None,
                 outcome=outcome,
-                queue_age_ms=None,
-                duration_ms=None,
+                queue_age_ms=queue_age_ms,
+                duration_ms=duration_ms,
                 queue_depth=max(0, queue_depth),
                 dropped_count=max(0, dropped_count),
                 observed_at_ms=int(time() * 1000),
@@ -1402,6 +1428,29 @@ class Model:
         self.ensure_initialized()
         self.osc_handler.sendTyping(flag=False)
 
+    def _startMicTypingIndicator(self) -> None:
+        if config.SEND_MESSAGE_TO_VRC is not True:
+            return
+        try:
+            self.oscStartSendTyping()
+        except Exception:
+            errorLogging()
+
+    def _stopMicTypingIndicator(self) -> None:
+        try:
+            self.oscStopSendTyping()
+        except Exception:
+            errorLogging()
+
+    def beginMicTypingProcessing(self) -> None:
+        self._ensureTypingCoordinator().begin_processing()
+
+    def endMicTypingProcessing(self) -> None:
+        self._ensureTypingCoordinator().end_processing()
+
+    def resetMicTyping(self) -> None:
+        self._ensureTypingCoordinator().reset()
+
     def oscSendMessage(self, message:str):
         self.ensure_initialized()
         self.osc_handler.sendMessage(message=message, notification=config.NOTIFICATION_VRC_SFX)
@@ -1536,6 +1585,88 @@ class Model:
                 self._source_heartbeat_timestamps[source] = captured_at
                 session["heartbeat_at"] = captured_at
 
+    def _recordVoiceActivity(
+        self,
+        source: PipelineSource,
+        generation: int,
+        speaking: bool,
+        captured_at: float,
+    ) -> None:
+        self._ensureTranscriptionLifecycleState()
+        with self._source_session_lock:
+            session = self._source_transcription_sessions.get(source)
+            stop_event = session.get("stop_event") if session is not None else None
+            if not (
+                source is PipelineSource.MIC
+                and session is not None
+                and session.get("generation") == generation
+                and stop_event is not None
+                and not stop_event.is_set()
+                and self._source_pipeline_generations.get(source) == generation
+                and getattr(
+                    self,
+                    self._sourcePipelineAttribute(source),
+                    None,
+                )
+                is not None
+            ):
+                return
+            if speaking and session.get("speech_started_at") is None:
+                session["speech_started_at"] = captured_at
+            self._ensureTypingCoordinator().update_voice_activity(
+                bool(speaking),
+                at=captured_at,
+            )
+
+    def _recordAudioDrop(
+        self,
+        source: PipelineSource,
+        audio_queue: _MetricAudioQueue,
+    ) -> None:
+        audio_queue.record_drop()
+        if source is PipelineSource.MIC:
+            self.endMicTypingProcessing()
+
+    def _recordAudioChunk(
+        self,
+        source: PipelineSource,
+        generation: int,
+        captured_at: float,
+    ) -> None:
+        self._ensureTranscriptionLifecycleState()
+        with self._source_session_lock:
+            session = self._source_transcription_sessions.get(source)
+            stop_event = session.get("stop_event") if session is not None else None
+            if not (
+                source is PipelineSource.MIC
+                and session is not None
+                and session.get("generation") == generation
+                and stop_event is not None
+                and not stop_event.is_set()
+                and self._source_pipeline_generations.get(source) == generation
+                and getattr(
+                    self,
+                    self._sourcePipelineAttribute(source),
+                    None,
+                )
+                is not None
+            ):
+                return
+            speech_started_at = session.pop("speech_started_at", None)
+            queue_depth = getattr(session.get("audio_queue"), "qsize", lambda: 0)()
+            self.beginMicTypingProcessing()
+        if speech_started_at is not None:
+            self._emitTranscriptionLifecycleMetric(
+                source,
+                stage="capture",
+                outcome="phrase_ready",
+                queue_depth=queue_depth,
+                duration_ms=max(
+                    0,
+                    round((captured_at - speech_started_at) * 1000),
+                ),
+            )
+
     def _recorderCallbacks(
         self,
         source: PipelineSource,
@@ -1543,8 +1674,19 @@ class Model:
         audio_queue: _MetricAudioQueue,
     ) -> dict[str, Callable]:
         return {
-            "on_drop": lambda _chunk: audio_queue.record_drop(),
+            "on_drop": lambda _chunk: self._recordAudioDrop(source, audio_queue),
             "on_heartbeat": lambda captured_at: self._recordCaptureHeartbeat(
+                source,
+                generation,
+                captured_at,
+            ),
+            "on_voice_activity": lambda speaking, captured_at: self._recordVoiceActivity(
+                source,
+                generation,
+                speaking,
+                captured_at,
+            ),
+            "on_audio_chunk": lambda captured_at: self._recordAudioChunk(
                 source,
                 generation,
                 captured_at,
@@ -1707,6 +1849,7 @@ class Model:
 
     def startMicTranscript(self, fnc, generation: Optional[int] = None) -> bool:
         self.ensure_initialized()
+        self.resetMicTyping()
         if (
             isinstance(self.mic_print_transcript, threadFnc)
             or isinstance(
@@ -1862,6 +2005,7 @@ class Model:
                     "lease": whisper_runtime_lease,
                     "stop_event": stop_event,
                     "heartbeat_at": heartbeat_at,
+                    "speech_started_at": None,
                 }
             stall_seconds = max(
                 TRANSCRIPT_STALL_RESTART_SECONDS,
@@ -1872,6 +2016,13 @@ class Model:
             def sendMicTranscript():
                 if stop_event.is_set():
                     return
+                consumed_count = 0
+                trace_submitted = False
+
+                def on_audio_consumed():
+                    nonlocal consumed_count
+                    consumed_count += 1
+
                 try:
                     selected_your_languages = config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]
                     languages, countries = _runtimeTranscriptionLanguageLists(
@@ -1889,6 +2040,7 @@ class Model:
                             config.MIC_NO_REPEAT_NGRAM_SIZE,
                             config.MIC_VAD_FILTER,
                             config.MIC_VAD_PARAMETERS,
+                            on_audio_consumed=on_audio_consumed,
                         )
                         if (
                             res
@@ -1899,12 +2051,17 @@ class Model:
                             )
                         ):
                             result = transcriber.getTranscript()
-                            fnc(result)
+                            trace_submitted = bool(fnc(result))
                 except Exception:
                     errorLogging()
+                finally:
+                    retained_count = 1 if trace_submitted and consumed_count > 0 else 0
+                    for _ in range(max(0, consumed_count - retained_count)):
+                        self.endMicTypingProcessing()
 
             def endMicTranscript():
                 stop_event.set()
+                self.resetMicTyping()
                 audio_queue.drain()
                 # while not self.mic_energy_queue.empty():
                 #     self.mic_energy_queue.get()
@@ -2088,6 +2245,7 @@ class Model:
     def stopMicTranscript(self, stop_pipeline: bool = True):
         self.ensure_initialized()
         self._ensureTranscriptionLifecycleState()
+        self.resetMicTyping()
         detached_pipeline = (None, None)
         transition_started = False
         if stop_pipeline:
@@ -2668,6 +2826,7 @@ class Model:
             background_mode=config.OVERLAY_SMALL_LOG_SETTINGS.get("background_mode", "transparent_black"),
             message_text_scale=config.OVERLAY_SMALL_LOG_SETTINGS.get("message_text_scale", 1.0),
             color_palette=config.OVERLAY_COLOR_PALETTE,
+            overlay_style=normalize_overlay_settings(config.OVERLAY_SMALL_LOG_SETTINGS, "small"),
         )
 
     def createOverlayImageSmallMessage(self, message):
@@ -2688,6 +2847,7 @@ class Model:
             background_mode=config.OVERLAY_SMALL_LOG_SETTINGS.get("background_mode", "transparent_black"),
             message_text_scale=config.OVERLAY_SMALL_LOG_SETTINGS.get("message_text_scale", 1.0),
             color_palette=config.OVERLAY_COLOR_PALETTE,
+            overlay_style=normalize_overlay_settings(config.OVERLAY_SMALL_LOG_SETTINGS, "small"),
         )
 
     def clearOverlayImageSmallLog(self):
@@ -2758,6 +2918,7 @@ class Model:
             background_mode=config.OVERLAY_LARGE_LOG_SETTINGS.get("background_mode", "transparent_black"),
             message_text_scale=config.OVERLAY_LARGE_LOG_SETTINGS.get("message_text_scale", 1.0),
             color_palette=config.OVERLAY_COLOR_PALETTE,
+            overlay_style=normalize_overlay_settings(config.OVERLAY_LARGE_LOG_SETTINGS, "large"),
         )
 
     def createOverlayImageLargeMessage(self, message):
@@ -2775,11 +2936,12 @@ class Model:
         accent_color = config.OVERLAY_LARGE_LOG_SETTINGS.get("accent_color", "theme-neon-cyan")
         background_mode = config.OVERLAY_LARGE_LOG_SETTINGS.get("background_mode", "transparent_black")
         message_text_scale = config.OVERLAY_LARGE_LOG_SETTINGS.get("message_text_scale", 1.0)
+        overlay_style = normalize_overlay_settings(config.OVERLAY_LARGE_LOG_SETTINGS, "large")
 
         for _ in range(2):
-            overlay_image.createOverlayImageLargeLog("send", message, language, newest_first=config.OVERLAY_LARGE_LOG_SETTINGS.get("log_order") == "newest_first", accent_color=accent_color, background_mode=background_mode, message_text_scale=message_text_scale, color_palette=config.OVERLAY_COLOR_PALETTE)
-            overlay_image.createOverlayImageLargeLog("receive", message, language, newest_first=config.OVERLAY_LARGE_LOG_SETTINGS.get("log_order") == "newest_first", accent_color=accent_color, background_mode=background_mode, message_text_scale=message_text_scale, color_palette=config.OVERLAY_COLOR_PALETTE)
-        return overlay_image.createOverlayImageLargeLog("send", message, language, newest_first=config.OVERLAY_LARGE_LOG_SETTINGS.get("log_order") == "newest_first", accent_color=accent_color, background_mode=background_mode, message_text_scale=message_text_scale, color_palette=config.OVERLAY_COLOR_PALETTE)
+            overlay_image.createOverlayImageLargeLog("send", message, language, newest_first=config.OVERLAY_LARGE_LOG_SETTINGS.get("log_order") == "newest_first", accent_color=accent_color, background_mode=background_mode, message_text_scale=message_text_scale, color_palette=config.OVERLAY_COLOR_PALETTE, overlay_style=overlay_style)
+            overlay_image.createOverlayImageLargeLog("receive", message, language, newest_first=config.OVERLAY_LARGE_LOG_SETTINGS.get("log_order") == "newest_first", accent_color=accent_color, background_mode=background_mode, message_text_scale=message_text_scale, color_palette=config.OVERLAY_COLOR_PALETTE, overlay_style=overlay_style)
+        return overlay_image.createOverlayImageLargeLog("send", message, language, newest_first=config.OVERLAY_LARGE_LOG_SETTINGS.get("log_order") == "newest_first", accent_color=accent_color, background_mode=background_mode, message_text_scale=message_text_scale, color_palette=config.OVERLAY_COLOR_PALETTE, overlay_style=overlay_style)
 
     def clearOverlayImageLargeLog(self):
         self.ensure_initialized()

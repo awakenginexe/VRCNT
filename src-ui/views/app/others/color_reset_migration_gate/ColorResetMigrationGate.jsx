@@ -29,6 +29,8 @@ export const ColorResetMigrationGate = () => {
         isTauri: isTauriRuntime(),
         isBackendReady: currentIsBackendReady.data,
         flagValue: currentColorReset590.data,
+        flagState: currentColorReset590.state,
+        isSaving: isResetting,
     });
 
     useEffect(() => {

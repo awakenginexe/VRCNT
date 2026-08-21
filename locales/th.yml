@@ -79,10 +79,9 @@ main_page:
         navigation:
             live: "สด"
             setup: "ตั้งค่าเริ่มต้น"
-            engines: "เอนจินและเสียง"
             history: "ประวัติ"
-            models: "โมเดลเสียง"
-            translation_models: "โมเดลแปลภาษา"
+            models: "การถอดเสียง"
+            translation_models: "ตัวเลือกการแปล"
             overlay: "สตูดิโอโอเวอร์เลย์"
             customize: "ปรับแต่ง"
             settings: "การตั้งค่า"
@@ -139,7 +138,7 @@ main_page:
         translation_title: "เลือกภาษาที่คุณเข้าใจ"
         understanding_language: "ภาษาที่คุณเข้าใจ"
         understanding_language_detail: "ภาษาที่ VRCNT ใช้แปลเสียงขาเข้าให้คุณ"
-        transcription_translation_title: "เลือกการรู้จำเสียงและการแปล"
+        transcription_translation_title: "เลือกการถอดเสียงและการแปล"
         speech_recognition_engine: "เอนจินรู้จำเสียงพูด"
         translation_service: "บริการแปล"
         offline_translation_model: "โมเดลแปลออฟไลน์"
@@ -198,7 +197,7 @@ main_page:
     engines_workspace:
         eyebrow: "สถาปัตยกรรมเสียง"
         title: "เอนจินและเสียง"
-        detail: "เลือกสภาพแวดล้อมการรู้จำเสียงแยกกันสำหรับไมโครโฟนและเสียงเดสก์ท็อปที่รับเข้า การตั้งค่าขั้นสูงเดิมยังใช้งานได้"
+        detail: "เลือกสภาพแวดล้อมการถอดเสียงแยกกันสำหรับไมโครโฟนและเสียงเดสก์ท็อปที่รับเข้า การตั้งค่าขั้นสูงเดิมยังใช้งานได้"
         back_to_live: "กลับไปที่ Live"
         source_paths: "เส้นทางแหล่งเสียง"
         microphone_badge: "ไมโครโฟน → OSC"
@@ -245,7 +244,7 @@ main_page:
         loading_options: "กำลังโหลดตัวเลือกที่ใช้งานได้…"
     models_hub:
         eyebrow: "คลังโมเดลเสียง"
-        title: "โมเดลเสียง"
+        title: "การถอดเสียง"
         detail: "เลือกโมเดลที่ติดตั้งแล้วให้เหมาะกับเครื่อง หรือดาวน์โหลดโมเดลที่ใช้งานได้ก่อนเลือก"
         back_to_live: "กลับไปที่ Live"
         automatic_label: "อัตโนมัติ — แนะนำ"
@@ -312,6 +311,18 @@ main_page:
         vr_enabled: "เปิดใช้"
         vr_scale: "ขนาด {{scale}}%"
         vr_mode: "โหมดโอเวอร์เลย์"
+        vr_transform_kicker: "ตำแหน่งและการติดตาม"
+        vr_transform_title: "ตำแหน่งและการติดตามใน VR"
+        sample_text_kicker: "ตรวจสอบการทำงาน"
+        sample_text_title: "ตรวจสอบโอเวอร์เลย์ VR"
+        sample_text_description: "ส่งข้อความตัวอย่างซ้ำไปยังโอเวอร์เลย์ SteamVR ที่เลือก เพื่อยืนยันว่าโอเวอร์เลย์รับเอาต์พุตได้"
+        sample_text_active_warning: "กำลังส่งข้อความตัวอย่างอยู่ หากไม่เห็นใน VR ให้ตรวจสอบว่า SteamVR ทำงาน เปิดใช้งานโอเวอร์เลย์นี้ และมี Tracker ที่เลือกอยู่"
+        background_transparency: "ความโปร่งใสพื้นหลัง (0% โปร่งใส · 100% ทึบ)"
+        border_enabled: "แสดงเส้นขอบ"
+        text_outline: "เส้นขอบข้อความ"
+        outline_size: "ขนาดเส้นขอบ"
+        show_only_translated: "แสดงเฉพาะข้อความแปลแล้ว"
+        show_only_received: "แสดงเฉพาะข้อความที่ได้รับ"
         small_overlay: "บรรทัดเดียว"
         large_overlay: "หลายบรรทัด"
         background: "พื้นหลัง"
@@ -418,7 +429,7 @@ main_page:
         speaking_title: "ภาษาที่คุณพูด"
         speaking_engine: "พูด"
         listening_engine: "ฟัง"
-        speaking_desc: "เลือกภาษาที่คุณพูดได้สูงสุด 3 ภาษา เพื่อให้ VRCNT จำกัดขอบเขตการรู้จำเสียงได้แม่นยำขึ้น"
+        speaking_desc: "เลือกภาษาที่คุณพูดได้สูงสุด 3 ภาษา เพื่อให้ VRCNT จำกัดขอบเขตการถอดเสียงได้แม่นยำขึ้น"
         preferred_title: "แปลเสียงที่ได้รับเป็น"
         preferred_desc: "เลือกหนึ่งภาษาที่คุณเข้าใจได้ดีที่สุด"
         targets_title: "ภาษาที่ฟัง"
@@ -430,8 +441,8 @@ main_page:
         minimum_one_language: "ต้องมีอย่างน้อยหนึ่งภาษา"
         maximum_three_languages: "เลือกภาษาได้สูงสุด 3 ภาษา"
         duplicate_language: "เลือกภาษาและภูมิภาคนี้ไว้แล้ว"
-        recognition_active: "ใช้สำหรับการรู้จำเสียง"
-        recognition_paused: "บันทึกไว้ · พักการรู้จำเสียง"
+        recognition_active: "ใช้สำหรับการถอดเสียง"
+        recognition_paused: "บันทึกไว้ · พักการถอดเสียง"
         outgoing_only: "ใช้แปลขาออกเท่านั้น"
         whisper_profile_hint: "Whisper จะเลือกภาษาที่มีโอกาสสูงสุดจากรายการ แล้วถอดรหัสเพียงครั้งเดียว"
         whisper_thai_hint: "Whisper Thai รองรับเฉพาะภาษาไทย ล็อกภาษาการรู้จำเป็นภาษาไทยและใช้ช่องภาษาเพียงหนึ่งช่อง"
@@ -576,7 +587,7 @@ main_page:
 
     translation_models:
         eyebrow: "การแปลแบบออฟไลน์"
-        title: "โมเดลแปลภาษา"
+        title: "ตัวเลือกการแปล"
         detail: "เลือกโปรไฟล์คุณภาพที่เตรียมไว้สำหรับการแปลแบบออฟไลน์ โมเดลขั้นสูงยังคงใช้งานได้ในการตั้งค่า"
         back_to_live: "กลับไปยังไลฟ์"
         advanced_models: "เปิดโมเดลขั้นสูง"
@@ -640,7 +651,7 @@ config_page:
             unable_to_use_osc_query: "เนื่องจากการตั้งค่า OSC IP Address ไม่สามารถรับข้อมูล OSC ได้ ฟีเจอร์นี้จึงไม่พร้อมใช้งานในขณะนี้"
 
     model_and_provider:
-        speech_models: "โมเดลเสียงพูด"
+        speech_models: "การถอดเสียง"
         cloud_translation_providers:
             title: "ผู้ให้บริการแปลภาษาบนคลาวด์"
             description: "ตั้งค่าคีย์ API และการเชื่อมต่อผู้ให้บริการในเครื่องสำหรับการแปลบนคลาวด์และ LLM"
@@ -981,7 +992,7 @@ config_page:
             label: "จำนวนคำสูงสุดของลำโพง"
             desc: "เป็นค่าขั้นต่ำของจำนวนคำที่ถอดเสียง และจะแสดงในบันทึกเฉพาะเมื่อเกินจำนวนนี้"
         select_transcription_engine:
-            label: "เอนจินถอดเสียงที่ใช้สำหรับการรู้จำเสียงพูด"
+            label: "เอนจินถอดเสียงที่ใช้สำหรับการถอดเสียงพูด"
         whisper_cloud:
             split_key:
                 label: "ใช้ Groq API key แยกสำหรับ Whisper Cloud"

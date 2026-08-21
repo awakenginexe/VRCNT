@@ -336,6 +336,61 @@ class TranscriptionRecorderCallbackTests(unittest.TestCase):
         )
         self.assertEqual(heartbeats, [400.25, 401.5])
 
+    def test_energy_and_audio_recorder_reports_voice_activity_against_threshold(self):
+        recognizer = FakeRecognizer()
+        recognizer.energy_threshold = 300
+        recorder = BaseEnergyAndAudioRecorder(
+            object(), 300, True, 10, 1, 5
+        )
+        recorder.recorder = recognizer
+        activity = []
+        timestamps = iter((500.0, 500.1))
+        clock = SimpleNamespace(perf_counter=lambda: next(timestamps))
+
+        with patch(
+            "models.transcription.transcription_recorder.time",
+            new=clock,
+            create=True,
+        ):
+            recorder.recordIntoQueue(
+                make_full_audio_queue(),
+                None,
+                on_voice_activity=lambda speaking, captured_at: activity.append(
+                    (speaking, captured_at)
+                ),
+            )
+            self.invoke_promptly(recognizer.energy_callback, 450)
+            self.invoke_promptly(recognizer.energy_callback, 100)
+
+        self.assertEqual(activity, [(True, 500.0), (False, 500.1)])
+
+    def test_energy_and_audio_recorder_reports_phrase_capture_for_processing(self):
+        recognizer = FakeRecognizer()
+        recorder = BaseEnergyAndAudioRecorder(
+            object(), 300, True, 10, 1, 5
+        )
+        recorder.recorder = recognizer
+        captured = []
+        clock = SimpleNamespace(perf_counter=lambda: 600.0)
+
+        with patch(
+            "models.transcription.transcription_recorder.time",
+            new=clock,
+            create=True,
+        ):
+            recorder.recordIntoQueue(
+                make_full_audio_queue(),
+                None,
+                on_audio_chunk=captured.append,
+            )
+            self.invoke_promptly(
+                recognizer.audio_callback,
+                None,
+                FakeAudio(b"phrase"),
+            )
+
+        self.assertEqual(captured, [600.0])
+
     def test_conventional_full_queue_replaces_oldest_without_waiting(self):
         audio_queue = Queue(maxsize=1)
         oldest = AudioChunk(

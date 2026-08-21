@@ -128,7 +128,9 @@ const OverlaySettingsContainer = ({
     };
 
     const selectFunction = (key, value) => {
-        const new_data = { ...settings, [key]: value };
+        const updates = typeof key === "object" ? key : { [key]: value };
+        const new_data = { ...settings, ...updates };
+        setSettings(new_data);
         setOverlaySettings(new_data);
     };
 
@@ -454,7 +456,10 @@ const StyleControls = ({ settings, selectFunction }) => {
     const { t } = useI18n();
 
     const selectBackgroundMode = (selected_data) => {
-        selectFunction("background_mode", selected_data.selected_id);
+        selectFunction({
+            background_mode: selected_data.selected_id,
+            background_opacity: selected_data.selected_id === "solid_black" ? 100 : 71,
+        });
     };
 
     return (

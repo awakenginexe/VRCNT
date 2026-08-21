@@ -172,6 +172,21 @@ CONFIG_KEY_ALIASES = {
     "5_9_0_color_reset": "COLOR_RESET_5_9_0",
 }
 
+
+def _resolve_color_reset_migration_flag(
+    config_file_exists: bool,
+    config_data: Dict[str, Any],
+) -> int:
+    """Resolve the one-time color migration state without prompting fresh installs."""
+    if not config_file_exists:
+        return 1
+
+    if not isinstance(config_data, dict):
+        return 0
+
+    return 1 if config_data.get("5_9_0_color_reset") in (True, 1) else 0
+
+
 def json_serializable(var_name):
     def decorator(func):
         json_serializable_vars[var_name] = func
@@ -481,32 +496,114 @@ OVERLAY_ACCENT_COLORS = {
 
 OVERLAY_BACKGROUND_MODES = ("transparent_black", "solid_black")
 
+OVERLAY_STYLE_DEFAULTS = {
+    "small": {
+        "background_opacity": 71,
+        "border_enabled": True,
+        "text_outline_enabled": False,
+        "text_outline_width": 0,
+        "canvas_width": 3940,
+        "canvas_height": 0,
+    },
+    "large": {
+        "background_opacity": 71,
+        "border_enabled": True,
+        "text_outline_enabled": False,
+        "text_outline_width": 0,
+        "canvas_width": 1312,
+        "canvas_height": 0,
+    },
+}
+
+
+def _overlay_numeric_value(value, fallback):
+    if isinstance(value, bool):
+        return fallback
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
+def _overlay_int_value(value, fallback, minimum, maximum):
+    numeric = _overlay_numeric_value(value, fallback)
+    return int(round(minimum if numeric < minimum else maximum if numeric > maximum else numeric))
+
+
+def _overlay_bool_value(value, fallback):
+    return value if isinstance(value, bool) else fallback
+
+
+def normalize_overlay_settings(settings: Optional[dict], mode: str) -> dict:
+    selected_mode = "large" if mode == "large" else "small"
+    defaults = OVERLAY_STYLE_DEFAULTS[selected_mode]
+    source = settings if isinstance(settings, dict) else {}
+    legacy_opacity = 100 if source.get("background_mode") == "solid_black" else 71
+    height_fallback = defaults["canvas_height"]
+    height_value = source.get("canvas_height", height_fallback)
+    normalized_height = (
+        0
+        if _overlay_numeric_value(height_value, height_fallback) == 0
+        else _overlay_int_value(height_value, height_fallback, 64, 2048)
+    )
+    normalized = dict(source)
+    normalized.update({
+        "background_opacity": _overlay_int_value(
+            source.get("background_opacity", legacy_opacity),
+            legacy_opacity,
+            0,
+            100,
+        ),
+        "border_enabled": _overlay_bool_value(
+            source.get("border_enabled"),
+            defaults["border_enabled"],
+        ),
+        "text_outline_enabled": _overlay_bool_value(
+            source.get("text_outline_enabled"),
+            defaults["text_outline_enabled"],
+        ),
+        "text_outline_width": _overlay_int_value(
+            source.get("text_outline_width"),
+            defaults["text_outline_width"],
+            0,
+            12,
+        ),
+        "canvas_width": _overlay_int_value(
+            source.get("canvas_width"),
+            defaults["canvas_width"],
+            640,
+            7680,
+        ),
+        "canvas_height": normalized_height,
+    })
+    return normalized
+
 APP_COLOR_PALETTE_DEFAULTS = {
-    "primary": "#9B6DFF",
-    "secondary": "#A87CFF",
-    "gradientStart": "#8B5CF6",
-    "gradientEnd": "#A87CFF",
-    "canvas": "#08070B",
-    "backgroundStart": "#08070B",
-    "backgroundEnd": "#08070B",
-    "surface1": "#100D15",
-    "surface2": "#15111C",
-    "surface3": "#1B1526",
-    "surfaceOverlay": "#0E0B14",
-    "surfaceControl": "#0B0910",
-    "textStrong": "#F8F5FB",
-    "text": "#E7E1EF",
-    "textMuted": "#958AA3",
-    "textSubtle": "#746A80",
-    "border": "#463C51",
-    "focus": "#9B6DFF",
+    "primary": "#38BDF8",
+    "secondary": "#60A5FA",
+    "gradientStart": "#38BDF8",
+    "gradientEnd": "#6366F1",
+    "canvas": "#060810",
+    "backgroundStart": "#060810",
+    "backgroundEnd": "#060810",
+    "surface1": "#0A0E1A",
+    "surface2": "#0F1626",
+    "surface3": "#182238",
+    "surfaceOverlay": "#0B1120",
+    "surfaceControl": "#080D18",
+    "textStrong": "#F8FAFC",
+    "text": "#E2E8F0",
+    "textMuted": "#94A3B8",
+    "textSubtle": "#64748B",
+    "border": "#1E293B",
+    "focus": "#38BDF8",
     "success": "#5BE2B5",
     "warning": "#F2B84B",
     "error": "#FF7180",
     "info": "#38BDF8",
-    "sent": "#5BE2B5",
-    "received": "#CBB8FF",
-    "translation": "#CBB8FF",
+    "sent": "#38BDF8",
+    "received": "#60A5FA",
+    "translation": "#60A5FA",
 }
 
 OVERLAY_COLOR_PALETTE_DEFAULTS = {
@@ -621,6 +718,10 @@ def _overlay_small_validator(val, inst):
             new[key] = v
         elif key == 'background_mode' and isinstance(v, str) and v in OVERLAY_BACKGROUND_MODES:
             new[key] = v
+    new.update({
+        key: normalize_overlay_settings(val, "small")[key]
+        for key in OVERLAY_STYLE_DEFAULTS["small"]
+    })
     return new
 
 def _overlay_large_validator(val, inst):
@@ -645,6 +746,10 @@ def _overlay_large_validator(val, inst):
             new[key] = v
         elif key == 'background_mode' and isinstance(v, str) and v in OVERLAY_BACKGROUND_MODES:
             new[key] = v
+    new.update({
+        key: normalize_overlay_settings(val, "large")[key]
+        for key in OVERLAY_STYLE_DEFAULTS["large"]
+    })
     return new
 
 def _format_validator_send(val, inst):
@@ -1041,6 +1146,7 @@ class Config:
     OVERLAY_SMALL_LOG = ManagedProperty('OVERLAY_SMALL_LOG', type_=bool)
     OVERLAY_LARGE_LOG = ManagedProperty('OVERLAY_LARGE_LOG', type_=bool)
     OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES = ManagedProperty('OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES', type_=bool)
+    OVERLAY_SHOW_ONLY_RECEIVED_MESSAGES = ManagedProperty('OVERLAY_SHOW_ONLY_RECEIVED_MESSAGES', type_=bool)
     SEND_MESSAGE_TO_VRC = ManagedProperty('SEND_MESSAGE_TO_VRC', type_=bool)
     SEND_RECEIVED_MESSAGE_TO_VRC = ManagedProperty('SEND_RECEIVED_MESSAGE_TO_VRC', type_=bool)
     LOGGER_FEATURE = ManagedProperty('LOGGER_FEATURE', type_=bool)
@@ -1102,7 +1208,7 @@ class Config:
 
     def init_config(self):
         # Read Only
-        self._VERSION = "5.10.0"
+        self._VERSION = "5.11.0"
         if getattr(sys, 'frozen', False):
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
@@ -1410,6 +1516,7 @@ class Config:
             "background_mode": "transparent_black",
             "tracker": "HMD",
         }
+        self._OVERLAY_SMALL_LOG_SETTINGS.update(OVERLAY_STYLE_DEFAULTS["small"])
         self._OVERLAY_LARGE_LOG = False
         self._OVERLAY_LARGE_LOG_SETTINGS = {
             "x_pos": 0.0,
@@ -1428,7 +1535,9 @@ class Config:
             "tracker": "LeftHand",
             "log_order": "oldest_first",
         }
+        self._OVERLAY_LARGE_LOG_SETTINGS.update(OVERLAY_STYLE_DEFAULTS["large"])
         self._OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES = False
+        self._OVERLAY_SHOW_ONLY_RECEIVED_MESSAGES = False
         self._SEND_MESSAGE_TO_VRC = True
         self._SEND_RECEIVED_MESSAGE_TO_VRC = False
         self._LOGGER_FEATURE = False
@@ -1525,6 +1634,11 @@ class Config:
                                 continue
                         except Exception:
                             errorLogging()
+
+        self._COLOR_RESET_5_9_0 = _resolve_color_reset_migration_flag(
+            config_file_exists,
+            self._config_data,
+        )
 
         font_family = getattr(self, "_FONT_FAMILY", None)
         if not isinstance(font_family, str) or not font_family.strip():

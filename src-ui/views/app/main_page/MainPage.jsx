@@ -2,7 +2,6 @@ import clsx from "clsx";
 import styles from "./MainPage.module.scss";
 import { MainSection } from "./main_section/MainSection";
 import { GuidedSetup } from "./guided_setup/GuidedSetup";
-import { EnginesWorkspace } from "./engines/EnginesWorkspace";
 import { ModelsHub } from "./models/ModelsHub";
 import { TranslationModelsHub } from "./translation_models/TranslationModelsHub";
 import { OverlayStudio } from "./overlay_studio/OverlayStudio";
@@ -21,8 +20,7 @@ export const MainPage = () => {
         })}>
             <div className={styles.container}>
                 {currentExperienceRoute.data === "setup" ? <GuidedSetup /> :
-                    currentExperienceRoute.data === "engines" ? <EnginesWorkspace /> :
-                        currentExperienceRoute.data === "models" ? <ModelsHub /> :
+                    currentExperienceRoute.data === "engines" || currentExperienceRoute.data === "models" ? <ModelsHub /> :
                             currentExperienceRoute.data === "translation_models" ? <TranslationModelsHub /> :
                                 currentExperienceRoute.data === "overlay" ? <OverlayStudio /> :
                                     currentExperienceRoute.data === "customize" ? <ColorCustomization /> : <MainSection />}

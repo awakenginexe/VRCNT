@@ -468,6 +468,9 @@ class Controller:
             overlay_show_only_translated_messages=(
                 config.OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES is True
             ),
+            overlay_show_only_received_messages=(
+                config.OVERLAY_SHOW_ONLY_RECEIVED_MESSAGES is True
+            ),
             enable_clipboard=config.ENABLE_CLIPBOARD is True,
             logger_feature=config.LOGGER_FEATURE is True,
             convert_message_to_hiragana=config.CONVERT_MESSAGE_TO_HIRAGANA is True,
@@ -528,7 +531,7 @@ class Controller:
         self,
         source: PipelineSource,
         result: dict,
-    ) -> None:
+    ) -> bool:
         message = result["text"]
         language = result["language"]
         if isinstance(message, bool) and message is False:
@@ -537,23 +540,23 @@ class Controller:
                 self.run_mapping.get("error_device", "/run/error_device"),
                 {"message": f"No {source.value} device detected", "data": None},
             )
-            return
+            return False
         if not isinstance(message, str) or not message:
-            return
+            return False
         if model.checkKeywords(message):
             self.run(
                 200,
                 self.run_mapping.get("word_filter", "/run/word_filter"),
                 {"message": f"Detected by word filter: {message}"},
             )
-            return
+            return False
         repeat = (
             model.detectRepeatSendMessage(message)
             if source is PipelineSource.MIC
             else model.detectRepeatReceiveMessage(message)
         )
         if repeat:
-            return
+            return False
 
         output_config = self._outputConfigSnapshot()
         target_snapshots = (
@@ -601,7 +604,7 @@ class Controller:
             started_at_monotonic=result.get("started_at_monotonic", monotonic()),
             output_config=output_config,
         )
-        pipeline.submit_trace(trace)
+        return bool(pipeline.submit_trace(trace))
 
     def _emitTranslationUpdate(self, update: TranslationUpdate) -> None:
         self.run(
@@ -894,6 +897,15 @@ class Controller:
         )
 
     def _finalizeMicOutput(self, task: FinalOutputTask) -> None:
+        try:
+            self._finalizeMicOutputImpl(task)
+        finally:
+            try:
+                model.endMicTypingProcessing()
+            except Exception:
+                errorLogging()
+
+    def _finalizeMicOutputImpl(self, task: FinalOutputTask) -> None:
         output_config = task.output_config
         (
             successful_translations,
@@ -966,7 +978,7 @@ class Controller:
                 ):
                     return
 
-        if output_config.overlay_large_log:
+        if output_config.overlay_large_log and not output_config.overlay_show_only_received_messages:
             def update_large_overlay() -> None:
                 if not self._is_overlay_available():
                     return
@@ -2216,11 +2228,11 @@ class Controller:
                         error_response["result"],
                     )
 
-    def micMessage(self, result: dict) -> None:
-        self._beginTranscriptionTrace(PipelineSource.MIC, result)
+    def micMessage(self, result: dict) -> bool:
+        return self._beginTranscriptionTrace(PipelineSource.MIC, result)
 
-    def speakerMessage(self, result:dict) -> None:
-        self._beginTranscriptionTrace(PipelineSource.SPEAKER, result)
+    def speakerMessage(self, result:dict) -> bool:
+        return self._beginTranscriptionTrace(PipelineSource.SPEAKER, result)
 
     def chatMessage(self, data) -> dict:
         id = data["id"]
@@ -2361,7 +2373,10 @@ class Controller:
                 if osc_message is not None:
                     model.oscSendMessage(osc_message)
 
-            if config.OVERLAY_LARGE_LOG is True:
+            if (
+                config.OVERLAY_LARGE_LOG is True
+                and config.OVERLAY_SHOW_ONLY_RECEIVED_MESSAGES is not True
+            ):
                 if config.OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES is True:
                     if successful_translations:
                         overlay_image = model.createOverlayImageLargeLog(
@@ -5198,6 +5213,22 @@ class Controller:
         return {"status":200, "result":config.OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES}
 
     @staticmethod
+    def getOverlayShowOnlyReceivedMessages(*args, **kwargs) -> dict:
+        return {"status": 200, "result": config.OVERLAY_SHOW_ONLY_RECEIVED_MESSAGES}
+
+    @staticmethod
+    def setEnableOverlayShowOnlyReceivedMessages(*args, **kwargs) -> dict:
+        if config.OVERLAY_SHOW_ONLY_RECEIVED_MESSAGES is False:
+            config.OVERLAY_SHOW_ONLY_RECEIVED_MESSAGES = True
+        return {"status": 200, "result": config.OVERLAY_SHOW_ONLY_RECEIVED_MESSAGES}
+
+    @staticmethod
+    def setDisableOverlayShowOnlyReceivedMessages(*args, **kwargs) -> dict:
+        if config.OVERLAY_SHOW_ONLY_RECEIVED_MESSAGES is True:
+            config.OVERLAY_SHOW_ONLY_RECEIVED_MESSAGES = False
+        return {"status": 200, "result": config.OVERLAY_SHOW_ONLY_RECEIVED_MESSAGES}
+
+    @staticmethod
     def getSendMessageToVrc(*args, **kwargs) -> dict:
         return {"status":200, "result":config.SEND_MESSAGE_TO_VRC}
 
@@ -5469,6 +5500,8 @@ class Controller:
 
     @staticmethod
     def sendTextOverlay(data, *args, **kwargs) -> dict:
+        if config.OVERLAY_SHOW_ONLY_RECEIVED_MESSAGES is True:
+            return {"status": 200, "result": data}
         if config.OVERLAY_SMALL_LOG is True:
             overlay_image = model.createOverlayImageSmallMessage(data)
             model.updateOverlaySmallLog(overlay_image)

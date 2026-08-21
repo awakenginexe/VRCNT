@@ -9,7 +9,7 @@ import { useStore_IsOpenedTranslatorSelector } from "@store";
 import { useLanguageSettings } from "@logics_main";
 import { useFloatingPanelPosition } from "../../../../../../common_components/floating_panel/useFloatingPanelPosition.js";
 
-const LIVE_PANEL_WIDTH = 448;
+const LIVE_PANEL_WIDTH = 400;
 const LIVE_PANEL_GAP = 12;
 const LIVE_PANEL_PADDING = 16;
 
@@ -102,7 +102,7 @@ export const TranslatorSelector = ({
         gap: LIVE_PANEL_GAP,
         padding: LIVE_PANEL_PADDING,
         panelRef,
-        verticalAlignment: "anchor-start",
+        verticalAlignment: "anchor-end",
     });
     const {
         style: livePanelStyle,

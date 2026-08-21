@@ -16,6 +16,7 @@ export * from "./desktopOverlayWindow.js";
 export * from "./desktopOverlaySettings.js";
 export * from "./colorPalette.js";
 export * from "./colorResetMigration.js";
+export * from "./overlaySettings.js";
 export { useIsOpenedConfigPage } from "./useIsOpenedConfigPage";
 export { useIsSoftwareUpdating } from "./useIsSoftwareUpdating";
 export { useNotificationStatus } from "./useNotificationStatus";

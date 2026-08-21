@@ -23,7 +23,6 @@ test("the approved shell exposes every top-level destination through one route a
 
     for (const route of [
         "live",
-        "engines",
         "models",
         "overlay",
         "customize",
@@ -31,6 +30,7 @@ test("the approved shell exposes every top-level destination through one route a
     ]) {
         assert.match(navigation, new RegExp(`id:\\s*"${route}"`));
     }
+    assert.doesNotMatch(navigation, /id:\s*"engines"/);
     assert.doesNotMatch(navigation, /id:\s*"setup"/);
     assert.doesNotMatch(navigation, /item\.id === "setup"/);
 });

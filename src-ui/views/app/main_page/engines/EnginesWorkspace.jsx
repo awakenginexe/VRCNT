@@ -47,7 +47,7 @@ const metricValue = (metric, unavailableLabel) => {
     return `${Math.round(Number(metric.percent))}%`;
 };
 
-const SourceRuntimeCard = ({
+export const SourceRuntimeCard = ({
     accent,
     badge,
     title,

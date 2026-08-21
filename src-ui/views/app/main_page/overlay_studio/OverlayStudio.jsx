@@ -14,6 +14,7 @@ import {
     getOverlayCssVariables,
     normalizeDesktopOverlaySettings,
     normalizeColorPalette,
+    normalizeOverlaySettings,
     OVERLAY_COLOR_ROLE_GROUPS,
     openDesktopOverlayWindow,
     readDesktopOverlaySettings,
@@ -27,6 +28,7 @@ import {
     useStore_TranslationStatus,
 } from "@store";
 import { ui_configs } from "@ui_configs";
+import { randomIntMinMax } from "@utils";
 import { TopBar } from "../main_section/top_bar/TopBar";
 import { DesktopOverlayPreview } from "../../desktop_overlay/DesktopOverlayPreview";
 import styles from "./OverlayStudio.module.scss";
@@ -80,6 +82,10 @@ export const OverlayStudio = () => {
         currentOverlayLargeLogSettings,
         setOverlayLargeLogSettings,
         currentOverlayShowOnlyTranslatedMessages,
+        toggleOverlayShowOnlyTranslatedMessages,
+        currentOverlayShowOnlyReceivedMessages,
+        toggleOverlayShowOnlyReceivedMessages,
+        sendTextToOverlay,
         currentOverlayColorPalette,
         updateOverlayColorPalette,
         setOverlayColorPalette,
@@ -90,12 +96,23 @@ export const OverlayStudio = () => {
     const { currentTranscriptionReceiveStatus } = useStore_TranscriptionReceiveStatus();
     const [desktopSettings, setDesktopSettings] = useState(readDesktopOverlaySettings);
     const [vrMode, setVrMode] = useState("small");
+    const [vrTransformMode, setVrTransformMode] = useState("position");
+    const [isSampleTextEnabled, setIsSampleTextEnabled] = useState(false);
     const [feedback, setFeedback] = useState("");
     const overlayPersistTimer = useRef(null);
+    const sampleTextSenderRef = useRef(sendTextToOverlay);
+    const translateRef = useRef(t);
+    sampleTextSenderRef.current = sendTextToOverlay;
+    translateRef.current = t;
 
     const smallSettings = currentOverlaySmallLogSettings.data ?? ui_configs.overlay_small_log_default_settings;
     const largeSettings = currentOverlayLargeLogSettings.data ?? ui_configs.overlay_large_log_default_settings;
-    const activeVrSettings = vrSettingsFor(vrMode, smallSettings, largeSettings);
+    const activeVrSettings = normalizeOverlaySettings(
+        vrSettingsFor(vrMode, smallSettings, largeSettings),
+        vrMode,
+    );
+    const activeVrHeight = activeVrSettings.canvas_height || 304;
+    const isVrAutoHeight = activeVrSettings.canvas_height === 0;
     const activeVrEnabled = vrMode === "large"
         ? currentIsEnabledOverlayLargeLog.data === true
         : currentIsEnabledOverlaySmallLog.data === true;
@@ -138,6 +155,22 @@ export const OverlayStudio = () => {
     useEffect(() => () => {
         if (overlayPersistTimer.current) clearTimeout(overlayPersistTimer.current);
     }, []);
+
+    useEffect(() => {
+        if (!isSampleTextEnabled) return undefined;
+
+        const sendSampleText = () => {
+            const sampleText = Array.from(
+                { length: randomIntMinMax(1, 5) },
+                () => translateRef.current("config_page.vr.sample_text_button.sample_text"),
+            ).join(" ");
+            sampleTextSenderRef.current(sampleText);
+        };
+
+        sendSampleText();
+        const intervalId = setInterval(sendSampleText, 1000);
+        return () => clearInterval(intervalId);
+    }, [isSampleTextEnabled]);
     const vrPreviewText = lastVisibleText(
         currentMessageLogs.data ?? [],
         currentOverlayShowOnlyTranslatedMessages.data === true,
@@ -295,6 +328,25 @@ export const OverlayStudio = () => {
                                     <p className={styles.section_kicker}>{t("main_page.overlay_studio.vr_kicker")}</p>
                                     <h2 id="vr-overlay-heading">{t("main_page.overlay_studio.vr_preview")}</h2>
                                 </div>
+                                <div className={styles.mode_tabs} role="tablist" aria-label={t("main_page.overlay_studio.vr_mode")}>
+                                    {[
+                                        ["small", t("main_page.overlay_studio.small_overlay")],
+                                        ["large", t("main_page.overlay_studio.large_overlay")],
+                                    ].map(([mode, label]) => (
+                                        <button
+                                            key={mode}
+                                            type="button"
+                                            role="tab"
+                                            aria-selected={vrMode === mode}
+                                            aria-controls="vr-overlay-controls"
+                                            className={styles.mode_tab}
+                                            data-active={vrMode === mode}
+                                            onClick={() => setVrMode(mode)}
+                                        >
+                                            {label}
+                                        </button>
+                                    ))}
+                                </div>
                                 <label className={styles.switch_label}>
                                     <span>{t("main_page.overlay_studio.vr_enabled")}</span>
                                     <input type="checkbox" checked={activeVrEnabled} onChange={toggleActiveVrOverlay} />
@@ -307,35 +359,110 @@ export const OverlayStudio = () => {
                                     "--vr-accent": overlayPalette.primary,
                                     "--vr-accent-rgb": overlayVariables["--overlay_primary_color_rgb"],
                                     "--vr-opacity": activeVrSettings.opacity ?? 1,
+                                    "--vr-background-opacity": activeVrSettings.background_opacity / 100,
                                     "--vr-message-text-scale": activeVrSettings.message_text_scale ?? 1,
+                                    "--vr-text-outline": activeVrSettings.text_outline_enabled
+                                        ? `0 0 ${activeVrSettings.text_outline_width}px #000`
+                                        : "none",
                                 }}
                             >
-                                <div className={styles.vr_frame} data-enabled={activeVrEnabled}>
+                                <div
+                                    className={styles.vr_frame}
+                                    data-enabled={activeVrEnabled}
+                                    data-border-enabled={activeVrSettings.border_enabled}
+                                >
                                     <span>{activeVrSettings.tracker ?? "HMD"}</span>
                                     <strong>{vrPreviewText || t("main_page.desktop_overlay.waiting")}</strong>
                                     <small>{t("main_page.overlay_studio.vr_scale", { scale: Math.round((activeVrSettings.ui_scaling ?? 1) * 100) })}</small>
                                 </div>
                             </div>
-                            <div className={styles.vr_controls}>
-                                <label className={styles.field}>
-                                    <span>{t("main_page.overlay_studio.vr_mode")}</span>
-                                    <select value={vrMode} onChange={(event) => setVrMode(event.target.value)}>
-                                        <option value="small">{t("main_page.overlay_studio.small_overlay")}</option>
-                                        <option value="large">{t("main_page.overlay_studio.large_overlay")}</option>
-                                    </select>
+                            <div className={styles.vr_controls} id="vr-overlay-controls" role="tabpanel">
+                                <RangeControl
+                                    label={t("main_page.overlay_studio.background_transparency")}
+                                    value={activeVrSettings.background_opacity}
+                                    min={0}
+                                    max={100}
+                                    suffix="%"
+                                    onChange={(value) => updateActiveVrSettings("background_opacity", value)}
+                                />
+                                <RangeControl
+                                    label={t("main_page.overlay_studio.width")}
+                                    value={activeVrSettings.canvas_width}
+                                    min={640}
+                                    max={7680}
+                                    step={20}
+                                    suffix="px"
+                                    onChange={(value) => updateActiveVrSettings("canvas_width", value)}
+                                />
+                                <RangeControl
+                                    label={t("main_page.overlay_studio.height")}
+                                    value={activeVrHeight}
+                                    min={64}
+                                    max={2048}
+                                    step={8}
+                                    suffix="px"
+                                    disabled={isVrAutoHeight}
+                                    onChange={(value) => updateActiveVrSettings("canvas_height", value)}
+                                />
+                                <label className={styles.toggle_row}>
+                                    <span>{t("main_page.overlay_studio.border_enabled")}</span>
+                                    <input
+                                        type="checkbox"
+                                        checked={activeVrSettings.border_enabled}
+                                        onChange={(event) => updateActiveVrSettings("border_enabled", event.target.checked)}
+                                    />
+                                    <span aria-hidden="true" className={styles.toggle_visual} />
                                 </label>
-                                <label className={styles.field}>
-                                    <span>{t("main_page.overlay_studio.background")}</span>
-                                    <select
-                                        value={activeVrSettings.background_mode ?? "transparent_black"}
-                                        onChange={(event) => updateActiveVrSettings("background_mode", event.target.value)}
-                                    >
-                                        <option value="transparent_black">{t("main_page.overlay_studio.transparent")}</option>
-                                        <option value="solid_black">{t("main_page.overlay_studio.solid")}</option>
-                                    </select>
+                                <label className={styles.toggle_row}>
+                                    <span>{t("main_page.overlay_studio.text_outline")}</span>
+                                    <input
+                                        type="checkbox"
+                                        checked={activeVrSettings.text_outline_enabled}
+                                        onChange={(event) => updateActiveVrSettings("text_outline_enabled", event.target.checked)}
+                                    />
+                                    <span aria-hidden="true" className={styles.toggle_visual} />
                                 </label>
                                 <RangeControl
-                                    key={vrMode}
+                                    label={t("main_page.overlay_studio.outline_size")}
+                                    value={activeVrSettings.text_outline_width}
+                                    min={0}
+                                    max={12}
+                                    suffix="px"
+                                    disabled={!activeVrSettings.text_outline_enabled}
+                                    onChange={(value) => updateActiveVrSettings("text_outline_width", value)}
+                                />
+                                <label className={styles.toggle_row}>
+                                        <span>{t("main_page.overlay_studio.auto_height")}</span>
+                                        <input
+                                            type="checkbox"
+                                            checked={isVrAutoHeight}
+                                            onChange={(event) => updateActiveVrSettings(
+                                                "canvas_height",
+                                                event.target.checked ? 0 : activeVrHeight,
+                                            )}
+                                        />
+                                        <span aria-hidden="true" className={styles.toggle_visual} />
+                                </label>
+                                <label className={styles.toggle_row}>
+                                    <span>{t("main_page.overlay_studio.show_only_translated")}</span>
+                                    <input
+                                        type="checkbox"
+                                        checked={currentOverlayShowOnlyTranslatedMessages.data === true}
+                                        onChange={toggleOverlayShowOnlyTranslatedMessages}
+                                    />
+                                    <span aria-hidden="true" className={styles.toggle_visual} />
+                                </label>
+                                <label className={styles.toggle_row}>
+                                    <span>{t("main_page.overlay_studio.show_only_received")}</span>
+                                    <input
+                                        type="checkbox"
+                                        checked={currentOverlayShowOnlyReceivedMessages.data === true}
+                                        onChange={toggleOverlayShowOnlyReceivedMessages}
+                                    />
+                                    <span aria-hidden="true" className={styles.toggle_visual} />
+                                </label>
+                                <RangeControl
+                                    key={`${vrMode}-message-size`}
                                     label={t("main_page.overlay_studio.message_text_size")}
                                     value={Math.round((activeVrSettings.message_text_scale ?? 1) * 100)}
                                     min={40}
@@ -344,6 +471,137 @@ export const OverlayStudio = () => {
                                     suffix="%"
                                     onChange={(value) => updateActiveVrSettings("message_text_scale", value / 100)}
                                 />
+                                <label className={styles.field}>
+                                    <span>{t("config_page.vr.tracker")}</span>
+                                    <select
+                                        value={activeVrSettings.tracker ?? "HMD"}
+                                        onChange={(event) => updateActiveVrSettings("tracker", event.target.value)}
+                                    >
+                                        <option value="HMD">{t("config_page.vr.hmd")}</option>
+                                        <option value="LeftHand">{t("config_page.vr.left_hand")}</option>
+                                        <option value="RightHand">{t("config_page.vr.right_hand")}</option>
+                                    </select>
+                                </label>
+                                <section className={styles.vr_transform_controls} aria-labelledby="vr-transform-heading">
+                                    <div className={styles.vr_transform_header}>
+                                        <div>
+                                            <p className={styles.section_kicker}>{t("main_page.overlay_studio.vr_transform_kicker")}</p>
+                                            <h3 id="vr-transform-heading">{t("main_page.overlay_studio.vr_transform_title")}</h3>
+                                        </div>
+                                        <div className={styles.transform_tabs} role="tablist" aria-label={t("config_page.vr.position")}>
+                                            {[
+                                                ["position", t("config_page.vr.position")],
+                                                ["rotation", t("config_page.vr.rotation")],
+                                            ].map(([mode, label]) => (
+                                                <button
+                                                    key={mode}
+                                                    type="button"
+                                                    role="tab"
+                                                    aria-selected={vrTransformMode === mode}
+                                                    aria-controls="vr-transform-controls"
+                                                    className={styles.transform_tab}
+                                                    data-active={vrTransformMode === mode}
+                                                    onClick={() => setVrTransformMode(mode)}
+                                                >
+                                                    {label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className={styles.transform_grid} id="vr-transform-controls" role="tabpanel">
+                                        {vrTransformMode === "position" ? (
+                                            <>
+                                                <RangeControl
+                                                    label={t("config_page.vr.x_position")}
+                                                    value={activeVrSettings.x_pos}
+                                                    min={ui_configs.overlay_small_log.x_pos.min}
+                                                    max={ui_configs.overlay_small_log.x_pos.max}
+                                                    step={ui_configs.overlay_small_log.x_pos.step}
+                                                    suffix="m"
+                                                    onChange={(value) => updateActiveVrSettings("x_pos", value)}
+                                                />
+                                                <RangeControl
+                                                    label={t("config_page.vr.y_position")}
+                                                    value={activeVrSettings.y_pos}
+                                                    min={ui_configs.overlay_small_log.y_pos.min}
+                                                    max={ui_configs.overlay_small_log.y_pos.max}
+                                                    step={ui_configs.overlay_small_log.y_pos.step}
+                                                    suffix="m"
+                                                    onChange={(value) => updateActiveVrSettings("y_pos", value)}
+                                                />
+                                                <RangeControl
+                                                    label={t("config_page.vr.z_position")}
+                                                    value={activeVrSettings.z_pos}
+                                                    min={ui_configs.overlay_small_log.z_pos.min}
+                                                    max={ui_configs.overlay_small_log.z_pos.max}
+                                                    step={ui_configs.overlay_small_log.z_pos.step}
+                                                    suffix="m"
+                                                    onChange={(value) => updateActiveVrSettings("z_pos", value)}
+                                                />
+                                            </>
+                                        ) : (
+                                            <>
+                                                <RangeControl
+                                                    label={t("config_page.vr.x_rotation")}
+                                                    value={activeVrSettings.x_rotation}
+                                                    min={ui_configs.overlay_small_log.x_rotation.min}
+                                                    max={ui_configs.overlay_small_log.x_rotation.max}
+                                                    step={ui_configs.overlay_small_log.x_rotation.step}
+                                                    suffix="°"
+                                                    onChange={(value) => updateActiveVrSettings("x_rotation", value)}
+                                                />
+                                                <RangeControl
+                                                    label={t("config_page.vr.y_rotation")}
+                                                    value={activeVrSettings.y_rotation}
+                                                    min={ui_configs.overlay_small_log.y_rotation.min}
+                                                    max={ui_configs.overlay_small_log.y_rotation.max}
+                                                    step={ui_configs.overlay_small_log.y_rotation.step}
+                                                    suffix="°"
+                                                    onChange={(value) => updateActiveVrSettings("y_rotation", value)}
+                                                />
+                                                <RangeControl
+                                                    label={t("config_page.vr.z_rotation")}
+                                                    value={activeVrSettings.z_rotation}
+                                                    min={ui_configs.overlay_small_log.z_rotation.min}
+                                                    max={ui_configs.overlay_small_log.z_rotation.max}
+                                                    step={ui_configs.overlay_small_log.z_rotation.step}
+                                                    suffix="°"
+                                                    onChange={(value) => updateActiveVrSettings("z_rotation", value)}
+                                                />
+                                            </>
+                                        )}
+                                    </div>
+                                </section>
+                                <section
+                                    className={styles.sample_text_panel}
+                                    data-active={isSampleTextEnabled}
+                                    aria-labelledby="sample-text-heading"
+                                >
+                                    <div className={styles.sample_text_header}>
+                                        <div>
+                                            <p className={styles.section_kicker}>{t("main_page.overlay_studio.sample_text_kicker")}</p>
+                                            <h3 id="sample-text-heading">{t("main_page.overlay_studio.sample_text_title")}</h3>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className={styles.sample_text_button}
+                                            aria-pressed={isSampleTextEnabled}
+                                            onClick={() => setIsSampleTextEnabled((current) => !current)}
+                                        >
+                                            {isSampleTextEnabled
+                                                ? t("config_page.vr.sample_text_button.stop")
+                                                : t("config_page.vr.sample_text_button.start")}
+                                        </button>
+                                    </div>
+                                    <p className={styles.sample_text_description}>
+                                        {t("main_page.overlay_studio.sample_text_description")}
+                                    </p>
+                                    {isSampleTextEnabled && (
+                                        <p className={styles.sample_text_warning} role="alert">
+                                            {t("main_page.overlay_studio.sample_text_active_warning")}
+                                        </p>
+                                    )}
+                                </section>
                             </div>
                         </section>
                     </div>

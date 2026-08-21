@@ -10,6 +10,7 @@ import {
     useStore_SelectedConfigTabId,
 } from "@store";
 import { TopBar } from "../main_section/top_bar/TopBar";
+import { SpeechRecognitionCards } from "../engines/SpeechRecognitionCards.jsx";
 import { CustomModernSelect } from "@common_components";
 import {
     findPresetCandidate,
@@ -98,7 +99,7 @@ export const ModelsHub = () => {
 
     const applyInstalledPreset = (_preset, status) => {
         if (status?.is_downloaded !== true || controlsPending) return;
-        updateExperienceRoute("engines");
+        updateExperienceRoute("models");
     };
 
     const handlePresetAction = (preset) => {
@@ -197,7 +198,7 @@ export const ModelsHub = () => {
         }
         const statusItem = statuses.find((s) => s.id === selectedId);
         if (statusItem?.is_downloaded === true) {
-            updateExperienceRoute("engines");
+            updateExperienceRoute("models");
         } else if (statusItem && statusItem.is_pending !== true) {
             downloadWhisperWeightTypeStatus(selectedId);
         }
@@ -217,6 +218,8 @@ export const ModelsHub = () => {
                         {t("main_page.models_hub.back_to_live")}
                     </button>
                 </section>
+
+                <SpeechRecognitionCards />
 
                 <section className={styles.recommendation}>
                     <div>
@@ -422,7 +425,7 @@ export const ModelsHub = () => {
                                             type="button"
                                             disabled={isCancelling || isDownloading || downloadState === "unavailable"}
                                             onClick={() => {
-                                                if (downloadState === "installed") updateExperienceRoute("engines");
+                                                if (downloadState === "installed") updateExperienceRoute("models");
                                                 else if (isDownloading || isCancelling) return;
                                                 else group.download(status.id);
                                             }}

@@ -48,22 +48,23 @@ def _create_microphone(
             ) from fallback_error
 
 
-def _offer_audio(audio_queue: Any, chunk: AudioChunk, on_drop=None) -> None:
+def _offer_audio(audio_queue: Any, chunk: AudioChunk, on_drop=None) -> bool:
     if hasattr(audio_queue, "offer"):
         result = audio_queue.offer(chunk)
         if result.dropped is not None and on_drop is not None:
             on_drop(result.dropped)
-        return
+        return bool(result.accepted)
     try:
         audio_queue.put_nowait(chunk)
     except Full:
         pass
     else:
-        return
+        return True
 
     # Conventional queues have no atomic replace operation. Bound recovery so
     # a continuously contended queue cannot make the capture callback spin.
     displaced_chunks = []
+    accepted = False
     for _ in range(2):
         try:
             displaced = audio_queue.get_nowait()
@@ -77,11 +78,13 @@ def _offer_audio(audio_queue: Any, chunk: AudioChunk, on_drop=None) -> None:
         except Full:
             continue
         else:
+            accepted = True
             break
 
     if on_drop is not None:
         for displaced in displaced_chunks:
             on_drop(displaced)
+    return accepted
 
 
 class BaseRecorder:
@@ -227,6 +230,8 @@ class BaseEnergyAndAudioRecorder:
         *,
         on_drop=None,
         on_heartbeat=None,
+        on_voice_activity=None,
+        on_audio_chunk=None,
     ) -> None:
         def audioRecordCallback(_, audio):
             captured_at = time.perf_counter()
@@ -235,7 +240,9 @@ class BaseEnergyAndAudioRecorder:
                 spoken_at=datetime.now(),
                 captured_at_monotonic=captured_at,
             )
-            _offer_audio(audio_queue, chunk, on_drop)
+            accepted = _offer_audio(audio_queue, chunk, on_drop)
+            if accepted and on_audio_chunk is not None:
+                on_audio_chunk(captured_at)
             if on_heartbeat is not None:
                 on_heartbeat(captured_at)
 
@@ -243,6 +250,9 @@ class BaseEnergyAndAudioRecorder:
             captured_at = time.perf_counter()
             if energy_queue is not None:
                 energy_queue.put(energy)
+            if on_voice_activity is not None:
+                threshold = getattr(self.recorder, "energy_threshold", 0)
+                on_voice_activity(energy > threshold, captured_at)
             if on_heartbeat is not None:
                 on_heartbeat(captured_at)
 
@@ -252,7 +262,9 @@ class BaseEnergyAndAudioRecorder:
             phrase_time_limit=self.phrase_time_limit,
             callback_energy=(
                 energyRecordCallback
-                if energy_queue is not None or on_heartbeat is not None
+                if energy_queue is not None
+                or on_heartbeat is not None
+                or on_voice_activity is not None
                 else None
             ),
             phrase_timeout=self.phrase_timeout,

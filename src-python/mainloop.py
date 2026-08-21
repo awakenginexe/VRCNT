@@ -477,6 +477,9 @@ mapping = {
     "/get/data/overlay_show_only_translated_messages": {"status": True, "variable":controller.getOverlayShowOnlyTranslatedMessages},
     "/set/enable/overlay_show_only_translated_messages": {"status": True, "variable":controller.setEnableOverlayShowOnlyTranslatedMessages},
     "/set/disable/overlay_show_only_translated_messages": {"status": True, "variable":controller.setDisableOverlayShowOnlyTranslatedMessages},
+    "/get/data/overlay_show_only_received_messages": {"status": True, "variable":controller.getOverlayShowOnlyReceivedMessages},
+    "/set/enable/overlay_show_only_received_messages": {"status": True, "variable":controller.setEnableOverlayShowOnlyReceivedMessages},
+    "/set/disable/overlay_show_only_received_messages": {"status": True, "variable":controller.setDisableOverlayShowOnlyReceivedMessages},
 
     # Others
     "/get/data/send_message_format_parts": {"status": True, "variable":controller.getSendMessageFormatParts},

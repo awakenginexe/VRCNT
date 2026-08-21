@@ -477,6 +477,7 @@ class AudioTranscriber:
         no_repeat_ngram_size: int = 0,
         vad_filter: bool = True,
         vad_parameters: Optional[Union[dict, Any]] = None,
+        on_audio_consumed: Optional[Callable[[], None]] = None,
     ) -> bool:
         try:
             if audio_queue.empty():
@@ -494,13 +495,18 @@ class AudioTranscriber:
             chunk = audio_queue.get()
         except (Empty, QueueClosed):
             return False
+        if on_audio_consumed is not None:
+            on_audio_consumed()
 
         self.updateLastSampleAndPhraseStatus(
             chunk.data,
             chunk.spoken_at,
             chunk.captured_at_monotonic,
         )
-        final_chunk = self.drainAudioQueue(audio_queue) or chunk
+        final_chunk = self.drainAudioQueue(
+            audio_queue,
+            on_audio_consumed=on_audio_consumed,
+        ) or chunk
         dequeued_at = time.perf_counter()
         queue_age_ms = max(
             0,
@@ -866,13 +872,19 @@ class AudioTranscriber:
         self.audio_sources["new_phrase"] = True
         self.audio_sources["phrase_started_at_monotonic"] = None
 
-    def drainAudioQueue(self, audio_queue: Any) -> Optional[Any]:
+    def drainAudioQueue(
+        self,
+        audio_queue: Any,
+        on_audio_consumed: Optional[Callable[[], None]] = None,
+    ) -> Optional[Any]:
         final_chunk = None
         while True:
             try:
                 chunk = audio_queue.get_nowait()
             except (Empty, QueueClosed):
                 break
+            if on_audio_consumed is not None:
+                on_audio_consumed()
             self.updateLastSampleAndPhraseStatus(
                 chunk.data,
                 chunk.spoken_at,

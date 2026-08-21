@@ -110,6 +110,7 @@ class OutputConfigSnapshot:
     target_languages: tuple[LanguageSlotSnapshot, ...]
     send_format: MessageFormatSnapshot
     received_format: MessageFormatSnapshot
+    overlay_show_only_received_messages: bool = False
 
 
 @dataclass(frozen=True)

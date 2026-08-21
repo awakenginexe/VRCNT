@@ -8,21 +8,22 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "../../../../../../");
 const read = (...segments) => readFile(path.join(root, ...segments), "utf8");
 
-test("Engines and Models are first-class production routes wired to persisted source settings", async () => {
-    const [mainPage, navigation, engines, models, configSetter, progressComponent] = await Promise.all([
+test("Speech Recognition owns runtime settings while the legacy Engines route is hidden", async () => {
+    const [mainPage, navigation, engines, models, speechCards, configSetter, progressComponent] = await Promise.all([
         read("src-ui", "views", "app", "main_page", "MainPage.jsx"),
         read("src-ui", "views", "app", "main_page", "main_section", "live_weave_navigation", "LiveWeaveNavigation.jsx"),
         read("src-ui", "views", "app", "main_page", "engines", "EnginesWorkspace.jsx"),
         read("src-ui", "views", "app", "main_page", "models", "ModelsHub.jsx"),
+        read("src-ui", "views", "app", "main_page", "engines", "SpeechRecognitionCards.jsx"),
         read("src-ui", "logics", "configs", "config_page_setter", "ui_config_setter.js"),
         read("src-ui", "views", "app", "main_page", "models", "ModelDownloadProgress.jsx"),
     ]);
 
-    assert.match(mainPage, /currentExperienceRoute\.data === "engines"/);
-    assert.match(mainPage, /<EnginesWorkspace\s*\/>/);
+    assert.match(mainPage, /currentExperienceRoute\.data === "engines" \|\| currentExperienceRoute\.data === "models"/);
+    assert.doesNotMatch(mainPage, /<EnginesWorkspace\s*\/>/);
     assert.match(mainPage, /currentExperienceRoute\.data === "models"/);
     assert.match(mainPage, /<ModelsHub\s*\/>/);
-    assert.match(navigation, /\{ id: "engines"/);
+    assert.doesNotMatch(navigation, /\{ id: "engines"/);
     assert.match(navigation, /\{ id: "models"/);
     assert.match(engines, /currentTranscriptionProfileSend/);
     assert.match(engines, /currentTranscriptionProfileReceive/);
@@ -38,9 +39,13 @@ test("Engines and Models are first-class production routes wired to persisted so
     assert.match(models, /group\.statuses\.map/);
     assert.match(models, /group\.statuses\.map[\s\S]*ModelDownloadProgress/);
     assert.match(models, /download_failed/);
+    assert.match(models, /<SpeechRecognitionCards\s*\/>/);
+    assert.match(speechCards, /currentTranscriptionProfileSend/);
+    assert.match(speechCards, /currentTranscriptionProfileReceive/);
+    assert.match(speechCards, /<SourceRuntimeCard/);
     assert.match(progressComponent, /download_progress/);
     assert.doesNotMatch(models, /setSelectedWhisperWeightType/);
-    assert.match(models, /updateExperienceRoute\("engines"\)/);
+    assert.doesNotMatch(models, /updateExperienceRoute\("engines"\)/);
     assert.match(configSetter, /Base_Name: "SelectedTranscriptionEngineSend"/);
     assert.match(configSetter, /Base_Name: "SelectedTranscriptionEngineReceive"/);
     assert.match(configSetter, /Base_Name: "TranscriptionProfileSend"/);

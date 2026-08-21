@@ -684,11 +684,11 @@ test("wires stable live anchors into both selector families while leaving settin
     assert.match(engineSelector, /createPortal/);
     assert.match(engineSelector, /useFloatingPanelPosition/);
     assert.match(engineSelector, /anchorRef/);
-    assert.match(engineSelector, /verticalAlignment:\s*["']anchor-start["']/);
+    assert.match(engineSelector, /verticalAlignment:\s*["']anchor-end["']/);
     assert.match(translatorSelector, /createPortal/);
     assert.match(translatorSelector, /useFloatingPanelPosition/);
     assert.match(translatorSelector, /anchorRef/);
-    assert.match(translatorSelector, /verticalAlignment:\s*["']anchor-start["']/);
+    assert.match(translatorSelector, /verticalAlignment:\s*["']anchor-end["']/);
 
     const engineStyles = readSource(
         "../../sidebar_section/language_settings/transcription_engine_label/"
@@ -842,7 +842,7 @@ test("real live engine selector portals to body, clamps on the right, and keeps 
     }
 });
 
-test("both live selector families align their panel top to a near-bottom anchor", async () => {
+test("both live selector families align their panel bottom to a near-bottom anchor", async () => {
     const cases = [
         [TranscriptionEngineSelector, engineProps],
         [TranslatorSelector, translatorProps],
@@ -861,8 +861,9 @@ test("both live selector families align their panel top to a near-bottom anchor"
         try {
             const panel = livePanel();
             assert.ok(panel, "the live selector must render its portaled panel");
-            assert.equal(numberStyle(panel, "top"), 500);
-            assert.equal(numberStyle(panel, "maxHeight"), 184);
+            assert.equal(numberStyle(panel, "top"), 184);
+            assert.equal(numberStyle(panel, "maxHeight"), 528);
+            assert.equal(panel.getAttribute("data-vertical-placement"), "anchor-end");
         } finally {
             await unmountSelector(rendered);
         }

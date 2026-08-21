@@ -1,3 +1,5 @@
+import { OVERLAY_SETTINGS_DEFAULTS } from "./common/overlaySettings.js";
+
 export const ui_configs = {
     mic_threshold_min: 0,
     mic_threshold_max: 2000,
@@ -34,10 +36,19 @@ export const ui_configs = {
         background_mode: "transparent_black",
     },
     get overlay_small_log_default_settings() {
-        return { ...this._overlay_log_default_settings_base, tracker: "HMD" };
+        return {
+            ...this._overlay_log_default_settings_base,
+            ...OVERLAY_SETTINGS_DEFAULTS.small,
+            tracker: "HMD",
+        };
     },
     get overlay_large_log_default_settings() {
-        return { ...this._overlay_log_default_settings_base, tracker: "LeftHand", log_order: "oldest_first" };
+        return {
+            ...this._overlay_log_default_settings_base,
+            ...OVERLAY_SETTINGS_DEFAULTS.large,
+            tracker: "LeftHand",
+            log_order: "oldest_first",
+        };
     },
 
     // Shared message format parts base
