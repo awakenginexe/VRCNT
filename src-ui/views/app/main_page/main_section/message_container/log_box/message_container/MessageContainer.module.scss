@@ -25,6 +25,10 @@
     }
 }
 
+.interim_message {
+    opacity: 0.72;
+}
+
 @keyframes message_received_in {
     from {
         opacity: 0;

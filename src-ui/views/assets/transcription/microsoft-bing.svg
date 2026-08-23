@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Microsoft Bing">
+  <rect x="2" y="2" width="20" height="20" rx="2" fill="#F35325"/>
+  <rect x="26" y="2" width="20" height="20" rx="2" fill="#81BC06"/>
+  <rect x="2" y="26" width="20" height="20" rx="2" fill="#05A6F0"/>
+  <rect x="26" y="26" width="20" height="20" rx="2" fill="#FFBA08"/>
+  <path fill="#fff" d="M30 31.2c3.1 0 5.6 2.3 5.6 5.1 0 2.8-2.5 5.1-5.6 5.1h-3v-3.2h2.5c1 0 1.9-.8 1.9-1.9 0-1-.9-1.8-1.9-1.8H27v-3.3h3z"/>
+</svg>

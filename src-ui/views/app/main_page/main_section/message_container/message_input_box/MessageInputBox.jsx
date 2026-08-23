@@ -34,7 +34,7 @@ export const MessageInputBox = () => {
     useEffect(() => {
         if (currentMessageLogs.data) {
             const sentMessages = currentMessageLogs.data
-                .filter(log => log.category === "sent")
+                .filter(log => log.category === "sent" && log.status !== "interim")
                 .map(log => log.messages.original.message);
             setMessageHistory(sentMessages);
         }

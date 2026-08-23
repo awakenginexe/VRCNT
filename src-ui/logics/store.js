@@ -252,12 +252,14 @@ export const { atomInstance: Atom_SelectedTargetLanguages, useHook: useStore_Sel
     "SelectedTargetLanguages"
 );
 export const { atomInstance: Atom_TranscriptionLanguageCapabilities, useHook: useStore_TranscriptionLanguageCapabilities } = createAtomWithHook({
-    Whisper: { microphone_max: 3, received_max: 3, parallel_candidates: false },
-    "Whisper Cloud": { microphone_max: 3, received_max: 3, parallel_candidates: false },
-    Google: { microphone_max: 3, received_max: 3, parallel_candidates: true },
-    SenseVoice: { microphone_max: 3, received_max: 3, parallel_candidates: false },
-    Vosk: { microphone_max: 1, received_max: 1, parallel_candidates: false },
-    Parakeet: { microphone_max: 1, received_max: 1, parallel_candidates: false },
+    Google: { type: "cloud", max_languages: 1, microphone_max: 1, received_max: 1, parallel_candidates: false, icon: "google" },
+    Bing: { type: "cloud", max_languages: 1, microphone_max: 1, received_max: 1, parallel_candidates: false, icon: "bing" },
+    Whisper: { type: "local", max_languages: 3, microphone_max: 3, received_max: 3, parallel_candidates: false, icon: "openai" },
+    "Whisper Thai": { type: "local", max_languages: 1, microphone_max: 1, received_max: 1, parallel_candidates: false, icon: "openai" },
+    "Whisper Cloud": { type: "cloud", max_languages: 1, microphone_max: 1, received_max: 1, parallel_candidates: false, icon: "groq" },
+    SenseVoice: { type: "local", max_languages: 3, microphone_max: 3, received_max: 3, parallel_candidates: false, icon: "qwen" },
+    Vosk: { type: "local", max_languages: 1, microphone_max: 1, received_max: 1, parallel_candidates: false, icon: "vosk" },
+    Parakeet: { type: "local", max_languages: 3, microphone_max: 3, received_max: 3, parallel_candidates: false, icon: "nvidia" },
 }, "TranscriptionLanguageCapabilities");
 
 export const { atomInstance: Atom_TranslationEngines, useHook: useStore_TranslationEngines } = createAtomWithHook(
@@ -298,7 +300,7 @@ export const { atomInstance: Atom_MessageInputValue, useHook: useStore_MessageIn
 
 // Config Page
 // Common
-export const { atomInstance: Atom_SoftwareVersion, useHook: useStore_SoftwareVersion } = createAtomWithHook("5.11.0", "SoftwareVersion");
+export const { atomInstance: Atom_SoftwareVersion, useHook: useStore_SoftwareVersion } = createAtomWithHook("5.12.0", "SoftwareVersion");
 export const { atomInstance: Atom_SelectedConfigTabId, useHook: useStore_SelectedConfigTabId } = createAtomWithHook("device", "SelectedConfigTabId");
 export const { atomInstance: Atom_SettingBoxScrollPosition, useHook: useStore_SettingBoxScrollPosition } = createAtomWithHook(0, "SettingBoxScrollPosition");
 export const { atomInstance: Atom_IsOpenedDropdownMenu, useHook: useStore_IsOpenedDropdownMenu } = createAtomWithHook("", "IsOpenedDropdownMenu");

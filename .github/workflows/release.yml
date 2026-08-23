@@ -3,11 +3,11 @@ name: Release VRCNT
 on:
   push:
     tags:
-      - 'v*' # Trigger when tag starts with v (for example, v5.11.0)
+      - 'v*' # Trigger when tag starts with v (for example, v5.12.0)
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Existing release tag to publish (for example, v5.11.0)'
+        description: 'Existing release tag to publish (for example, v5.12.0)'
         required: true
         type: string
 
@@ -298,6 +298,20 @@ jobs:
             throw 'Tauri updater signature does not match the generated thin installer.'
           }
 
+      - name: Scan portable executables with VirusTotal
+        env:
+          VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+        shell: pwsh
+        run: |
+          python ./utils/virustotal.py scan `
+            --version $env:VERSION `
+            --output-dir $env:ASSET_DIR `
+            --file ./src-tauri/target/release/VRCNT.exe `
+            --file ./src-tauri/target/release/VRCNT-backend.exe
+          if ($LASTEXITCODE -ne 0) {
+            throw 'VirusTotal scanning failed; the release will not publish an unverified status.'
+          }
+
       - name: Generate and validate latest.json and SHA-256 hashes
         shell: pwsh
         run: |
@@ -360,6 +374,8 @@ jobs:
           Install with $env:INSTALLER_NAME. Place all three VRCNT_$env:VERSION.7z parts beside the installer for an offline install, or run it online to download from this release. The multipart archive can also be extracted directly with 7-Zip for portable use.
 
           Package integrity is authenticated by $env:PACKAGE_MANIFEST_NAME.sig and documented in $env:HASHES_NAME. Tauri updates use the signed installer and latest.json.
+
+          VirusTotal results for VRCNT.exe and VRCNT-backend.exe are included in VirusTotal-report.json.
           "@
           gh release view $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) {

@@ -193,6 +193,46 @@
     opacity: 0.68;
 }
 
+.runtime_settings {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.55rem;
+    margin-top: 0.8rem;
+    padding-top: 0.8rem;
+    border-top: 0.1rem solid rgba(255, 255, 255, 0.08);
+}
+
+.runtime_setting {
+    min-width: 0;
+
+    :global(.field_label) {
+        font-size: 0.68rem;
+    }
+
+    :global(.trigger) {
+        min-height: 2.2rem;
+        padding: 0.35rem 0.55rem;
+        border-radius: 0.55rem;
+    }
+
+    :global(.trigger_title) {
+        font-size: 0.78rem;
+    }
+
+    :global(.arrow) {
+        margin-left: 0.35rem;
+        font-size: 0.72rem;
+    }
+}
+
+.runtime_note {
+    margin: 0.55rem 0 0;
+    color: var(--dark_500_color);
+    font-size: 0.7rem;
+    font-weight: 650;
+    line-height: 1.35;
+}
+
 .model_status_row {
     min-height: 2rem;
     display: flex;
@@ -395,6 +435,16 @@
 
     .form_grid .field:last-child {
         grid-column: auto;
+    }
+
+    .runtime_settings {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 38rem) {
+    .runtime_settings {
+        grid-template-columns: minmax(0, 1fr);
     }
 }
 

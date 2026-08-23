@@ -45,7 +45,7 @@ export const resolveLiveTranscriptionModel = ({
 };
 
 export const getActiveModelAvailability = (profile, statusesByProvider) => {
-    if (profile?.engine === "Google" || profile?.engine === "Whisper Cloud") return "cloud";
+    if (["Google", "Bing", "Whisper Cloud"].includes(profile?.engine)) return "cloud";
     const selected = getActiveModel(profile);
     const status = (statusesByProvider?.[profile?.engine] ?? [])
         .find((item) => item?.id === selected);

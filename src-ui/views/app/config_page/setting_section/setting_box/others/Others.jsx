@@ -32,6 +32,7 @@ export const Others = () => {
             <div>
                 <AutoClearMessageInputBoxContainer />
                 <SendOnlyTranslatedMessagesContainer />
+                <SendOriginalWhileTranslatingContainer />
                 <AutoExportMessageLogsContainer />
                 <VrcMicMuteSyncContainer />
                 <SendMessageToVrcContainer />
@@ -81,6 +82,22 @@ const SendOnlyTranslatedMessagesContainer = () => {
             label={t("config_page.others.send_only_translated_messages.label")}
             variable={currentEnableSendOnlyTranslatedMessages}
             toggleFunction={toggleEnableSendOnlyTranslatedMessages}
+        />
+    );
+};
+const SendOriginalWhileTranslatingContainer = () => {
+    const { t } = useI18n();
+    const {
+        currentEnableSendOriginalWhileTranslating,
+        toggleEnableSendOriginalWhileTranslating,
+    } = useOthers();
+
+    return (
+        <CheckboxContainer
+            label={t("config_page.others.send_original_while_translating.label")}
+            desc={t("config_page.others.send_original_while_translating.desc")}
+            variable={currentEnableSendOriginalWhileTranslating}
+            toggleFunction={toggleEnableSendOriginalWhileTranslating}
         />
     );
 };

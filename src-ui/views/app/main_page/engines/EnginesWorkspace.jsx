@@ -7,6 +7,7 @@ import {
     useIsBackendReady,
     useIsOpenedConfigPage,
     useResourceUsage,
+    useNotificationStatus,
 } from "@logics_common";
 import { CustomModernSelect } from "@common_components";
 import {
@@ -24,6 +25,11 @@ import {
     getProfileControlVisibility,
 } from "./transcriptionProfileUi.js";
 import { WHISPER_CLOUD_MODELS } from "./engineModelUtils.js";
+import { getTranscriptionEngineMetadata } from "@logics_common/transcriptionEngineMetadata.js";
+import { getTranscriptionEngineIconSource } from "@logics_common/transcriptionEngineIconSources.js";
+import { getTranslationProviderIcon } from "@logics_common/translationProviderMetadata.js";
+import { getTranslationProviderIconSource } from "@logics_common/translationProviderIconSources.js";
+import { getUnsupportedBingLanguageSlots } from "@logics_common/bingLanguageSupport.js";
 import styles from "./EnginesWorkspace.module.scss";
 
 const toArray = (value) => (
@@ -68,6 +74,8 @@ export const SourceRuntimeCard = ({
     cloudConfigured,
     onOpenAdvanced,
     engineLabelFor,
+    runtimeSettings,
+    runtimeNote,
 }) => {
     const engine = profile?.engine ?? "";
     const visibility = getProfileControlVisibility(engine);
@@ -91,7 +99,13 @@ export const SourceRuntimeCard = ({
 
     const parsedEngineOptions = useMemo(() => {
         if (engineOptionsList.length === 0) return [{ id: "", title: emptyLabel }];
-        return engineOptionsList.map((e) => ({ id: e, title: engineLabelFor(e) }));
+        return engineOptionsList.map((e) => ({
+            id: e,
+            title: e === "Bing"
+                ? getTranscriptionEngineMetadata(e).displayName
+                : engineLabelFor(e),
+            icon: getTranscriptionEngineIconSource(getTranscriptionEngineMetadata(e).icon),
+        }));
     }, [emptyLabel, engineLabelFor, engineOptionsList]);
 
     const parsedDeviceOptions = useMemo(() => {
@@ -187,6 +201,22 @@ export const SourceRuntimeCard = ({
                     />
                 </div>}
             </div>
+            {Array.isArray(runtimeSettings) && runtimeSettings.length > 0 && (
+                <div className={styles.runtime_settings}>
+                    {runtimeSettings.map((setting) => (
+                        <div className={styles.runtime_setting} key={setting.id}>
+                            <CustomModernSelect
+                                label={setting.label}
+                                value={setting.value}
+                                options={setting.options}
+                                disabled={pending || setting.disabled === true}
+                                onChange={setting.onChange}
+                            />
+                        </div>
+                    ))}
+                </div>
+            )}
+            {runtimeNote && <p className={styles.runtime_note}>{runtimeNote}</p>}
             <div className={styles.model_status_row}>
                 <span data-status={availability}>{labels.availability[availability] ?? availability}</span>
                 {visibility.model && (
@@ -212,6 +242,9 @@ export const EnginesWorkspace = () => {
         currentCTranslate2AutoFallback,
         setSelectedTranslationEngines,
         setCTranslate2AutoFallback,
+        currentSelectableLanguageList,
+        getCurrentYourLanguages,
+        getCurrentTargetLanguages,
     } = useLanguageSettings();
     const {
         currentSelectableTranscriptionEngineList,
@@ -229,8 +262,21 @@ export const EnginesWorkspace = () => {
         currentSenseVoiceWeightTypeStatus,
         currentUseSplitGroqApiKey,
         currentGroqWhisperAuthKey,
+        currentMicRecordTimeout,
+        setMicRecordTimeout,
+        currentMicPhraseTimeout,
+        setMicPhraseTimeout,
+        currentMicMaxWords,
+        setMicMaxWords,
+        currentSpeakerRecordTimeout,
+        setSpeakerRecordTimeout,
+        currentSpeakerPhraseTimeout,
+        setSpeakerPhraseTimeout,
+        currentSpeakerMaxWords,
+        setSpeakerMaxWords,
     } = useTranscription();
     const { currentGroqAuthKey } = useTranslation();
+    const { showNotification_Warning } = useNotificationStatus();
 
     const { currentIsBackendReady } = useIsBackendReady();
     const isBackendReady = currentIsBackendReady?.data === true;
@@ -326,6 +372,82 @@ export const EnginesWorkspace = () => {
         }
         setter(patch);
     };
+    const timeoutOptions = useMemo(
+        () => Array.from({ length: 31 }, (_, id) => ({ id, title: String(id) })),
+        [],
+    );
+    const micMaxWordsOptions = useMemo(
+        () => Array.from({ length: 31 }, (_, id) => ({ id, title: String(id) })),
+        [],
+    );
+    const speakerMaxWordsOptions = useMemo(
+        () => Array.from({ length: 61 }, (_, id) => ({ id, title: String(id) })),
+        [],
+    );
+    const guardBingProfileChange = (patch, slots, sourceLabel) => {
+        if (patch?.engine !== "Bing") return true;
+        const unsupported = getUnsupportedBingLanguageSlots({
+            engine: "Bing",
+            slots,
+            languageCatalog: currentSelectableLanguageList.data,
+        });
+        if (unsupported.length === 0) return true;
+        showNotification_Warning(
+            t("common_error.transcription_language_unsupported", {
+                engine: "Bing",
+                source: sourceLabel,
+                languages: unsupported.map(({ language, country }) => `${language} (${country})`).join(", "),
+            }),
+            { category_id: "TRANSCRIPTION_LANGUAGE_UNSUPPORTED", hide_duration: 10000 },
+        );
+        return false;
+    };
+    const outgoingRuntimeSettings = [
+        {
+            id: "mic-record-timeout",
+            label: t("config_page.transcription.mic_record_timeout.label"),
+            value: currentMicRecordTimeout.data,
+            options: timeoutOptions,
+            onChange: setMicRecordTimeout,
+        },
+        {
+            id: "mic-phrase-timeout",
+            label: t("config_page.transcription.mic_phrase_timeout.label"),
+            value: currentMicPhraseTimeout.data,
+            options: timeoutOptions,
+            onChange: setMicPhraseTimeout,
+        },
+        {
+            id: "mic-max-words",
+            label: t("config_page.transcription.mic_max_phrase.label"),
+            value: currentMicMaxWords.data,
+            options: micMaxWordsOptions,
+            onChange: setMicMaxWords,
+        },
+    ];
+    const incomingRuntimeSettings = [
+        {
+            id: "speaker-record-timeout",
+            label: t("config_page.transcription.speaker_record_timeout.label"),
+            value: currentSpeakerRecordTimeout.data,
+            options: timeoutOptions,
+            onChange: setSpeakerRecordTimeout,
+        },
+        {
+            id: "speaker-phrase-timeout",
+            label: t("config_page.transcription.speaker_phrase_timeout.label"),
+            value: currentSpeakerPhraseTimeout.data,
+            options: timeoutOptions,
+            onChange: setSpeakerPhraseTimeout,
+        },
+        {
+            id: "speaker-max-words",
+            label: t("config_page.transcription.speaker_max_phrase.label"),
+            value: currentSpeakerMaxWords.data,
+            options: speakerMaxWordsOptions,
+            onChange: setSpeakerMaxWords,
+        },
+    ];
     const profileLabels = {
         model: t("main_page.engines_workspace.model_label"),
         decoding: t("main_page.engines_workspace.decoding_label"),
@@ -372,7 +494,10 @@ export const EnginesWorkspace = () => {
                         devices={computeDevices}
                         modelStatuses={modelStatuses}
                         pending={currentTranscriptionProfileSend.state === "pending"}
-                        onProfileChange={handleProfileChange(setTranscriptionProfileSend)}
+                        onProfileChange={(patch) => {
+                            if (!guardBingProfileChange(patch, getCurrentYourLanguages(), t("main_page.transcription_send"))) return;
+                            handleProfileChange(setTranscriptionProfileSend)(patch);
+                        }}
                         onManageModels={openModels}
                         flow={t("main_page.engines_workspace.outgoing_flow", { engine: currentTranscriptionProfileSend.data?.engine || emptyLabel })}
                         emptyLabel={emptyLabel}
@@ -380,6 +505,10 @@ export const EnginesWorkspace = () => {
                         cloudConfigured={cloudConfigured}
                         onOpenAdvanced={openAdvanced}
                         engineLabelFor={engineLabelFor}
+                        runtimeSettings={outgoingRuntimeSettings}
+                        runtimeNote={currentTranscriptionProfileSend.data?.engine === "Bing"
+                            ? t("main_page.engines_workspace.bing_runtime_note")
+                            : t("main_page.engines_workspace.runtime_settings_note")}
                     />
                     <SourceRuntimeCard
                         accent="teal"
@@ -394,7 +523,10 @@ export const EnginesWorkspace = () => {
                         devices={computeDevices}
                         modelStatuses={modelStatuses}
                         pending={currentTranscriptionProfileReceive.state === "pending"}
-                        onProfileChange={handleProfileChange(setTranscriptionProfileReceive)}
+                        onProfileChange={(patch) => {
+                            if (!guardBingProfileChange(patch, getCurrentTargetLanguages(), t("main_page.transcription_receive"))) return;
+                            handleProfileChange(setTranscriptionProfileReceive)(patch);
+                        }}
                         onManageModels={openModels}
                         flow={t("main_page.engines_workspace.incoming_flow", { engine: currentTranscriptionProfileReceive.data?.engine || emptyLabel })}
                         emptyLabel={emptyLabel}
@@ -402,6 +534,10 @@ export const EnginesWorkspace = () => {
                         cloudConfigured={cloudConfigured}
                         onOpenAdvanced={openAdvanced}
                         engineLabelFor={engineLabelFor}
+                        runtimeSettings={incomingRuntimeSettings}
+                        runtimeNote={currentTranscriptionProfileReceive.data?.engine === "Bing"
+                            ? t("main_page.engines_workspace.bing_runtime_note")
+                            : t("main_page.engines_workspace.runtime_settings_note")}
                     />
                 </section>
 
@@ -428,7 +564,11 @@ export const EnginesWorkspace = () => {
                             <CustomModernSelect
                                 label={t("main_page.engines_workspace.primary_provider")}
                                 value={primaryProvider}
-                                options={translationProviders.length === 0 ? [{ id: "", title: emptyLabel }] : translationProviders.map((p) => ({ id: p.id, title: p.label ?? p.id }))}
+                                options={translationProviders.length === 0 ? [{ id: "", title: emptyLabel }] : translationProviders.map((p) => ({
+                                    id: p.id,
+                                    title: p.label ?? p.id,
+                                    icon: getTranslationProviderIconSource(getTranslationProviderIcon(p.id)),
+                                }))}
                                 disabled={translationProviders.length === 0 || currentSelectedTranslationEngines.state === "pending"}
                                 placeholder={emptyLabel}
                                 onChange={(val) => updateProvider(0, val)}
@@ -442,7 +582,11 @@ export const EnginesWorkspace = () => {
                                     { id: "", title: t("main_page.engines_workspace.no_secondary_provider") },
                                     ...translationProviders
                                         .filter((p) => p.id !== primaryProvider)
-                                        .map((p) => ({ id: p.id, title: p.label ?? p.id })),
+                                        .map((p) => ({
+                                            id: p.id,
+                                            title: p.label ?? p.id,
+                                            icon: getTranslationProviderIconSource(getTranslationProviderIcon(p.id)),
+                                        })),
                                 ]}
                                 disabled={translationProviders.length === 0 || currentSelectedTranslationEngines.state === "pending"}
                                 placeholder={t("main_page.engines_workspace.no_secondary_provider")}

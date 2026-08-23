@@ -145,13 +145,22 @@ export const useSettingsLogics = (settingsArray, Category) => {
 
         if (s.logics_template_id === "toggle_enable_disable") {
             result[getExportName] = buildGet();
-            result[toggleExportName] = () => {
-                if (pending) pending();
-                const isOn = current && current.data;
-                if (isOn) {
-                    asyncStdoutToPython(`/set/disable/${s.base_endpoint_name}`);
-                } else {
-                    asyncStdoutToPython(`/set/enable/${s.base_endpoint_name}`);
+            result[toggleExportName] = async () => {
+                if (s.optimistic_toggle && current?.state === "pending") return;
+
+                const wasOn = current?.data === true;
+                const nextValue = !wasOn;
+                if (s.optimistic_toggle && update) {
+                    update(nextValue, { set_state: "pending" });
+                } else if (pending) {
+                    pending();
+                }
+
+                const transportResult = await asyncStdoutToPython(
+                    `/set/${nextValue ? "enable" : "disable"}/${s.base_endpoint_name}`,
+                );
+                if (s.optimistic_toggle && !transportResult.ok && update) {
+                    update(wasOn);
                 }
             };
 

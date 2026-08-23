@@ -3,7 +3,6 @@ import { useI18n } from "@useI18n";
 import { useTranscription, useTranslation } from "@logics_configs";
 import {
     useIsOpenedConfigPage,
-    useResourceUsage,
 } from "@logics_common";
 import {
     useStore_ExperienceRoute,
@@ -16,8 +15,12 @@ import {
     findPresetCandidate,
     resolveWhisperRecommendation,
     WHISPER_PRESETS,
+    WHISPER_THAI_PRESETS,
     WHISPER_CLOUD_MODELS,
+    CLOUD_RECOMMENDATIONS,
+    CPU_RECOMMENDATIONS,
     getModelSuitability,
+    getModelsHubCopyKey,
     MODEL_FILTER_CATEGORIES,
 } from "../engines/engineModelUtils";
 import { ModelDownloadProgress } from "./ModelDownloadProgress.jsx";
@@ -33,17 +36,129 @@ const PRESET_COPY = {
         title: "main_page.models_hub.balanced_title",
         detail: "main_page.models_hub.balanced_detail",
     },
+    better: {
+        title: "main_page.models_hub.better_title",
+        detail: "main_page.models_hub.better_detail",
+    },
+    accurate: {
+        title: "main_page.models_hub.accurate_title",
+        detail: "main_page.models_hub.accurate_detail",
+    },
     best_accuracy: {
         title: "main_page.models_hub.accuracy_title",
         detail: "main_page.models_hub.accuracy_detail",
     },
 };
 
+const THAI_PRESET_COPY = {
+    fast: {
+        title: "main_page.models_hub.thai_fast_title",
+        detail: "main_page.models_hub.thai_fast_detail",
+    },
+    balanced: {
+        title: "main_page.models_hub.thai_balanced_title",
+        detail: "main_page.models_hub.thai_balanced_detail",
+    },
+    best_accuracy: {
+        title: "main_page.models_hub.thai_best_title",
+        detail: "main_page.models_hub.thai_best_detail",
+    },
+};
+
+const getStatusLabel = (downloadState, t) => {
+    if (downloadState === "installed") return t("main_page.models_hub.installed");
+    if (downloadState === "cancelling") return t("main_page.models_hub.cancelling_download");
+    if (downloadState === "preparing") return t("main_page.models_hub.preparing_download");
+    if (downloadState === "downloading") return t("main_page.models_hub.downloading");
+    if (downloadState === "failed") return t("main_page.models_hub.download_failed");
+    if (downloadState === "unavailable") return t("main_page.models_hub.model_unavailable");
+    return t("main_page.models_hub.download_needed");
+};
+
+const RecommendationCard = ({
+    t,
+    definition,
+    status,
+    suitability,
+    isRecommended = false,
+    onAction,
+    onCancel,
+    actionLabel,
+    actionDisabled = false,
+}) => {
+    const downloadState = getModelDownloadState(status);
+    const isDownloading = downloadState === "preparing" || downloadState === "downloading";
+    const isCancelling = downloadState === "cancelling";
+    const isUnavailable = downloadState === "unavailable";
+    const hasModelStatus = Boolean(status);
+
+    return (
+        <article
+            className={styles.preset_card}
+            data-active={false}
+            data-recommended={isRecommended}
+            data-engine={definition.engine}
+            data-model={definition.modelId ?? ""}
+        >
+            <header className={styles.card_header}>
+                <div>
+                    <h2>{t(getModelsHubCopyKey(definition.titleKey))}</h2>
+                    <p>{t(getModelsHubCopyKey(definition.detailKey))}</p>
+                </div>
+                {isRecommended && <span className={styles.recommended_badge}>{t("main_page.models_hub.recommended")}</span>}
+            </header>
+            <div className={styles.suitability_chips}>
+                <span className={styles.suit_badge} data-tier={suitability.tier}>{suitability.badge}</span>
+                <span className={styles.rating_chip} title="Speed Rating">⚡ {"⚡".repeat(suitability.speed)}</span>
+                <span className={styles.rating_chip} title="Accuracy Rating">⭐ {"⭐".repeat(suitability.quality)}</span>
+            </div>
+            <dl className={styles.model_facts}>
+                <div>
+                    <dt>{t("main_page.models_hub.model_label")}</dt>
+                    <dd>{definition.modelId ?? t(`main_page.models_hub.${definition.modelLabelKey ?? "language_specific_model"}`)}</dd>
+                </div>
+                <div>
+                    <dt>{t("main_page.models_hub.download_size")}</dt>
+                    <dd>{status?.capacity ?? (hasModelStatus ? t("main_page.models_hub.size_not_available") : t("main_page.models_hub.not_applicable"))}</dd>
+                </div>
+                <div>
+                    <dt>{t("main_page.models_hub.profile_label")}</dt>
+                    <dd>{definition.profile ?? t("main_page.models_hub.local_runtime")}</dd>
+                </div>
+                <div>
+                    <dt>{t("main_page.models_hub.status_label")}</dt>
+                    <dd>{definition.statusKey ? t(`main_page.models_hub.${definition.statusKey}`) : getStatusLabel(downloadState, t)}</dd>
+                </div>
+            </dl>
+            {hasModelStatus && (
+                <ModelDownloadProgress status={status} onCancel={() => onCancel?.(status.id)} />
+            )}
+            <button
+                type="button"
+                className={styles.preset_button}
+                disabled={actionDisabled || (!onAction && !onCancel) || isDownloading || isCancelling || isUnavailable}
+                onClick={onAction}
+            >
+                {actionLabel ?? (hasModelStatus
+                    ? downloadState === "installed"
+                        ? t("main_page.models_hub.select_model")
+                        : downloadState === "failed"
+                            ? t("main_page.models_hub.retry_download")
+                            : downloadState === "unavailable"
+                                ? t("main_page.models_hub.model_unavailable")
+                            : downloadState === "preparing" || downloadState === "downloading"
+                                ? t("main_page.models_hub.downloading")
+                                : t("main_page.models_hub.download_model", { size: status?.capacity ?? "" })
+                    : t("main_page.models_hub.choose_in_runtime"))}
+            </button>
+        </article>
+    );
+};
+
 export const ModelsHub = () => {
     const { t } = useI18n();
     const [activeFilter, setActiveFilter] = useState("all");
     const { updateExperienceRoute } = useStore_ExperienceRoute();
-    const { currentResourceUsage } = useResourceUsage();
     const {
         currentWhisperWeightTypeStatus,
         downloadWhisperWeightTypeStatus,
@@ -77,17 +192,12 @@ export const ModelsHub = () => {
         { id: "Parakeet", statuses: currentParakeetWeightTypeStatus.data ?? [], download: downloadParakeetWeightTypeStatus, cancel: cancelDownloadParakeetWeightTypeStatus },
         { id: "SenseVoice", statuses: currentSenseVoiceWeightTypeStatus.data ?? [], download: downloadSenseVoiceWeightTypeStatus, cancel: cancelDownloadSenseVoiceWeightTypeStatus },
     ];
+    const modelGroupByEngine = new Map(modelGroups.map((group) => [group.id, group]));
     const selectedDevice = currentTranscriptionProfileSend.data?.device ?? {};
     const recommendation = useMemo(() => resolveWhisperRecommendation({
         statuses,
         selectedDevice,
     }), [selectedDevice, statuses]);
-    const selectedGpu = currentResourceUsage.data?.gpu_devices?.find((gpu) => (
-        gpu.device_index === currentResourceUsage.data?.selected_gpu_index
-    ));
-    const hardwareName = selectedDevice.device_name
-        ?? selectedGpu?.device_name
-        ?? t("main_page.models_hub.hardware_not_detected");
     const controlsPending = statuses.some((status) => status?.is_pending === true);
     const cloudConfigured = currentUseSplitGroqApiKey.data === true
         ? Boolean(currentGroqWhisperAuthKey.data)
@@ -97,111 +207,28 @@ export const ModelsHub = () => {
         setIsOpenedConfigPage(true);
     };
 
-    const applyInstalledPreset = (_preset, status) => {
-        if (status?.is_downloaded !== true || controlsPending) return;
-        updateExperienceRoute("models");
-    };
-
-    const handlePresetAction = (preset) => {
-        const candidate = findPresetCandidate({
-            presetId: preset.id,
-            statuses,
-            installedOnly: false,
-        });
-        if (!candidate) return;
-        if (candidate.is_downloaded === true) {
-            applyInstalledPreset(preset, candidate);
-            return;
-        }
-        if (candidate.is_pending !== true) downloadWhisperWeightTypeStatus(candidate.id);
-    };
-
-    const useRecommendation = () => {
-        if (!recommendation.presetId || !recommendation.modelId) return;
-        const preset = WHISPER_PRESETS.find((item) => item.id === recommendation.presetId);
-        const status = statuses.find((item) => item.id === recommendation.modelId);
-        if (preset && status) applyInstalledPreset(preset, status);
-    };
-
-    const modelOptions = useMemo(() => {
-        const options = [
-            {
-                id: "auto",
-                title: `⚡ Automatic / Recommended (${recommendation.modelId || "Auto"})`,
-                subtitle: `Optimal for ${hardwareName}`,
-                badge: "Auto",
-                badgeType: "teal",
-                isRecommended: true,
-                size: recommendation.modelId ? (statuses.find((s) => s.id === recommendation.modelId)?.capacity) : undefined,
-                computeTarget: selectedDevice.device === "cuda" ? "GPU (CUDA)" : "CPU",
-            },
-        ];
-
-        WHISPER_PRESETS.forEach((preset) => {
-            const candidate = findPresetCandidate({ presetId: preset.id, statuses, installedOnly: false });
-            if (!candidate) return;
-            const copy = PRESET_COPY[preset.id];
-
-            options.push({
-                id: candidate.id,
-                title: `${preset.id === "fast" ? "⚡ Fast" : preset.id === "balanced" ? "⚖️ Balanced" : "🎯 Best Accuracy"} (${candidate.id})`,
-                subtitle: `${candidate.capacity || ""} · ${t(copy.title)}`,
-                badge: preset.id === "fast" ? "Fast" : preset.id === "balanced" ? "Balanced" : "Accurate",
-                badgeType: preset.id === "fast" ? "teal" : preset.id === "balanced" ? "gold" : "purple",
-                isRecommended: recommendation.presetId === preset.id,
-                isDownloaded: candidate.is_downloaded === true,
-                size: candidate.capacity,
-                computeTarget: "GPU / CPU",
-                presetId: preset.id,
-                decodingProfile: preset.decodingProfile,
-            });
-        });
-
-        options.push({
-            id: "Whisper Cloud",
-            title: "☁ Whisper (Cloud, 0 GB VRAM)",
-            subtitle: "Groq-hosted transcription · no local download",
-            badge: "Cloud",
-            badgeType: "purple",
-            isDownloaded: cloudConfigured,
-            computeTarget: "Cloud",
-        });
-
-        statuses.forEach((item) => {
-            if (!options.some((opt) => opt.id === item.id)) {
-                options.push({
-                    id: item.id,
-                    title: `Whisper ${item.id}`,
-                    subtitle: item.capacity ? `Size: ${item.capacity}` : undefined,
-                    isDownloaded: item.is_downloaded === true,
-                    size: item.capacity,
-                    computeTarget: "GPU / CPU",
-                });
-            }
-        });
-
-        return options;
-    }, [statuses, recommendation, hardwareName, selectedDevice, t, cloudConfigured]);
-
-    const handleModelSelectChange = (selectedId) => {
-        if (selectedId === "auto") {
-            useRecommendation();
-            return;
-        }
-        if (selectedId === "Whisper Cloud") {
-            if (!cloudConfigured) {
-                openAdvanced();
-                return;
-            }
-            setTranscriptionProfileSend({ engine: "Whisper Cloud" });
-            return;
-        }
-        const statusItem = statuses.find((s) => s.id === selectedId);
-        if (statusItem?.is_downloaded === true) {
+    const handleModelAction = (engine, modelId) => {
+        const group = modelGroupByEngine.get(engine);
+        const status = group?.statuses.find((item) => item.id === modelId);
+        if (
+            !group
+            || !status
+            || getModelDownloadState(status) === "unavailable"
+            || group.statuses.some((item) => item?.is_pending === true)
+        ) return;
+        if (status.is_downloaded === true) {
             updateExperienceRoute("models");
-        } else if (statusItem && statusItem.is_pending !== true) {
-            downloadWhisperWeightTypeStatus(selectedId);
+            return;
         }
+        if (status.is_pending !== true) group.download(status.id);
+    };
+
+    const openAdvancedModels = (engine) => {
+        const id = `advanced-${engine.toLowerCase().replaceAll(" ", "-")}`;
+        const section = document.getElementById(id);
+        if (!section) return;
+        section.open = true;
+        section.scrollIntoView({ behavior: "smooth", block: "start" });
     };
 
     return (
@@ -220,32 +247,6 @@ export const ModelsHub = () => {
                 </section>
 
                 <SpeechRecognitionCards />
-
-                <section className={styles.recommendation}>
-                    <div>
-                        <p className={styles.eyebrow}>{t("main_page.models_hub.automatic_label")}</p>
-                        <h2>{t("main_page.models_hub.recommendation_title")}</h2>
-                        <p>{t("main_page.models_hub.hardware_summary", { hardware: hardwareName })}</p>
-                        <p className={styles.recommendation_reason}>
-                            {recommendation.reason === "cuda"
-                                ? t("main_page.models_hub.cuda_reason")
-                                : recommendation.reason === "cpu"
-                                    ? t("main_page.models_hub.cpu_reason")
-                                    : t("main_page.models_hub.no_installed_reason")}
-                        </p>
-                    </div>
-                    <div style={{ width: "min(360px, 100%)", flexShrink: 0 }}>
-                        <CustomModernSelect
-                            id="primary-speech-model-select"
-                            label="Model download management"
-                            value={currentTranscriptionProfileSend.data?.engine === "Whisper Cloud" ? "Whisper Cloud" : "auto"}
-                            options={modelOptions}
-                            onChange={handleModelSelectChange}
-                            disabled={controlsPending && statuses.length === 0}
-                            variant="model"
-                        />
-                    </div>
-                </section>
 
                 <section className={styles.advanced_models} data-provider="whisper-cloud">
                     <div className={styles.model_identity}>
@@ -292,93 +293,110 @@ export const ModelsHub = () => {
 
                 <section className={styles.preset_grid} aria-label={t("main_page.models_hub.presets_label")}>
                     {WHISPER_PRESETS.map((preset) => {
-                        const copy = PRESET_COPY[preset.id];
+                        const modelId = preset.candidates[0];
                         const candidate = findPresetCandidate({
                             presetId: preset.id,
                             statuses,
                             installedOnly: false,
                         });
-                        const downloadState = getModelDownloadState(candidate);
-                        const suit = getModelSuitability("Whisper", candidate?.id);
-                        const isActive = false;
-                        const isRecommended = recommendation.presetId === preset.id;
-                        const actionLabel = candidate?.is_downloaded === true
-                            ? isActive
-                                ? t("main_page.models_hub.active_model")
-                                : t("main_page.models_hub.select_model")
-                            : downloadState === "cancelling"
-                                ? t("main_page.models_hub.cancelling_download")
-                                : downloadState === "preparing" || downloadState === "downloading"
-                                    ? t("main_page.models_hub.downloading")
-                                    : downloadState === "failed"
-                                        ? t("main_page.models_hub.retry_download")
-                                        : candidate
-                                            ? t("main_page.models_hub.download_model", { size: candidate.capacity ?? "" })
-                                            : t("main_page.models_hub.model_unavailable");
-
-                        if (activeFilter !== "all" && suit.tier !== activeFilter && !(activeFilter === "cpu" && preset.id === "fast")) {
-                            return null;
-                        }
-
+                        const suitability = getModelSuitability("Whisper", modelId);
+                        if (activeFilter !== "all" && suitability.tier !== activeFilter) return null;
                         return (
-                            <article
-                                key={preset.id}
-                                className={styles.preset_card}
-                                data-active={isActive}
-                                data-recommended={isRecommended}
-                            >
-                                <header className={styles.card_header}>
-                                    <div>
-                                        <h2>{t(copy.title)}</h2>
-                                        <p>{t(copy.detail)}</p>
-                                    </div>
-                                    {isRecommended && <span className={styles.recommended_badge}>{t("main_page.models_hub.recommended")}</span>}
-                                </header>
-                                <div className={styles.suitability_chips}>
-                                    <span className={styles.suit_badge} data-tier={suit.tier}>{suit.badge}</span>
-                                    <span className={styles.rating_chip} title="Speed Rating">⚡ {"⚡".repeat(suit.speed)}</span>
-                                    <span className={styles.rating_chip} title="Accuracy Rating">⭐ {"⭐".repeat(suit.quality)}</span>
-                                </div>
-                                <dl className={styles.model_facts}>
-                                    <div><dt>{t("main_page.models_hub.model_label")}</dt><dd>{candidate?.id ?? t("main_page.models_hub.model_unavailable")}</dd></div>
-                                    <div><dt>{t("main_page.models_hub.download_size")}</dt><dd>{candidate?.capacity ?? t("main_page.models_hub.size_not_available")}</dd></div>
-                                    <div><dt>{t("main_page.models_hub.profile_label")}</dt><dd>{preset.decodingProfile}</dd></div>
-                                    <div>
-                                        <dt>{t("main_page.models_hub.status_label")}</dt>
-                                        <dd>{downloadState === "installed"
-                                            ? t("main_page.models_hub.installed")
-                                            : downloadState === "cancelling"
-                                                ? t("main_page.models_hub.cancelling_download")
-                                                : downloadState === "preparing"
-                                                    ? t("main_page.models_hub.preparing_download")
-                                                    : downloadState === "downloading"
-                                                        ? t("main_page.models_hub.downloading")
-                                                        : downloadState === "failed"
-                                                            ? t("main_page.models_hub.download_failed")
-                                                            : downloadState === "unavailable"
-                                                                ? t("main_page.models_hub.model_unavailable")
-                                                                : t("main_page.models_hub.download_needed")}</dd>
-                                    </div>
-                                </dl>
-                                <ModelDownloadProgress
-                                    status={candidate}
-                                    onCancel={() => candidate?.id && cancelDownloadWhisperWeightTypeStatus(candidate.id)}
-                                />
-                                <button
-                                    type="button"
-                                    className={styles.preset_button}
-                                    disabled={!candidate || downloadState === "preparing" || downloadState === "downloading" || isActive || controlsPending}
-                                    onClick={() => handlePresetAction(preset)}
-                                >
-                                    {actionLabel}
-                                </button>
-                            </article>
+                            <RecommendationCard
+                                key={`whisper-${preset.id}`}
+                                t={t}
+                                definition={{
+                                    engine: "Whisper",
+                                    modelId,
+                                    profile: preset.decodingProfile,
+                                    titleKey: PRESET_COPY[preset.id].title,
+                                    detailKey: PRESET_COPY[preset.id].detail,
+                                }}
+                                status={candidate}
+                                suitability={suitability}
+                                isRecommended={recommendation.presetId === preset.id}
+                                onAction={() => handleModelAction("Whisper", modelId)}
+                                onCancel={(id) => cancelDownloadWhisperWeightTypeStatus(id)}
+                                actionDisabled={!candidate || controlsPending}
+                            />
+                        );
+                    })}
+                    {WHISPER_THAI_PRESETS.map((preset) => {
+                        const modelId = preset.candidates[0];
+                        const group = modelGroupByEngine.get("Whisper Thai");
+                        const candidate = group?.statuses.find((status) => status.id === modelId);
+                        const suitability = getModelSuitability("Whisper Thai", modelId);
+                        if (activeFilter !== "all" && suitability.tier !== activeFilter) return null;
+                        return (
+                            <RecommendationCard
+                                key={`whisper-thai-${preset.id}`}
+                                t={t}
+                                definition={{
+                                    engine: "Whisper Thai",
+                                    modelId,
+                                    profile: preset.decodingProfile,
+                                    titleKey: THAI_PRESET_COPY[preset.id].title,
+                                    detailKey: THAI_PRESET_COPY[preset.id].detail,
+                                }}
+                                status={candidate}
+                                suitability={suitability}
+                                onAction={() => handleModelAction("Whisper Thai", modelId)}
+                                onCancel={(id) => group?.cancel(id)}
+                                actionDisabled={!candidate || group?.statuses.some((status) => status?.is_pending === true)}
+                            />
+                        );
+                    })}
+                    {CPU_RECOMMENDATIONS.map((definition) => {
+                        const group = modelGroupByEngine.get(definition.engine);
+                        const status = definition.modelId
+                            ? group?.statuses.find((item) => item.id === definition.modelId)
+                            : null;
+                        const suitability = getModelSuitability(definition.engine, definition.modelId);
+                        if (activeFilter !== "all" && suitability.tier !== activeFilter) return null;
+                        return (
+                            <RecommendationCard
+                                key={`cpu-${definition.id}`}
+                                t={t}
+                                definition={definition}
+                                status={status}
+                                suitability={suitability}
+                                onAction={() => definition.languageSpecific
+                                    ? openAdvancedModels(definition.engine)
+                                    : handleModelAction(definition.engine, definition.modelId)}
+                                onCancel={(id) => group?.cancel(id)}
+                                actionLabel={definition.languageSpecific ? t("main_page.models_hub.open_advanced_models") : undefined}
+                                actionDisabled={definition.languageSpecific
+                                    ? false
+                                    : !status || group?.statuses.some((item) => item?.is_pending === true)}
+                            />
+                        );
+                    })}
+                    {CLOUD_RECOMMENDATIONS.map((definition) => {
+                        const suitability = getModelSuitability(definition.engine);
+                        if (activeFilter !== "all" && suitability.tier !== activeFilter) return null;
+                        return (
+                            <RecommendationCard
+                                key={`cloud-${definition.id}`}
+                                t={t}
+                                definition={definition}
+                                suitability={suitability}
+                                onAction={() => definition.engine === "Whisper Cloud" && !cloudConfigured
+                                    ? openAdvanced()
+                                    : updateExperienceRoute("live")}
+                                actionLabel={definition.engine === "Whisper Cloud" && !cloudConfigured
+                                    ? t("main_page.models_hub.configure_groq_key")
+                                    : t("main_page.models_hub.choose_in_runtime")}
+                            />
                         );
                     })}
                 </section>
 
                 {modelGroups.map((group) => (
-                    <details key={group.id} className={styles.advanced_models}>
+                    <details
+                        key={group.id}
+                        id={`advanced-${group.id.toLowerCase().replaceAll(" ", "-")}`}
+                        className={styles.advanced_models}
+                    >
                         <summary>{group.id} · {t("main_page.models_hub.advanced_models")}</summary>
                         <p>{t("main_page.models_hub.advanced_models_detail")}</p>
                         <div className={styles.model_list}>

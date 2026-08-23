@@ -356,16 +356,23 @@ class SourcePipeline:
                 self._remove_record(trace.trace_id, record)
                 return False
             providers = tuple(trace.providers[:2])
-            job_providers = tuple(self._rotate_providers(providers))[:1]
-            if not job_providers:
-                job_providers = providers
+            ordered_providers = tuple(self._rotate_providers(providers))[:2]
+            if not ordered_providers:
+                ordered_providers = providers
             base_position = self._translation_queue.qsize()
             for slot_order, target in enumerate(trace.targets, start=1):
+                target_providers = (
+                    (
+                        ordered_providers[(slot_order - 1) % len(ordered_providers)],
+                    )
+                    if ordered_providers
+                    else ()
+                )
                 queued = TranslationUpdate(
                     trace_id=trace.trace_id,
                     target_slot=target.target_slot,
                     status=TranslationStatus.QUEUED,
-                    engine=job_providers[0] if job_providers else None,
+                    engine=target_providers[0] if target_providers else None,
                     message=None,
                     transliteration=(),
                     duration_ms=None,
@@ -381,7 +388,7 @@ class SourcePipeline:
                         original_message=trace.original_message,
                         source_language=trace.source_language,
                         target=target,
-                        providers=job_providers,
+                        providers=target_providers,
                         ctranslate2_weight_type=trace.ctranslate2_weight_type,
                         context_history=tuple(deepcopy(trace.context_history)),
                         enqueued_at_monotonic=monotonic(),

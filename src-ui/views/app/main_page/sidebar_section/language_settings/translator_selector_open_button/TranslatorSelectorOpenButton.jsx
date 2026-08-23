@@ -4,6 +4,8 @@ import styles from "./TranslatorSelectorOpenButton.module.scss";
 import { TranslatorSelector } from "./translator_selector/TranslatorSelector";
 import { useStore_IsOpenedTranslatorSelector } from "@store";
 import { useLanguageSettings } from "@logics_main";
+import { getTranslationProviderIcon } from "@logics_common/translationProviderMetadata.js";
+import { getTranslationProviderIconSource } from "@logics_common/translationProviderIconSources.js";
 
 export const TranslatorSelectorOpenButton = ({ variant = "settings" }) => {
     const translatorButtonRef = useRef(null);
@@ -36,6 +38,12 @@ export const TranslatorSelectorOpenButton = ({ variant = "settings" }) => {
 
     const is_loading = currentTranslationEngines.state === "pending";
     const selected_label = is_loading ? "Loading..." : getSelectedLabel();
+    const selected_icons = is_loading
+        ? []
+        : selected_engine_ids.map((engine_id) => ({
+            engine_id,
+            source: getTranslationProviderIconSource(getTranslationProviderIcon(engine_id)),
+        }));
 
 
     const { currentIsOpenedTranslatorSelector, updateIsOpenedTranslatorSelector} = useStore_IsOpenedTranslatorSelector();
@@ -54,6 +62,18 @@ export const TranslatorSelectorOpenButton = ({ variant = "settings" }) => {
                 aria-expanded={currentIsOpenedTranslatorSelector.data}
             >
                 <p className={styles.label}>{t("main_page.translator")}:</p>
+                {selected_icons.length > 0 && (
+                    <span className={styles.selected_icons} aria-hidden="true">
+                        {selected_icons.map(({ engine_id, source }) => (
+                            <img
+                                key={engine_id}
+                                className={styles.selected_icon}
+                                src={source}
+                                alt=""
+                            />
+                        ))}
+                    </span>
+                )}
                 <p className={styles.label}>{selected_label}</p>
             </button>
             {currentIsOpenedTranslatorSelector.data &&

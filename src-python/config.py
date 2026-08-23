@@ -1143,6 +1143,7 @@ class Config:
     OSC_PORT = ManagedProperty('OSC_PORT', type_=int)
     AUTO_CLEAR_MESSAGE_BOX = ManagedProperty('AUTO_CLEAR_MESSAGE_BOX', type_=bool)
     SEND_ONLY_TRANSLATED_MESSAGES = ManagedProperty('SEND_ONLY_TRANSLATED_MESSAGES', type_=bool)
+    SEND_ORIGINAL_WHILE_TRANSLATING = ManagedProperty('SEND_ORIGINAL_WHILE_TRANSLATING', type_=bool)
     OVERLAY_SMALL_LOG = ManagedProperty('OVERLAY_SMALL_LOG', type_=bool)
     OVERLAY_LARGE_LOG = ManagedProperty('OVERLAY_LARGE_LOG', type_=bool)
     OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES = ManagedProperty('OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES', type_=bool)
@@ -1208,7 +1209,7 @@ class Config:
 
     def init_config(self):
         # Read Only
-        self._VERSION = "5.11.0"
+        self._VERSION = "5.12.0"
         if getattr(sys, 'frozen', False):
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
@@ -1498,6 +1499,7 @@ class Config:
         self._TRANSCRIPTION_PROFILE_RECEIVE = copy.deepcopy(default_transcription_profile)
         self._AUTO_CLEAR_MESSAGE_BOX = True
         self._SEND_ONLY_TRANSLATED_MESSAGES = False
+        self._SEND_ORIGINAL_WHILE_TRANSLATING = False
         self._OVERLAY_SMALL_LOG = False
         self._OVERLAY_COLOR_PALETTE = copy.deepcopy(OVERLAY_COLOR_PALETTE_DEFAULTS)
         self._OVERLAY_SMALL_LOG_SETTINGS = {

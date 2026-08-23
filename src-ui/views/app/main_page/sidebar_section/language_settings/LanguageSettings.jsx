@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import MicSvg from "@images/mic.svg?react";
 import HeadphonesSvg from "@images/headphones.svg?react";
 import { useI18n } from "@useI18n";
@@ -7,6 +8,9 @@ import {
 } from "@store";
 import { useMainFunction, useLanguageSettings } from "@logics_main";
 import { useTranscription } from "@logics_configs";
+import { useNotificationStatus } from "@logics_common";
+import { enabledSlotCount } from "@logics_common/languageProfileUtils.js";
+import { shouldNotifyCloudLanguageLimit } from "@logics_common/cloudTranscriptionLimit.js";
 import { PresetTabSelector } from "./preset_tab_selector/PresetTabSelector";
 import { LanguageSelectorOpenButton } from "./language_selector_open_button/LanguageSelectorOpenButton";
 import { LanguageSwapButton } from "./language_swap_button/LanguageSwapButton";
@@ -37,6 +41,7 @@ export const LanguageSettings = () => {
 
 const PresetContainer = () => {
     const { t } = useI18n();
+    const { showNotification_Warning } = useNotificationStatus();
     const { currentTranscriptionSendStatus, currentTranscriptionReceiveStatus } = useMainFunction();
     const {
         currentTranscriptionProfileSend,
@@ -64,6 +69,8 @@ const PresetContainer = () => {
         receiveProfile,
     });
     const defaultCapability = {
+        type: "local",
+        max_languages: 1,
         microphone_max: 1,
         received_max: 1,
         parallel_candidates: false,
@@ -72,6 +79,47 @@ const PresetContainer = () => {
     const targetCapability = currentTranscriptionLanguageCapabilities.data?.[targetEngine] ?? defaultCapability;
     const presetKey = currentSelectedPresetTabNumber.data ?? "1";
     const preferredLanguages = currentSelectedYourTranslationLanguages.data?.[presetKey] ?? {};
+    const speakingLanguages = getCurrentYourLanguages();
+    const targetLanguages = getCurrentTargetLanguages();
+    const previousEnginesRef = useRef({ speaking: "", target: "" });
+    const languageCounts = {
+        speaking: enabledSlotCount(speakingLanguages),
+        target: enabledSlotCount(targetLanguages),
+    };
+
+    useEffect(() => {
+        const previous = previousEnginesRef.current;
+        const transitions = [
+            ["speaking", previous.speaking, speakingEngine],
+            ["target", previous.target, targetEngine],
+        ];
+        if (transitions.some(([role, previousEngine, nextEngine]) => (
+            shouldNotifyCloudLanguageLimit({
+                previousEngine,
+                nextEngine,
+                configuredLanguageCount: languageCounts[role],
+            })
+        ))) {
+            showNotification_Warning(
+                `${t("main_page.language_panels.cloud_language_limit_title")}\n${t("main_page.language_panels.cloud_language_limit_body")}`,
+                {
+                    category_id: "cloud_transcription_language_limit",
+                    hide_duration: 10000,
+                },
+            );
+        }
+        previousEnginesRef.current = {
+            speaking: speakingEngine,
+            target: targetEngine,
+        };
+    }, [
+        speakingEngine,
+        targetEngine,
+        languageCounts.speaking,
+        languageCounts.target,
+        showNotification_Warning,
+        t,
+    ]);
 
     return (
         <div className={styles.preset_container}>
@@ -79,7 +127,7 @@ const PresetContainer = () => {
                 group="speaking"
                 title={t("main_page.language_panels.speaking_title")}
                 description={t("main_page.language_panels.speaking_desc")}
-                languages={getCurrentYourLanguages()}
+                languages={speakingLanguages}
                 selectorKey="your_language"
                 engine={speakingEngine}
                 capability={speakingCapability}
@@ -94,7 +142,7 @@ const PresetContainer = () => {
                 group="target"
                 title={t("main_page.language_panels.targets_title")}
                 description={t("main_page.language_panels.targets_desc")}
-                languages={getCurrentTargetLanguages()}
+                languages={targetLanguages}
                 selectorKey="target_language"
                 engine={targetEngine}
                 capability={targetCapability}

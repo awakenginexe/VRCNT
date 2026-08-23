@@ -46,9 +46,11 @@ export const LiveControlRail = () => {
     const {
         currentEnableSendMessageToVrc,
         currentEnableSendReceivedMessageToVrc,
+        currentEnableSendOriginalWhileTranslating,
         currentEnableVrcMicMuteSync,
         toggleEnableSendMessageToVrc,
         toggleEnableSendReceivedMessageToVrc,
+        toggleEnableSendOriginalWhileTranslating,
         toggleEnableVrcMicMuteSync,
     } = useOthers();
     const sendProfile = currentTranscriptionProfileSend.data ?? {};
@@ -97,6 +99,8 @@ export const LiveControlRail = () => {
         currentTranscriptionReceiveStatus.data,
     ].some(Boolean);
     const oscReady = currentIsOscAvailable.data === true;
+    const originalFallbackIsOn = currentEnableSendOriginalWhileTranslating.data === true;
+    const originalFallbackIsPending = currentEnableSendOriginalWhileTranslating.state === "pending";
 
     return (
         <aside className={styles.container} aria-label={t("main_page.live_workspace.session_controls")}>
@@ -181,6 +185,23 @@ export const LiveControlRail = () => {
                         {currentEnableVrcMicMuteSync.data === true
                             ? t("main_page.live_workspace.mic_sync_on")
                             : t("main_page.live_workspace.mic_sync_off")}
+                    </button>
+                    <button
+                        type="button"
+                        className={styles.output_button}
+                        data-active={originalFallbackIsOn}
+                        data-pending={originalFallbackIsPending}
+                        aria-pressed={originalFallbackIsOn}
+                        aria-busy={originalFallbackIsPending}
+                        aria-label={t("main_page.live_workspace.original_fallback_toggle")}
+                        onClick={toggleEnableSendOriginalWhileTranslating}
+                        title={t(originalFallbackIsOn
+                            ? "main_page.live_workspace.original_first_title"
+                            : "main_page.live_workspace.translation_first_title")}
+                    >
+                        {originalFallbackIsOn
+                            ? t("main_page.live_workspace.original_first")
+                            : t("main_page.live_workspace.translation_first")}
                     </button>
                     {currentEnableSendReceivedMessageToVrc.data === true && (
                         <button

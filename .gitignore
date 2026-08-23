@@ -30,6 +30,7 @@ test_*.py
 !src-python/tests/test_sensevoice_download.py
 !src-python/tests/test_*.py
 !src-python/tests/*_test.py
+!utils/tests/test_virustotal.py
 .pytest_cache/
 .coverage
 *.cover

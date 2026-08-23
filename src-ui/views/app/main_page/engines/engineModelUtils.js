@@ -3,6 +3,7 @@ export const TRANSCRIPTION_ENGINE_OPTIONS = [
     "Whisper Thai",
     "Whisper Cloud",
     "Google",
+    "Bing",
     "Vosk",
     "Parakeet",
     "SenseVoice",
@@ -16,18 +17,102 @@ export const WHISPER_CLOUD_MODELS = [
 export const WHISPER_PRESETS = [
     {
         id: "fast",
-        candidates: ["tiny", "base"],
+        candidates: ["tiny"],
         decodingProfile: "fast",
     },
     {
         id: "balanced",
-        candidates: ["small", "medium"],
+        candidates: ["small"],
+        decodingProfile: "balanced",
+    },
+    {
+        id: "better",
+        candidates: ["large-v3-turbo-int8"],
+        decodingProfile: "accurate",
+    },
+    {
+        id: "accurate",
+        candidates: ["large-v3-turbo"],
+        decodingProfile: "accurate",
+    },
+    {
+        id: "best_accuracy",
+        candidates: ["large-v3"],
+        decodingProfile: "accurate",
+    },
+];
+
+export const WHISPER_THAI_PRESETS = [
+    {
+        id: "fast",
+        candidates: ["thai-thonburian-small"],
+        decodingProfile: "fast",
+    },
+    {
+        id: "balanced",
+        candidates: ["thai-thonburian-large-v3-int8"],
         decodingProfile: "balanced",
     },
     {
         id: "best_accuracy",
-        candidates: ["large-v3-turbo", "large-v3", "large-v2", "large-v1"],
+        candidates: ["thai-mort666-large-v3-fp16"],
         decodingProfile: "accurate",
+    },
+];
+
+export const CLOUD_RECOMMENDATIONS = [
+    {
+        id: "google",
+        engine: "Google",
+        tier: "cloud",
+        profile: "cloud",
+        titleKey: "cloud_google_title",
+        detailKey: "cloud_google_detail",
+        modelLabelKey: "cloud_service",
+        statusKey: "cloud_available",
+    },
+    {
+        id: "bing",
+        engine: "Bing",
+        tier: "cloud",
+        profile: "cloud",
+        titleKey: "cloud_bing_title",
+        detailKey: "cloud_bing_detail",
+        modelLabelKey: "cloud_service",
+        statusKey: "cloud_available",
+    },
+    {
+        id: "whisper-cloud",
+        engine: "Whisper Cloud",
+        tier: "cloud",
+        profile: "cloud",
+        titleKey: "cloud_whisper_title",
+        detailKey: "cloud_whisper_detail",
+        modelLabelKey: "cloud_service",
+        statusKey: "cloud_available",
+    },
+];
+
+export const CPU_RECOMMENDATIONS = [
+    {
+        id: "vosk",
+        engine: "Vosk",
+        tier: "cpu",
+        profile: "cpu",
+        titleKey: "vosk_title",
+        detailKey: "vosk_detail",
+        languageSpecific: true,
+        modelLabelKey: "language_specific_model",
+        statusKey: "select_language_model",
+    },
+    {
+        id: "sensevoice",
+        engine: "SenseVoice",
+        modelId: "sensevoice-small-int8",
+        tier: "cpu",
+        profile: "int8",
+        titleKey: "sensevoice_title",
+        detailKey: "sensevoice_detail",
     },
 ];
 
@@ -37,8 +122,8 @@ const installedModelIds = (statuses) => new Set(
         .map((status) => status.id),
 );
 
-export const findPresetCandidate = ({ presetId, statuses, installedOnly = false }) => {
-    const preset = WHISPER_PRESETS.find((item) => item.id === presetId);
+export const findPresetCandidate = ({ presetId, statuses, installedOnly = false, presets = WHISPER_PRESETS }) => {
+    const preset = presets.find((item) => item.id === presetId);
     if (!preset) return null;
 
     const statusById = new Map(
@@ -58,7 +143,7 @@ export const resolveWhisperRecommendation = ({ statuses, selectedDevice }) => {
     // because it happens to be installed. It remains available under
     // Advanced models for an explicit user choice.
     const priority = isCuda
-        ? ["best_accuracy", "balanced", "fast"]
+        ? ["best_accuracy", "accurate", "better", "balanced", "fast"]
         : ["balanced", "fast"];
 
     for (const presetId of priority) {
@@ -88,11 +173,17 @@ export const MODEL_FILTER_CATEGORIES = [
     { id: "thai", labelKey: "main_page.models_hub.filter_thai", fallback: "🇹🇭 Thai Specialist" },
 ];
 
+export const getModelsHubCopyKey = (key) => (
+    typeof key === "string" && key.startsWith("main_page.models_hub.")
+        ? key
+        : `main_page.models_hub.${key ?? ""}`
+);
+
 export const getModelSuitability = (engine, modelId = "") => {
     const id = (modelId || "").toLowerCase();
     const eng = (engine || "").toLowerCase();
 
-    if (eng.includes("cloud") || id.includes("cloud")) {
+    if (eng.includes("cloud") || eng === "google" || eng === "bing" || id.includes("cloud")) {
         return {
             speed: 3,
             quality: 3,
@@ -109,6 +200,16 @@ export const getModelSuitability = (engine, modelId = "") => {
             tier: "thai",
             badge: "🇹🇭 Thai Specialist",
             summary: "BioDataLab Thonburian fine-tuned for Thai",
+        };
+    }
+
+    if (eng.includes("vosk") || eng.includes("sensevoice") || id.includes("vosk") || id.includes("sensevoice")) {
+        return {
+            speed: 3,
+            quality: 2,
+            tier: "cpu",
+            badge: "⚡ CPU Friendly",
+            summary: "Low-resource local recognition for CPU runtimes",
         };
     }
 

@@ -62,6 +62,8 @@ test("model recommendation only selects an installed candidate appropriate to th
     const statuses = [
         { id: "tiny", is_downloaded: true },
         { id: "small", is_downloaded: true },
+        { id: "large-v3", is_downloaded: true },
+        { id: "large-v3-turbo-int8", is_downloaded: true },
         { id: "large-v3-turbo", is_downloaded: true },
     ];
 
@@ -70,7 +72,7 @@ test("model recommendation only selects an installed candidate appropriate to th
             statuses,
             selectedDevice: { device: "cuda", device_name: "Actual GPU" },
         }),
-        { presetId: "best_accuracy", modelId: "large-v3-turbo", reason: "cuda" },
+        { presetId: "best_accuracy", modelId: "large-v3", reason: "cuda" },
     );
     assert.deepEqual(
         resolveWhisperRecommendation({
@@ -81,14 +83,14 @@ test("model recommendation only selects an installed candidate appropriate to th
     );
     assert.deepEqual(
         resolveWhisperRecommendation({
-            statuses: [{ id: "base", is_downloaded: true }],
+            statuses: [{ id: "tiny", is_downloaded: true }],
             selectedDevice: { device: "cpu", device_name: "CPU" },
         }),
-        { presetId: "fast", modelId: "base", reason: "cpu" },
+        { presetId: "fast", modelId: "tiny", reason: "cpu" },
     );
     assert.deepEqual(
         resolveWhisperRecommendation({
-            statuses: [{ id: "large-v3-turbo", is_downloaded: true }],
+            statuses: [{ id: "large-v3", is_downloaded: true }],
             selectedDevice: { device: "cpu", device_name: "CPU" },
         }),
         { presetId: null, modelId: null, reason: "no_installed_model" },
@@ -100,4 +102,67 @@ test("model recommendation only selects an installed candidate appropriate to th
         }),
         { presetId: null, modelId: null, reason: "no_installed_model" },
     );
+});
+
+test("model recommendation catalog assigns every requested local, Thai, cloud, and CPU choice", async () => {
+    const utilsUrl = pathToFileURL(
+        path.join(root, "src-ui", "views", "app", "main_page", "engines", "engineModelUtils.js"),
+    ).href;
+    const {
+        WHISPER_PRESETS,
+        WHISPER_THAI_PRESETS,
+        CLOUD_RECOMMENDATIONS,
+        CPU_RECOMMENDATIONS,
+        getModelSuitability,
+        getModelsHubCopyKey,
+    } = await import(utilsUrl);
+
+    assert.deepEqual(
+        WHISPER_PRESETS.map(({ id, candidates }) => [id, candidates[0]]),
+        [
+            ["fast", "tiny"],
+            ["balanced", "small"],
+            ["better", "large-v3-turbo-int8"],
+            ["accurate", "large-v3-turbo"],
+            ["best_accuracy", "large-v3"],
+        ],
+    );
+    assert.deepEqual(
+        WHISPER_THAI_PRESETS.map(({ id, candidates }) => [id, candidates[0]]),
+        [
+            ["fast", "thai-thonburian-small"],
+            ["balanced", "thai-thonburian-large-v3-int8"],
+            ["best_accuracy", "thai-mort666-large-v3-fp16"],
+        ],
+    );
+    assert.deepEqual(
+        CLOUD_RECOMMENDATIONS.map(({ engine }) => engine),
+        ["Google", "Bing", "Whisper Cloud"],
+    );
+    assert.deepEqual(
+        CPU_RECOMMENDATIONS.map(({ engine }) => engine),
+        ["Vosk", "SenseVoice"],
+    );
+    assert.equal(CPU_RECOMMENDATIONS.find(({ engine }) => engine === "SenseVoice").modelId, "sensevoice-small-int8");
+    assert.equal(CPU_RECOMMENDATIONS.find(({ engine }) => engine === "Vosk").languageSpecific, true);
+    assert.equal(getModelSuitability("Vosk", "large-en").tier, "cpu");
+    assert.equal(getModelSuitability("SenseVoice", "sensevoice-small-fp32").tier, "cpu");
+    assert.equal(getModelsHubCopyKey("vosk_title"), "main_page.models_hub.vosk_title");
+    assert.equal(
+        getModelsHubCopyKey("main_page.models_hub.thai_fast_title"),
+        "main_page.models_hub.thai_fast_title",
+    );
+});
+
+test("model hub keeps recommendations on preset cards without the automatic model panel", async () => {
+    const models = await read("src-ui", "views", "app", "main_page", "models", "ModelsHub.jsx");
+
+    assert.doesNotMatch(models, /<section className=\{styles\.recommendation\}>/);
+    assert.doesNotMatch(models, /primary-speech-model-select/);
+    assert.doesNotMatch(models, /main_page\.models_hub\.automatic_label/);
+    assert.match(models, /isRecommended=\{recommendation\.presetId === preset\.id\}/);
+    assert.match(models, /data-recommended=\{isRecommended\}/);
+    assert.match(models, /WHISPER_THAI_PRESETS/);
+    assert.match(models, /CLOUD_RECOMMENDATIONS/);
+    assert.match(models, /CPU_RECOMMENDATIONS/);
 });

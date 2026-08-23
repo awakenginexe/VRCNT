@@ -7,6 +7,8 @@ import { useI18n } from "@useI18n";
 import { chunkArray } from "@utils";
 import { useStore_IsOpenedTranslatorSelector } from "@store";
 import { useLanguageSettings } from "@logics_main";
+import { getTranslationProviderIcon } from "@logics_common/translationProviderMetadata.js";
+import { getTranslationProviderIconSource } from "@logics_common/translationProviderIconSources.js";
 import { useFloatingPanelPosition } from "../../../../../../common_components/floating_panel/useFloatingPanelPosition.js";
 
 const LIVE_PANEL_WIDTH = 400;
@@ -187,6 +189,7 @@ export const TranslatorSelector = ({
                                     key={id}
                                     id={id}
                                     label={label}
+                                    icon={getTranslationProviderIconSource(getTranslationProviderIcon(id))}
                                     is_available={is_available}
                                     is_default={is_default}
                                     is_primary_selected={(id === primary_id)}
@@ -379,7 +382,10 @@ const TranslatorBox = (props) => {
                     {t("main_page.translator_selector.secondary_badge")}
                 </span>
             )}
-            <p className={styles.translator_name}>{props.label}</p>
+            <span className={styles.translator_identity}>
+                <img className={styles.translator_icon} src={props.icon} alt="" aria-hidden="true" />
+                <p className={styles.translator_name}>{props.label}</p>
+            </span>
             {props.is_default && <p className={label_default_class_name}>{t("main_page.translator_label_default")}</p>}
         </button>
     );

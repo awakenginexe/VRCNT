@@ -1360,6 +1360,7 @@ class ControllerTranslationSanitizationTests(unittest.TestCase):
         self,
         *,
         send_only_translated=False,
+        send_original_while_translating=False,
         overlay_only_translated=False,
         overlay_only_received=False,
     ):
@@ -1389,6 +1390,7 @@ class ControllerTranslationSanitizationTests(unittest.TestCase):
             },
             _SEND_MESSAGE_TO_VRC=True,
             _SEND_ONLY_TRANSLATED_MESSAGES=send_only_translated,
+            _SEND_ORIGINAL_WHILE_TRANSLATING=send_original_while_translating,
             _OVERLAY_SMALL_LOG=True,
             _OVERLAY_LARGE_LOG=True,
             _OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES=overlay_only_translated,
@@ -1689,6 +1691,27 @@ class ControllerTranslationSanitizationTests(unittest.TestCase):
         fake_model.convertMessageToTransliteration.assert_called_once()
         self.assertEqual(current_selection, {"1": ["Google", "Bing"]})
         controller.changeToCTranslate2Process.assert_not_called()
+
+    def test_mic_sends_original_before_translation_when_requested(self):
+        fake_model = self._fake_model()
+        fake_model.getInputTranslate.return_value = (["translated", False], [True, False])
+        controller = self._controller()
+
+        with patch.object(controller_module, "model", fake_model), self._config_patch(
+            send_original_while_translating=True,
+        ):
+            self._run_progressive_output(
+                controller,
+                fake_model,
+                PipelineSource.MIC,
+                {"text": "spoken", "language": "English"},
+                fake_model.getInputTranslate.return_value,
+            )
+
+        self.assertEqual(
+            [call.args[0] for call in fake_model.oscSendMessage.call_args_list],
+            ["spoken", "spoken\ntranslated"],
+        )
 
     def test_mic_reversed_partial_failure_keeps_target_two_metadata_aligned(self):
         fake_model = self._fake_model()

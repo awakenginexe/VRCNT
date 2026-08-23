@@ -357,7 +357,7 @@ class TranslationSchedulerTests(unittest.TestCase):
         translator.release.set()
         self.assertTrue(recorder.wait_for(lambda: len(recorder.finals) == 1))
 
-    def test_cloud_provider_rotation_is_applied_once_per_message(self):
+    def test_cloud_provider_rotation_is_applied_per_message_and_target(self):
         recorder = Recorder()
         translator = ScriptedTranslator()
         rotation_index = 0
@@ -380,14 +380,15 @@ class TranslationSchedulerTests(unittest.TestCase):
                 targets=(
                     TranslationTarget("target-1", "French", "France"),
                     TranslationTarget("target-2", "German", "Germany"),
+                    TranslationTarget("target-3", "Japanese", "Japan"),
                 ),
-                providers=("Google", "Bing"),
+                providers=("Google", "Papago"),
             )
         )
         pipeline.submit_trace(
             make_trace(
                 "second-message",
-                providers=("Google", "Bing"),
+                providers=("Google", "Papago"),
             )
         )
 
@@ -396,14 +397,16 @@ class TranslationSchedulerTests(unittest.TestCase):
             sorted(
                 (
                     call["message"],
+                    call["target_language"],
                     call["translator_name"],
                 )
                 for call in translator.calls
             ),
             [
-                ("first-message", "Google"),
-                ("first-message", "Google"),
-                ("second-message", "Bing"),
+                ("first-message", "French", "Google"),
+                ("first-message", "German", "Papago"),
+                ("first-message", "Japanese", "Google"),
+                ("second-message", "French", "Papago"),
             ],
         )
         queued_engines = sorted(
@@ -416,7 +419,38 @@ class TranslationSchedulerTests(unittest.TestCase):
             [
                 ("first-message", "Google"),
                 ("first-message", "Google"),
-                ("second-message", "Bing"),
+                ("first-message", "Papago"),
+                ("second-message", "Papago"),
+            ],
+        )
+
+    def test_single_provider_is_used_for_all_target_languages(self):
+        recorder = Recorder()
+        translator = ScriptedTranslator()
+        pipeline = self.make_pipeline(translator, recorder)
+
+        pipeline.submit_trace(
+            make_trace(
+                "single-provider-three-targets",
+                targets=(
+                    TranslationTarget("target-1", "French", "France"),
+                    TranslationTarget("target-2", "German", "Germany"),
+                    TranslationTarget("target-3", "Japanese", "Japan"),
+                ),
+                providers=("Google",),
+            )
+        )
+
+        self.assertTrue(recorder.wait_for(lambda: len(recorder.finals) == 1))
+        self.assertEqual(
+            [
+                (call["target_language"], call["translator_name"])
+                for call in sorted(translator.calls, key=lambda item: item["target_language"])
+            ],
+            [
+                ("French", "Google"),
+                ("German", "Google"),
+                ("Japanese", "Google"),
             ],
         )
 

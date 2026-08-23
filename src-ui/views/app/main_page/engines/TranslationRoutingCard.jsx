@@ -2,6 +2,8 @@ import { useMemo } from "react";
 import { useI18n } from "@useI18n";
 import { useLanguageSettings } from "@logics_main";
 import { CustomModernSelect } from "@common_components";
+import { getTranslationProviderIcon } from "@logics_common/translationProviderMetadata.js";
+import { getTranslationProviderIconSource } from "@logics_common/translationProviderIconSources.js";
 import styles from "./EnginesWorkspace.module.scss";
 
 const toArray = (value) => (
@@ -70,6 +72,7 @@ export const TranslationRoutingCard = () => {
                             : translationProviders.map((provider) => ({
                                 id: provider.id,
                                 title: provider.label ?? provider.id,
+                                icon: getTranslationProviderIconSource(getTranslationProviderIcon(provider.id)),
                             }))}
                         disabled={translationProviders.length === 0 || currentSelectedTranslationEngines.state === "pending"}
                         placeholder={emptyLabel}
@@ -87,6 +90,7 @@ export const TranslationRoutingCard = () => {
                                 .map((provider) => ({
                                     id: provider.id,
                                     title: provider.label ?? provider.id,
+                                    icon: getTranslationProviderIconSource(getTranslationProviderIcon(provider.id)),
                                 })),
                         ]}
                         disabled={translationProviders.length === 0 || currentSelectedTranslationEngines.state === "pending"}

@@ -6,51 +6,20 @@ import copy
 from typing import Mapping
 
 from models.transcription.transcription_languages import transcription_lang
+from models.transcription.transcription_engine_capabilities import (
+    TRANSCRIPTION_ENGINE_CAPABILITIES,
+)
 
 
 LANGUAGE_SLOT_KEYS = ("1", "2", "3")
 
-TRANSCRIPTION_LANGUAGE_CAPABILITIES = {
-    "Whisper": {
-        "microphone_max": 3,
-        "received_max": 3,
-        "parallel_candidates": False,
-    },
-    "Whisper Cloud": {
-        "microphone_max": 3,
-        "received_max": 3,
-        "parallel_candidates": False,
-    },
-    "Whisper Thai": {
-        "microphone_max": 1,
-        "received_max": 1,
-        "parallel_candidates": False,
-        "fixed_language": {
-            "language": "Thai",
-            "country": "Thailand",
-            "code": "th",
-        },
-    },
-    "Google": {
-        "microphone_max": 3,
-        "received_max": 3,
-        "parallel_candidates": True,
-    },
-    "SenseVoice": {
-        "microphone_max": 3,
-        "received_max": 3,
-        "parallel_candidates": False,
-    },
-    "Vosk": {
-        "microphone_max": 1,
-        "received_max": 1,
-        "parallel_candidates": False,
-    },
-    "Parakeet": {
-        "microphone_max": 1,
-        "received_max": 1,
-        "parallel_candidates": False,
-    },
+TRANSCRIPTION_LANGUAGE_CAPABILITIES = copy.deepcopy(
+    TRANSCRIPTION_ENGINE_CAPABILITIES
+)
+TRANSCRIPTION_LANGUAGE_CAPABILITIES["Whisper Thai"]["fixed_language"] = {
+    "language": "Thai",
+    "country": "Thailand",
+    "code": "th",
 }
 
 

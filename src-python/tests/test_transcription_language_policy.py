@@ -119,8 +119,8 @@ class TranscriptionLanguagePolicyTests(unittest.TestCase):
         self.assertIsNot(normalized["1"], saved["1"])
         self.assertIsNot(normalized["2"], defaults["2"])
 
-    def test_single_language_engines_pause_extras_without_mutating_saved_profile(self):
-        for engine in ("Vosk", "Parakeet"):
+    def test_vosk_pauses_extras_without_mutating_saved_profile(self):
+        for engine in ("Vosk",):
             with self.subTest(engine=engine):
                 saved = copy.deepcopy(THREE_LANGUAGE_SLOTS)
 
@@ -151,7 +151,7 @@ class TranscriptionLanguagePolicyTests(unittest.TestCase):
         self.assertEqual(THREE_LANGUAGE_SLOTS, saved)
 
     def test_multilingual_engines_activate_up_to_three_saved_languages(self):
-        for engine in ("Whisper", "Google", "SenseVoice"):
+        for engine in ("Whisper", "Parakeet", "SenseVoice"):
             for direction in ("microphone", "received"):
                 with self.subTest(engine=engine, direction=direction):
                     runtime = runtime_language_slots(
@@ -171,18 +171,24 @@ class TranscriptionLanguagePolicyTests(unittest.TestCase):
     def test_capabilities_explain_parallel_and_single_language_engines(self):
         capabilities = transcription_language_capabilities()
 
-        self.assertEqual(3, capabilities["Google"]["microphone_max"])
-        self.assertEqual(3, capabilities["Google"]["received_max"])
-        self.assertTrue(capabilities["Google"]["parallel_candidates"])
+        self.assertEqual(1, capabilities["Google"]["microphone_max"])
+        self.assertEqual(1, capabilities["Google"]["received_max"])
+        self.assertFalse(capabilities["Google"]["parallel_candidates"])
+        self.assertEqual(1, capabilities["Bing"]["microphone_max"])
+        self.assertEqual(1, capabilities["Bing"]["received_max"])
+        self.assertEqual(1, capabilities["Whisper Cloud"]["microphone_max"])
+        self.assertEqual(1, capabilities["Whisper Cloud"]["received_max"])
+        self.assertEqual(3, capabilities["Parakeet"]["microphone_max"])
+        self.assertEqual(3, capabilities["Parakeet"]["received_max"])
         self.assertEqual(1, capabilities["Vosk"]["microphone_max"])
-        self.assertEqual(1, capabilities["Parakeet"]["received_max"])
+        self.assertEqual(3, capabilities["Parakeet"]["received_max"])
         self.assertEqual(1, capabilities["Whisper Thai"]["microphone_max"])
         self.assertEqual(1, capabilities["Whisper Thai"]["received_max"])
         self.assertFalse(capabilities["Whisper Thai"]["parallel_candidates"])
 
         capabilities["Google"]["microphone_max"] = 99
         self.assertEqual(
-            3,
+            1,
             transcription_language_capabilities()["Google"]["microphone_max"],
         )
 
@@ -238,9 +244,9 @@ class LanguageProfileIntegrationTests(unittest.TestCase):
         first = Controller.getTranscriptionLanguageCapabilities()
 
         self.assertEqual(200, first["status"])
-        self.assertTrue(first["result"]["Google"]["parallel_candidates"])
-        first["result"]["Google"]["parallel_candidates"] = False
-        self.assertTrue(
+        self.assertFalse(first["result"]["Google"]["parallel_candidates"])
+        first["result"]["Google"]["parallel_candidates"] = True
+        self.assertFalse(
             Controller.getTranscriptionLanguageCapabilities()["result"]["Google"]["parallel_candidates"]
         )
 
@@ -299,25 +305,25 @@ class LanguageProfileIntegrationTests(unittest.TestCase):
         self.assertIs(route["variable"], mainloop.controller.getTranscriptionLanguageCapabilities)
         self.assertFalse(route["status"])
 
-    def test_model_runtime_lists_pause_single_language_engine_extras(self):
+    def test_model_runtime_lists_all_parakeet_languages(self):
         languages, countries = model_module._runtimeTranscriptionLanguageLists(
             "Parakeet",
             THREE_LANGUAGE_SLOTS,
             "microphone",
         )
 
-        self.assertEqual(["English"], languages)
-        self.assertEqual(["Singapore"], countries)
+        self.assertEqual(["English", "Thai", "Chinese Traditional"], languages)
+        self.assertEqual(["Singapore", "Thailand", "Taiwan"], countries)
 
-    def test_model_runtime_lists_keep_three_received_languages_for_google(self):
+    def test_model_runtime_lists_limit_cloud_received_languages_to_one_for_google(self):
         languages, countries = model_module._runtimeTranscriptionLanguageLists(
             "Google",
             THREE_LANGUAGE_SLOTS,
             "received",
         )
 
-        self.assertEqual(["English", "Thai", "Chinese Traditional"], languages)
-        self.assertEqual(["Singapore", "Thailand", "Taiwan"], countries)
+        self.assertEqual(["English"], languages)
+        self.assertEqual(["Singapore"], countries)
 
 
 if __name__ == "__main__":

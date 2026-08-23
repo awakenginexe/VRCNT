@@ -59,6 +59,8 @@ class TranscriptionProfileControllerTests(unittest.TestCase):
     def setUp(self):
         self.original_send = deepcopy(getattr(controller_module.config, "_TRANSCRIPTION_PROFILE_SEND", None))
         self.original_receive = deepcopy(getattr(controller_module.config, "_TRANSCRIPTION_PROFILE_RECEIVE", None))
+        self.original_your_languages = deepcopy(controller_module.config.SELECTED_YOUR_LANGUAGES)
+        self.original_target_languages = deepcopy(controller_module.config.SELECTED_TARGET_LANGUAGES)
         controller_module.config._TRANSCRIPTION_PROFILE_SEND = profile()
         controller_module.config._TRANSCRIPTION_PROFILE_RECEIVE = profile()
         self.controller = Controller()
@@ -74,6 +76,58 @@ class TranscriptionProfileControllerTests(unittest.TestCase):
             controller_module.config.__dict__.pop("_TRANSCRIPTION_PROFILE_RECEIVE", None)
         else:
             controller_module.config._TRANSCRIPTION_PROFILE_RECEIVE = self.original_receive
+        controller_module.config.SELECTED_YOUR_LANGUAGES = self.original_your_languages
+        controller_module.config.SELECTED_TARGET_LANGUAGES = self.original_target_languages
+
+    def test_switching_to_bing_rejects_unsupported_active_locale_without_committing(self):
+        controller_module.config.SELECTED_YOUR_LANGUAGES = {
+            "1": {
+                "1": {"language": "Sundanese", "country": "Indonesia", "enable": True},
+                "2": {"language": "Thai", "country": "Thailand", "enable": False},
+                "3": {"language": "English", "country": "United States", "enable": False},
+            },
+        }
+        response = self.controller.setTranscriptionProfileSend({"engine": "Bing"})
+
+        self.assertEqual(response["status"], 400)
+        self.assertEqual(response["result"]["error_code"], "TRANSCRIPTION_LANGUAGE_UNSUPPORTED")
+        self.assertEqual(controller_module.config.TRANSCRIPTION_PROFILE_SEND["engine"], "Google")
+        self.controller._requestTranscriptionSourcesRestartLocked.assert_not_called()
+
+    def test_bing_direction_activation_rejects_unsupported_locale_independently(self):
+        controller_module.config.SELECTED_TARGET_LANGUAGES = {
+            "1": {
+                "1": {"language": "Sundanese", "country": "Indonesia", "enable": True},
+                "2": {"language": "Japanese", "country": "Japan", "enable": False},
+                "3": {"language": "Thai", "country": "Thailand", "enable": False},
+            },
+        }
+        controller_module.config._TRANSCRIPTION_PROFILE_RECEIVE = profile("Bing")
+
+        response = self.controller.setEnableTranscriptionReceive()
+
+        self.assertEqual(response["status"], 400)
+        self.assertEqual(response["result"]["error_code"], "TRANSCRIPTION_LANGUAGE_UNSUPPORTED")
+        self.assertFalse(controller_module.config.ENABLE_TRANSCRIPTION_RECEIVE)
+
+    def test_bing_speaking_activation_rejects_unsupported_locale_independently(self):
+        controller_module.config.SELECTED_YOUR_LANGUAGES = {
+            "1": {
+                "1": {"language": "Sundanese", "country": "Indonesia", "enable": True},
+                "2": {"language": "Thai", "country": "Thailand", "enable": False},
+                "3": {"language": "Japanese", "country": "Japan", "enable": False},
+            },
+        }
+        controller_module.config._TRANSCRIPTION_PROFILE_SEND = profile("Bing")
+        original_enabled = controller_module.config.ENABLE_TRANSCRIPTION_SEND
+        controller_module.config.ENABLE_TRANSCRIPTION_SEND = False
+        try:
+            response = self.controller.setEnableTranscriptionSend()
+        finally:
+            controller_module.config.ENABLE_TRANSCRIPTION_SEND = original_enabled
+
+        self.assertEqual(response["status"], 400)
+        self.assertEqual(response["result"]["error_code"], "TRANSCRIPTION_LANGUAGE_UNSUPPORTED")
 
     def test_direction_patch_changes_and_restarts_only_that_source(self):
         response = self.controller.setTranscriptionProfileSend({"engine": "Whisper"})
@@ -187,7 +241,7 @@ class TranscriptionProfileControllerTests(unittest.TestCase):
         self.assertEqual(response["status"], 200)
         self.assertEqual(
             response["result"],
-            ["Google", "Whisper", "Whisper Thai", "Whisper Cloud", "Vosk", "Parakeet", "SenseVoice"],
+            ["Google", "Bing", "Whisper", "Whisper Thai", "Whisper Cloud", "Vosk", "Parakeet", "SenseVoice"],
         )
 
     def test_engine_catalog_exposes_whisper_thai_as_a_separate_engine(self):
@@ -195,7 +249,7 @@ class TranscriptionProfileControllerTests(unittest.TestCase):
 
         self.assertEqual(
             response["result"],
-            ["Google", "Whisper", "Whisper Thai", "Whisper Cloud", "Vosk", "Parakeet", "SenseVoice"],
+            ["Google", "Bing", "Whisper", "Whisper Thai", "Whisper Cloud", "Vosk", "Parakeet", "SenseVoice"],
         )
         self.assertIn("Whisper Thai", TRANSCRIPTION_ENGINES)
         self.assertIn("Whisper Thai", MODEL_ENGINES)

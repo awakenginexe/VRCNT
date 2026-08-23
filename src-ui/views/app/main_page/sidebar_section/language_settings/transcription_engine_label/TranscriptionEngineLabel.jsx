@@ -20,6 +20,20 @@ import {
     TRANSCRIPTION_ENGINE_QUICK_PICK_ROLES,
     getQuickPickerProfile,
 } from "./transcriptionEngineQuickPick.js";
+import { getTranscriptionEngineMetadata } from "@logics_common/transcriptionEngineMetadata.js";
+import { getTranscriptionEngineIconSource } from "@logics_common/transcriptionEngineIconSources.js";
+
+const TranscriptionEngineIcon = ({ engine, className }) => {
+    const metadata = getTranscriptionEngineMetadata(engine);
+    return (
+        <img
+            className={className}
+            src={getTranscriptionEngineIconSource(metadata.icon)}
+            alt=""
+            aria-hidden="true"
+        />
+    );
+};
 
 export const TranscriptionEngineLabel = ({ variant = "settings" }) => (
     variant === "settings"
@@ -171,7 +185,13 @@ const LiveTranscriptionEngineQuickPick = () => {
                             >
                                 <span className={styles.live_role_copy}>
                                     <span className={styles.live_role_heading}>{title}</span>
-                                    <span className={styles.live_role_engine}>{engine}</span>
+                                    <span className={styles.live_role_engine}>
+                                        <TranscriptionEngineIcon
+                                            engine={engine}
+                                            className={styles.live_role_engine_icon}
+                                        />
+                                        <span className={styles.live_role_engine_name}>{engine}</span>
+                                    </span>
                                     {model && (
                                         <span className={styles.live_role_model}>{model}</span>
                                     )}
@@ -237,7 +257,13 @@ const TranscriptionEngineRoleCard = ({
                 <div className={styles.label_copy}>
                     <p className={styles.role_heading}>{title}</p>
                     <p className={styles.label_heading}>{t("main_page.language_panels.engine")}</p>
-                    <p className={styles.label_value}>{engine}</p>
+                    <span className={styles.engine_identity}>
+                        <TranscriptionEngineIcon
+                            engine={engine}
+                            className={styles.engine_identity_icon}
+                        />
+                        <p className={styles.label_value}>{engine}</p>
+                    </span>
                     {model && <p className={styles.model_value}>{model}</p>}
                 </div>
                 <p className={styles.edit_hint}>{t("main_page.language_panels.change")}</p>
@@ -383,9 +409,15 @@ const LegacyTranscriptionEngineLabel = ({ variant = "settings" }) => {
             >
                 <div className={styles.label_copy}>
                     <p className={styles.label_heading}>{t("main_page.language_panels.engine")}</p>
-                    <p className={styles.label_value}>
-                        {variant === "live_compact" ? liveModelLabel : engine}
-                    </p>
+                    <span className={styles.engine_identity}>
+                        <TranscriptionEngineIcon
+                            engine={engine}
+                            className={styles.engine_identity_icon}
+                        />
+                        <p className={styles.label_value}>
+                            {variant === "live_compact" ? liveModelLabel : engine}
+                        </p>
+                    </span>
                     {variant !== "live_compact" && currentModelName &&
                         <p className={styles.model_value}>{currentModelName}</p>
                     }

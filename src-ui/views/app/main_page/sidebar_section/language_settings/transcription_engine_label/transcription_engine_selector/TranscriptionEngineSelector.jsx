@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useI18n } from "@useI18n";
 import styles from "./TranscriptionEngineSelector.module.scss";
 import { chunkArray } from "@utils";
 import { useStore_IsOpenedTranscriptionEngineSelector } from "@store";
@@ -8,7 +9,16 @@ import {
     useStore_SelectedConfigTabId,
 } from "@store";
 import { useTranscription, useTranslation } from "@logics_configs";
-import { useIsOpenedConfigPage } from "@logics_common";
+import { useIsOpenedConfigPage, useNotificationStatus } from "@logics_common";
+import { useLanguageSettings } from "@logics_main";
+import {
+    getTranscriptionEngineMetadata,
+} from "@logics_common/transcriptionEngineMetadata.js";
+import { getTranscriptionEngineIconSource } from "@logics_common/transcriptionEngineIconSources.js";
+import {
+    formatBingUnsupportedLanguages,
+    getUnsupportedBingLanguageSlots,
+} from "@logics_common/bingLanguageSupport.js";
 import { QUICK_TRANSCRIPTION_ENGINE_OPTIONS } from "./transcriptionEngineOptions";
 import { useFloatingPanelPosition } from "../../../../../../common_components/floating_panel/useFloatingPanelPosition.js";
 
@@ -171,6 +181,7 @@ export const TranscriptionEngineSelector = ({
 };
 
 const EngineBox = (props) => {
+    const { t } = useI18n();
     const {
         setSelectedTranscriptionEngine,
         setSelectedTranscriptionEngineSend,
@@ -179,6 +190,12 @@ const EngineBox = (props) => {
         currentGroqWhisperAuthKey,
     } = useTranscription();
     const { currentGroqAuthKey } = useTranslation();
+    const {
+        getCurrentYourLanguages,
+        getCurrentTargetLanguages,
+        currentSelectableLanguageList,
+    } = useLanguageSettings();
+    const { showNotification_Warning } = useNotificationStatus();
     const { setIsOpenedConfigPage } = useIsOpenedConfigPage();
     const { updateSelectedConfigTabId } = useStore_SelectedConfigTabId();
     const { updateIsOpenedTranscriptionEngineSelector } = useStore_IsOpenedTranscriptionEngineSelector();
@@ -188,6 +205,8 @@ const EngineBox = (props) => {
         { [styles.is_selected]: props.is_selected },
         { [styles.is_available]: props.is_available }
     );
+    const metadata = getTranscriptionEngineMetadata(props.id);
+    const iconSource = getTranscriptionEngineIconSource(metadata.icon);
     const closeSelector = () => {
         updateIsOpenedTranscriptionEngineSelector(false);
         props.onClose?.();
@@ -204,6 +223,45 @@ const EngineBox = (props) => {
                 closeSelector();
                 return;
             }
+            if (props.id === "Bing") {
+                const catalog = currentSelectableLanguageList.data;
+                const directions = props.role === "speaking"
+                    ? [{ label: t("main_page.transcription_send"), slots: getCurrentYourLanguages() }]
+                    : props.role === "listening"
+                        ? [{ label: t("main_page.transcription_receive"), slots: getCurrentTargetLanguages() }]
+                        : [
+                            { label: t("main_page.transcription_send"), slots: getCurrentYourLanguages() },
+                            { label: t("main_page.transcription_receive"), slots: getCurrentTargetLanguages() },
+                        ];
+                const blocked = directions
+                    .map((direction) => ({
+                        ...direction,
+                        unsupported: getUnsupportedBingLanguageSlots({
+                            engine: props.id,
+                            slots: direction.slots,
+                            languageCatalog: catalog,
+                        }),
+                    }))
+                    .filter((direction) => direction.unsupported.length > 0);
+                if (blocked.length > 0) {
+                    showNotification_Warning(
+                        blocked.map((direction) => t(
+                            "common_error.transcription_language_unsupported",
+                            {
+                                engine: "Bing",
+                                source: direction.label,
+                                languages: formatBingUnsupportedLanguages(direction.unsupported),
+                            },
+                        )).join("\n"),
+                        {
+                            category_id: "TRANSCRIPTION_LANGUAGE_UNSUPPORTED",
+                            hide_duration: 10000,
+                        },
+                    );
+                    closeSelector();
+                    return;
+                }
+            }
             const setEngine = props.role === "speaking"
                 ? setSelectedTranscriptionEngineSend
                 : props.role === "listening"
@@ -216,6 +274,7 @@ const EngineBox = (props) => {
 
     return (
         <button type="button" className={box_class_name} onClick={selectEngine}>
+            <img className={styles.engine_icon} src={iconSource} alt="" aria-hidden="true" />
             <p className={styles.engine_name}>{props.label}</p>
         </button>
     );

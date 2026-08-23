@@ -50,6 +50,7 @@ export const MessageContainer = ({
 
     const has_translations = messages.translations.length > 0;
     const is_pending = status === "pending";
+    const is_interim = status === "interim";
     const is_sent_message = category === "sent";
     const is_system_message = category === "system";
     const category_text = is_sent_message
@@ -66,7 +67,9 @@ export const MessageContainer = ({
 
     return (
         <div
-            className={clsx(styles.container, message_type_class_name)}
+            className={clsx(styles.container, message_type_class_name, {
+                [styles.interim_message]: is_interim,
+            })}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
         >
@@ -108,7 +111,7 @@ export const MessageContainer = ({
                     )}
                 </div>
             </div>
-            {currentShowResendButton.data && is_sent_message && is_hovered ? (
+            {currentShowResendButton.data && is_sent_message && !is_interim && is_hovered ? (
                 <MessageSubMenuContainer
                     setIsHovered={lockHoverState}
                     resendFunction={resendFunction}

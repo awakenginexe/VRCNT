@@ -20,6 +20,8 @@ run_mapping = {
 
     "transcription_mic":"/run/transcription_send_mic_message",
     "transcription_speaker":"/run/transcription_receive_speaker_message",
+    "transcription_mic_interim":"/run/transcription_send_mic_interim",
+    "transcription_speaker_interim":"/run/transcription_receive_speaker_interim",
     "transcription_translation_update":"/run/transcription_translation_update",
     "pipeline_status":"/run/pipeline_status",
     "translation_provider_cooldowns":"/run/translation_provider_cooldowns",
@@ -494,6 +496,10 @@ mapping = {
     "/get/data/send_only_translated_messages": {"status": True, "variable":controller.getSendOnlyTranslatedMessages},
     "/set/enable/send_only_translated_messages": {"status": True, "variable":controller.setEnableSendOnlyTranslatedMessages},
     "/set/disable/send_only_translated_messages": {"status": True, "variable":controller.setDisableSendOnlyTranslatedMessages},
+
+    "/get/data/send_original_while_translating": {"status": True, "variable":controller.getSendOriginalWhileTranslating},
+    "/set/enable/send_original_while_translating": {"status": True, "variable":controller.setEnableSendOriginalWhileTranslating},
+    "/set/disable/send_original_while_translating": {"status": True, "variable":controller.setDisableSendOriginalWhileTranslating},
 
     "/get/data/logger_feature": {"status": True, "variable":controller.getLoggerFeature},
     "/set/enable/logger_feature": {"status": True, "variable":controller.setEnableLoggerFeature},

@@ -198,6 +198,14 @@ export const CustomModernSelect = ({
                             onClick={() => handleSelect(option)}
                             onMouseEnter={() => setFocusedIndex(index)}
                         >
+                            {option.icon && (
+                                <img
+                                    className={styles.option_icon}
+                                    src={option.icon}
+                                    alt=""
+                                    aria-hidden="true"
+                                />
+                            )}
                             {(option.country || option.flagCountry) && (
                                 <LanguageFlag
                                     country={option.country || option.flagCountry}
@@ -317,6 +325,14 @@ export const CustomModernSelect = ({
                 <div className={styles.trigger_content}>
                     {selectedOption ? (
                         <>
+                            {selectedOption.icon && (
+                                <img
+                                    className={styles.trigger_icon}
+                                    src={selectedOption.icon}
+                                    alt=""
+                                    aria-hidden="true"
+                                />
+                            )}
                             {(selectedOption.country || selectedOption.flagCountry) && (
                                 <LanguageFlag
                                     country={selectedOption.country || selectedOption.flagCountry}

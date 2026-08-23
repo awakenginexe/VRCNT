@@ -63,6 +63,20 @@
     gap: 0.2rem;
 }
 
+.engine_identity {
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+}
+
+.engine_identity_icon {
+    width: 1.55rem;
+    height: 1.55rem;
+    flex: 0 0 auto;
+    object-fit: contain;
+}
+
 .label_heading,
 .quick_switch_title {
     font-size: 1.05rem;
@@ -282,9 +296,26 @@
     }
 
     .live_role_engine {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
         color: var(--dark_150_color);
         font-size: 1.08rem;
         font-weight: 800;
+    }
+
+    .live_role_engine_icon {
+        width: 1.45rem;
+        height: 1.45rem;
+        flex: 0 0 auto;
+        object-fit: contain;
+    }
+
+    .live_role_engine_name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .live_role_model {

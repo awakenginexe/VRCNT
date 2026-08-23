@@ -126,6 +126,14 @@
     white-space: pre-wrap;
 }
 
+.engine_icon {
+    width: 2rem;
+    height: 2rem;
+    flex: 0 0 auto;
+    margin-right: 0.55rem;
+    filter: drop-shadow(0 0.15rem 0.35rem rgba(0, 0, 0, 0.24));
+}
+
 @keyframes engine_menu_in {
     from {
         opacity: 0;

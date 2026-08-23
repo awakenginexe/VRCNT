@@ -7,9 +7,12 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-5.11.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-5.12.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
+  <a href="https://github.com/awakenginexe/VRCNT/releases/latest">
+    <img alt="VirusTotal status for VRCNT.exe and VRCNT-backend.exe" src="https://github.com/awakenginexe/VRCNT/releases/latest/download/VirusTotal-status.svg" />
+  </a>
 </p>
 
 <p align="center">

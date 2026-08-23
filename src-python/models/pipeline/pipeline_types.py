@@ -111,6 +111,7 @@ class OutputConfigSnapshot:
     send_format: MessageFormatSnapshot
     received_format: MessageFormatSnapshot
     overlay_show_only_received_messages: bool = False
+    send_original_while_translating: bool = False
 
 
 @dataclass(frozen=True)

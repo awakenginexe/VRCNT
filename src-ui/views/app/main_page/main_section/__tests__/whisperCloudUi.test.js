@@ -32,7 +32,7 @@ test("Whisper Cloud is wired through the modern and legacy transcription surface
     assert.match(mainloop, /groq_whisper_auth_key/);
 });
 
-test("quick selector keeps Google and Whisper Cloud together in the first row", async () => {
+test("quick selector includes Bing beside the cloud engines", async () => {
     const optionsUrl = pathToFileURL(
         path.join(
             root,
@@ -50,7 +50,7 @@ test("quick selector keeps Google and Whisper Cloud together in the first row", 
     const { QUICK_TRANSCRIPTION_ENGINE_OPTIONS } = await import(optionsUrl);
 
     assert.deepEqual(
-        QUICK_TRANSCRIPTION_ENGINE_OPTIONS.slice(0, 4).map(({ id }) => id),
-        ["Google", "Whisper Cloud", "Whisper", "Whisper Thai"],
+        QUICK_TRANSCRIPTION_ENGINE_OPTIONS.slice(0, 5).map(({ id }) => id),
+        ["Google", "Bing", "Whisper Cloud", "Whisper", "Whisper Thai"],
     );
 });

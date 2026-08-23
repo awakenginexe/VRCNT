@@ -54,6 +54,8 @@ export const STATIC_ROUTE_META_LIST = [
     // Message Transcription
     { endpoint: "/run/transcription_send_mic_message", ns: common, hook_name: "useMessage", method_name: "addSentMessageLog" },
     { endpoint: "/run/transcription_receive_speaker_message", ns: common, hook_name: "useMessage", method_name: "addReceivedMessageLog" },
+    { endpoint: "/run/transcription_send_mic_interim", ns: common, hook_name: "useMessage", method_name: "updateBingInterim" },
+    { endpoint: "/run/transcription_receive_speaker_interim", ns: common, hook_name: "useMessage", method_name: "updateBingInterim" },
     { endpoint: "/run/transcription_translation_update", ns: common, hook_name: "useMessage", method_name: "updateTranscriptionTranslation" },
 
     // System Messages
@@ -205,6 +207,28 @@ export const useReceiveRoutes = () => {
                     ?.clearPendingMainFunctionStatuses?.();
             }
         };
+        const refreshRejectedBingSelection = () => {
+            if (result?.error_code !== "TRANSCRIPTION_LANGUAGE_UNSUPPORTED") return;
+            const transcription = hook_results.useTranscription;
+            if (endpoint === "/set/data/selected_transcription_engine") {
+                transcription?.getSelectedTranscriptionEngine?.();
+                transcription?.getTranscriptionProfileSend?.();
+                transcription?.getTranscriptionProfileReceive?.();
+            } else if (endpoint === "/set/data/selected_transcription_engine_send") {
+                transcription?.getSelectedTranscriptionEngineSend?.();
+                transcription?.getTranscriptionProfileSend?.();
+            } else if (endpoint === "/set/data/selected_transcription_engine_receive") {
+                transcription?.getSelectedTranscriptionEngineReceive?.();
+                transcription?.getTranscriptionProfileReceive?.();
+            } else if (endpoint === "/set/data/transcription_profile_send") {
+                transcription?.getTranscriptionProfileSend?.();
+            } else if (endpoint === "/set/data/transcription_profile_receive") {
+                transcription?.getTranscriptionProfileReceive?.();
+            } else if (endpoint === "/set/data/transcription_profile_all") {
+                transcription?.getTranscriptionProfileSend?.();
+                transcription?.getTranscriptionProfileReceive?.();
+            }
+        };
 
         if (endpoint === "/run/initialization_complete") {
             Object.entries(result).forEach(([ep, value]) => {
@@ -231,6 +255,7 @@ export const useReceiveRoutes = () => {
                 settleTranslationEngineSelection();
                 settleCTranslate2AutoFallback();
                 settleLiveSession();
+                refreshRejectedBingSelection();
                 hook_results.useMainFunction?.clearPendingMainFunctionError?.({
                     endpoint,
                     errorCode: result?.error_code,

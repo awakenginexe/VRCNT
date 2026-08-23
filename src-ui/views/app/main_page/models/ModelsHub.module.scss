@@ -19,7 +19,6 @@
 }
 
 .hero,
-.recommendation,
 .preset_card,
 .advanced_models {
     border: 0.1rem solid rgba(255, 255, 255, 0.14);
@@ -160,7 +159,6 @@
 }
 
 .hero h1,
-.recommendation h2,
 .preset_card h2 {
     margin: 0;
     color: var(--dark_100_color);
@@ -173,7 +171,6 @@
 }
 
 .hero p:not(.eyebrow),
-.recommendation p:not(.eyebrow),
 .card_header p,
 .advanced_models > p {
     max-width: 52rem;
@@ -185,7 +182,6 @@
 }
 
 .back_button,
-.recommendation_button,
 .preset_button,
 .model_row button {
     min-height: 2.75rem;
@@ -197,35 +193,6 @@
     font: inherit;
     font-size: 0.88rem;
     font-weight: 800;
-}
-
-.recommendation {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1.5rem;
-    margin-top: 1.15rem;
-    border-color: rgba(var(--accent_color_rgb), 0.4);
-    padding: clamp(1.25rem, 2vw, 1.65rem);
-    background:
-        linear-gradient(125deg, rgba(var(--accent_color_rgb), 0.18), rgba(12, 10, 21, 0.82) 58%);
-}
-
-.recommendation h2 {
-    margin-top: 0.3rem;
-    font-size: 1.25rem;
-}
-
-.recommendation_reason {
-    color: var(--dark_250_color) !important;
-    font-size: 0.82rem !important;
-}
-
-.recommendation_button {
-    flex: 0 0 auto;
-    color: var(--dark_900_color);
-    border-color: transparent;
-    background: var(--accent_color);
 }
 
 .preset_grid {
@@ -459,7 +426,6 @@
 }
 
 .back_button:hover:not(:disabled),
-.recommendation_button:hover:not(:disabled),
 .preset_button:hover:not(:disabled),
 .model_row button:hover:not(:disabled),
 .download_cancel_button:hover:not(:disabled) {
@@ -467,7 +433,6 @@
 }
 
 .back_button:focus-visible,
-.recommendation_button:focus-visible,
 .preset_button:focus-visible,
 .model_row button:focus-visible,
 .download_cancel_button:focus-visible,
@@ -488,7 +453,6 @@ button:disabled {
 }
 
 @media (max-width: 51rem) {
-    .recommendation,
     .hero {
         flex-direction: column;
     }
@@ -517,7 +481,6 @@ button:disabled {
     }
 
     .hero,
-    .recommendation,
     .preset_card,
     .advanced_models {
         border-radius: 0.85rem;

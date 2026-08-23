@@ -10,6 +10,7 @@ import {
     createMessageLogEntry,
     mergeTranslationUpdateByTrace,
 } from "./messageLogUtils.js";
+import { updateBingInterimMessageLogs } from "./bingInterimMessage.js";
 
 const COOLDOWN = 2000; // 2 seconds
 
@@ -79,6 +80,12 @@ export const useMessage = () => {
         );
     };
 
+    const updateBingInterim = (payload) => {
+        updateMessageLogs((current) =>
+            updateBingInterimMessageLogs(current.data, payload)
+        );
+    };
+
     const retryTranslation = (payload) => {
         asyncStdoutToPython("/run/retry_translation", payload);
     };
@@ -116,6 +123,7 @@ export const useMessage = () => {
         addSentMessageLog,
         addReceivedMessageLog,
         updateTranscriptionTranslation,
+        updateBingInterim,
         retryTranslation,
         handleManualTranslationRetryAdmission,
 

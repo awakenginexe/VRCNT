@@ -95,15 +95,20 @@
 }
 
 .output_button[data-active="false"] {
-    border-color: rgba(248, 113, 113, 0.4);
-    background: rgba(248, 113, 113, 0.1);
-    color: #f87171;
-    box-shadow: 0 0 1rem rgba(248, 113, 113, 0.15);
+    border-color: rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--dark_400_color);
+    box-shadow: inset 0 0.1rem 0 0 rgba(255, 255, 255, 0.05);
 
     &:hover {
-        border-color: rgba(248, 113, 113, 0.65);
-        background: rgba(248, 113, 113, 0.18);
+        border-color: rgba(255, 255, 255, 0.28);
+        background: rgba(255, 255, 255, 0.08);
     }
+}
+
+.output_button[data-pending="true"] {
+    cursor: wait;
+    opacity: 0.72;
 }
 
 .section {

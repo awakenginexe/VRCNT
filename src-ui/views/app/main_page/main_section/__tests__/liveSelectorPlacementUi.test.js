@@ -454,8 +454,17 @@ const cssModulePlugin = {
     enforce: "pre",
     resolveId(source, importer) {
         if (source === "@useI18n" || source === "@utils" || source === "@store"
-            || source === "@logics_configs" || source === "@logics_common" || source === "@logics_main") {
+            || source === "@logics_configs" || source === "@logics_common"
+            || source === "@logics_common/transcriptionEngineMetadata.js"
+            || source === "@logics_common/transcriptionEngineIconSources.js"
+            || source === "@logics_common/bingLanguageSupport.js"
+            || source === "@logics_common/translationProviderMetadata.js"
+            || source === "@logics_common/translationProviderIconSources.js"
+            || source === "@logics_main") {
             return `${stubPrefix}${source}`;
+        }
+        if (importer && source.endsWith(".svg")) {
+            return `${stubPrefix}asset:${path.resolve(path.dirname(importer), source)}`;
         }
         if (!importer || !source.endsWith(".module.scss")) return undefined;
         const resolvedPath = path.resolve(path.dirname(importer), source);
@@ -464,6 +473,9 @@ const cssModulePlugin = {
     load(id) {
         if (id.startsWith(cssModulePrefix)) {
             return `const styles = new Proxy({}, { get: (_, name) => String(name) }); export default styles;`;
+        }
+        if (id.startsWith(`${stubPrefix}asset:`)) {
+            return `export default 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>';`;
         }
         if (!id.startsWith(stubPrefix)) return undefined;
         const source = id.slice(stubPrefix.length);
@@ -515,7 +527,17 @@ const cssModulePlugin = {
                 });
                 export const useTranslation = () => ({ currentGroqAuthKey: { data: "configured" } });`,
             "@logics_common": `const state = () => globalThis.__livePlacementStore;
-                export const useIsOpenedConfigPage = () => ({ setIsOpenedConfigPage: (value) => state().configPage.push(value) });`,
+                export const useIsOpenedConfigPage = () => ({ setIsOpenedConfigPage: (value) => state().configPage.push(value) });
+                export const useNotificationStatus = () => ({ showNotification_Warning: () => {} });`,
+            "@logics_common/transcriptionEngineMetadata.js": `export const getTranscriptionEngineMetadata = (engine) => ({
+                type: ["Google", "Whisper Cloud"].includes(engine) ? "cloud" : "local",
+                icon: engine === "Google" ? "google" : engine === "Whisper Cloud" ? "groq" : "local",
+            });`,
+            "@logics_common/transcriptionEngineIconSources.js": `export const getTranscriptionEngineIconSource = () => "data:image/svg+xml,<svg/>";`,
+            "@logics_common/bingLanguageSupport.js": `export const getUnsupportedBingLanguageSlots = () => [];
+                export const formatBingUnsupportedLanguages = () => "";`,
+            "@logics_common/translationProviderMetadata.js": `export const getTranslationProviderIcon = () => "local";`,
+            "@logics_common/translationProviderIconSources.js": `export const getTranslationProviderIconSource = () => "data:image/svg+xml,<svg/>";`,
             "@logics_main": `const state = () => globalThis.__livePlacementStore;
                 export const useLanguageSettings = () => ({
                     currentSelectedPresetTabNumber: { data: 0 },
@@ -523,11 +545,14 @@ const cssModulePlugin = {
                         { id: "Google", label: "Google", is_available: true, is_default: true },
                         { id: "CTranslate2", label: "CTranslate2", is_available: true, is_default: false },
                     ] },
-                    currentSelectedTranslationEngines: { data: [["Google"]] },
+            currentSelectedTranslationEngines: { data: state().selectedTranslations ?? [["Google"]] },
                     setSelectedTranslationEngines: (value) => state().translationSelections.push(value),
                     currentCTranslate2AutoFallback: { data: false, state: "ok" },
                     getCTranslate2AutoFallback: () => state().fallbackReads.push(true),
                     setCTranslate2AutoFallback: (value) => state().fallbackWrites.push(value),
+                    currentSelectableLanguageList: { data: [] },
+                    getCurrentYourLanguages: () => [],
+                    getCurrentTargetLanguages: () => [],
                 });`,
         };
         return modules[source];
@@ -585,6 +610,7 @@ const resetStore = () => {
         translatorClose: [],
         engineSelections: [],
         translationSelections: [],
+        selectedTranslations: [["Google"]],
         configTabs: [],
         configPage: [],
         fallbackReads: [],
@@ -809,6 +835,31 @@ test("runtime parent components pass the matching live anchor refs and keep sett
     }
 });
 
+test("translator summary renders an icon for every selected translator", async () => {
+    resetStore();
+    globalThis.__livePlacementStore.selectedTranslations = [["Google", "CTranslate2"]];
+    const rendered = await renderComponent(TranslatorSelectorOpenButton, {
+        variant: "settings",
+    });
+    try {
+        assert.equal(rendered.container.querySelectorAll("img").length, 2);
+    } finally {
+        await unmountSelector(rendered);
+    }
+});
+
+test("Speaking and Listening labels render the selected transcription engine icon", async () => {
+    resetStore();
+    const rendered = await renderComponent(TranscriptionEngineLabel, {
+        variant: "live_compact",
+    });
+    try {
+        assert.equal(rendered.container.querySelectorAll("img").length, 2);
+    } finally {
+        await unmountSelector(rendered);
+    }
+});
+
 test("real live engine selector portals to body, clamps on the right, and keeps selection close callbacks", async () => {
     resetStore();
     const rendered = await renderSelector(TranscriptionEngineSelector, engineProps, {
@@ -827,7 +878,8 @@ test("real live engine selector portals to body, clamps on the right, and keeps 
         assert.equal(panel.getAttribute("data-horizontal-placement"), "right");
         assert.equal(numberStyle(panel, "left"), 192);
         assert.ok(numberStyle(panel, "maxHeight") > 0);
-        assert.equal(panel.querySelectorAll("button").length, 7);
+        assert.equal(panel.querySelectorAll("button").length, 8);
+                assert.ok(buttonWithText(panel, "Bing"));
 
         const cloudOption = buttonWithText(panel, "Whisper");
         assert.ok(cloudOption, "the live engine option must remain a real button");

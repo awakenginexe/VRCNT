@@ -8,7 +8,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "../../../../../../");
 const read = (...segments) => readFile(path.join(root, ...segments), "utf8");
 
-test("Whisper Thai reuses normal Whisper hardware controls without recommendations", async () => {
+test("Whisper Thai reuses normal Whisper hardware controls with dedicated recommendations", async () => {
     const utilsUrl = pathToFileURL(
         path.join(root, "src-ui", "views", "app", "main_page", "engines", "transcriptionProfileUi.js"),
     ).href;
@@ -24,9 +24,16 @@ test("Whisper Thai reuses normal Whisper hardware controls without recommendatio
     const engineUtilsUrl = pathToFileURL(
         path.join(root, "src-ui", "views", "app", "main_page", "engines", "engineModelUtils.js"),
     ).href;
-    const { TRANSCRIPTION_ENGINE_OPTIONS, WHISPER_PRESETS } = await import(engineUtilsUrl);
+    const { TRANSCRIPTION_ENGINE_OPTIONS, WHISPER_THAI_PRESETS } = await import(engineUtilsUrl);
     assert.ok(TRANSCRIPTION_ENGINE_OPTIONS.includes("Whisper Thai"));
-    assert.equal(WHISPER_PRESETS.some((preset) => preset.candidates.includes("thai-thonburian-small")), false);
+    assert.deepEqual(
+        WHISPER_THAI_PRESETS.map(({ id, candidates }) => [id, candidates[0]]),
+        [
+            ["fast", "thai-thonburian-small"],
+            ["balanced", "thai-thonburian-large-v3-int8"],
+            ["best_accuracy", "thai-mort666-large-v3-fp16"],
+        ],
+    );
 });
 
 test("quick engine tiles keep all engines and clarify Whisper Thai", async () => {

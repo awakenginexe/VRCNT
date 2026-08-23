@@ -917,6 +917,15 @@ export const SETTINGS_ARRAY = [
     },
     {
         Category: "Others",
+        Base_Name: "EnableSendOriginalWhileTranslating",
+        default_value: false,
+        ui_template_id: "toggle",
+        logics_template_id: "toggle_enable_disable",
+        optimistic_toggle: true,
+        base_endpoint_name: "send_original_while_translating",
+    },
+    {
+        Category: "Others",
         Base_Name: "EnableAutoExportMessageLogs",
         default_value: false,
         ui_template_id: "toggle",

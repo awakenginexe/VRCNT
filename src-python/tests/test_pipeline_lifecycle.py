@@ -187,6 +187,34 @@ class PipelineLifecycleTests(unittest.TestCase):
             "_SPEAKER_RECORD_TIMEOUT": 3,
             "_SPEAKER_PHRASE_TIMEOUT": 3,
             "_VRC_MIC_MUTE_SYNC": False,
+            "_TRANSCRIPTION_PROFILE_SEND": {
+                "engine": "Google",
+                "models": {
+                    "Whisper": "",
+                    "Whisper Thai": "",
+                    "Whisper Cloud": "",
+                    "Vosk": "",
+                    "Parakeet": "",
+                    "SenseVoice": "",
+                },
+                "device": {"device": "cpu", "device_index": 0},
+                "compute_type": "auto",
+                "whisper_decoding_profile": "balanced",
+            },
+            "_TRANSCRIPTION_PROFILE_RECEIVE": {
+                "engine": "Google",
+                "models": {
+                    "Whisper": "",
+                    "Whisper Thai": "",
+                    "Whisper Cloud": "",
+                    "Vosk": "",
+                    "Parakeet": "",
+                    "SenseVoice": "",
+                },
+                "device": {"device": "cpu", "device_index": 0},
+                "compute_type": "auto",
+                "whisper_decoding_profile": "balanced",
+            },
         }
         with (
             patch.multiple(model_module.config, **config_values),

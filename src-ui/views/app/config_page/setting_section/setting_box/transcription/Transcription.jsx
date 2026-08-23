@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useState } from "react";
 import { useI18n } from "@useI18n";
+import { useLanguageSettings } from "@logics_main";
+import { useNotificationStatus } from "@logics_common";
 import styles from "./Transcription.module.scss";
 import { genNumObjArray } from "@utils";
 
@@ -35,6 +37,7 @@ import {
 } from "../../../../main_page/engines/transcriptionProfileUi.js";
 import { LegacyApplyToBothConfirmation } from "./LegacyApplyToBothConfirmation";
 import { groq_auth_key_url } from "@ui_configs";
+import { getUnsupportedBingLanguageSlots } from "@logics_common/bingLanguageSupport.js";
 
 const LegacyApplyToBothContext = createContext(null);
 
@@ -275,18 +278,61 @@ const TranscriptionEngine_Box = () => {
         setSelectedTranscriptionEngine,
         currentTranscriptionProfileSend,
     } = useTranscription();
+    const {
+        currentSelectableLanguageList,
+        getCurrentYourLanguages,
+        getCurrentTargetLanguages,
+    } = useLanguageSettings();
+    const { showNotification_Warning } = useNotificationStatus();
     const applyToBoth = useLegacyApplyToBothGuard();
+
+    const selectEngine = (value) => {
+        if (value === "Bing") {
+            const directions = [
+                { source: t("main_page.transcription_send"), slots: getCurrentYourLanguages() },
+                { source: t("main_page.transcription_receive"), slots: getCurrentTargetLanguages() },
+            ];
+            const unsupported = directions
+                .map((direction) => ({
+                    ...direction,
+                    languages: getUnsupportedBingLanguageSlots({
+                        engine: value,
+                        slots: direction.slots,
+                        languageCatalog: currentSelectableLanguageList.data,
+                    }),
+                }))
+                .filter((direction) => direction.languages.length > 0);
+            if (unsupported.length > 0) {
+                showNotification_Warning(
+                    unsupported.map((direction) => t(
+                        "common_error.transcription_language_unsupported",
+                        {
+                            engine: "Bing",
+                            source: direction.source,
+                            languages: direction.languages
+                                .map(({ language, country }) => `${language} (${country})`)
+                                .join(", "),
+                        },
+                    )).join("\n"),
+                    { category_id: "TRANSCRIPTION_LANGUAGE_UNSUPPORTED", hide_duration: 10000 },
+                );
+                return;
+            }
+        }
+        applyToBoth(setSelectedTranscriptionEngine, value);
+    };
 
     return (
         <RadioButtonContainer
             label={t("config_page.transcription.select_transcription_engine.label")}
-            selectFunction={(value) => applyToBoth(setSelectedTranscriptionEngine, value)}
+            selectFunction={selectEngine}
             name="select_transcription_engine"
             options={[
                 { id: "Google", label: "Google (Cloud, 0 GB VRAM)" },
+                { id: "Bing", label: "Bing (Cloud, 0 GB VRAM)" },
                 { id: "Whisper", label: "Whisper / faster-whisper (CPU or GPU)" },
                 { id: "Whisper Thai", label: "Whisper Thai (Thai-only, CPU or GPU)" },
-                { id: "Whisper Cloud", label: "Whisper (Cloud, 0 GB VRAM)" },
+                { id: "Whisper Cloud", label: "Whisper Cloud (Cloud, 0 GB VRAM)" },
                 { id: "Parakeet", label: "NVIDIA Parakeet TDT v3 (GPU, ~3 GB VRAM)" },
                 { id: "Vosk", label: "Vosk (CPU, 0 GB VRAM)" },
                 { id: "SenseVoice", label: "SenseVoice-Small (CPU, zh/en/ja/ko/yue)" },

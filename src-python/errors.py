@@ -42,6 +42,7 @@ class ErrorCode(str, Enum):
     TRANSCRIPTION_RECEIVE_DISABLED_VRAM = "TRANSCRIPTION_RECEIVE_DISABLED_VRAM"
     TRANSCRIPTION_START_FAILED = "TRANSCRIPTION_START_FAILED"
     TRANSCRIPTION_MODEL_NOT_READY = "TRANSCRIPTION_MODEL_NOT_READY"
+    TRANSCRIPTION_LANGUAGE_UNSUPPORTED = "TRANSCRIPTION_LANGUAGE_UNSUPPORTED"
     
     # ============================================================================
     # ウェイトダウンロード関連エラー (WEIGHT_*)
@@ -258,6 +259,12 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
     ErrorCode.TRANSCRIPTION_MODEL_NOT_READY: {
         "category": ErrorCategory.TRANSCRIPTION,
         "message": "Selected transcription model is not ready",
+        "severity": "warning",
+        "user_action_required": True,
+    },
+    ErrorCode.TRANSCRIPTION_LANGUAGE_UNSUPPORTED: {
+        "category": ErrorCategory.TRANSCRIPTION,
+        "message": "The selected transcription language is not supported by this engine",
         "severity": "warning",
         "user_action_required": True,
     },

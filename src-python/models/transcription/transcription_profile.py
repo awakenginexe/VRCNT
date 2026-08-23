@@ -6,6 +6,7 @@ from typing import Any, Iterable, Mapping
 
 TRANSCRIPTION_ENGINES = (
     "Google",
+    "Bing",
     "Whisper",
     "Whisper Thai",
     "Whisper Cloud",
@@ -247,7 +248,7 @@ def normalize_transcription_profile(
 def effective_transcription_profile(profile: Mapping[str, Any]) -> tuple:
     engine = str(profile.get("engine", "Google"))
     models = profile.get("models", {}) if isinstance(profile.get("models"), Mapping) else {}
-    if engine == "Google":
+    if engine in {"Google", "Bing"}:
         return (engine,)
     if engine in {"Vosk", "SenseVoice"}:
         return (engine, str(models.get(engine, "")))

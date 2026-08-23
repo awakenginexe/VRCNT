@@ -129,6 +129,10 @@ class AudioTranscriber:
         compute_type: str = "auto",
         pipeline_context: Optional[TranscriberPipelineContext] = None,
     ) -> None:
+        if transcription_engine == "Bing":
+            raise ValueError(
+                "Bing uses BingStreamingSession instead of the phrase queue"
+            )
         self.speaker = speaker
         self.phrase_timeout = phrase_timeout
         self.max_phrases = max_phrases

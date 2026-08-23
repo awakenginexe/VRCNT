@@ -2,7 +2,15 @@ import { useMemo, useState } from "react";
 import { useI18n } from "@useI18n";
 import { useLanguageSettings } from "@logics_main";
 import { useTranscription, useTranslation } from "@logics_configs";
-import { getTranslationModelStatus } from "@logics_common";
+import { getTranslationModelStatus, useNotificationStatus } from "@logics_common";
+import { getTranslationProviderIcon } from "@logics_common/translationProviderMetadata.js";
+import { getTranslationProviderIconSource } from "@logics_common/translationProviderIconSources.js";
+import { getTranscriptionEngineMetadata } from "@logics_common/transcriptionEngineMetadata.js";
+import { getTranscriptionEngineIconSource } from "@logics_common/transcriptionEngineIconSources.js";
+import {
+    formatBingUnsupportedLanguages,
+    getUnsupportedBingLanguageSlots,
+} from "@logics_common/bingLanguageSupport.js";
 import { getPresetTranslationModels } from "@logics_common/translationModelCatalog.js";
 import { CustomModernSelect } from "@common_components";
 import {
@@ -55,8 +63,16 @@ const selectedProviderValue = (selection) => {
 };
 
 const mergeCurrentOption = (options, value) => {
-    if (!value || options.some((option) => option.id === value)) return options;
-    return [{ id: value, title: value }, ...options];
+    const withIcons = options.map((option) => ({
+        ...option,
+        icon: getTranslationProviderIconSource(getTranslationProviderIcon(option.id)),
+    }));
+    if (!value || withIcons.some((option) => option.id === value)) return withIcons;
+    return [{
+        id: value,
+        title: value,
+        icon: getTranslationProviderIconSource(getTranslationProviderIcon(value)),
+    }, ...withIcons];
 };
 
 const AdvancedSetupDetails = ({
@@ -277,6 +293,9 @@ export const TranscriptionTranslationStep = () => {
         currentCTranslate2AutoFallback,
         setSelectedTranslationEngines,
         setCTranslate2AutoFallback,
+        currentSelectableLanguageList,
+        getCurrentYourLanguages,
+        getCurrentTargetLanguages,
     } = useLanguageSettings();
     const {
         currentSelectableTranscriptionEngineList,
@@ -300,6 +319,7 @@ export const TranscriptionTranslationStep = () => {
         setSelectedCTranslate2WeightType,
         currentGroqAuthKey,
     } = useTranslation();
+    const { showNotification_Warning } = useNotificationStatus();
 
     const presetKey = currentSelectedPresetTabNumber.data ?? "1";
     const currentProvider = selectedProviderValue(
@@ -307,7 +327,11 @@ export const TranscriptionTranslationStep = () => {
     );
     const translationSelection = currentSelectedTranslationEngines.data?.[presetKey] ?? "";
     const engineOptions = useMemo(() => (
-        getSetupEngineOptions(currentSelectableTranscriptionEngineList.data)
+        getSetupEngineOptions(currentSelectableTranscriptionEngineList.data).map((option) => ({
+            ...option,
+            title: getTranscriptionEngineMetadata(option.id).displayName || option.title,
+            icon: getTranscriptionEngineIconSource(getTranscriptionEngineMetadata(option.id).icon),
+        }))
     ), [currentSelectableTranscriptionEngineList.data]);
     const providerOptions = useMemo(() => (
         mergeCurrentOption(
@@ -368,6 +392,50 @@ export const TranscriptionTranslationStep = () => {
         SenseVoice: currentSenseVoiceWeightTypeStatus.data ?? [],
     };
 
+    const selectTranscriptionEngine = (engine) => {
+        if (engine === "Bing") {
+            const directions = [
+                { source: t("main_page.transcription_send"), slots: getCurrentYourLanguages() },
+                { source: t("main_page.transcription_receive"), slots: getCurrentTargetLanguages() },
+            ];
+            const blocked = directions
+                .map((direction) => ({
+                    ...direction,
+                    unsupported: getUnsupportedBingLanguageSlots({
+                        engine,
+                        slots: direction.slots,
+                        languageCatalog: currentSelectableLanguageList.data,
+                    }),
+                }))
+                .filter((direction) => direction.unsupported.length > 0);
+            if (blocked.length > 0) {
+                showNotification_Warning(
+                    blocked.map((direction) => t(
+                        "common_error.transcription_language_unsupported",
+                        {
+                            engine: "Bing",
+                            source: direction.source,
+                            languages: formatBingUnsupportedLanguages(direction.unsupported),
+                        },
+                    )).join("\n"),
+                    { category_id: "TRANSCRIPTION_LANGUAGE_UNSUPPORTED", hide_duration: 10000 },
+                );
+                return;
+            }
+        }
+
+        const applied = applyDefaultTranscriptionEngine(
+            engine,
+            setTranscriptionProfileSend,
+            setTranscriptionProfileReceive,
+            {
+                cloudConfigured,
+                onAuthRequired: () => setDefaultAuthRequired(true),
+            },
+        );
+        if (applied) setDefaultAuthRequired(false);
+    };
+
     const selectOfflinePreset = (presetId) => {
         const option = offlineOptions.find((item) => item.id === presetId);
         if (!option?.modelId) return;
@@ -420,18 +488,7 @@ export const TranscriptionTranslationStep = () => {
                         options={engineOptions.length > 0 ? engineOptions : [{ id: "", title: emptyLabel }]}
                         disabled={currentTranscriptionProfileSend.state === "pending" || engineOptions.length === 0}
                         placeholder={emptyLabel}
-                        onChange={(engine) => {
-                            const applied = applyDefaultTranscriptionEngine(
-                                engine,
-                                setTranscriptionProfileSend,
-                                setTranscriptionProfileReceive,
-                                {
-                                    cloudConfigured,
-                                    onAuthRequired: () => setDefaultAuthRequired(true),
-                                },
-                            );
-                            if (applied) setDefaultAuthRequired(false);
-                        }}
+                        onChange={selectTranscriptionEngine}
                     />
                     {defaultAuthRequired && (
                         <p className={styles.notice} role="status">

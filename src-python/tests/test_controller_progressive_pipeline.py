@@ -301,6 +301,38 @@ class ControllerProgressivePipelineTests(unittest.TestCase):
 
         self.assertFalse(controller.micMessage({"text": "", "language": "English"}))
 
+    def test_bing_interim_result_is_routed_without_entering_final_pipeline(self):
+        calls = []
+        controller = controller_module.Controller()
+        controller.run_mapping = {
+            "transcription_mic_interim": "/run/transcription_send_mic_interim",
+        }
+        controller.run = lambda *arguments: calls.append(arguments)
+
+        accepted = controller.micMessage({
+            "text": "สวัส",
+            "language": "Thai",
+            "interim": True,
+            "transcription_engine": "Bing",
+        })
+
+        self.assertTrue(accepted)
+        self.assertEqual(
+            calls,
+            [
+                (
+                    200,
+                    "/run/transcription_send_mic_interim",
+                    {
+                        "source": "mic",
+                        "language": "Thai",
+                        "text": "สวัส",
+                        "clear": False,
+                    },
+                )
+            ],
+        )
+
     def test_speaker_initial_event_uses_one_preferred_target_and_complete_snapshot(self):
         events = []
         controller = controller_module.Controller()

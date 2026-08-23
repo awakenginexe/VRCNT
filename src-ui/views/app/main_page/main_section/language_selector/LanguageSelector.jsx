@@ -131,9 +131,10 @@ const getLanguageCode = ({ language, country }, engine) => {
 
 const buildSupportGuard = ({ selectorType, targetKey, engine, voskWeightType, parakeetWeightType, sensevoiceWeightType }) => {
     const isThaiOnly = engine === "Whisper Thai";
-    const isEngineLimited = engine === "Vosk" || engine === "Parakeet" || engine === "SenseVoice";
+    const isBing = engine === "Bing";
+    const isEngineLimited = isBing || engine === "Vosk" || engine === "Parakeet" || engine === "SenseVoice";
     const isPausedSingleEngineSlot = (
-        (engine === "Vosk" || engine === "Parakeet")
+        (isBing || engine === "Vosk")
         && targetKey !== "1"
     );
     const shouldRestrict = (isThaiOnly || isEngineLimited) && !isPausedSingleEngineSlot && (
@@ -156,6 +157,7 @@ const buildSupportGuard = ({ selectorType, targetKey, engine, voskWeightType, pa
         isActive: true,
         engine,
         isSupported: (languageData) => {
+            if (isBing) return languageData?.bing_supported === true;
             const languageCode = getLanguageCode(languageData, engine);
             return languageCode !== "" && supportedCodes.has(languageCode);
         },

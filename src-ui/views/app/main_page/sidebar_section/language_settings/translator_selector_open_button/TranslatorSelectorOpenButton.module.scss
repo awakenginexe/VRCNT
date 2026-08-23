@@ -48,6 +48,20 @@
     }
 }
 
+.selected_icons {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    flex: 0 0 auto;
+}
+
+.selected_icon {
+    width: 1.6rem;
+    height: 1.6rem;
+    flex: 0 0 auto;
+    object-fit: contain;
+}
+
 .warning_svg {
     margin-left: 0.2rem;
     padding-bottom: 0.2rem;

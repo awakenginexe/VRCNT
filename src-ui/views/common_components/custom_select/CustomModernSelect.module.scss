@@ -79,6 +79,16 @@
     border-radius: 4px;
 }
 
+.trigger_icon,
+.option_icon {
+    width: 1.55rem;
+    height: 1.55rem;
+    flex: 0 0 auto;
+    object-fit: contain;
+    margin-right: 0.55rem;
+    filter: drop-shadow(0 0.08rem 0.18rem rgba(0, 0, 0, 0.2));
+}
+
 .option_flag {
     width: 2.5rem !important;
     height: 1.8rem !important;

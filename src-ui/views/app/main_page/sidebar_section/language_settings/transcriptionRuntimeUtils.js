@@ -14,6 +14,7 @@ const DEFAULT_COMPUTE_TYPE_ORDER = [
 
 const ENGINE_DEVICE_RULES = {
     "Google": ["cpu"],
+    "Bing": ["cpu"],
     "Whisper": ["cpu", "cuda"],
     "Whisper Thai": ["cpu", "cuda"],
     "Whisper Cloud": ["cpu"],
@@ -22,7 +23,7 @@ const ENGINE_DEVICE_RULES = {
     "SenseVoice": ["cpu"],
 };
 
-const AUTO_ONLY_ENGINES = new Set(["Google", "Whisper Cloud", "Parakeet", "Vosk", "SenseVoice"]);
+const AUTO_ONLY_ENGINES = new Set(["Google", "Bing", "Whisper Cloud", "Parakeet", "Vosk", "SenseVoice"]);
 
 const LOCAL_TRANSCRIPTION_ENGINES = new Set([
     "Whisper",
@@ -55,7 +56,7 @@ export const getTranscriptionModelReadiness = ({
     const model = getActiveModel(profile);
 
     if (!engine || !profile) return loadingReadiness(engine, model);
-    if (engine === "Google") return readyReadiness(engine, model);
+    if (engine === "Google" || engine === "Bing") return readyReadiness(engine, model);
     if (engine === "Whisper Cloud") {
         if (cloudConfigured === undefined) return loadingReadiness(engine, model);
         return cloudConfigured === true

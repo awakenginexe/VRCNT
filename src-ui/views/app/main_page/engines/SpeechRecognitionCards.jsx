@@ -5,12 +5,14 @@ import { useTranscription, useTranslation } from "@logics_configs";
 import {
     useIsBackendReady,
     useIsOpenedConfigPage,
+    useNotificationStatus,
 } from "@logics_common";
 import {
     useStore_ExperienceRoute,
     useStore_SelectedConfigTabId,
 } from "@store";
 import { WHISPER_CLOUD_MODELS } from "./engineModelUtils.js";
+import { getUnsupportedBingLanguageSlots } from "@logics_common/bingLanguageSupport.js";
 import { SourceRuntimeCard } from "./EnginesWorkspace.jsx";
 import styles from "./EnginesWorkspace.module.scss";
 
@@ -39,8 +41,26 @@ export const SpeechRecognitionCards = () => {
         currentSenseVoiceWeightTypeStatus,
         currentUseSplitGroqApiKey,
         currentGroqWhisperAuthKey,
+        currentMicRecordTimeout,
+        setMicRecordTimeout,
+        currentMicPhraseTimeout,
+        setMicPhraseTimeout,
+        currentMicMaxWords,
+        setMicMaxWords,
+        currentSpeakerRecordTimeout,
+        setSpeakerRecordTimeout,
+        currentSpeakerPhraseTimeout,
+        setSpeakerPhraseTimeout,
+        currentSpeakerMaxWords,
+        setSpeakerMaxWords,
     } = useTranscription();
     const { currentGroqAuthKey } = useTranslation();
+    const {
+        currentSelectableLanguageList,
+        getCurrentYourLanguages,
+        getCurrentTargetLanguages,
+    } = useLanguageSettings();
+    const { showNotification_Warning } = useNotificationStatus();
     const { currentIsBackendReady } = useIsBackendReady();
     const isBackendReady = currentIsBackendReady?.data === true;
     const hasHydratedRef = useRef(false);
@@ -125,6 +145,82 @@ export const SpeechRecognitionCards = () => {
         }
         setter(patch);
     };
+    const timeoutOptions = useMemo(
+        () => Array.from({ length: 31 }, (_, id) => ({ id, title: String(id) })),
+        [],
+    );
+    const micMaxWordsOptions = useMemo(
+        () => Array.from({ length: 31 }, (_, id) => ({ id, title: String(id) })),
+        [],
+    );
+    const speakerMaxWordsOptions = useMemo(
+        () => Array.from({ length: 61 }, (_, id) => ({ id, title: String(id) })),
+        [],
+    );
+    const guardBingProfileChange = (patch, slots, sourceLabel) => {
+        if (patch?.engine !== "Bing") return true;
+        const unsupported = getUnsupportedBingLanguageSlots({
+            engine: "Bing",
+            slots,
+            languageCatalog: currentSelectableLanguageList.data,
+        });
+        if (unsupported.length === 0) return true;
+        showNotification_Warning(
+            t("common_error.transcription_language_unsupported", {
+                engine: "Bing",
+                source: sourceLabel,
+                languages: unsupported.map(({ language, country }) => `${language} (${country})`).join(", "),
+            }),
+            { category_id: "TRANSCRIPTION_LANGUAGE_UNSUPPORTED", hide_duration: 10000 },
+        );
+        return false;
+    };
+    const outgoingRuntimeSettings = [
+        {
+            id: "mic-record-timeout",
+            label: t("config_page.transcription.mic_record_timeout.label"),
+            value: currentMicRecordTimeout.data,
+            options: timeoutOptions,
+            onChange: setMicRecordTimeout,
+        },
+        {
+            id: "mic-phrase-timeout",
+            label: t("config_page.transcription.mic_phrase_timeout.label"),
+            value: currentMicPhraseTimeout.data,
+            options: timeoutOptions,
+            onChange: setMicPhraseTimeout,
+        },
+        {
+            id: "mic-max-words",
+            label: t("config_page.transcription.mic_max_phrase.label"),
+            value: currentMicMaxWords.data,
+            options: micMaxWordsOptions,
+            onChange: setMicMaxWords,
+        },
+    ];
+    const incomingRuntimeSettings = [
+        {
+            id: "speaker-record-timeout",
+            label: t("config_page.transcription.speaker_record_timeout.label"),
+            value: currentSpeakerRecordTimeout.data,
+            options: timeoutOptions,
+            onChange: setSpeakerRecordTimeout,
+        },
+        {
+            id: "speaker-phrase-timeout",
+            label: t("config_page.transcription.speaker_phrase_timeout.label"),
+            value: currentSpeakerPhraseTimeout.data,
+            options: timeoutOptions,
+            onChange: setSpeakerPhraseTimeout,
+        },
+        {
+            id: "speaker-max-words",
+            label: t("config_page.transcription.speaker_max_phrase.label"),
+            value: currentSpeakerMaxWords.data,
+            options: speakerMaxWordsOptions,
+            onChange: setSpeakerMaxWords,
+        },
+    ];
 
     return (
         <section
@@ -145,7 +241,10 @@ export const SpeechRecognitionCards = () => {
                     devices={computeDevices}
                     modelStatuses={modelStatuses}
                     pending={currentTranscriptionProfileSend.state === "pending"}
-                    onProfileChange={handleProfileChange(setTranscriptionProfileSend)}
+                    onProfileChange={(patch) => {
+                        if (!guardBingProfileChange(patch, getCurrentYourLanguages(), t("main_page.transcription_send"))) return;
+                        handleProfileChange(setTranscriptionProfileSend)(patch);
+                    }}
                     onManageModels={() => updateExperienceRoute("models")}
                     flow={t("main_page.engines_workspace.outgoing_flow", {
                         engine: currentTranscriptionProfileSend.data?.engine || emptyLabel,
@@ -155,6 +254,10 @@ export const SpeechRecognitionCards = () => {
                     cloudConfigured={cloudConfigured}
                     onOpenAdvanced={openAdvanced}
                     engineLabelFor={engineLabelFor}
+                    runtimeSettings={outgoingRuntimeSettings}
+                    runtimeNote={currentTranscriptionProfileSend.data?.engine === "Bing"
+                        ? t("main_page.engines_workspace.bing_runtime_note")
+                        : t("main_page.engines_workspace.runtime_settings_note")}
                 />
                 <SourceRuntimeCard
                     accent="teal"
@@ -169,7 +272,10 @@ export const SpeechRecognitionCards = () => {
                     devices={computeDevices}
                     modelStatuses={modelStatuses}
                     pending={currentTranscriptionProfileReceive.state === "pending"}
-                    onProfileChange={handleProfileChange(setTranscriptionProfileReceive)}
+                    onProfileChange={(patch) => {
+                        if (!guardBingProfileChange(patch, getCurrentTargetLanguages(), t("main_page.transcription_receive"))) return;
+                        handleProfileChange(setTranscriptionProfileReceive)(patch);
+                    }}
                     onManageModels={() => updateExperienceRoute("models")}
                     flow={t("main_page.engines_workspace.incoming_flow", {
                         engine: currentTranscriptionProfileReceive.data?.engine || emptyLabel,
@@ -179,6 +285,10 @@ export const SpeechRecognitionCards = () => {
                     cloudConfigured={cloudConfigured}
                     onOpenAdvanced={openAdvanced}
                     engineLabelFor={engineLabelFor}
+                    runtimeSettings={incomingRuntimeSettings}
+                    runtimeNote={currentTranscriptionProfileReceive.data?.engine === "Bing"
+                        ? t("main_page.engines_workspace.bing_runtime_note")
+                        : t("main_page.engines_workspace.runtime_settings_note")}
                 />
             </div>
         </section>

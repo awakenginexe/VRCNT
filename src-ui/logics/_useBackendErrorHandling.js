@@ -193,6 +193,26 @@ export const _useBackendErrorHandling = () => {
                     { category_id: error_code },
                 );
                 return;
+            case "TRANSCRIPTION_LANGUAGE_UNSUPPORTED": {
+                const unsupportedSource = data?.source === "speaker"
+                    ? t("main_page.transcription_receive")
+                    : t("main_page.transcription_send");
+                const unsupportedLanguages = Array.isArray(data?.languages)
+                    ? data.languages
+                        .map((item) => `${item?.language ?? ""} (${item?.country ?? ""})`)
+                        .filter(Boolean)
+                        .join(", ")
+                    : "the selected language";
+                showNotification_Error(
+                    t("common_error.transcription_language_unsupported", {
+                        engine: data?.engine ?? "Bing",
+                        source: unsupportedSource,
+                        languages: unsupportedLanguages,
+                    }),
+                    { category_id: error_code },
+                );
+                return;
+            }
 
             // ============================================================================
             // ウェイトダウンロード関連エラー (WEIGHT_*)

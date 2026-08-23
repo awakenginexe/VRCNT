@@ -237,6 +237,38 @@ test("summary selects the latest source and terminal output duration", () => {
     assert.equal(summary.total_duration_ms, 1_234);
 });
 
+test("direct Bing lifecycle events keep transcription status available while streaming", () => {
+    let state = createEmptyPipelineStatusState();
+    state = mergePipelineStatusEvent(state, makeEvent({
+        trace_id: null,
+        source: "mic",
+        stage: "transcription",
+        target_slot: null,
+        engine: "Bing",
+        outcome: "running",
+        duration_ms: null,
+        observed_at_ms: 1_000,
+    }));
+    state = mergePipelineStatusEvent(state, makeEvent({
+        trace_id: null,
+        source: "mic",
+        stage: "queue",
+        target_slot: null,
+        engine: "Bing",
+        outcome: "success",
+        queue_depth: 0,
+        duration_ms: 0,
+        observed_at_ms: 1_001,
+    }));
+
+    const summary = selectPipelineStatusSummary(state, 1_500);
+    assert.equal(summary.transcription.engine, "Bing");
+    assert.equal(summary.transcription.outcome, "running");
+    assert.equal(summary.queue.engine, "Bing");
+    assert.equal(summary.queue.queue_depth, 0);
+    assert.equal(summary.health, "healthy");
+});
+
 test("the active outcome set is exact and capture liveness never becomes latency", () => {
     assert.deepEqual(
         [...PIPELINE_ACTIVE_OUTCOMES],

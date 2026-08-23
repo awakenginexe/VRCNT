@@ -114,11 +114,11 @@ test("single-language engine capability pauses only recognition work", () => {
     assert.equal(recognitionState(capability, "3", "target"), "outgoing-only");
 });
 
-test("Google capability keeps all slots active", () => {
+test("local multilingual capability keeps all slots active", () => {
     const capability = {
         microphone_max: 3,
         received_max: 3,
-        parallel_candidates: true,
+        parallel_candidates: false,
     };
 
     assert.equal(recognitionState(capability, "3", "speaking"), "active");

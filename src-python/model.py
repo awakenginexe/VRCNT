@@ -2,6 +2,7 @@ import copy
 import gc
 import asyncio
 import json
+import logging
 from collections import deque
 from subprocess import Popen
 from os import makedirs as os_makedirs
@@ -22,7 +23,12 @@ from config import config, normalize_overlay_settings
 from models.translation.translation_translator import Translator
 from models.osc.osc import OSCHandler
 from models.osc.typing_coordinator import TypingCoordinator
-from models.transcription.transcription_recorder import SelectedMicEnergyAndAudioRecorder, SelectedSpeakerEnergyAndAudioRecorder
+from models.transcription.transcription_recorder import (
+    SelectedMicEnergyAndAudioRecorder,
+    SelectedSpeakerEnergyAndAudioRecorder,
+    SelectedMicBingRealtimeRecorder,
+    SelectedSpeakerBingRealtimeRecorder,
+)
 from models.transcription.transcription_recorder import SelectedMicEnergyRecorder, SelectedSpeakerEnergyRecorder
 from models.pipeline.pipeline_types import (
     OutputConfigSnapshot,
@@ -35,6 +41,7 @@ from models.transcription.transcription_transcriber import (
     AudioTranscriber,
     TranscriberPipelineContext,
 )
+from models.transcription.transcription_bing import BingStreamingSession
 from models.transcription.transcription_whisper_cloud import (
     resolve_whisper_cloud_api_key,
 )
@@ -70,6 +77,9 @@ from models.clipboard.clipboard import Clipboard
 from models.telemetry import Telemetry
 from utils import errorLogging, setupLogger, printLog
 from errors import DeviceUnavailableError, ErrorCode
+
+
+logger = logging.getLogger(__name__)
 
 TRANSCRIPT_THREAD_JOIN_TIMEOUT = 2.0
 TRANSCRIPT_STALL_RESTART_SECONDS = 90.0
@@ -253,6 +263,11 @@ class Model:
             "_transcription_pipeline_metric_callback",
             None,
         )
+        mic_voice_activity_callback = getattr(
+            self,
+            "_mic_voice_activity_callback",
+            None,
+        )
         self.logger = None
         self.th_check_device = None
         self.mic_print_transcript = None
@@ -314,6 +329,7 @@ class Model:
         )
         self._transcription_pipeline_metric_callback = metric_callback
         self._transcription_recovery_callback = recovery_callback
+        self._mic_voice_activity_callback = mic_voice_activity_callback
         self.mic_source_pipeline: Optional[SourcePipeline] = None
         self.speaker_source_pipeline: Optional[SourcePipeline] = None
         self._source_pipeline_generations: dict[PipelineSource, int] = {}
@@ -491,6 +507,27 @@ class Model:
             self._transcription_pipeline_metric_callback = None
             return True
 
+    def setMicVoiceActivityCallback(
+        self,
+        callback: Optional[Callable[[bool, float], None]],
+    ) -> None:
+        """Register the non-owning Controller callback for mic activity."""
+        if callback is not None and not callable(callback):
+            raise TypeError("mic voice activity callback must be callable or None")
+        self._ensureTranscriptionLifecycleState()
+        self._mic_voice_activity_callback = callback
+
+    def clearMicVoiceActivityCallback(
+        self,
+        callback: Callable[[bool, float], None],
+    ) -> bool:
+        """Detach a Controller callback without clearing a newer owner."""
+        self._ensureTranscriptionLifecycleState()
+        if self._mic_voice_activity_callback != callback:
+            return False
+        self._mic_voice_activity_callback = None
+        return True
+
     def _ensureTranscriptionLifecycleState(self) -> None:
         """Backfill lifecycle-only state for focused/bare Model instances."""
         if not hasattr(self, "_source_session_lock"):
@@ -513,6 +550,8 @@ class Model:
                 self._source_transcription_sessions = {}
             if not hasattr(self, "_source_heartbeat_timestamps"):
                 self._source_heartbeat_timestamps = {}
+            if not hasattr(self, "_mic_voice_activity_callback"):
+                self._mic_voice_activity_callback = None
         self._ensureTranscriptionMetricState()
 
     def _ensureTypingCoordinator(self) -> TypingCoordinator:
@@ -1135,6 +1174,9 @@ class Model:
                     {
                         "language" : language,
                         "country" : country,
+                        "bing_supported": bool(
+                            transcription_lang[language][country].get("Bing", "")
+                        ),
                     }
                 )
         languages = sorted(languages, key=lambda x: x['language'])
@@ -1462,12 +1504,12 @@ class Model:
     def startReceiveOSC(self):
         self.ensure_initialized()
         def changeHandlerMute(address, osc_arguments):
-            if config.ENABLE_TRANSCRIPTION_SEND is True:
-                if osc_arguments is True and self.mic_mute_status is False:
-                    self.mic_mute_status = osc_arguments
-                    self.changeMicTranscriptStatus()
-                elif osc_arguments is False and self.mic_mute_status is True:
-                    self.mic_mute_status = osc_arguments
+            if isinstance(osc_arguments, bool) and self.mic_mute_status != osc_arguments:
+                self.mic_mute_status = osc_arguments
+                if (
+                    config.ENABLE_TRANSCRIPTION_SEND is True
+                    and config.VRC_MIC_MUTE_SYNC is True
+                ):
                     self.changeMicTranscriptStatus()
 
         dict_filter_and_target = {
@@ -1561,6 +1603,171 @@ class Model:
             result = ["NoDevice"]
         return result
 
+    def _currentBingLanguageSelection(
+        self,
+        source: PipelineSource,
+    ) -> tuple[str, Optional[str]]:
+        selected_map = (
+            config.SELECTED_YOUR_LANGUAGES
+            if source is PipelineSource.MIC
+            else config.SELECTED_TARGET_LANGUAGES
+        )
+        selected = selected_map.get(config.SELECTED_TAB_NO, {})
+        if not selected:
+            selected = selected_map.get(str(config.SELECTED_TAB_NO), {})
+        languages, countries = _runtimeTranscriptionLanguageLists(
+            "Bing",
+            selected,
+            "microphone" if source is PipelineSource.MIC else "received",
+        )
+        if not languages or not countries:
+            return "", None
+        language = languages[0]
+        country = countries[0]
+        locale = transcription_lang.get(language, {}).get(country, {}).get("Bing", "")
+        return str(locale or ""), language
+
+    def _makeBingStreamingSession(
+        self,
+        source: PipelineSource,
+        generation: int,
+        recorder,
+        result_callback: Optional[Callable[[dict], object]],
+    ) -> tuple[BingStreamingSession, Callable[[], None]]:
+        active_language: list[Optional[str]] = [None]
+        phrase_started_at: list[Optional[float]] = [None]
+        initial_locale, initial_language = self._currentBingLanguageSelection(source)
+        active_language[0] = initial_language
+
+        def sync_locale() -> None:
+            locale, language = self._currentBingLanguageSelection(source)
+            active_language[0] = language
+            session.ensure_locale(locale)
+
+        def on_voice_activity(speaking: bool, captured_at: float) -> None:
+            if speaking and phrase_started_at[0] is None:
+                phrase_started_at[0] = captured_at
+            if source is PipelineSource.MIC:
+                self._recordVoiceActivity(
+                    source,
+                    generation,
+                    speaking,
+                    captured_at,
+                )
+
+        def emit_result(text: str, *, interim: bool) -> None:
+            if not text or not self.isSourcePipelineGenerationCurrent(source, generation):
+                return
+            callback_at = monotonic()
+            started_at = phrase_started_at[0] or monotonic()
+            result = {
+                "confidence": 0.0 if interim else 1.0,
+                "text": text,
+                "language": active_language[0],
+                "started_at_monotonic": started_at,
+                "interim": interim,
+                "transcription_engine": "Bing",
+            }
+            if not interim:
+                phrase_started_at[0] = None
+            if interim:
+                self._emitTranscriptionLifecycleMetric(
+                    source,
+                    stage="transcription",
+                    outcome="running",
+                    engine="Bing",
+                )
+            else:
+                self._emitTranscriptionLifecycleMetric(
+                    source,
+                    stage="transcription",
+                    outcome="success",
+                    engine="Bing",
+                    duration_ms=max(
+                        0,
+                        round((callback_at - started_at) * 1000),
+                    ),
+                )
+            self._emitTranscriptionLifecycleMetric(
+                source,
+                stage="queue",
+                outcome="success",
+                engine="Bing",
+                duration_ms=0,
+                queue_depth=0,
+            )
+            logger.debug(
+                "Bing STT result callback source=%s kind=%s monotonic=%.6f",
+                source.value,
+                "hypothesis" if interim else "phrase",
+                callback_at,
+            )
+            if callable(result_callback):
+                result_callback(result)
+
+        def on_error(error_code: str) -> None:
+            if self.isSourcePipelineGenerationCurrent(source, generation):
+                self._emitTranscriptionLifecycleMetric(
+                    source,
+                    stage="transcription",
+                    outcome="error",
+                    engine="Bing",
+                    error_code=str(error_code),
+                )
+
+        def on_timing(stage: str, observed_at: float, details: dict) -> None:
+            capture_to_socket = details.get("capture_to_socket_ms")
+            logger.debug(
+                "Bing STT timing source=%s stage=%s monotonic=%.6f%s",
+                source.value,
+                stage,
+                observed_at,
+                (
+                    f" capture_to_socket_ms={capture_to_socket}"
+                    if capture_to_socket is not None
+                    else ""
+                ),
+            )
+            if stage == "connection_start":
+                # A reconnect can follow a transient socket-close metric. As
+                # soon as the replacement socket is live, publish the direct
+                # streaming state again so diagnostics reflect the session
+                # that is actually carrying audio.
+                self._emitBingDirectStreamingStatus(source)
+
+        session = BingStreamingSession(
+            initial_locale,
+            recorder,
+            on_hypothesis=lambda text: emit_result(text, interim=True),
+            on_phrase=lambda text: emit_result(text, interim=False),
+            on_error=on_error,
+            on_voice_activity=on_voice_activity,
+            on_heartbeat=lambda captured_at: self._recordCaptureHeartbeat(
+                source,
+                generation,
+                captured_at,
+            ),
+            on_timing=on_timing,
+        )
+        return session, sync_locale
+
+    def _emitBingDirectStreamingStatus(self, source: PipelineSource) -> None:
+        """Publish direct-streaming status without inventing a work queue."""
+        self._emitTranscriptionLifecycleMetric(
+            source,
+            stage="transcription",
+            outcome="running",
+            engine="Bing",
+        )
+        self._emitTranscriptionLifecycleMetric(
+            source,
+            stage="queue",
+            outcome="success",
+            engine="Bing",
+            duration_ms=0,
+            queue_depth=0,
+        )
+
     def _recordCaptureHeartbeat(
         self,
         source: PipelineSource,
@@ -1617,6 +1824,12 @@ class Model:
                 bool(speaking),
                 at=captured_at,
             )
+            callback = getattr(self, "_mic_voice_activity_callback", None)
+            if callable(callback):
+                try:
+                    callback(bool(speaking), captured_at)
+                except Exception:
+                    errorLogging()
 
     def _recordAudioDrop(
         self,
@@ -1732,6 +1945,57 @@ class Model:
             old_recorder = session["recorder"]
             recorder_factory = session["recorder_factory"]
             audio_queue = session["audio_queue"]
+            transcriber = session.get("transcriber")
+
+        if isinstance(transcriber, BingStreamingSession):
+            try:
+                new_recorder = recorder_factory()
+                transcriber.replace_recorder(new_recorder)
+            except Exception:
+                with self._source_session_lock:
+                    session = self._source_transcription_sessions.get(source)
+                    if session is not None and session["generation"] == generation:
+                        session["recorder_restarting"] = False
+                self._emitTranscriptionLifecycleMetric(
+                    source,
+                    stage="capture",
+                    outcome="error",
+                    error_code="recorder_restart_failed",
+                )
+                errorLogging()
+                return False
+
+            with self._source_session_lock:
+                session = self._source_transcription_sessions.get(source)
+                if (
+                    session is None
+                    or session["generation"] != generation
+                    or session["stop_event"].is_set()
+                    or not self.isSourcePipelineGenerationCurrent(source, generation)
+                ):
+                    if session is not None and session["generation"] == generation:
+                        session["recorder_restarting"] = False
+                    stale = True
+                else:
+                    stale = False
+                    session["recorder_restarting"] = False
+                    session["recorder"] = new_recorder
+                    session["heartbeat_at"] = monotonic()
+                    self._source_heartbeat_timestamps[source] = session["heartbeat_at"]
+                    if source is PipelineSource.MIC:
+                        self.mic_audio_recorder = new_recorder
+                    else:
+                        self.speaker_audio_recorder = new_recorder
+
+            if stale:
+                self._requestRecorderStop(new_recorder, resume_first=True)
+                return False
+            self._emitTranscriptionLifecycleMetric(
+                source,
+                stage="capture",
+                outcome="recovered",
+            )
+            return True
 
         self._requestRecorderStop(old_recorder, resume_first=True)
         try:
@@ -1856,6 +2120,7 @@ class Model:
                 self.mic_audio_recorder,
                 SelectedMicEnergyAndAudioRecorder,
             )
+            or isinstance(self.mic_audio_recorder, SelectedMicBingRealtimeRecorder)
             or self.mic_whisper_runtime_lease is not None
         ):
             self.stopMicTranscript(stop_pipeline=False)
@@ -1896,10 +2161,16 @@ class Model:
             generation = self.nextSourcePipelineGeneration(PipelineSource.MIC)
         mic_device = self.validateMicTranscriptDevice()
         if mic_device is not None:
-            self.mic_audio_queue = _MetricAudioQueue(
-                PipelineSource.MIC,
-                self._emitTranscriptionLifecycleMetric,
+            transcription_engine, transcription_device, transcription_compute_type = self._sourceTranscriptionRuntimeSettings(
+                PipelineSource.MIC
             )
+            if transcription_engine == "Bing":
+                self.mic_audio_queue = None
+            else:
+                self.mic_audio_queue = _MetricAudioQueue(
+                    PipelineSource.MIC,
+                    self._emitTranscriptionLifecycleMetric,
+                )
             # self.mic_energy_queue = Queue()
 
             record_timeout = config.MIC_RECORD_TIMEOUT
@@ -1907,15 +2178,23 @@ class Model:
             if record_timeout > phrase_timeout:
                 record_timeout = phrase_timeout
 
-            def recorder_factory():
-                return SelectedMicEnergyAndAudioRecorder(
-                    device=mic_device,
-                    energy_threshold=config.MIC_THRESHOLD,
-                    dynamic_energy_threshold=config.MIC_AUTOMATIC_THRESHOLD,
-                    phrase_time_limit=record_timeout,
-                    phrase_timeout=phrase_timeout,
-                    record_timeout=record_timeout,
-                )
+            if transcription_engine == "Bing":
+                def recorder_factory():
+                    return SelectedMicBingRealtimeRecorder(
+                        device=mic_device,
+                        energy_threshold=config.MIC_THRESHOLD,
+                        dynamic_energy_threshold=config.MIC_AUTOMATIC_THRESHOLD,
+                    )
+            else:
+                def recorder_factory():
+                    return SelectedMicEnergyAndAudioRecorder(
+                        device=mic_device,
+                        energy_threshold=config.MIC_THRESHOLD,
+                        dynamic_energy_threshold=config.MIC_AUTOMATIC_THRESHOLD,
+                        phrase_time_limit=record_timeout,
+                        phrase_timeout=phrase_timeout,
+                        record_timeout=record_timeout,
+                    )
 
             try:
                 self.mic_audio_recorder = recorder_factory()
@@ -1927,23 +2206,23 @@ class Model:
                     error_code="recorder_construction_failed",
                 )
                 raise
-            # self.mic_audio_recorder.recordIntoQueue(self.mic_audio_queue, mic_energy_queue)
-            self._recordIntoTranscriptionQueue(
-                self.mic_audio_recorder,
-                PipelineSource.MIC,
-                generation,
-                self.mic_audio_queue,
-            )
+            # Bing owns direct frame streaming; other engines retain the
+            # existing phrase-based recorder and queue.
+            if transcription_engine != "Bing":
+                self._recordIntoTranscriptionQueue(
+                    self.mic_audio_recorder,
+                    PipelineSource.MIC,
+                    generation,
+                    self.mic_audio_queue,
+                )
             self._emitTranscriptionLifecycleMetric(
                 PipelineSource.MIC,
                 stage="capture",
                 outcome="running",
             )
             whisper_runtime_lease = None
+            bing_locale_sync = lambda: None
             try:
-                transcription_engine, transcription_device, transcription_compute_type = self._sourceTranscriptionRuntimeSettings(
-                    PipelineSource.MIC
-                )
                 transcription_profile = self._sourceTranscriptionProfile(PipelineSource.MIC)
                 transcription_models = transcription_profile["models"]
                 whisper_cloud_api_key = resolve_whisper_cloud_api_key(
@@ -1952,34 +2231,44 @@ class Model:
                 )
                 whisper_runtime_lease = self._acquireWhisperRuntimeLease(PipelineSource.MIC)
                 self.mic_whisper_runtime_lease = whisper_runtime_lease
-                self.mic_transcriber = AudioTranscriber(
-                    speaker=False,
-                    source=self.mic_audio_recorder.source,
-                    phrase_timeout=phrase_timeout,
-                    max_phrases=config.MIC_MAX_PHRASES,
-                    transcription_engine=transcription_engine,
-                    root=config.PATH_DATA,
-                    whisper_weight_type=transcription_models.get(
-                        transcription_engine,
-                        transcription_models["Whisper"],
-                    ),
-                    vosk_weight_type=transcription_models["Vosk"],
-                    parakeet_weight_type=transcription_models["Parakeet"],
-                    sensevoice_weight_type=transcription_models["SenseVoice"],
-                    whisper_cloud_model=transcription_models.get(
-                        "Whisper Cloud",
-                        getattr(config, "SELECTED_WHISPER_CLOUD_MODEL", "whisper-large-v3-turbo"),
-                    ),
-                    groq_api_key=whisper_cloud_api_key,
-                    device=transcription_device["device"],
-                    device_index=transcription_device["device_index"],
-                    compute_type=transcription_compute_type,
-                    pipeline_context=self._makeTranscriberPipelineContext(
+                if transcription_engine == "Bing":
+                    self.mic_transcriber, bing_locale_sync = self._makeBingStreamingSession(
                         PipelineSource.MIC,
-                        whisper_runtime_lease,
                         generation,
-                    ),
-                )
+                        self.mic_audio_recorder,
+                        fnc,
+                    )
+                    self.mic_transcriber.start()
+                    self._emitBingDirectStreamingStatus(PipelineSource.MIC)
+                else:
+                    self.mic_transcriber = AudioTranscriber(
+                        speaker=False,
+                        source=self.mic_audio_recorder.source,
+                        phrase_timeout=phrase_timeout,
+                        max_phrases=config.MIC_MAX_PHRASES,
+                        transcription_engine=transcription_engine,
+                        root=config.PATH_DATA,
+                        whisper_weight_type=transcription_models.get(
+                            transcription_engine,
+                            transcription_models["Whisper"],
+                        ),
+                        vosk_weight_type=transcription_models["Vosk"],
+                        parakeet_weight_type=transcription_models["Parakeet"],
+                        sensevoice_weight_type=transcription_models["SenseVoice"],
+                        whisper_cloud_model=transcription_models.get(
+                            "Whisper Cloud",
+                            getattr(config, "SELECTED_WHISPER_CLOUD_MODEL", "whisper-large-v3-turbo"),
+                        ),
+                        groq_api_key=whisper_cloud_api_key,
+                        device=transcription_device["device"],
+                        device_index=transcription_device["device_index"],
+                        compute_type=transcription_compute_type,
+                        pipeline_context=self._makeTranscriberPipelineContext(
+                            PipelineSource.MIC,
+                            whisper_runtime_lease,
+                            generation,
+                        ),
+                    )
             except Exception:
                 raise
 
@@ -2024,6 +2313,10 @@ class Model:
                     consumed_count += 1
 
                 try:
+                    if isinstance(transcriber, BingStreamingSession):
+                        bing_locale_sync()
+                        sleep(0.05)
+                        return
                     selected_your_languages = config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]
                     languages, countries = _runtimeTranscriptionLanguageLists(
                         transcription_engine,
@@ -2062,7 +2355,11 @@ class Model:
             def endMicTranscript():
                 stop_event.set()
                 self.resetMicTyping()
-                audio_queue.drain()
+                close_transcriber = getattr(transcriber, "close", None)
+                if callable(close_transcriber):
+                    close_transcriber()
+                if audio_queue is not None:
+                    audio_queue.drain()
                 # while not self.mic_energy_queue.empty():
                 #     self.mic_energy_queue.get()
                 if self.mic_audio_queue is audio_queue:
@@ -2123,7 +2420,11 @@ class Model:
         #     self.mic_print_transcript.resume()
 
         # 音声のレコードを再開
-        if isinstance(self.mic_audio_recorder, SelectedMicEnergyAndAudioRecorder):
+        if isinstance(self.mic_transcriber, BingStreamingSession):
+            self.mic_transcriber.resume()
+        elif isinstance(self.mic_audio_recorder, SelectedMicEnergyAndAudioRecorder):
+            self.mic_audio_recorder.resume()
+        elif isinstance(self.mic_audio_recorder, SelectedMicBingRealtimeRecorder):
             self.mic_audio_recorder.resume()
 
     def pauseMicTranscript(self):
@@ -2133,7 +2434,11 @@ class Model:
         #     self.mic_print_transcript.pause()
 
         # 音声のレコードを一時停止
-        if isinstance(self.mic_audio_recorder, SelectedMicEnergyAndAudioRecorder):
+        if isinstance(self.mic_transcriber, BingStreamingSession):
+            self.mic_transcriber.pause()
+        elif isinstance(self.mic_audio_recorder, SelectedMicEnergyAndAudioRecorder):
+            self.mic_audio_recorder.pause()
+        elif isinstance(self.mic_audio_recorder, SelectedMicBingRealtimeRecorder):
             self.mic_audio_recorder.pause()
 
     # VRAM 不足エラーを検出するメソッドを追加
@@ -2235,8 +2540,10 @@ class Model:
                 case False:
                     self.resumeMicTranscript()
                 case None:
-                    # mute selfの状態が不明な場合は一時停止しない
-                    self.resumeMicTranscript()
+                    # Do not admit microphone audio while VRChat's mute state
+                    # is unknown. OSCQuery will resume capture once it reports
+                    # an explicit unmuted value.
+                    self.pauseMicTranscript()
                 case _:
                     pass
         else:
@@ -2264,6 +2571,9 @@ class Model:
         stop_event = self.mic_transcript_stop_event
         if hasattr(stop_event, "set"):
             stop_event.set()
+        close_transcriber = getattr(self.mic_transcriber, "close", None)
+        if callable(close_transcriber):
+            close_transcriber()
         try:
             recorder = self.mic_audio_recorder
             self.mic_audio_recorder = None
@@ -2375,6 +2685,10 @@ class Model:
                 self.speaker_audio_recorder,
                 SelectedSpeakerEnergyAndAudioRecorder,
             )
+            or isinstance(
+                self.speaker_audio_recorder,
+                SelectedSpeakerBingRealtimeRecorder,
+            )
             or self.speaker_whisper_runtime_lease is not None
         ):
             self.stopSpeakerTranscript(stop_pipeline=False)
@@ -2418,25 +2732,39 @@ class Model:
             generation = self.nextSourcePipelineGeneration(PipelineSource.SPEAKER)
         speaker_device = self.validateSpeakerTranscriptDevice()
         if speaker_device is not None:
-            speaker_audio_queue = _MetricAudioQueue(
-                PipelineSource.SPEAKER,
-                self._emitTranscriptionLifecycleMetric,
+            transcription_engine, transcription_device, transcription_compute_type = self._sourceTranscriptionRuntimeSettings(
+                PipelineSource.SPEAKER
             )
+            if transcription_engine == "Bing":
+                speaker_audio_queue = None
+            else:
+                speaker_audio_queue = _MetricAudioQueue(
+                    PipelineSource.SPEAKER,
+                    self._emitTranscriptionLifecycleMetric,
+                )
             self.speaker_audio_queue = speaker_audio_queue
             record_timeout = config.SPEAKER_RECORD_TIMEOUT
             phrase_timeout = config.SPEAKER_PHRASE_TIMEOUT
             if record_timeout > phrase_timeout:
                 record_timeout = phrase_timeout
 
-            def recorder_factory():
-                return SelectedSpeakerEnergyAndAudioRecorder(
-                    device=speaker_device,
-                    energy_threshold=config.SPEAKER_THRESHOLD,
-                    dynamic_energy_threshold=config.SPEAKER_AUTOMATIC_THRESHOLD,
-                    phrase_time_limit=record_timeout,
-                    phrase_timeout=phrase_timeout,
-                    record_timeout=record_timeout,
-                )
+            if transcription_engine == "Bing":
+                def recorder_factory():
+                    return SelectedSpeakerBingRealtimeRecorder(
+                        device=speaker_device,
+                        energy_threshold=config.SPEAKER_THRESHOLD,
+                        dynamic_energy_threshold=config.SPEAKER_AUTOMATIC_THRESHOLD,
+                    )
+            else:
+                def recorder_factory():
+                    return SelectedSpeakerEnergyAndAudioRecorder(
+                        device=speaker_device,
+                        energy_threshold=config.SPEAKER_THRESHOLD,
+                        dynamic_energy_threshold=config.SPEAKER_AUTOMATIC_THRESHOLD,
+                        phrase_time_limit=record_timeout,
+                        phrase_timeout=phrase_timeout,
+                        record_timeout=record_timeout,
+                    )
 
             try:
                 self.speaker_audio_recorder = recorder_factory()
@@ -2448,13 +2776,15 @@ class Model:
                     error_code="recorder_construction_failed",
                 )
                 raise
-            # self.speaker_audio_recorder.recordIntoQueue(speaker_audio_queue, speaker_energy_queue)
-            self._recordIntoTranscriptionQueue(
-                self.speaker_audio_recorder,
-                PipelineSource.SPEAKER,
-                generation,
-                speaker_audio_queue,
-            )
+            # Bing owns direct frame streaming; other engines retain the
+            # existing phrase-based recorder and queue.
+            if transcription_engine != "Bing":
+                self._recordIntoTranscriptionQueue(
+                    self.speaker_audio_recorder,
+                    PipelineSource.SPEAKER,
+                    generation,
+                    speaker_audio_queue,
+                )
             self._emitTranscriptionLifecycleMetric(
                 PipelineSource.SPEAKER,
                 stage="capture",
@@ -2462,9 +2792,6 @@ class Model:
             )
             whisper_runtime_lease = None
             try:
-                transcription_engine, transcription_device, transcription_compute_type = self._sourceTranscriptionRuntimeSettings(
-                    PipelineSource.SPEAKER
-                )
                 transcription_profile = self._sourceTranscriptionProfile(PipelineSource.SPEAKER)
                 transcription_models = transcription_profile["models"]
                 whisper_cloud_api_key = resolve_whisper_cloud_api_key(
@@ -2473,34 +2800,45 @@ class Model:
                 )
                 whisper_runtime_lease = self._acquireWhisperRuntimeLease(PipelineSource.SPEAKER)
                 self.speaker_whisper_runtime_lease = whisper_runtime_lease
-                self.speaker_transcriber = AudioTranscriber(
-                    speaker=True,
-                    source=self.speaker_audio_recorder.source,
-                    phrase_timeout=phrase_timeout,
-                    max_phrases=config.SPEAKER_MAX_PHRASES,
-                    transcription_engine=transcription_engine,
-                    root=config.PATH_DATA,
-                    whisper_weight_type=transcription_models.get(
-                        transcription_engine,
-                        transcription_models["Whisper"],
-                    ),
-                    vosk_weight_type=transcription_models["Vosk"],
-                    parakeet_weight_type=transcription_models["Parakeet"],
-                    sensevoice_weight_type=transcription_models["SenseVoice"],
-                    whisper_cloud_model=transcription_models.get(
-                        "Whisper Cloud",
-                        getattr(config, "SELECTED_WHISPER_CLOUD_MODEL", "whisper-large-v3-turbo"),
-                    ),
-                    groq_api_key=whisper_cloud_api_key,
-                    device=transcription_device["device"],
-                    device_index=transcription_device["device_index"],
-                    compute_type=transcription_compute_type,
-                    pipeline_context=self._makeTranscriberPipelineContext(
+                bing_locale_sync = lambda: None
+                if transcription_engine == "Bing":
+                    self.speaker_transcriber, bing_locale_sync = self._makeBingStreamingSession(
                         PipelineSource.SPEAKER,
-                        whisper_runtime_lease,
                         generation,
-                    ),
-                )
+                        self.speaker_audio_recorder,
+                        fnc,
+                    )
+                    self.speaker_transcriber.start()
+                    self._emitBingDirectStreamingStatus(PipelineSource.SPEAKER)
+                else:
+                    self.speaker_transcriber = AudioTranscriber(
+                        speaker=True,
+                        source=self.speaker_audio_recorder.source,
+                        phrase_timeout=phrase_timeout,
+                        max_phrases=config.SPEAKER_MAX_PHRASES,
+                        transcription_engine=transcription_engine,
+                        root=config.PATH_DATA,
+                        whisper_weight_type=transcription_models.get(
+                            transcription_engine,
+                            transcription_models["Whisper"],
+                        ),
+                        vosk_weight_type=transcription_models["Vosk"],
+                        parakeet_weight_type=transcription_models["Parakeet"],
+                        sensevoice_weight_type=transcription_models["SenseVoice"],
+                        whisper_cloud_model=transcription_models.get(
+                            "Whisper Cloud",
+                            getattr(config, "SELECTED_WHISPER_CLOUD_MODEL", "whisper-large-v3-turbo"),
+                        ),
+                        groq_api_key=whisper_cloud_api_key,
+                        device=transcription_device["device"],
+                        device_index=transcription_device["device_index"],
+                        compute_type=transcription_compute_type,
+                        pipeline_context=self._makeTranscriberPipelineContext(
+                            PipelineSource.SPEAKER,
+                            whisper_runtime_lease,
+                            generation,
+                        ),
+                    )
             except Exception:
                 raise
 
@@ -2536,6 +2874,10 @@ class Model:
                 if stop_event.is_set():
                     return
                 try:
+                    if isinstance(transcriber, BingStreamingSession):
+                        bing_locale_sync()
+                        sleep(0.05)
+                        return
                     selected_target_languages = config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]
                     languages, countries = _runtimeTranscriptionLanguageLists(
                         transcription_engine,
@@ -2569,7 +2911,11 @@ class Model:
 
             def endSpeakerTranscript():
                 stop_event.set()
-                speaker_audio_queue.drain()
+                close_transcriber = getattr(transcriber, "close", None)
+                if callable(close_transcriber):
+                    close_transcriber()
+                if speaker_audio_queue is not None:
+                    speaker_audio_queue.drain()
                 # while not speaker_energy_queue.empty():
                 #     speaker_energy_queue.get()
                 if self.speaker_audio_queue is speaker_audio_queue:
@@ -2638,6 +2984,9 @@ class Model:
         stop_event = self.speaker_transcript_stop_event
         if hasattr(stop_event, "set"):
             stop_event.set()
+        close_transcriber = getattr(self.speaker_transcriber, "close", None)
+        if callable(close_transcriber):
+            close_transcriber()
         try:
             recorder = self.speaker_audio_recorder
             self.speaker_audio_recorder = None

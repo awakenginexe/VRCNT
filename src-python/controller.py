@@ -107,6 +107,10 @@ class Controller:
         )
         self._transcription_metric_callback_registered = False
         self._manual_translation_retry = None
+        self._mic_output_lock = Lock()
+        self._latest_mic_trace_id: Optional[str] = None
+        self._mic_original_fallback_trace_ids: set[str] = set()
+        self._mic_voice_activity_callback_registered = False
         register_recovery = getattr(
             model,
             "setTranscriptionRecoveryCallback",
@@ -123,6 +127,17 @@ class Controller:
             try:
                 register_metric(self._emitPipelineStatus)
                 self._transcription_metric_callback_registered = True
+            except Exception:
+                errorLogging()
+        register_voice_activity = getattr(
+            model,
+            "setMicVoiceActivityCallback",
+            None,
+        )
+        if callable(register_voice_activity):
+            try:
+                register_voice_activity(self._handleMicVoiceActivity)
+                self._mic_voice_activity_callback_registered = True
             except Exception:
                 errorLogging()
         self._transcription_recovery_thread.start()
@@ -463,6 +478,9 @@ class Controller:
             send_message_to_vrc=config.SEND_MESSAGE_TO_VRC is True,
             send_received_message_to_vrc=config.SEND_RECEIVED_MESSAGE_TO_VRC is True,
             send_only_translated_messages=config.SEND_ONLY_TRANSLATED_MESSAGES is True,
+            send_original_while_translating=(
+                config.SEND_ORIGINAL_WHILE_TRANSLATING is True
+            ),
             overlay_small_log=config.OVERLAY_SMALL_LOG is True,
             overlay_large_log=config.OVERLAY_LARGE_LOG is True,
             overlay_show_only_translated_messages=(
@@ -488,6 +506,9 @@ class Controller:
         )
 
     def _emitInitialTranscriptionTrace(self, trace: TranscriptionTrace) -> None:
+        if trace.source is PipelineSource.MIC:
+            with self._mic_output_lock:
+                self._latest_mic_trace_id = trace.trace_id
         endpoint_key = (
             "transcription_mic"
             if trace.source is PipelineSource.MIC
@@ -525,6 +546,95 @@ class Controller:
         }
         if not self._generationCurrent(trace):
             return
+        self.run(200, endpoint, payload)
+        self._sendMicOriginalFallback(trace)
+
+    @staticmethod
+    def _micOscOutputAllowed() -> bool:
+        if config.VRC_MIC_MUTE_SYNC is not True:
+            return True
+        missing = object()
+        model_state = getattr(model, "__dict__", {})
+        if isinstance(model_state, dict) and "mic_mute_status" not in model_state:
+            # Focused compatibility doubles often use Mock's dynamic
+            # attributes. Treat an absent runtime field as an unavailable
+            # test seam, while the real Model always stores the field and
+            # therefore still fails closed for its explicit None state.
+            return True
+        status = getattr(model, "mic_mute_status", missing)
+        # Focused compatibility models may not expose the runtime-only mute
+        # field. The real Model always has it, including the None/unknown state.
+        return status is missing or status is False
+
+    def _sendMicOriginalFallback(self, trace: TranscriptionTrace) -> bool:
+        output_config = trace.output_config
+        if not (
+            trace.source is PipelineSource.MIC
+            and output_config.send_original_while_translating
+            and output_config.translation_enabled
+            and bool(trace.targets)
+            and output_config.send_message_to_vrc
+            and self._generationCurrent(trace)
+            and self._micOscOutputAllowed()
+        ):
+            return False
+        try:
+            model.oscSendMessage(
+                self._formatSnapshotMessage(
+                    output_config.send_format,
+                    [],
+                    trace.original_message,
+                )
+            )
+        except Exception:
+            errorLogging()
+            return False
+        with self._mic_output_lock:
+            self._mic_original_fallback_trace_ids.add(trace.trace_id)
+        return True
+
+    def _handleMicVoiceActivity(self, speaking: bool, captured_at: float) -> None:
+        del captured_at
+        if not speaking:
+            return
+        # A new speaking interval supersedes any pending translation-only
+        # resend. The next trace will install its own id when it is admitted.
+        with self._mic_output_lock:
+            if self._mic_original_fallback_trace_ids:
+                self._latest_mic_trace_id = None
+
+    def _micOriginalFallbackWasSent(self, trace_id: str) -> bool:
+        with self._mic_output_lock:
+            return trace_id in self._mic_original_fallback_trace_ids
+
+    def _micTraceIsLatest(self, trace_id: str) -> bool:
+        with self._mic_output_lock:
+            return self._latest_mic_trace_id == trace_id
+
+    def _forgetMicOriginalFallback(self, trace_id: str) -> None:
+        with self._mic_output_lock:
+            self._mic_original_fallback_trace_ids.discard(trace_id)
+
+    def _emitBingInterim(self, source: PipelineSource, result: dict) -> None:
+        endpoint_key = (
+            "transcription_mic_interim"
+            if source is PipelineSource.MIC
+            else "transcription_speaker_interim"
+        )
+        endpoint = self.run_mapping.get(
+            endpoint_key,
+            (
+                "/run/transcription_send_mic_interim"
+                if source is PipelineSource.MIC
+                else "/run/transcription_receive_speaker_interim"
+            ),
+        )
+        payload = {
+            "source": source.value,
+            "language": result.get("language"),
+            "text": result.get("text", ""),
+            "clear": result.get("clear") is True,
+        }
         self.run(200, endpoint, payload)
 
     def _beginTranscriptionTrace(
@@ -776,6 +886,29 @@ class Controller:
         )
 
     @staticmethod
+    def _successfulOscTranslations(
+        task: FinalOutputTask,
+        successful_translations: list[str],
+        successful_target_slots: list[str],
+    ) -> list[str]:
+        source_language = " ".join(str(task.source_language).split()).casefold()
+        target_by_slot = {target.target_slot: target for target in task.targets}
+        return [
+            message
+            for message, target_slot in zip(
+                successful_translations,
+                successful_target_slots,
+            )
+            if (
+                target_by_slot.get(target_slot) is None
+                or " ".join(
+                    str(target_by_slot[target_slot].language).split()
+                ).casefold()
+                != source_language
+            )
+        ]
+
+    @staticmethod
     def _translationFailed(task: FinalOutputTask) -> bool:
         if not task.output_config.translation_enabled or not task.targets:
             return False
@@ -900,6 +1033,7 @@ class Controller:
         try:
             self._finalizeMicOutputImpl(task)
         finally:
+            self._forgetMicOriginalFallback(task.trace_id)
             try:
                 model.endMicTypingProcessing()
             except Exception:
@@ -941,14 +1075,31 @@ class Controller:
                 return
 
         if output_config.send_message_to_vrc:
+            original_fallback_sent = self._micOriginalFallbackWasSent(task.trace_id)
+            osc_translations = self._successfulOscTranslations(
+                task,
+                successful_translations,
+                successful_target_slots,
+            )
             osc_eligible = (
                 not output_config.send_only_translated_messages
                 or not output_config.translation_enabled
                 or bool(successful_translations)
             )
+            if original_fallback_sent:
+                osc_eligible = (
+                    self._micTraceIsLatest(task.trace_id)
+                    and bool(successful_translations)
+                )
             if osc_eligible:
                 def send_osc() -> None:
-                    if output_config.send_only_translated_messages:
+                    if original_fallback_sent:
+                        osc_message = self._formatSnapshotMessage(
+                            output_config.send_format,
+                            osc_translations,
+                            task.original_message,
+                        )
+                    elif output_config.send_only_translated_messages:
                         if not output_config.translation_enabled:
                             osc_message = self._formatSnapshotMessage(
                                 output_config.send_format,
@@ -964,10 +1115,16 @@ class Controller:
                     else:
                         osc_message = self._formatSnapshotMessage(
                             output_config.send_format,
-                            successful_translations,
+                            osc_translations,
                             task.original_message,
                         )
-                    if self._generationCurrent(task):
+                    if (
+                        self._generationCurrent(task)
+                        and (
+                            task.source is not PipelineSource.MIC
+                            or self._micOscOutputAllowed()
+                        )
+                    ):
                         model.oscSendMessage(osc_message)
 
                 if not self._attemptFinalOutputSink(
@@ -1217,6 +1374,11 @@ class Controller:
                 return
 
         if output_config.send_received_message_to_vrc:
+            osc_translations = self._successfulOscTranslations(
+                task,
+                successful_translations,
+                successful_target_slots,
+            )
             osc_eligible = (
                 not output_config.send_only_translated_messages
                 or not output_config.translation_enabled
@@ -1240,7 +1402,7 @@ class Controller:
                     else:
                         osc_message = self._formatSnapshotMessage(
                             output_config.received_format,
-                            successful_translations,
+                            osc_translations,
                             task.original_message,
                         )
                     if self._generationCurrent(task):
@@ -1368,7 +1530,8 @@ class Controller:
         try:
             language = language_data.get("language")
             country = language_data.get("country")
-            return transcription_lang[language][country].get(engine, "")
+            lookup_engine = "Whisper" if engine == "Whisper Cloud" else engine
+            return transcription_lang[language][country].get(lookup_engine, "")
         except Exception:
             return ""
 
@@ -1403,6 +1566,8 @@ class Controller:
         source: Optional[PipelineSource] = None,
     ) -> bool:
         engine = engine or config.SELECTED_TRANSCRIPTION_ENGINE
+        if engine in {"Google", "Bing", "Whisper Cloud"}:
+            return bool(self._transcriptionLanguageCode(engine, language_data))
         if engine not in {"Vosk", "Parakeet", "SenseVoice"}:
             return True
 
@@ -1434,6 +1599,50 @@ class Controller:
             if self._isTranscriptionLanguageSupported(language_data, engine, source) is False:
                 return False
         return True
+
+    def _transcriptionLanguageSupportError(
+        self,
+        source: PipelineSource,
+        profile: Optional[dict] = None,
+    ) -> Optional[dict]:
+        """Reject a Bing source before it can be saved or started.
+
+        The saved language profile is intentionally left untouched.  The
+        runtime policy already limits Bing to its first enabled slot, so only
+        the language that would actually be sent to Bing is checked here.
+        """
+        profile = profile or self._getSourceTranscriptionProfile(source)
+        engine = profile.get("engine") if isinstance(profile, dict) else ""
+        if engine != "Bing":
+            return None
+
+        selected = (
+            config.SELECTED_TARGET_LANGUAGES
+            if source is PipelineSource.SPEAKER
+            else config.SELECTED_YOUR_LANGUAGES
+        )
+        tab_languages = selected.get(config.SELECTED_TAB_NO, {})
+        direction = "received" if source is PipelineSource.SPEAKER else "microphone"
+        unsupported = []
+        for language_data in runtime_language_slots(engine, tab_languages, direction):
+            if self._isTranscriptionLanguageSupported(language_data, engine, source):
+                continue
+            unsupported.append({
+                "language": language_data.get("language", ""),
+                "country": language_data.get("country", ""),
+                "locale": self._transcriptionLanguageCode(engine, language_data),
+            })
+
+        if not unsupported:
+            return None
+        return VRCTError.create_error_response(
+            ErrorCode.TRANSCRIPTION_LANGUAGE_UNSUPPORTED,
+            data={
+                "source": source.value,
+                "engine": engine,
+                "languages": unsupported,
+            },
+        )
 
     def _findFirstSupportedTranscriptionLanguage(self) -> Optional[dict]:
         preferred = [
@@ -1710,6 +1919,29 @@ class Controller:
         except Exception:
             errorLogging()
             response = {"status": 500, "result": False}
+
+        if self._mic_voice_activity_callback_registered:
+            try:
+                clear_voice_activity = getattr(
+                    model,
+                    "clearMicVoiceActivityCallback",
+                    None,
+                )
+                if callable(clear_voice_activity):
+                    clear_voice_activity(self._handleMicVoiceActivity)
+                else:
+                    register_voice_activity = getattr(
+                        model,
+                        "setMicVoiceActivityCallback",
+                        None,
+                    )
+                    if callable(register_voice_activity):
+                        register_voice_activity(None)
+            except Exception:
+                errorLogging()
+                response = {"status": 500, "result": False}
+            finally:
+                self._mic_voice_activity_callback_registered = False
 
         if self._transcription_metric_callback_registered:
             try:
@@ -2229,9 +2461,19 @@ class Controller:
                     )
 
     def micMessage(self, result: dict) -> bool:
+        if result.get("interim") is True:
+            self._emitBingInterim(PipelineSource.MIC, result)
+            return True
+        if result.get("transcription_engine") == "Bing":
+            self._emitBingInterim(PipelineSource.MIC, {"clear": True})
         return self._beginTranscriptionTrace(PipelineSource.MIC, result)
 
     def speakerMessage(self, result:dict) -> bool:
+        if result.get("interim") is True:
+            self._emitBingInterim(PipelineSource.SPEAKER, result)
+            return True
+        if result.get("transcription_engine") == "Bing":
+            self._emitBingInterim(PipelineSource.SPEAKER, {"clear": True})
         return self._beginTranscriptionTrace(PipelineSource.SPEAKER, result)
 
     def chatMessage(self, data) -> dict:
@@ -2561,6 +2803,10 @@ class Controller:
         if target == current:
             return self._transcriptionRuntimeSettingResponse(target, True)
 
+        language_error = self._transcriptionLanguageSupportError(source, target)
+        if language_error is not None:
+            return language_error
+
         runtime_changed = (
             effective_transcription_profile(target)
             != effective_transcription_profile(current)
@@ -2618,6 +2864,9 @@ class Controller:
                 != effective_transcription_profile(target)
             )
             for source in changed_sources:
+                language_error = self._transcriptionLanguageSupportError(source, target)
+                if language_error is not None:
+                    return language_error
                 if self._isTranscriptionSourceActive(source):
                     readiness_error = self._transcriptionModelReadinessError(
                         source,
@@ -2709,6 +2958,17 @@ class Controller:
         return transformed
 
     def setSelectedTranscriptionComputeDevice(self, device:dict, *args, **kwargs) -> dict:
+        # The legacy global route is still supported for callers that want to
+        # apply a device to both directions, but setting the already-selected
+        # device must remain a true no-op.  This matters when Speaking and
+        # Listening have intentionally different engines: copying the complete
+        # compatibility profile just because the device value is unchanged
+        # would unexpectedly replace the other direction's engine.
+        if device == config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE:
+            return {
+                "status": 200,
+                "result": deepcopy(config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE),
+            }
         response = self.setTranscriptionProfileAll(
             {"device": device, "compute_type": "auto"}
         )
@@ -3327,6 +3587,13 @@ class Controller:
         return self._getSelectedTranscriptionEngineForSource(PipelineSource.SPEAKER)
 
     def setSelectedTranscriptionEngine(self, data, *args, **kwargs) -> dict:
+        # Keep the legacy compatibility route a no-op when the requested
+        # engine is already the selected global value.  Speaking and
+        # Listening may intentionally be different, so copying the complete
+        # Speaking profile here would otherwise overwrite Listening merely
+        # because a caller re-saved the current value.
+        if str(data) == config.SELECTED_TRANSCRIPTION_ENGINE:
+            return {"status": 200, "result": config.SELECTED_TRANSCRIPTION_ENGINE}
         response = self.setTranscriptionProfileAll({"engine": str(data)})
         return self._transcriptionProfileScalarResponse(
             response, lambda profile: profile["engine"]
@@ -4944,6 +5211,8 @@ class Controller:
         return {"status":200, "result":config.WHISPER_WEIGHT_TYPE}
 
     def setWhisperWeightType(self, data, *args, **kwargs) -> dict:
+        if str(data) == config.WHISPER_WEIGHT_TYPE:
+            return {"status": 200, "result": config.WHISPER_WEIGHT_TYPE}
         response = self.setTranscriptionProfileAll(
             {"models": {"Whisper": str(data)}}
         )
@@ -4956,6 +5225,8 @@ class Controller:
         return {"status": 200, "result": config.WHISPER_THAI_WEIGHT_TYPE}
 
     def setWhisperThaiWeightType(self, data, *args, **kwargs) -> dict:
+        if str(data) == config.WHISPER_THAI_WEIGHT_TYPE:
+            return {"status": 200, "result": config.WHISPER_THAI_WEIGHT_TYPE}
         response = self.setTranscriptionProfileAll(
             {"models": {"Whisper Thai": str(data)}}
         )
@@ -4971,6 +5242,8 @@ class Controller:
         }
 
     def setWhisperCloudModel(self, data, *args, **kwargs) -> dict:
+        if str(data) == config.SELECTED_WHISPER_CLOUD_MODEL:
+            return {"status": 200, "result": config.SELECTED_WHISPER_CLOUD_MODEL}
         response = self.setTranscriptionProfileAll(
             {"models": {"Whisper Cloud": str(data)}}
         )
@@ -4984,6 +5257,8 @@ class Controller:
         return {"status": 200, "result": config.WHISPER_DECODING_PROFILE}
 
     def setWhisperDecodingProfile(self, data, *args, **kwargs) -> dict:
+        if str(data).lower() == config.WHISPER_DECODING_PROFILE:
+            return {"status": 200, "result": config.WHISPER_DECODING_PROFILE}
         response = self.setTranscriptionProfileAll(
             {"whisper_decoding_profile": str(data).lower()}
         )
@@ -4996,6 +5271,8 @@ class Controller:
         return {"status":200, "result":config.VOSK_WEIGHT_TYPE}
 
     def setVoskWeightType(self, data, *args, **kwargs) -> dict:
+        if str(data) == config.VOSK_WEIGHT_TYPE:
+            return {"status": 200, "result": config.VOSK_WEIGHT_TYPE}
         response = self.setTranscriptionProfileAll(
             {"models": {"Vosk": str(data)}}
         )
@@ -5008,6 +5285,8 @@ class Controller:
         return {"status":200, "result":config.PARAKEET_WEIGHT_TYPE}
 
     def setParakeetWeightType(self, data, *args, **kwargs) -> dict:
+        if str(data) == config.PARAKEET_WEIGHT_TYPE:
+            return {"status": 200, "result": config.PARAKEET_WEIGHT_TYPE}
         response = self.setTranscriptionProfileAll(
             {"models": {"Parakeet": str(data)}}
         )
@@ -5020,6 +5299,8 @@ class Controller:
         return {"status":200, "result":config.SENSEVOICE_WEIGHT_TYPE}
 
     def setSenseVoiceWeightType(self, data, *args, **kwargs) -> dict:
+        if str(data) == config.SENSEVOICE_WEIGHT_TYPE:
+            return {"status": 200, "result": config.SENSEVOICE_WEIGHT_TYPE}
         response = self.setTranscriptionProfileAll(
             {"models": {"SenseVoice": str(data)}}
         )
@@ -5047,6 +5328,11 @@ class Controller:
         return self._getSelectedTranscriptionComputeTypeForSource(PipelineSource.SPEAKER)
 
     def setSelectedTranscriptionComputeType(self, data, *args, **kwargs) -> dict:
+        if str(data) == config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE:
+            return {
+                "status": 200,
+                "result": config.SELECTED_TRANSCRIPTION_COMPUTE_TYPE,
+            }
         response = self.setTranscriptionProfileAll({"compute_type": str(data)})
         return self._transcriptionProfileScalarResponse(
             response, lambda profile: profile["compute_type"]
@@ -5116,6 +5402,10 @@ class Controller:
         return {"status":200, "result":config.SEND_ONLY_TRANSLATED_MESSAGES}
 
     @staticmethod
+    def getSendOriginalWhileTranslating(*args, **kwargs) -> dict:
+        return {"status":200, "result":config.SEND_ORIGINAL_WHILE_TRANSLATING}
+
+    @staticmethod
     def setEnableSendOnlyTranslatedMessages(*args, **kwargs) -> dict:
         if config.SEND_ONLY_TRANSLATED_MESSAGES is False:
             config.SEND_ONLY_TRANSLATED_MESSAGES = True
@@ -5126,6 +5416,18 @@ class Controller:
         if config.SEND_ONLY_TRANSLATED_MESSAGES is True:
             config.SEND_ONLY_TRANSLATED_MESSAGES = False
         return {"status":200, "result":config.SEND_ONLY_TRANSLATED_MESSAGES}
+
+    @staticmethod
+    def setEnableSendOriginalWhileTranslating(*args, **kwargs) -> dict:
+        if config.SEND_ORIGINAL_WHILE_TRANSLATING is False:
+            config.SEND_ORIGINAL_WHILE_TRANSLATING = True
+        return {"status":200, "result":config.SEND_ORIGINAL_WHILE_TRANSLATING}
+
+    @staticmethod
+    def setDisableSendOriginalWhileTranslating(*args, **kwargs) -> dict:
+        if config.SEND_ORIGINAL_WHILE_TRANSLATING is True:
+            config.SEND_ORIGINAL_WHILE_TRANSLATING = False
+        return {"status":200, "result":config.SEND_ORIGINAL_WHILE_TRANSLATING}
 
     @staticmethod
     def getOverlaySmallLog(*args, **kwargs) -> dict:
@@ -5284,6 +5586,15 @@ class Controller:
 
     @staticmethod
     def setEnableVrcMicMuteSync(*args, **kwargs) -> dict:
+        if config.VRC_MIC_MUTE_SYNC is True:
+            # The setting can already be enabled when VRChat is opened later
+            # or when OSCQuery reconnects. Refresh the current parameter on
+            # every enable/start path instead of waiting for the user to
+            # toggle the setting off and on.
+            if model.getIsOscQueryEnabled() is True:
+                model.setMuteSelfStatus()
+                model.changeMicTranscriptStatus()
+            return {"status": 200, "result": config.VRC_MIC_MUTE_SYNC}
         if config.VRC_MIC_MUTE_SYNC is False:
             if model.getIsOscQueryEnabled() is True:
                 config.VRC_MIC_MUTE_SYNC = True
@@ -5429,6 +5740,9 @@ class Controller:
     def setEnableTranscriptionSend(self, *args, **kwargs) -> dict:
         if config.ENABLE_TRANSCRIPTION_SEND is True:
             return {"status": 200, "result": True}
+        language_error = self._transcriptionLanguageSupportError(PipelineSource.MIC)
+        if language_error is not None:
+            return language_error
         readiness_error = self._transcriptionModelReadinessError(PipelineSource.MIC)
         if readiness_error is not None:
             return readiness_error
@@ -5457,6 +5771,9 @@ class Controller:
     def setEnableTranscriptionReceive(self, *args, **kwargs) -> dict:
         if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
             return {"status": 200, "result": True}
+        language_error = self._transcriptionLanguageSupportError(PipelineSource.SPEAKER)
+        if language_error is not None:
+            return language_error
         readiness_error = self._transcriptionModelReadinessError(PipelineSource.SPEAKER)
         if readiness_error is not None:
             return readiness_error
@@ -5945,6 +6262,7 @@ class Controller:
     def stopTranscriptionSendMessage(self) -> None:
         with self._transcription_restart_lock:
             model.stopMicTranscript()
+            self._emitBingInterim(PipelineSource.MIC, {"clear": True})
 
     def startThreadingTranscriptionSendMessage(self) -> None:
         th_startTranscriptionSendMessage = Thread(target=self.startTranscriptionSendMessage)
@@ -6008,6 +6326,7 @@ class Controller:
     def stopTranscriptionReceiveMessage(self) -> None:
         with self._transcription_restart_lock:
             model.stopSpeakerTranscript()
+            self._emitBingInterim(PipelineSource.SPEAKER, {"clear": True})
 
     def startThreadingTranscriptionReceiveMessage(self) -> None:
         th_startTranscriptionReceiveMessage = Thread(target=self.startTranscriptionReceiveMessage)

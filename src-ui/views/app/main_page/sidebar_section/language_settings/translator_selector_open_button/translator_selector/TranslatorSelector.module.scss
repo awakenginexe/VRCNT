@@ -413,6 +413,22 @@
     white-space: pre-wrap;
 }
 
+.translator_identity {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    min-width: 0;
+}
+
+.translator_icon {
+    width: 1.8rem;
+    height: 1.8rem;
+    flex: 0 0 auto;
+    object-fit: contain;
+    border-radius: 0.45rem;
+}
+
 .label_default {
     position: absolute;
     top: -0.55rem;
