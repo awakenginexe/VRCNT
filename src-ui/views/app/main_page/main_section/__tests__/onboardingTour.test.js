@@ -72,7 +72,7 @@ test("the tour spotlights its real page target and keeps a measured workspace fa
 
     assert.match(tour, /currentStep\.target/);
     assert.match(tour, /\[data-onboarding-target="tour-workspace"\]/);
-    assert.match(tour, /target\?\.scrollIntoView\?\.\(\{[\s\S]*?block: "nearest",[\s\S]*?inline: "nearest",[\s\S]*?behavior: "auto",/);
+    assert.match(tour, /target\?\.scrollIntoView\?\.\(\{[\s\S]*?block: "center",[\s\S]*?inline: "nearest",[\s\S]*?behavior: "auto",/);
     assert.match(tour, /getBoundingClientRect\(\)/);
     assert.match(tour, /window\.addEventListener\("resize",/);
     assert.match(tour, /window\.addEventListener\("scroll",/);

@@ -58,7 +58,7 @@ export const OnboardingTour = () => {
         );
         const target = getSpotlightTarget();
         target?.scrollIntoView?.({
-            block: "nearest",
+            block: "center",
             inline: "nearest",
             behavior: "auto",
         });
