@@ -12,6 +12,14 @@ import {
     enableStartWithVrchat,
     getStartWithVrchatStatus,
 } from "@logics_common/startWithVrchat.js";
+import {
+    confirmStartWithVrchatRegistration,
+    createConfirmedStartWithVrchatState,
+    createInitialStartWithVrchatState,
+    createUnknownStartWithVrchatState,
+    dismissStartWithVrchatConfirmation,
+    requestStartWithVrchatChange,
+} from "./startWithVrchatSettingsState.js";
 import { useStore_OpenedQuickSetting } from "@store";
 
 import {
@@ -93,8 +101,7 @@ const StartWithVrchatContainer = () => {
     const { t } = useI18n();
     const { currentOpenedQuickSetting, updateOpenedQuickSetting } = useStore_OpenedQuickSetting();
     const isTauri = isTauriRuntime();
-    const [registration, setRegistration] = useState(false);
-    const [state, setState] = useState(isTauri ? "pending" : "ok");
+    const [startWithVrchatState, setStartWithVrchatState] = useState(() => createInitialStartWithVrchatState(isTauri));
     const [error, setError] = useState("");
 
     useEffect(() => {
@@ -103,23 +110,23 @@ const StartWithVrchatContainer = () => {
         const refreshRegistration = async () => {
             if (!isTauri) {
                 if (isCurrent) {
-                    setRegistration(false);
-                    setState("ok");
+                    setStartWithVrchatState(createInitialStartWithVrchatState(false));
                 }
                 return;
             }
 
-            setState("pending");
+            setStartWithVrchatState(createUnknownStartWithVrchatState());
             try {
                 const isEnabled = await getStartWithVrchatStatus();
                 if (isCurrent) {
-                    setRegistration(isEnabled);
+                    setStartWithVrchatState(createConfirmedStartWithVrchatState(isEnabled));
                     setError("");
                 }
             } catch {
-                if (isCurrent) setError(t("config_page.others.start_with_vrchat.status_failed"));
-            } finally {
-                if (isCurrent) setState("ok");
+                if (isCurrent) {
+                    setStartWithVrchatState(createUnknownStartWithVrchatState());
+                    setError(t("config_page.others.start_with_vrchat.status_failed"));
+                }
             }
         };
 
@@ -130,27 +137,27 @@ const StartWithVrchatContainer = () => {
     }, [currentOpenedQuickSetting.data, isTauri, t]);
 
     const toggleStartWithVrchat = async () => {
-        if (!isTauri || state === "pending") return;
-        if (!registration) {
-            updateOpenedQuickSetting("start_with_vrchat");
-            return;
-        }
+        const requestedChange = await requestStartWithVrchatChange({
+            registration: startWithVrchatState.registration,
+            isInteractive: isTauri && startWithVrchatState.isInteractive,
+            onRequestConfirmation: () => updateOpenedQuickSetting("start_with_vrchat"),
+        });
 
-        setState("pending");
+        if (requestedChange.type !== "disable") return;
+
+        setStartWithVrchatState(createUnknownStartWithVrchatState());
         setError("");
         try {
             const isEnabled = await disableStartWithVrchat();
-            setRegistration(isEnabled);
+            setStartWithVrchatState(createConfirmedStartWithVrchatState(isEnabled));
             if (isEnabled) setError(t("config_page.others.start_with_vrchat.status_failed"));
         } catch {
             setError(t("config_page.others.start_with_vrchat.status_failed"));
             try {
-                setRegistration(await getStartWithVrchatStatus());
+                setStartWithVrchatState(createConfirmedStartWithVrchatState(await getStartWithVrchatStatus()));
             } catch {
-                // Keep the last confirmed registration status visible.
+                setStartWithVrchatState(createUnknownStartWithVrchatState());
             }
-        } finally {
-            setState("ok");
         }
     };
 
@@ -159,8 +166,8 @@ const StartWithVrchatContainer = () => {
             <CheckboxContainer
                 label={t("config_page.others.start_with_vrchat.label")}
                 desc={t("config_page.others.start_with_vrchat.desc")}
-                variable={{ data: registration, state }}
-                is_available={isTauri && state !== "pending"}
+                variable={{ data: startWithVrchatState.registration === true, state: startWithVrchatState.state }}
+                is_available={isTauri && startWithVrchatState.isInteractive}
                 toggleFunction={toggleStartWithVrchat}
             />
             {error && <p className={styles.start_with_vrchat_error} role="alert">{error}</p>}
@@ -175,15 +182,21 @@ export const StartWithVrchatConfirmationModal = () => {
     const [error, setError] = useState("");
 
     const closeModal = () => {
-        if (!isSaving) updateOpenedQuickSetting("");
+        if (!isSaving) {
+            dismissStartWithVrchatConfirmation({
+                closeModal: () => updateOpenedQuickSetting(""),
+            });
+        }
     };
 
     const confirmStartWithVrchat = async () => {
         setIsSaving(true);
         setError("");
         try {
-            const isEnabled = await enableStartWithVrchat();
-            if (isEnabled) {
+            const result = await confirmStartWithVrchatRegistration({
+                enableRegistration: enableStartWithVrchat,
+            });
+            if (result.registration) {
                 updateOpenedQuickSetting("");
                 return;
             }

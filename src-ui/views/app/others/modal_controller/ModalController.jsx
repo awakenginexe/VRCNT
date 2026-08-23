@@ -2,17 +2,19 @@ import styles from "./ModalController.module.scss";
 import { useStore_OpenedQuickSetting } from "@store";
 import { Vr, VrcMicMuteSyncContainer } from "@setting_box";
 import { StartWithVrchatConfirmationModal } from "../../config_page/setting_section/setting_box/others/Others";
+import { dismissStartWithVrchatConfirmation } from "../../config_page/setting_section/setting_box/others/startWithVrchatSettingsState.js";
 import { UpdateModal } from "./update_modal/UpdateModal";
 
 export const ModalController = () => {
     const { currentOpenedQuickSetting, updateOpenedQuickSetting } = useStore_OpenedQuickSetting();
     if (currentOpenedQuickSetting.data === "") return null;
-    const is_start_with_vrchat_confirmation = currentOpenedQuickSetting.data === "start_with_vrchat";
     return (
         <div className={styles.container}>
             <div
                 className={styles.bg_onclick_close_area}
-                onClick={is_start_with_vrchat_confirmation ? undefined : () => updateOpenedQuickSetting("")}
+                onClick={() => dismissStartWithVrchatConfirmation({
+                    closeModal: () => updateOpenedQuickSetting(""),
+                })}
             ></div>
             <div className={styles.wrapper}>
                 <QuickSettingsController />
