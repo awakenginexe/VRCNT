@@ -52,9 +52,18 @@ export const OnboardingTour = () => {
         }
 
         let animationFrameId = null;
+        const getSpotlightTarget = () => (
+            document.querySelector(`[data-onboarding-target="${currentStep.target}"]`)
+            ?? document.querySelector('[data-onboarding-target="tour-workspace"]')
+        );
+        const target = getSpotlightTarget();
+        target?.scrollIntoView?.({
+            block: "nearest",
+            inline: "nearest",
+            behavior: "auto",
+        });
         const measureSpotlight = () => {
-            const target = document.querySelector(`[data-onboarding-target="${currentStep.target}"]`)
-                ?? document.querySelector('[data-onboarding-target="tour-workspace"]');
+            const target = getSpotlightTarget();
             if (!target) {
                 setSpotlightRect(null);
                 return;
