@@ -10,8 +10,14 @@
   <img alt="Version" src="https://img.shields.io/badge/version-5.13.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
-  <a href="https://github.com/awakenginexe/VRCNT/releases/latest">
-    <img alt="VRCNT.exe 및 VRCNT-backend.exe의 VirusTotal 상태" src="https://github.com/awakenginexe/VRCNT/releases/latest/download/VirusTotal-status.svg" />
+</p>
+
+<p align="center">
+  <a data-virustotal-file="VRCNT.exe" href="https://www.virustotal.com/gui/file/a9a92e1cfafd06f202d05be6829d1c1bf0d1b654408b566b37e10de3e7853e3b">
+    <img alt="VRCNT.exe VirusTotal 검사 결과" src="VirusTotal-VRCNT.svg" />
+  </a>
+  <a data-virustotal-file="VRCNT-backend.exe" href="https://www.virustotal.com/gui/file/e1978879936ab3dbd9fc3c837be12bcb6c9ed58c42ee31c56ec2705fabbf56d4">
+    <img alt="VRCNT-backend.exe VirusTotal 검사 결과" src="VirusTotal-backend.svg" />
   </a>
 </p>
 
