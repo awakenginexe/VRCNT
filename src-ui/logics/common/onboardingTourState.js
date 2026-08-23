@@ -7,11 +7,19 @@ export const ONBOARDING_TOUR_STEPS = Object.freeze([
     { route: "customize", titleKey: "customize_title", detailKey: "customize_detail" },
 ]);
 
+export const ONBOARDING_TOUR_ROUTE_AUTHORITY = Symbol("onboarding-tour-overlay");
+
 export const canNavigateDuringOnboarding = ({ setupCompleted, onboardingActive }) => (
     setupCompleted === true && onboardingActive !== true
 );
 
-let snapshot = Object.freeze({ active: false, phase: "idle", stepIndex: 0 });
+let snapshot = Object.freeze({
+    active: false,
+    phase: "idle",
+    stepIndex: 0,
+    completionPending: false,
+    completionNotification: false,
+});
 const listeners = new Set();
 
 const publish = (nextSnapshot) => {
@@ -28,19 +36,54 @@ export const subscribeToOnboardingTour = (listener) => {
 
 export const beginOnboarding = () => {
     if (snapshot.active && snapshot.phase === "setup") return;
-    publish({ active: true, phase: "setup", stepIndex: 0 });
+    publish({
+        active: true,
+        phase: "setup",
+        stepIndex: 0,
+        completionPending: false,
+        completionNotification: false,
+    });
 };
 
 export const beginProductTour = () => {
-    publish({ active: true, phase: "tour", stepIndex: 0 });
+    if (!snapshot.active || snapshot.completionPending) return null;
+    publish({ ...snapshot, phase: "tour", stepIndex: 0 });
+    return ONBOARDING_TOUR_STEPS[0].route;
 };
 
-export const setOnboardingTourStep = (stepIndex) => {
+export const requestOnboardingTourTransition = ({ authority, stepIndex }) => {
+    if (authority !== ONBOARDING_TOUR_ROUTE_AUTHORITY) return null;
+    if (!snapshot.active || snapshot.phase !== "tour" || snapshot.completionPending) return null;
     const boundedStepIndex = Math.max(0, Math.min(ONBOARDING_TOUR_STEPS.length - 1, stepIndex));
-    if (snapshot.phase !== "tour" || boundedStepIndex === snapshot.stepIndex) return;
+    if (boundedStepIndex === snapshot.stepIndex) return null;
     publish({ ...snapshot, stepIndex: boundedStepIndex });
+    return ONBOARDING_TOUR_STEPS[boundedStepIndex].route;
 };
 
-export const endOnboarding = () => {
-    publish({ active: false, phase: "idle", stepIndex: 0 });
+export const beginOnboardingCompletion = ({ showSuccessNotification = false } = {}) => {
+    if (!snapshot.active || snapshot.completionPending) return false;
+    publish({
+        ...snapshot,
+        completionPending: true,
+        completionNotification: showSuccessNotification === true,
+    });
+    return true;
+};
+
+export const cancelOnboardingCompletion = () => {
+    if (!snapshot.completionPending) return false;
+    publish({ ...snapshot, completionPending: false, completionNotification: false });
+    return true;
+};
+
+export const acknowledgeOnboardingCompletion = () => {
+    if (!snapshot.active || !snapshot.completionPending) return null;
+    publish({
+        active: false,
+        phase: "idle",
+        stepIndex: 0,
+        completionPending: false,
+        completionNotification: false,
+    });
+    return "live";
 };

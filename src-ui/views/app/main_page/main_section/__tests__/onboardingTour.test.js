@@ -13,21 +13,30 @@ test("first-run setup introduces configuration before handing off to the real-pa
     assert.match(controller, /beginOnboarding\(\);[\s\S]*?updateExperienceRoute\("setup"\)/);
     assert.match(setup, /const \[screen, setScreen\] = useState\("intro"\)/);
     assert.match(setup, /screen === "intro"/);
-    assert.match(setup, /beginProductTour\(\);[\s\S]*?updateExperienceRoute\("live"\)/);
+    assert.match(setup, /const tourRoute = beginProductTour\(\);[\s\S]*?if \(!tourRoute\) return;[\s\S]*?updateExperienceRoute\(tourRoute\)/);
     assert.match(setup, /step === 6/);
+    assert.match(
+        setup,
+        /\{step === 6 \? \([\s\S]*?<button[\s\S]*?disabled=\{isCompletingSetup\}[\s\S]*?onClick=\{startProductTour\}/,
+    );
     assert.match(mainPage, /<OnboardingTour\s*\/>/);
 });
 
 test("the tour owns route changes and persists completion only after Finish or confirmed Skip", () => {
     const tour = readSource("../OnboardingTour.jsx");
+    const setup = readSource("../../guided_setup/GuidedSetup.jsx");
 
     assert.match(tour, /ONBOARDING_TOUR_STEPS\[stepIndex\]/);
-    assert.match(tour, /updateExperienceRoute\(nextStep\.route\)/);
-    assert.match(tour, /updateExperienceRoute\(previousStep\.route\)/);
+    assert.match(tour, /requestOnboardingTourTransition\(\{[\s\S]*?authority: ONBOARDING_TOUR_ROUTE_AUTHORITY/);
+    assert.match(tour, /updateExperienceRoute\(nextRoute\)/);
+    assert.match(tour, /updateExperienceRoute\(previousRoute\)/);
     assert.match(tour, /asyncStdoutToPython\(\s*"\/set\/data\/setup_completed"\s*,\s*true\s*\)/);
-    assert.match(tour, /if \(completionRequestRef\.current\) return;[\s\S]*?completionRequestRef\.current = true;/);
+    assert.match(tour, /if \(!beginOnboardingCompletion\(\{ showSuccessNotification \}\)\) return;/);
+    assert.match(setup, /if \(!beginOnboardingCompletion\(\)\) return;/);
     assert.match(tour, /currentSetupCompleted\.data === true/);
-    assert.match(tour, /endOnboarding\(\);[\s\S]*?updateExperienceRoute\("live"\)/);
+    assert.match(tour, /const acknowledgedRoute = acknowledgeOnboardingCompletion\(\);[\s\S]*?updateExperienceRoute\(acknowledgedRoute\)/);
+    assert.doesNotMatch(tour, /completionRequestRef|setOnboardingTourStep|endOnboarding/);
+    assert.doesNotMatch(setup, /completionRequestRef|endOnboarding/);
     assert.match(tour, /aria-modal="true"/);
     assert.match(tour, /isSkipConfirmationOpen/);
 });

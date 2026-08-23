@@ -3,10 +3,13 @@ import { useI18n } from "@useI18n";
 import { useOnboarding } from "@logics_configs";
 import { useIsOpenedConfigPage, useNotificationStatus } from "@logics_common";
 import {
+    ONBOARDING_TOUR_ROUTE_AUTHORITY,
     ONBOARDING_TOUR_STEPS,
-    endOnboarding,
+    acknowledgeOnboardingCompletion,
+    beginOnboardingCompletion,
+    cancelOnboardingCompletion,
     getOnboardingTourSnapshot,
-    setOnboardingTourStep,
+    requestOnboardingTourTransition,
     subscribeToOnboardingTour,
 } from "@logics_common/onboardingTourState.js";
 import { useStdoutToPython } from "@useStdoutToPython";
@@ -22,39 +25,43 @@ export const OnboardingTour = () => {
     const { setIsOpenedConfigPage } = useIsOpenedConfigPage();
     const { showNotification_Success, showNotification_Error } = useNotificationStatus();
     const { updateExperienceRoute } = useStore_ExperienceRoute();
-    const { active, phase, stepIndex } = useSyncExternalStore(
+    const {
+        active,
+        phase,
+        stepIndex,
+        completionPending,
+        completionNotification,
+    } = useSyncExternalStore(
         subscribeToOnboardingTour,
         getOnboardingTourSnapshot,
         getOnboardingTourSnapshot,
     );
-    const [completionIntent, setCompletionIntent] = useState(null);
     const [completionError, setCompletionError] = useState("");
     const [isSkipConfirmationOpen, setIsSkipConfirmationOpen] = useState(false);
     const cancelSkipButtonRef = useRef(null);
     const dialogRef = useRef(null);
-    const completionRequestRef = useRef(false);
     const currentStep = ONBOARDING_TOUR_STEPS[stepIndex];
-    const isCompletingSetup = completionIntent !== null;
+    const isCompletingSetup = completionPending;
 
     useEffect(() => {
-        if (!completionIntent) return;
+        if (!completionPending) return;
         const setupCompletionAcknowledged = currentSetupCompleted.data === true;
         if (!setupCompletionAcknowledged) return;
 
-        if (completionIntent.showSuccessNotification) {
+        const acknowledgedRoute = acknowledgeOnboardingCompletion();
+        if (!acknowledgedRoute) return;
+        if (completionNotification) {
             showNotification_Success(
                 t("main_page.guided_setup.complete_notification"),
                 { category_id: "guided_setup_complete" },
             );
         }
-        setCompletionIntent(null);
         setCompletionError("");
-        completionRequestRef.current = false;
-        endOnboarding();
         setIsOpenedConfigPage(false);
-        updateExperienceRoute("live");
+        updateExperienceRoute(acknowledgedRoute);
     }, [
-        completionIntent,
+        completionNotification,
+        completionPending,
         currentSetupCompleted.data,
         setIsOpenedConfigPage,
         showNotification_Success,
@@ -63,16 +70,15 @@ export const OnboardingTour = () => {
     ]);
 
     useEffect(() => {
-        if (!completionIntent) return undefined;
+        if (!completionPending || phase !== "tour") return undefined;
 
         const timeoutId = window.setTimeout(() => {
-            completionRequestRef.current = false;
-            setCompletionIntent(null);
+            cancelOnboardingCompletion();
             setCompletionError(t("main_page.guided_setup.setup_completion_error"));
         }, SETUP_COMPLETION_TIMEOUT_MS);
 
         return () => window.clearTimeout(timeoutId);
-    }, [completionIntent, t]);
+    }, [completionPending, phase, t]);
 
     useEffect(() => {
         if (!isSkipConfirmationOpen) return undefined;
@@ -98,32 +104,33 @@ export const OnboardingTour = () => {
     if (!active || phase !== "tour" || !currentStep) return null;
 
     const moveForward = () => {
-        const nextStep = ONBOARDING_TOUR_STEPS[stepIndex + 1];
-        if (!nextStep) return;
-        setOnboardingTourStep(stepIndex + 1);
+        const nextRoute = requestOnboardingTourTransition({
+            authority: ONBOARDING_TOUR_ROUTE_AUTHORITY,
+            stepIndex: stepIndex + 1,
+        });
+        if (!nextRoute) return;
         setIsOpenedConfigPage(false);
-        updateExperienceRoute(nextStep.route);
+        updateExperienceRoute(nextRoute);
     };
 
     const moveBackward = () => {
-        const previousStep = ONBOARDING_TOUR_STEPS[stepIndex - 1];
-        if (!previousStep) return;
-        setOnboardingTourStep(stepIndex - 1);
+        const previousRoute = requestOnboardingTourTransition({
+            authority: ONBOARDING_TOUR_ROUTE_AUTHORITY,
+            stepIndex: stepIndex - 1,
+        });
+        if (!previousRoute) return;
         setIsOpenedConfigPage(false);
-        updateExperienceRoute(previousStep.route);
+        updateExperienceRoute(previousRoute);
     };
 
     const completeSetup = async (showSuccessNotification) => {
-        if (completionRequestRef.current) return;
-        completionRequestRef.current = true;
+        if (!beginOnboardingCompletion({ showSuccessNotification })) return;
 
         setCompletionError("");
-        setCompletionIntent({ showSuccessNotification });
         const transportResult = await asyncStdoutToPython("/set/data/setup_completed", true);
 
         if (!transportResult.ok) {
-            completionRequestRef.current = false;
-            setCompletionIntent(null);
+            cancelOnboardingCompletion();
             setCompletionError(t("main_page.guided_setup.setup_completion_error"));
             showNotification_Error(
                 t("blocking_operation.backend_unavailable"),
