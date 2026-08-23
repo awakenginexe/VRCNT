@@ -16,8 +16,11 @@ import {
     confirmStartWithVrchatRegistration,
     createConfirmedStartWithVrchatState,
     createInitialStartWithVrchatState,
+    createStartWithVrchatCheckboxProps,
     createUnknownStartWithVrchatState,
     dismissStartWithVrchatConfirmation,
+    readStartWithVrchatStatus,
+    reconcileStartWithVrchatMutation,
     requestStartWithVrchatChange,
 } from "./startWithVrchatSettingsState.js";
 import { useStore_OpenedQuickSetting } from "@store";
@@ -115,18 +118,13 @@ const StartWithVrchatContainer = () => {
                 return;
             }
 
-            setStartWithVrchatState(createUnknownStartWithVrchatState());
-            try {
-                const isEnabled = await getStartWithVrchatStatus();
-                if (isCurrent) {
-                    setStartWithVrchatState(createConfirmedStartWithVrchatState(isEnabled));
-                    setError("");
-                }
-            } catch {
-                if (isCurrent) {
-                    setStartWithVrchatState(createUnknownStartWithVrchatState());
-                    setError(t("config_page.others.start_with_vrchat.status_failed"));
-                }
+            const nextState = await readStartWithVrchatStatus({
+                isTauri,
+                getRegistrationStatus: getStartWithVrchatStatus,
+            });
+            if (isCurrent) {
+                setStartWithVrchatState(nextState);
+                setError(nextState.isInteractive ? "" : t("config_page.others.start_with_vrchat.status_failed"));
             }
         };
 
@@ -147,27 +145,27 @@ const StartWithVrchatContainer = () => {
 
         setStartWithVrchatState(createUnknownStartWithVrchatState());
         setError("");
-        try {
-            const isEnabled = await disableStartWithVrchat();
-            setStartWithVrchatState(createConfirmedStartWithVrchatState(isEnabled));
-            if (isEnabled) setError(t("config_page.others.start_with_vrchat.status_failed"));
-        } catch {
+        const result = await reconcileStartWithVrchatMutation({
+            changeRegistration: disableStartWithVrchat,
+            getRegistrationStatus: getStartWithVrchatStatus,
+        });
+        setStartWithVrchatState(result.state);
+        if (result.hasError || result.state.registration) {
             setError(t("config_page.others.start_with_vrchat.status_failed"));
-            try {
-                setStartWithVrchatState(createConfirmedStartWithVrchatState(await getStartWithVrchatStatus()));
-            } catch {
-                setStartWithVrchatState(createUnknownStartWithVrchatState());
-            }
         }
     };
+
+    const checkboxProps = createStartWithVrchatCheckboxProps({
+        isTauri,
+        startWithVrchatState,
+    });
 
     return (
         <div>
             <CheckboxContainer
                 label={t("config_page.others.start_with_vrchat.label")}
                 desc={t("config_page.others.start_with_vrchat.desc")}
-                variable={{ data: startWithVrchatState.registration === true, state: startWithVrchatState.state }}
-                is_available={isTauri && startWithVrchatState.isInteractive}
+                {...checkboxProps}
                 toggleFunction={toggleStartWithVrchat}
             />
             {error && <p className={styles.start_with_vrchat_error} role="alert">{error}</p>}
@@ -175,28 +173,29 @@ const StartWithVrchatContainer = () => {
     );
 };
 
-export const StartWithVrchatConfirmationModal = () => {
+export const StartWithVrchatConfirmationModal = ({ onSavingChange = () => {} }) => {
     const { t } = useI18n();
     const { updateOpenedQuickSetting } = useStore_OpenedQuickSetting();
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState("");
 
     const closeModal = () => {
-        if (!isSaving) {
-            dismissStartWithVrchatConfirmation({
-                closeModal: () => updateOpenedQuickSetting(""),
-            });
-        }
+        dismissStartWithVrchatConfirmation({
+            isSaving,
+            closeModal: () => updateOpenedQuickSetting(""),
+        });
     };
 
     const confirmStartWithVrchat = async () => {
         setIsSaving(true);
+        onSavingChange(true);
         setError("");
         try {
             const result = await confirmStartWithVrchatRegistration({
                 enableRegistration: enableStartWithVrchat,
+                getRegistrationStatus: getStartWithVrchatStatus,
             });
-            if (result.registration) {
+            if (result.state.registration) {
                 updateOpenedQuickSetting("");
                 return;
             }
@@ -205,6 +204,7 @@ export const StartWithVrchatConfirmationModal = () => {
             setError(t("config_page.others.start_with_vrchat.confirmation.enable_failed"));
         } finally {
             setIsSaving(false);
+            onSavingChange(false);
         }
     };
 

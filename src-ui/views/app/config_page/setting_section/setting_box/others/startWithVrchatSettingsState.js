@@ -20,6 +20,49 @@ export const createConfirmedStartWithVrchatState = (registration) => ({
     isInteractive: true,
 });
 
+export const createStartWithVrchatCheckboxProps = ({
+    isTauri,
+    startWithVrchatState,
+}) => ({
+    variable: {
+        data: startWithVrchatState.registration === true,
+        state: startWithVrchatState.state,
+    },
+    is_available: Boolean(isTauri && startWithVrchatState.isInteractive),
+});
+
+export const readStartWithVrchatStatus = async ({
+    isTauri,
+    getRegistrationStatus,
+}) => {
+    if (!isTauri) return createInitialStartWithVrchatState(false);
+    try {
+        return createConfirmedStartWithVrchatState(await getRegistrationStatus());
+    } catch {
+        return createUnknownStartWithVrchatState();
+    }
+};
+
+export const reconcileStartWithVrchatMutation = async ({
+    changeRegistration,
+    getRegistrationStatus,
+}) => {
+    try {
+        return {
+            state: createConfirmedStartWithVrchatState(await changeRegistration()),
+            hasError: false,
+        };
+    } catch {
+        return {
+            state: await readStartWithVrchatStatus({
+                isTauri: true,
+                getRegistrationStatus,
+            }),
+            hasError: true,
+        };
+    }
+};
+
 export const requestStartWithVrchatChange = async ({
     registration,
     isInteractive,
@@ -33,11 +76,16 @@ export const requestStartWithVrchatChange = async ({
     return { type: "disable" };
 };
 
-export const dismissStartWithVrchatConfirmation = ({ closeModal }) => {
+export const dismissStartWithVrchatConfirmation = ({ isSaving = false, closeModal }) => {
+    if (isSaving) return { type: "blocked" };
     closeModal();
     return { type: "dismissed" };
 };
 
-export const confirmStartWithVrchatRegistration = async ({ enableRegistration }) => ({
-    registration: await enableRegistration(),
+export const confirmStartWithVrchatRegistration = ({
+    enableRegistration,
+    getRegistrationStatus,
+}) => reconcileStartWithVrchatMutation({
+    changeRegistration: enableRegistration,
+    getRegistrationStatus,
 });

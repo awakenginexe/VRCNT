@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import styles from "./Checkbox.module.scss";
+import { isCheckboxInputDisabled } from "./checkboxState.js";
 export const Checkbox = ({
     checkboxId,
     variable,
@@ -9,6 +10,8 @@ export const Checkbox = ({
     borderWidth = "0.2rem",
     padding = "2rem",
 }) => {
+
+    const is_disabled = isCheckboxInputDisabled({ is_available, variable });
 
     const wrapper_class_names = clsx(styles.checkbox_wrapper, {
         [styles.is_disabled]: !is_available,
@@ -33,6 +36,7 @@ export const Checkbox = ({
                         type="checkbox"
                         id={checkboxId}
                         checked={variable.data}
+                        disabled={is_disabled}
                         onClick={(e) => e.stopPropagation()}
                         onChange={() => {
                             if (toggleFunction) {
