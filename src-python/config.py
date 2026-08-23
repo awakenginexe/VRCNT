@@ -1072,7 +1072,11 @@ class Config:
     FONT_FAMILY = ManagedProperty('FONT_FAMILY', type_=str)
     FONT_DOWNLOAD_POLICY = ManagedProperty('FONT_DOWNLOAD_POLICY', type_=str, allowed=lambda v, inst: v in {"ask", "automatic", "never"})
     UI_LANGUAGE = ManagedProperty('UI_LANGUAGE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_UI_LANGUAGE_LIST)
-    SETUP_COMPLETED = ManagedProperty('SETUP_COMPLETED', type_=bool)
+    SETUP_COMPLETED = ManagedProperty(
+        'SETUP_COMPLETED',
+        type_=bool,
+        immediate_save=True,
+    )
     MAIN_WINDOW_GEOMETRY = ValidatedProperty('MAIN_WINDOW_GEOMETRY', _main_window_geometry_validator, immediate_save=True)
     APP_COLOR_PALETTE = ValidatedProperty('APP_COLOR_PALETTE', _app_color_palette_validator)
     COLOR_RESET_5_9_0 = ManagedProperty(

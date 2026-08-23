@@ -25,6 +25,7 @@ from controller import Controller
 def _controller_for_readiness():
     controller = object.__new__(Controller)
     controller.device_access_status = True
+    controller._quick_wake_up_lock = threading.RLock()
     controller._transcription_restart_lock = threading.RLock()
     controller._translation_activation_lock = threading.RLock()
     controller._transcription_shutdown_requested = threading.Event()

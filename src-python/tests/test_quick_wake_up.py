@@ -15,10 +15,40 @@ def _controller_for_main_functions():
     controller = object.__new__(Controller)
     controller._translation_activation_lock = threading.RLock()
     controller._transcription_restart_lock = threading.RLock()
+    controller._quick_wake_up_lock = threading.RLock()
     controller._transcription_shutdown_requested = threading.Event()
     controller._transcription_shutdown_state = "running"
     controller.run = Mock()
     return controller
+
+
+class _BarrierQuickWakeConfig:
+    """Force concurrent snapshot readers to start from the same saved state."""
+
+    def __init__(self):
+        self.ENABLE_QUICK_WAKE_UP = True
+        self._state = {
+            "translation": False,
+            "transcription_send": False,
+            "transcription_receive": False,
+        }
+        self._state_lock = threading.Lock()
+        self._read_barrier = threading.Barrier(2)
+
+    @property
+    def QUICK_WAKE_UP_STATE(self):
+        with self._state_lock:
+            snapshot = dict(self._state)
+        try:
+            self._read_barrier.wait(timeout=0.5)
+        except threading.BrokenBarrierError:
+            pass
+        return snapshot
+
+    @QUICK_WAKE_UP_STATE.setter
+    def QUICK_WAKE_UP_STATE(self, value):
+        with self._state_lock:
+            self._state = dict(value)
 
 
 class QuickWakeUpTests(unittest.TestCase):
@@ -92,6 +122,121 @@ class QuickWakeUpTests(unittest.TestCase):
                 "transcription_receive": False,
             },
         )
+
+    def test_concurrent_quick_wake_updates_do_not_lose_state_bits(self):
+        coordinated_config = _BarrierQuickWakeConfig()
+        errors = []
+
+        def record_state(key):
+            try:
+                self.controller._recordQuickWakeUpState(key, True)
+            except BaseException as error:
+                errors.append(error)
+
+        with patch.object(controller_module, "config", coordinated_config):
+            translation_thread = threading.Thread(
+                target=record_state,
+                args=("translation",),
+            )
+            speaking_thread = threading.Thread(
+                target=record_state,
+                args=("transcription_send",),
+            )
+            translation_thread.start()
+            speaking_thread.start()
+            translation_thread.join(timeout=2)
+            speaking_thread.join(timeout=2)
+
+        self.assertFalse(translation_thread.is_alive())
+        self.assertFalse(speaking_thread.is_alive())
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            coordinated_config.QUICK_WAKE_UP_STATE,
+            {
+                "translation": True,
+                "transcription_send": True,
+                "transcription_receive": False,
+            },
+        )
+
+    def test_quick_wake_snapshot_waits_for_failed_speaking_activation(self):
+        activation_started = threading.Event()
+        release_activation = threading.Event()
+        quick_call_started = threading.Event()
+        quick_call_finished = threading.Event()
+        responses = {}
+
+        def fail_activation_after_release():
+            activation_started.set()
+            release_activation.wait(timeout=2)
+            return False
+
+        def enable_speaking():
+            responses["speaking"] = self.controller.setEnableTranscriptionSend()
+
+        def enable_quick_wake():
+            quick_call_started.set()
+            responses["quick_wake"] = self.controller.setEnableQuickWakeUp()
+            quick_call_finished.set()
+
+        with (
+            patch.object(controller_module.config, "_ENABLE_QUICK_WAKE_UP", False),
+            patch.object(
+                controller_module.config,
+                "_QUICK_WAKE_UP_STATE",
+                {
+                    "translation": False,
+                    "transcription_send": False,
+                    "transcription_receive": False,
+                },
+            ),
+            patch.object(controller_module.config, "_ENABLE_TRANSLATION", False),
+            patch.object(controller_module.config, "_ENABLE_TRANSCRIPTION_SEND", False),
+            patch.object(controller_module.config, "_ENABLE_TRANSCRIPTION_RECEIVE", False),
+            patch.object(controller_module.config, "saveConfig"),
+            patch.object(
+                self.controller,
+                "_transcriptionLanguageSupportError",
+                return_value=None,
+            ),
+            patch.object(
+                self.controller,
+                "_transcriptionModelReadinessError",
+                return_value=None,
+            ),
+            patch.object(
+                self.controller,
+                "startTranscriptionSendMessage",
+                side_effect=fail_activation_after_release,
+            ),
+            patch.object(self.controller, "stopTranscriptionSendMessage"),
+        ):
+            speaking_thread = threading.Thread(target=enable_speaking)
+            speaking_thread.start()
+            self.assertTrue(activation_started.wait(timeout=2))
+
+            quick_thread = threading.Thread(target=enable_quick_wake)
+            quick_thread.start()
+            self.assertTrue(quick_call_started.wait(timeout=2))
+            completed_before_confirmation = quick_call_finished.wait(timeout=0.25)
+
+            release_activation.set()
+            speaking_thread.join(timeout=2)
+            quick_thread.join(timeout=2)
+
+            self.assertFalse(speaking_thread.is_alive())
+            self.assertFalse(quick_thread.is_alive())
+            self.assertFalse(completed_before_confirmation)
+            self.assertNotEqual(responses["speaking"]["status"], 200)
+            self.assertEqual(responses["quick_wake"], {"status": 200, "result": True})
+            self.assertEqual(
+                controller_module.config.QUICK_WAKE_UP_STATE,
+                {
+                    "translation": False,
+                    "transcription_send": False,
+                    "transcription_receive": False,
+                },
+            )
 
     def test_enabling_quick_wake_up_captures_confirmed_active_functions(self):
         with (
