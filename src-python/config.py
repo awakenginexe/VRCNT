@@ -656,14 +656,24 @@ def _overlay_color_palette_validator(val, inst):
     return _normalize_color_palette(val, OVERLAY_COLOR_PALETTE_DEFAULTS)
 
 def _main_window_geometry_validator(val, inst):
-    if not (isinstance(val, dict) and set(val.keys()) == set(inst.MAIN_WINDOW_GEOMETRY.keys())):
+    if not isinstance(val, dict):
         return None
+
+    defaults = inst.MAIN_WINDOW_GEOMETRY
+    expected_keys = set(defaults.keys())
+    legacy_keys = expected_keys - {"maximized"}
+    if set(val.keys()) not in (expected_keys, legacy_keys):
+        return None
+
     new = {}
-    for key, value in val.items():
-        if isinstance(value, int):
+    for key, fallback in defaults.items():
+        value = val.get(key, fallback)
+        if key == "maximized":
+            new[key] = value if isinstance(value, bool) else fallback
+        elif isinstance(value, int):
             new[key] = value
         else:
-            new[key] = inst.MAIN_WINDOW_GEOMETRY[key]
+            new[key] = fallback
     return new
 
 def _selected_transcription_compute_type_validator(val, inst):
@@ -1388,6 +1398,7 @@ class Config:
             "y_pos": 0,
             "width": 870,
             "height": 654,
+            "maximized": False,
         }
         self._APP_COLOR_PALETTE = copy.deepcopy(APP_COLOR_PALETTE_DEFAULTS)
         self._COLOR_RESET_5_9_0 = 0

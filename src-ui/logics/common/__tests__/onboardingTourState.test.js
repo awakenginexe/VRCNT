@@ -61,6 +61,7 @@ test("a pending completion is exclusive, blocks tour handoff, and unlocks only a
             stepIndex: 0,
             completionPending: true,
             completionNotification: false,
+            windowGeometry: null,
         });
         assert.equal(
             canNavigateDuringOnboarding({ setupCompleted: true, onboardingActive: true }),
@@ -74,6 +75,7 @@ test("a pending completion is exclusive, blocks tour handoff, and unlocks only a
             stepIndex: 0,
             completionPending: false,
             completionNotification: false,
+            windowGeometry: null,
         });
         assert.equal(
             canNavigateDuringOnboarding({ setupCompleted: true, onboardingActive: false }),
@@ -82,6 +84,49 @@ test("a pending completion is exclusive, blocks tour handoff, and unlocks only a
     } finally {
         acknowledgeOnboardingCompletion();
     }
+});
+
+test("the product tour carries the pre-tour window geometry until completion", () => {
+    const windowGeometry = {
+        x_pos: 445,
+        y_pos: 45,
+        width: 1474,
+        height: 701,
+        maximized: false,
+    };
+
+    beginOnboarding();
+    assert.equal(beginProductTour({ windowGeometry }), "live");
+    assert.deepEqual(getOnboardingTourSnapshot().windowGeometry, windowGeometry);
+
+    assert.equal(beginOnboardingCompletion(), true);
+    assert.equal(acknowledgeOnboardingCompletion(), "live");
+    assert.equal(getOnboardingTourSnapshot().windowGeometry, null);
+});
+
+test("a delayed second setup click cannot replace the window geometry after the tour starts", () => {
+    const firstWindowGeometry = {
+        x_pos: 445,
+        y_pos: 45,
+        width: 1474,
+        height: 701,
+        maximized: false,
+    };
+    const delayedWindowGeometry = {
+        x_pos: 0,
+        y_pos: 0,
+        width: 1920,
+        height: 1020,
+        maximized: true,
+    };
+
+    beginOnboarding();
+    assert.equal(beginProductTour({ windowGeometry: firstWindowGeometry }), "live");
+    assert.equal(beginProductTour({ windowGeometry: delayedWindowGeometry }), null);
+    assert.deepEqual(getOnboardingTourSnapshot().windowGeometry, firstWindowGeometry);
+
+    assert.equal(beginOnboardingCompletion(), true);
+    assert.equal(acknowledgeOnboardingCompletion(), "live");
 });
 
 test("only the tour-overlay authority can transition real routes while the tour is active", () => {

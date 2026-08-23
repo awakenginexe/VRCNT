@@ -19,6 +19,7 @@ let snapshot = Object.freeze({
     stepIndex: 0,
     completionPending: false,
     completionNotification: false,
+    windowGeometry: null,
 });
 const listeners = new Set();
 
@@ -42,12 +43,13 @@ export const beginOnboarding = () => {
         stepIndex: 0,
         completionPending: false,
         completionNotification: false,
+        windowGeometry: null,
     });
 };
 
-export const beginProductTour = () => {
-    if (!snapshot.active || snapshot.completionPending) return null;
-    publish({ ...snapshot, phase: "tour", stepIndex: 0 });
+export const beginProductTour = ({ windowGeometry = null } = {}) => {
+    if (!snapshot.active || snapshot.phase !== "setup" || snapshot.completionPending) return null;
+    publish({ ...snapshot, phase: "tour", stepIndex: 0, windowGeometry });
     return ONBOARDING_TOUR_STEPS[0].route;
 };
 
@@ -84,6 +86,7 @@ export const acknowledgeOnboardingCompletion = () => {
         stepIndex: 0,
         completionPending: false,
         completionNotification: false,
+        windowGeometry: null,
     });
     return "live";
 };

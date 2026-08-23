@@ -13,7 +13,10 @@ test("first-run setup introduces configuration before handing off to the real-pa
     assert.match(controller, /beginOnboarding\(\);[\s\S]*?updateExperienceRoute\("setup"\)/);
     assert.match(setup, /const \[screen, setScreen\] = useState\("intro"\)/);
     assert.match(setup, /screen === "intro"/);
-    assert.match(setup, /const tourRoute = beginProductTour\(\);[\s\S]*?if \(!tourRoute\) return;[\s\S]*?updateExperienceRoute\(tourRoute\)/);
+    assert.match(
+        setup,
+        /const windowGeometry = await captureOnboardingWindowGeometry\(\);[\s\S]*?const tourRoute = beginProductTour\(\{ windowGeometry \}\);[\s\S]*?if \(!tourRoute\) return;[\s\S]*?updateExperienceRoute\(tourRoute\)/,
+    );
     assert.match(setup, /step === 6/);
     assert.match(
         setup,
@@ -60,6 +63,7 @@ test("manual top navigation is visibly disabled and action-guarded throughout on
 
 test("the tour spotlights its real page target and keeps a measured workspace fallback", () => {
     const tour = readSource("../OnboardingTour.jsx");
+    const geometry = readSource("../../../../../logics/common/onboardingTourGeometry.js");
     const tourStyles = readSource("../../guided_setup/GuidedSetup.module.scss");
     const targetSources = [
         [readSource("../live_control_rail/LiveControlRail.jsx"), "live-controls"],
@@ -72,8 +76,11 @@ test("the tour spotlights its real page target and keeps a measured workspace fa
 
     assert.match(tour, /currentStep\.target/);
     assert.match(tour, /\[data-onboarding-target="tour-workspace"\]/);
-    assert.match(tour, /target\?\.scrollIntoView\?\.\(\{[\s\S]*?block: "center",[\s\S]*?inline: "nearest",[\s\S]*?behavior: "auto",/);
-    assert.match(tour, /getBoundingClientRect\(\)/);
+    assert.match(tour, /scrollOnboardingTargetIntoView/);
+    assert.match(tour, /resetOnboardingRootScroll/);
+    assert.doesNotMatch(tour, /\.scrollIntoView/);
+    assert.match(tour, /getVisibleSpotlightRect/);
+    assert.match(geometry, /getBoundingClientRect\(\)/);
     assert.match(tour, /window\.addEventListener\("resize",/);
     assert.match(tour, /window\.addEventListener\("scroll",/);
     assert.match(tour, /styles\.tour_spotlight/);
@@ -82,6 +89,25 @@ test("the tour spotlights its real page target and keeps a measured workspace fa
     for (const [source, target] of targetSources) {
         assert.match(source, new RegExp(`data-onboarding-target="${target}"`));
     }
+});
+
+test("the measured spotlight is rendered in the viewport layer above the page transform", () => {
+    const tour = readSource("../OnboardingTour.jsx");
+
+    assert.match(tour, /import\s+\{\s*createPortal\s*\}\s+from\s+"react-dom";/);
+    assert.match(tour, /getOnboardingTourPortalRoot/);
+    assert.match(tour, /createPortal\(tour, portalRoot\)/);
+});
+
+test("the product-tour overlay leaves the native title-bar band interactive", () => {
+    const tourStyles = readSource("../../guided_setup/GuidedSetup.module.scss");
+
+    assert.match(
+        tourStyles,
+        /\.tour_backdrop\s*\{[\s\S]*?inset:\s*var\(--title_bar_height\)\s+0\s+0/,
+    );
+    assert.match(tourStyles, /\.tour_dimming_layer\s*\{[\s\S]*?position:\s*absolute/);
+    assert.match(tourStyles, /\.tour_spotlight\s*\{[\s\S]*?position:\s*absolute/);
 });
 
 test("the spotlight ring uses only defined color-token forms", () => {

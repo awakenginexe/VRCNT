@@ -124,7 +124,7 @@ test("Guided Setup keeps audio and VRChat controls in their final steps and hand
     assert.match(setup, /step === 6/);
     assert.match(setup, /"\/set\/data\/setup_completed"/);
     assert.match(setup, /const skipSetup = \(\) =>/);
-    assert.match(setup, /const tourRoute = beginProductTour\(\)/);
+    assert.match(setup, /const tourRoute = beginProductTour\(\{ windowGeometry \}\)/);
     assert.match(setup, /main_page\.guided_setup\.skip/);
 
     for (const setter of [
@@ -136,6 +136,27 @@ test("Guided Setup keeps audio and VRChat controls in their final steps and hand
     ]) {
         assert.match(setup, new RegExp(setter));
     }
+});
+
+test("Guided Setup restores the saved native window scale after the product tour", () => {
+    const setup = readSource("../../guided_setup/GuidedSetup.jsx");
+    const tour = readSource("../OnboardingTour.jsx");
+
+    assert.match(setup, /useWindow/);
+    assert.match(setup, /captureOnboardingWindowGeometry/);
+    assert.match(
+        setup,
+        /const startProductTour = async \(\) => \{[\s\S]*?await captureOnboardingWindowGeometry\(\)[\s\S]*?beginProductTour\(\{ windowGeometry \}\)/,
+    );
+    assert.match(tour, /restoreOnboardingWindowGeometry/);
+    assert.match(
+        tour,
+        /await restoreOnboardingWindowGeometry\(windowGeometry\)[\s\S]*?await asyncSaveWindowGeometry\(\)[\s\S]*?await asyncUpdateBreakPoint\(\)/,
+    );
+    assert.match(
+        tour,
+        /void \(async \(\) => \{[\s\S]*?try \{[\s\S]*?await restoreOnboardingWindowGeometry\(windowGeometry\)[\s\S]*?\} catch \(err\) \{[\s\S]*?console\.error\(/,
+    );
 });
 
 test("the persistent onboarding controller waits for durable setup completion acknowledgement before leaving", () => {

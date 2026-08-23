@@ -4,6 +4,10 @@ import { useStdoutToPython } from "@useStdoutToPython";
 import { useStore_IsBreakPoint } from "@store";
 import { useAppearance } from "@logics_configs";
 import { store } from "@store";
+import {
+    captureOnboardingWindowGeometry as captureOnboardingWindowGeometryForTour,
+    restoreOnboardingWindowGeometry as restoreOnboardingWindowGeometryForTour,
+} from "./onboardingWindowGeometry.js";
 
 export const useWindow = () => {
     const { asyncStdoutToPython } = useStdoutToPython();
@@ -11,6 +15,29 @@ export const useWindow = () => {
     const { updateIsBreakPoint } = useStore_IsBreakPoint();
 
     const appWindow = store.appWindow;
+
+    const captureOnboardingWindowGeometry = async () => {
+        try {
+            return await captureOnboardingWindowGeometryForTour(appWindow);
+        } catch (err) {
+            console.error("Error capturing onboarding window geometry:", err);
+            return null;
+        }
+    };
+
+    const restoreOnboardingWindowGeometry = async (geometry) => {
+        try {
+            return await restoreOnboardingWindowGeometryForTour({
+                appWindow,
+                geometry,
+                createPhysicalPosition: (x, y) => new PhysicalPosition(x, y),
+                createPhysicalSize: (width, height) => new PhysicalSize(width, height),
+            });
+        } catch (err) {
+            console.error("Error restoring onboarding window geometry:", err);
+            return false;
+        }
+    };
 
     const asyncGetWindowGeometry = async () => {
         try {
@@ -20,11 +47,14 @@ export const useWindow = () => {
             const size = await appWindow.outerSize();
             const { width, height } = size;
 
+            const maximized = await appWindow.isMaximized();
+
             return {
                 x_pos: x_pos,
                 y_pos: y_pos,
                 width: width,
-                height: height
+                height: height,
+                maximized: maximized === true,
             };
         } catch (err) {
             console.error("Error getting window position and size:", err);
@@ -32,16 +62,33 @@ export const useWindow = () => {
     };
 
     const asyncSaveWindowGeometry = async () => {
-        const minimized = await appWindow.isMinimized();
-        if (minimized === true) return; // don't save while the window is minimized.
-        const data = await asyncGetWindowGeometry();
-        asyncStdoutToPython("/set/data/main_window_geometry", data);
+        try {
+            const minimized = await appWindow.isMinimized();
+            if (minimized === true) return { ok: false, skipped: true };
+
+            const data = await asyncGetWindowGeometry();
+            if (!data) return { ok: false };
+
+            return await asyncStdoutToPython("/set/data/main_window_geometry", data);
+        } catch (err) {
+            console.error("Error saving window geometry:", err);
+            return { ok: false, error: err };
+        }
     };
 
     const restoreWindowGeometry = async (data) => {
         try {
+            const { x_pos, y_pos, width, height, maximized = false } = data;
+            if (maximized === true) {
+                await appWindow.maximize();
+                return;
+            }
+
+            if (await appWindow.isMaximized()) {
+                await appWindow.unmaximize();
+            }
+
             const monitors = await availableMonitors();
-            const { x_pos, y_pos, width, height } = data;
 
             // ウィンドウが属するモニターを特定
             const targetMonitor = monitors.find(monitor =>
@@ -163,6 +210,8 @@ export const useWindow = () => {
         WindowGeometryController,
         asyncSaveWindowGeometry,
         restoreWindowGeometry,
+        captureOnboardingWindowGeometry,
+        restoreOnboardingWindowGeometry,
         asyncUpdateBreakPoint,
 
         asyncCloseApp,

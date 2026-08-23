@@ -8,6 +8,7 @@ import {
     useIsOscAvailable,
     useIsOpenedConfigPage,
     useNotificationStatus,
+    useWindow,
 } from "@logics_common";
 import { useStdoutToPython } from "@useStdoutToPython";
 import { CustomModernSelect } from "@common_components";
@@ -318,6 +319,7 @@ export const GuidedSetup = () => {
     const { updateExperienceRoute } = useStore_ExperienceRoute();
     const { setIsOpenedConfigPage } = useIsOpenedConfigPage();
     const { showNotification_Error } = useNotificationStatus();
+    const { captureOnboardingWindowGeometry } = useWindow();
     const { asyncStdoutToPython } = useStdoutToPython();
     const { currentIsOscAvailable } = useIsOscAvailable();
     const { currentUiLanguage, setUiLanguage } = useAppearance();
@@ -444,8 +446,9 @@ export const GuidedSetup = () => {
         }
     };
     const skipSetup = () => completeSetup();
-    const startProductTour = () => {
-        const tourRoute = beginProductTour();
+    const startProductTour = async () => {
+        const windowGeometry = await captureOnboardingWindowGeometry();
+        const tourRoute = beginProductTour({ windowGeometry });
         if (!tourRoute) return;
         setIsOpenedConfigPage(false);
         updateExperienceRoute(tourRoute);

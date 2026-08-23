@@ -27,6 +27,9 @@ const switchStylesPath = (
 );
 const appPath = "src-ui/views/app/App.jsx";
 const appStylesPath = "src-ui/views/app/App.module.scss";
+const titleBarStylesPath = (
+    "src-ui/views/app/others/window_title_bar/WindowTitleBar.module.scss"
+);
 const startupBannerPath = (
     "src-ui/views/app/others/startup_status_banner/StartupStatusBanner.jsx"
 );
@@ -581,6 +584,21 @@ test("the app keeps one inert page boundary beneath the native title bar", () =>
 
     const overlayStyles = readSource(blockingOverlayStylesPath);
     assert.match(overlayStyles, /\.overlay\s*\{[\s\S]*?z-index:\s*100/);
+});
+
+test("the native title bar reserves a non-collapsing row above every page", () => {
+    const appStyles = readSource(appStylesPath);
+    const titleBarStyles = readSource(titleBarStylesPath);
+
+    assert.match(
+        appStyles,
+        /\.container\s*\{[\s\S]*?display:\s*grid[\s\S]*?grid-template-rows:\s*var\(--title_bar_height\)\s+minmax\(0,\s*1fr\)/,
+    );
+    assert.match(
+        titleBarStyles,
+        /\.container\s*\{[\s\S]*?height:\s*var\(--title_bar_height\)[\s\S]*?min-height:\s*var\(--title_bar_height\)/,
+    );
+    assert.match(titleBarStyles, /\.container\s*\{[\s\S]*?z-index:\s*120/);
 });
 
 test("app overlay copy is localized and the startup error banner persists", () => {

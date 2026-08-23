@@ -902,7 +902,7 @@
 
 .tour_backdrop {
     position: fixed;
-    inset: 0;
+    inset: var(--title_bar_height) 0 0;
     z-index: 90;
     display: flex;
     align-items: flex-end;
@@ -919,7 +919,7 @@
 }
 
 .tour_dimming_layer {
-    position: fixed;
+    position: absolute;
     pointer-events: none;
     background: rgba(3, 5, 12, 0.62);
     backdrop-filter: blur(0.2rem) saturate(80%);
@@ -927,7 +927,7 @@
 }
 
 .tour_spotlight {
-    position: fixed;
+    position: absolute;
     z-index: 1;
     box-sizing: border-box;
     border: 0.18rem solid rgba(var(--accent_color_rgb), 0.96);

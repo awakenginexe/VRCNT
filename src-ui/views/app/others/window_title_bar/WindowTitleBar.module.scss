@@ -1,5 +1,8 @@
 .container {
     width: 100%;
+    height: var(--title_bar_height);
+    min-height: var(--title_bar_height);
+    flex: 0 0 var(--title_bar_height);
     background: rgba(8, 12, 22, 0.65);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
@@ -7,16 +10,15 @@
     display: flex;
     border-bottom: 0.1rem solid rgba(255, 255, 255, 0.08);
     position: relative;
-    z-index: 100;
+    z-index: 120;
 }
 
 .wrapper {
-    flex-shrink: 0;
     display: flex;
     width: 100%;
     justify-content: space-between;
     align-items: center;
-    height: var(--title_bar_height);
+    height: 100%;
 }
 
 .title_wrapper {

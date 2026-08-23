@@ -224,7 +224,8 @@ class TestMainloop():
                     "x_pos": random.randint(0, 1920),
                     "y_pos": random.randint(0, 1080),
                     "width": random.randint(800, 1920),
-                    "height": random.randint(600, 1080)
+                    "height": random.randint(600, 1080),
+                    "maximized": random.choice([True, False]),
                 }
             case "/set/data/selected_translation_compute_device":
                 self.config_dict["translation_compute_device_list"], _ = self.main.handleRequest("/get/data/selectable_translation_compute_device_list", None)

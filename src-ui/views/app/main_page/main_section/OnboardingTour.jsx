@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { useI18n } from "@useI18n";
 import { useOnboarding } from "@logics_configs";
-import { useIsOpenedConfigPage, useNotificationStatus } from "@logics_common";
+import { useIsOpenedConfigPage, useNotificationStatus, useWindow } from "@logics_common";
 import {
     ONBOARDING_TOUR_ROUTE_AUTHORITY,
     ONBOARDING_TOUR_STEPS,
@@ -14,6 +15,14 @@ import {
 } from "@logics_common/onboardingTourState.js";
 import { useStdoutToPython } from "@useStdoutToPython";
 import { useStore_ExperienceRoute } from "@store";
+import {
+    getOnboardingTourContentViewport,
+    getOnboardingTourPortalRoot,
+    getVisibleSpotlightRect,
+    resetOnboardingRootScroll,
+    scrollOnboardingTargetIntoView,
+    toOnboardingTourContentCoordinates,
+} from "@logics_common/onboardingTourGeometry.js";
 import styles from "../guided_setup/GuidedSetup.module.scss";
 
 const SETUP_COMPLETION_TIMEOUT_MS = 8000;
@@ -25,6 +34,11 @@ export const OnboardingTour = () => {
     const { asyncStdoutToPython } = useStdoutToPython();
     const { setIsOpenedConfigPage } = useIsOpenedConfigPage();
     const { showNotification_Success, showNotification_Error } = useNotificationStatus();
+    const {
+        restoreOnboardingWindowGeometry,
+        asyncSaveWindowGeometry,
+        asyncUpdateBreakPoint,
+    } = useWindow();
     const { currentExperienceRoute, updateExperienceRoute } = useStore_ExperienceRoute();
     const {
         active,
@@ -32,6 +46,7 @@ export const OnboardingTour = () => {
         stepIndex,
         completionPending,
         completionNotification,
+        windowGeometry,
     } = useSyncExternalStore(
         subscribeToOnboardingTour,
         getOnboardingTourSnapshot,
@@ -40,6 +55,7 @@ export const OnboardingTour = () => {
     const [completionError, setCompletionError] = useState("");
     const [isSkipConfirmationOpen, setIsSkipConfirmationOpen] = useState(false);
     const [spotlightRect, setSpotlightRect] = useState(null);
+    const [tourContentViewport, setTourContentViewport] = useState(null);
     const cancelSkipButtonRef = useRef(null);
     const dialogRef = useRef(null);
     const currentStep = ONBOARDING_TOUR_STEPS[stepIndex];
@@ -48,6 +64,7 @@ export const OnboardingTour = () => {
     useLayoutEffect(() => {
         if (!active || phase !== "tour" || !currentStep?.target) {
             setSpotlightRect(null);
+            setTourContentViewport(null);
             return undefined;
         }
 
@@ -56,42 +73,61 @@ export const OnboardingTour = () => {
             document.querySelector(`[data-onboarding-target="${currentStep.target}"]`)
             ?? document.querySelector('[data-onboarding-target="tour-workspace"]')
         );
+        const getContentViewport = () => getOnboardingTourContentViewport({
+            viewport: { width: window.innerWidth, height: window.innerHeight },
+            titleBarBounds: document.querySelector("[data-onboarding-title-bar]")?.getBoundingClientRect(),
+        });
         const target = getSpotlightTarget();
-        target?.scrollIntoView?.({
-            block: "center",
-            inline: "nearest",
-            behavior: "auto",
+        resetOnboardingRootScroll({ documentRef: document, windowRef: window });
+        scrollOnboardingTargetIntoView({
+            target,
+            documentRef: document,
+            getComputedStyle: (element) => window.getComputedStyle(element),
         });
         const measureSpotlight = () => {
             const target = getSpotlightTarget();
+            const contentViewport = getContentViewport();
+            setTourContentViewport((previousViewport) => {
+                if (
+                    previousViewport
+                    && previousViewport.top === contentViewport.top
+                    && previousViewport.right === contentViewport.right
+                    && previousViewport.bottom === contentViewport.bottom
+                    && previousViewport.left === contentViewport.left
+                ) {
+                    return previousViewport;
+                }
+
+                return contentViewport;
+            });
             if (!target) {
                 setSpotlightRect(null);
                 return;
             }
 
-            const rect = target.getBoundingClientRect();
-            const viewportWidth = window.innerWidth;
-            const viewportHeight = window.innerHeight;
-            const left = Math.max(0, Math.min(viewportWidth, rect.left - TOUR_SPOTLIGHT_PADDING));
-            const top = Math.max(0, Math.min(viewportHeight, rect.top - TOUR_SPOTLIGHT_PADDING));
-            const right = Math.max(left, Math.min(viewportWidth, rect.right + TOUR_SPOTLIGHT_PADDING));
-            const bottom = Math.max(top, Math.min(viewportHeight, rect.bottom + TOUR_SPOTLIGHT_PADDING));
+            const nextRect = getVisibleSpotlightRect({
+                target,
+                viewport: contentViewport,
+                getComputedStyle: (element) => window.getComputedStyle(element),
+                padding: TOUR_SPOTLIGHT_PADDING,
+            });
+            setSpotlightRect((previousRect) => {
+                if (!nextRect) {
+                    return null;
+                }
 
-            if (right <= left || bottom <= top) {
-                setSpotlightRect(null);
-                return;
-            }
+                if (
+                    previousRect
+                    && previousRect.top === nextRect.top
+                    && previousRect.right === nextRect.right
+                    && previousRect.bottom === nextRect.bottom
+                    && previousRect.left === nextRect.left
+                ) {
+                    return previousRect;
+                }
 
-            const nextRect = { top, right, bottom, left, width: right - left, height: bottom - top };
-            setSpotlightRect((previousRect) => (
-                previousRect
-                && previousRect.top === nextRect.top
-                && previousRect.right === nextRect.right
-                && previousRect.bottom === nextRect.bottom
-                && previousRect.left === nextRect.left
-                    ? previousRect
-                    : nextRect
-            ));
+                return nextRect;
+            });
         };
         const scheduleSpotlightMeasurement = () => {
             if (animationFrameId !== null) window.cancelAnimationFrame(animationFrameId);
@@ -116,6 +152,7 @@ export const OnboardingTour = () => {
 
         const acknowledgedRoute = acknowledgeOnboardingCompletion();
         if (!acknowledgedRoute) return;
+        resetOnboardingRootScroll({ documentRef: document, windowRef: window });
         if (completionNotification) {
             showNotification_Success(
                 t("main_page.guided_setup.complete_notification"),
@@ -125,14 +162,32 @@ export const OnboardingTour = () => {
         setCompletionError("");
         setIsOpenedConfigPage(false);
         updateExperienceRoute(acknowledgedRoute);
+        window.requestAnimationFrame(() => {
+            resetOnboardingRootScroll({ documentRef: document, windowRef: window });
+        });
+
+        void (async () => {
+            try {
+                const restored = await restoreOnboardingWindowGeometry(windowGeometry);
+                if (!restored) return;
+                await asyncSaveWindowGeometry();
+                await asyncUpdateBreakPoint();
+            } catch (err) {
+                console.error("Error finalizing onboarding window geometry:", err);
+            }
+        })();
     }, [
+        asyncSaveWindowGeometry,
+        asyncUpdateBreakPoint,
         completionNotification,
         completionPending,
         currentSetupCompleted.data,
+        restoreOnboardingWindowGeometry,
         setIsOpenedConfigPage,
         showNotification_Success,
         t,
         updateExperienceRoute,
+        windowGeometry,
     ]);
 
     useEffect(() => {
@@ -212,35 +267,41 @@ export const OnboardingTour = () => {
     };
     const titleId = "onboarding-tour-title";
     const detailId = "onboarding-tour-detail";
+    const spotlightContentRect = spotlightRect && tourContentViewport
+        ? toOnboardingTourContentCoordinates({
+            bounds: spotlightRect,
+            contentViewport: tourContentViewport,
+        })
+        : null;
 
-    return (
+    const tour = (
         <div className={styles.tour_backdrop}>
             <div className={styles.tour_spotlight_layers} aria-hidden="true">
-                {spotlightRect ? (
+                {spotlightContentRect ? (
                     <>
                         <div
                             className={styles.tour_dimming_layer}
-                            style={{ top: 0, right: 0, left: 0, height: spotlightRect.top }}
+                            style={{ top: 0, right: 0, left: 0, height: spotlightContentRect.top }}
                         />
                         <div
                             className={styles.tour_dimming_layer}
-                            style={{ top: spotlightRect.top, left: 0, width: spotlightRect.left, height: spotlightRect.height }}
+                            style={{ top: spotlightContentRect.top, left: 0, width: spotlightContentRect.left, height: spotlightContentRect.height }}
                         />
                         <div
                             className={styles.tour_dimming_layer}
-                            style={{ top: spotlightRect.top, right: 0, left: spotlightRect.right, height: spotlightRect.height }}
+                            style={{ top: spotlightContentRect.top, right: 0, left: spotlightContentRect.right, height: spotlightContentRect.height }}
                         />
                         <div
                             className={styles.tour_dimming_layer}
-                            style={{ top: spotlightRect.bottom, right: 0, bottom: 0, left: 0 }}
+                            style={{ top: spotlightContentRect.bottom, right: 0, bottom: 0, left: 0 }}
                         />
                         <div
                             className={styles.tour_spotlight}
                             style={{
-                                top: spotlightRect.top,
-                                left: spotlightRect.left,
-                                width: spotlightRect.width,
-                                height: spotlightRect.height,
+                                top: spotlightContentRect.top,
+                                left: spotlightContentRect.left,
+                                width: spotlightContentRect.width,
+                                height: spotlightContentRect.height,
                             }}
                         />
                     </>
@@ -336,4 +397,10 @@ export const OnboardingTour = () => {
             </section>
         </div>
     );
+
+    const portalRoot = typeof document === "undefined"
+        ? null
+        : getOnboardingTourPortalRoot(document);
+
+    return portalRoot ? createPortal(tour, portalRoot) : tour;
 };
