@@ -93,6 +93,42 @@ class QuickWakeUpTests(unittest.TestCase):
             },
         )
 
+    def test_enabling_quick_wake_up_captures_confirmed_active_functions(self):
+        with (
+            patch.object(controller_module.config, "_ENABLE_QUICK_WAKE_UP", False),
+            patch.object(
+                controller_module.config,
+                "_QUICK_WAKE_UP_STATE",
+                {
+                    "translation": False,
+                    "transcription_send": False,
+                    "transcription_receive": False,
+                },
+            ),
+            patch.object(controller_module.config, "_ENABLE_TRANSLATION", True),
+            patch.object(controller_module.config, "_ENABLE_TRANSCRIPTION_SEND", True),
+            patch.object(controller_module.config, "_ENABLE_TRANSCRIPTION_RECEIVE", True),
+            patch.object(controller_module.config, "saveConfig") as save_config,
+        ):
+            response = self.controller.setEnableQuickWakeUp()
+
+            self.assertEqual(response, {"status": 200, "result": True})
+            self.assertEqual(
+                controller_module.config.QUICK_WAKE_UP_STATE,
+                {
+                    "translation": True,
+                    "transcription_send": True,
+                    "transcription_receive": True,
+                },
+            )
+
+        persisted_snapshots = [
+            call for call in save_config.call_args_list
+            if call.args[0] == "QUICK_WAKE_UP_STATE"
+        ]
+        self.assertEqual(len(persisted_snapshots), 1)
+        self.assertIs(persisted_snapshots[0].kwargs["immediate_save"], True)
+
     def test_restore_with_missing_local_model_preserves_saved_intent(self):
         saved_state = {
             "translation": False,

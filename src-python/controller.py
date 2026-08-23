@@ -3341,11 +3341,23 @@ class Controller:
         state[key] = enabled is True
         config.QUICK_WAKE_UP_STATE = state
 
+    def _quickWakeUpCurrentState(self) -> dict[str, bool]:
+        return {
+            "translation": config.ENABLE_TRANSLATION is True,
+            "transcription_send": config.ENABLE_TRANSCRIPTION_SEND is True,
+            "transcription_receive": config.ENABLE_TRANSCRIPTION_RECEIVE is True,
+        }
+
     @staticmethod
     def getQuickWakeUp(*args, **kwargs) -> dict:
         return {"status": 200, "result": config.ENABLE_QUICK_WAKE_UP}
 
     def setEnableQuickWakeUp(self, *args, **kwargs) -> dict:
+        if config.ENABLE_QUICK_WAKE_UP is not True:
+            # Persist the complete confirmed runtime snapshot before publishing
+            # the enabled flag, so an interrupted write cannot restore stale
+            # all-false intent on the next launch.
+            config.QUICK_WAKE_UP_STATE = self._quickWakeUpCurrentState()
         config.ENABLE_QUICK_WAKE_UP = True
         return {"status": 200, "result": config.ENABLE_QUICK_WAKE_UP}
 
