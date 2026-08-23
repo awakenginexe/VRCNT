@@ -233,6 +233,8 @@ class VirusTotalReportTests(unittest.TestCase):
 
         self.assertIn("1 flagged / 75 engines", app_badge)
         self.assertIn("1 flagged / 75 engines", backend_badge)
+        self.assertIn('data-virustotal-logo="true"', app_badge)
+        self.assertIn('data-virustotal-logo="true"', backend_badge)
 
     def test_missing_key_fails_without_publishing_an_unscanned_status(self):
         with tempfile.TemporaryDirectory() as temporary_directory:

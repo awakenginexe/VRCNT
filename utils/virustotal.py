@@ -45,6 +45,9 @@ DEFAULT_README_FILES = (
 VIRUSTOTAL_FILE_URL_PATTERN = re.compile(
     r"^https://www\.virustotal\.com/gui/file/[0-9a-f]{64}$"
 )
+VIRUSTOTAL_LOGO_PATH = (
+    "M10.87 12L0 22.68h24V1.32H0zm10.73 8.52H5.28l8.637-8.448L5.28 3.48H21.6z"
+)
 DEFAULT_POLL_INTERVAL_SECONDS = 30
 DEFAULT_TIMEOUT_SECONDS = 30 * 60
 
@@ -388,7 +391,13 @@ def create_file_badge_svg(file_report: Mapping, *, status: str = "completed") ->
 
 
 def create_status_badge_svg(label: str, message: str, color: str) -> str:
-    label_width = max(78, 7 * len(label) + 18)
+    logo_size = 12
+    logo_gap = 4
+    label_text_width = 7 * len(label)
+    label_group_width = logo_size + logo_gap + label_text_width
+    label_width = max(78, label_group_width + 16)
+    logo_x = (label_width - label_group_width) / 2
+    label_text_x = logo_x + logo_size + logo_gap + label_text_width / 2
     message_width = max(105, 7 * len(message) + 18)
     total_width = label_width + message_width
     return (
@@ -401,9 +410,11 @@ def create_status_badge_svg(label: str, message: str, color: str) -> str:
         f'<g clip-path="url(#r)"><path fill="#555" d="M0 0h{label_width}v20H0z"/>'
         f'<path fill="{color}" d="M{label_width} 0h{message_width}v20H{label_width}z"/>'
         f'<path fill="url(#a)" d="M0 0h{total_width}v20H0z"/></g>'
+        f'<g data-virustotal-logo="true" fill="#fff" transform="translate({logo_x:g} 4) scale(.5)">'
+        f'<path d="{VIRUSTOTAL_LOGO_PATH}"/></g>'
         f'<g fill="#fff" text-anchor="middle" font-family="Verdana,DejaVu Sans,sans-serif" font-size="11">'
-        f'<text x="{label_width / 2}" y="15" fill="#010101" fill-opacity=".3">{html.escape(label)}</text>'
-        f'<text x="{label_width / 2}" y="14">{html.escape(label)}</text>'
+        f'<text x="{label_text_x:g}" y="15" fill="#010101" fill-opacity=".3">{html.escape(label)}</text>'
+        f'<text x="{label_text_x:g}" y="14">{html.escape(label)}</text>'
         f'<text x="{label_width + message_width / 2}" y="15" fill="#010101" fill-opacity=".3">{html.escape(message)}</text>'
         f'<text x="{label_width + message_width / 2}" y="14">{html.escape(message)}</text>'
         "</g></svg>\n"
