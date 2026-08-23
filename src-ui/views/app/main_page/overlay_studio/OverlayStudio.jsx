@@ -287,7 +287,7 @@ export const OverlayStudio = () => {
     return (
         <div className={styles.container}>
             <TopBar />
-            <main className={styles.content}>
+            <main className={styles.content} data-onboarding-target="tour-workspace">
                 <header className={styles.hero}>
                     <div>
                         <p className={styles.eyebrow}>{t("main_page.overlay_studio.eyebrow")}</p>
@@ -299,7 +299,7 @@ export const OverlayStudio = () => {
                     </button>
                 </header>
 
-                <div className={styles.studio_grid}>
+                <div className={styles.studio_grid} data-onboarding-target="overlay-studio">
                     <div className={styles.preview_column}>
                         <section className={styles.desktop_card} aria-labelledby="desktop-overlay-heading">
                             <header className={styles.card_header}>

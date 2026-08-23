@@ -1,10 +1,10 @@
 export const ONBOARDING_TOUR_STEPS = Object.freeze([
-    { route: "live", titleKey: "live_controls_title", detailKey: "live_controls_detail" },
-    { route: "live", titleKey: "live_services_title", detailKey: "live_services_detail" },
-    { route: "models", titleKey: "recognition_title", detailKey: "recognition_detail" },
-    { route: "translation_models", titleKey: "translation_title", detailKey: "translation_detail" },
-    { route: "overlay", titleKey: "overlay_title", detailKey: "overlay_detail" },
-    { route: "customize", titleKey: "customize_title", detailKey: "customize_detail" },
+    { route: "live", target: "live-controls", titleKey: "live_controls_title", detailKey: "live_controls_detail" },
+    { route: "live", target: "live-services", titleKey: "live_services_title", detailKey: "live_services_detail" },
+    { route: "models", target: "speech-recognition", titleKey: "recognition_title", detailKey: "recognition_detail" },
+    { route: "translation_models", target: "translation-routing", titleKey: "translation_title", detailKey: "translation_detail" },
+    { route: "overlay", target: "overlay-studio", titleKey: "overlay_title", detailKey: "overlay_detail" },
+    { route: "customize", target: "customize-workspace", titleKey: "customize_title", detailKey: "customize_detail" },
 ]);
 
 export const ONBOARDING_TOUR_ROUTE_AUTHORITY = Symbol("onboarding-tour-overlay");

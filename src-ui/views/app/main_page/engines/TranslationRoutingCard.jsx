@@ -44,7 +44,11 @@ export const TranslationRoutingCard = () => {
     };
 
     return (
-        <section className={styles.provider_card} aria-label={t("main_page.engines_workspace.translation_title")}>
+        <section
+            className={styles.provider_card}
+            aria-label={t("main_page.engines_workspace.translation_title")}
+            data-onboarding-target="translation-routing"
+        >
             <div className={styles.section_heading}>
                 <div>
                     <p className={styles.section_kicker}>{t("main_page.engines_workspace.translation_kicker")}</p>

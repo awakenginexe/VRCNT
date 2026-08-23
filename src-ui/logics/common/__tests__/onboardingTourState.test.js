@@ -27,6 +27,20 @@ test("the product tour visits the six real application routes in the approved or
     );
 });
 
+test("the product tour identifies the real page zone explained by every step", () => {
+    assert.deepEqual(
+        ONBOARDING_TOUR_STEPS.map(({ target }) => target),
+        [
+            "live-controls",
+            "live-services",
+            "speech-recognition",
+            "translation-routing",
+            "overlay-studio",
+            "customize-workspace",
+        ],
+    );
+});
+
 test("a pending completion is exclusive, blocks tour handoff, and unlocks only after acknowledgement", () => {
     beginOnboarding();
     try {

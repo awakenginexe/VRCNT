@@ -113,7 +113,9 @@ export const LiveControlRail = () => {
 
             <LiveTranscriptionReadinessBadge readiness={readiness} />
 
-            <MainFunctionSwitch layout="control_rail" includeForeground={false} />
+            <div data-onboarding-target="live-controls">
+                <MainFunctionSwitch layout="control_rail" includeForeground={false} />
+            </div>
 
             <section className={styles.section} aria-labelledby="live-language-routing-title">
                 <p id="live-language-routing-title" className={styles.section_label}>
@@ -217,7 +219,7 @@ export const LiveControlRail = () => {
                 </div>
             </section>
 
-            <section className={styles.section} aria-labelledby="live-engine-title">
+            <section className={styles.section} aria-labelledby="live-engine-title" data-onboarding-target="live-services">
                 <p id="live-engine-title" className={styles.section_label}>
                     {t("main_page.live_workspace.engine_and_translation")}
                 </p>

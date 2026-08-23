@@ -226,6 +226,7 @@ export const SpeechRecognitionCards = () => {
         <section
             className={styles.runtime_section}
             aria-label={t("main_page.engines_workspace.source_paths")}
+            data-onboarding-target="speech-recognition"
         >
             <div className={styles.source_grid}>
                 <SourceRuntimeCard
