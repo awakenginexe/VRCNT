@@ -1,5 +1,8 @@
+import { useEffect, useRef } from "react";
+
 import { useI18n } from "@useI18n";
-import { useAppearance } from "@logics_configs";
+import { useAppearance, useOnboarding } from "@logics_configs";
+import { useStdoutToPython } from "@useStdoutToPython";
 
 import {
     KeyEventController,
@@ -48,6 +51,7 @@ import {
     isPageBlockingOperation,
 } from "@logics_common/blockingOperationState.js";
 import { isTauriRuntime } from "@logics_common/tauriRuntime.js";
+import { shouldRestoreQuickWakeUp } from "@logics_common/quickWakeUpState.js";
 
 export const App = () => {
     const { i18n } = useI18n();
@@ -75,6 +79,7 @@ export const App = () => {
                 <KeyEventController />
                 {isTauri && <StartPythonController />}
                 {isTauri && <FirstRunSetupController />}
+                <QuickWakeUpRestoreController />
                 {isTauri && <GlobalHotKeyController />}
                 <UiLanguageController />
                 <ConfigPageCloseTriggerController />
@@ -92,6 +97,38 @@ export const App = () => {
             </AppErrorBoundary>
         </div>
     );
+};
+
+const QuickWakeUpRestoreController = () => {
+    const { currentIsBackendReady } = useIsBackendReady();
+    const { currentEnableQuickWakeUp } = useOnboarding();
+    const { asyncStdoutToPython } = useStdoutToPython();
+    const restoreStateRef = useRef("unconfirmed");
+
+    useEffect(() => {
+        if (currentIsBackendReady.data !== true) return;
+        if (currentEnableQuickWakeUp.state !== "ok") return;
+
+        if (restoreStateRef.current === "unconfirmed") {
+            restoreStateRef.current = "confirmed";
+        }
+
+        if (!shouldRestoreQuickWakeUp({
+            isBackendReady: currentIsBackendReady.data,
+            enabled: currentEnableQuickWakeUp.data,
+            restoreState: restoreStateRef.current,
+        })) return;
+
+        restoreStateRef.current = "requested";
+        asyncStdoutToPython("/run/restore_quick_wake_up");
+    }, [
+        asyncStdoutToPython,
+        currentEnableQuickWakeUp.data,
+        currentEnableQuickWakeUp.state,
+        currentIsBackendReady.data,
+    ]);
+
+    return null;
 };
 
 const Contents = () => {

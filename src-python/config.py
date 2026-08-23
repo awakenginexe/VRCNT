@@ -1022,6 +1022,16 @@ class Config:
     ENABLE_TRANSLATION = ManagedProperty('ENABLE_TRANSLATION', type_=bool, serialize=False)
     ENABLE_TRANSCRIPTION_SEND = ManagedProperty('ENABLE_TRANSCRIPTION_SEND', type_=bool, serialize=False)
     ENABLE_TRANSCRIPTION_RECEIVE = ManagedProperty('ENABLE_TRANSCRIPTION_RECEIVE', type_=bool, serialize=False)
+    ENABLE_QUICK_WAKE_UP = ManagedProperty(
+        'ENABLE_QUICK_WAKE_UP',
+        type_=bool,
+        immediate_save=True,
+    )
+    QUICK_WAKE_UP_STATE = ManagedProperty(
+        'QUICK_WAKE_UP_STATE',
+        type_=dict,
+        immediate_save=True,
+    )
     ENABLE_FOREGROUND = ManagedProperty('ENABLE_FOREGROUND', type_=bool, serialize=False)
     ENABLE_CHECK_ENERGY_SEND = ManagedProperty('ENABLE_CHECK_ENERGY_SEND', type_=bool, serialize=False)
     ENABLE_CHECK_ENERGY_RECEIVE = ManagedProperty('ENABLE_CHECK_ENERGY_RECEIVE', type_=bool, serialize=False)
@@ -1265,6 +1275,12 @@ class Config:
         self._ENABLE_CTRANSLATE2_AUTO_FALLBACK = False
         self._ENABLE_TRANSCRIPTION_SEND = False
         self._ENABLE_TRANSCRIPTION_RECEIVE = False
+        self._ENABLE_QUICK_WAKE_UP = False
+        self._QUICK_WAKE_UP_STATE = {
+            "translation": False,
+            "transcription_send": False,
+            "transcription_receive": False,
+        }
         self._ENABLE_FOREGROUND = False
         self._ENABLE_CHECK_ENERGY_SEND = False
         self._ENABLE_CHECK_ENERGY_RECEIVE = False

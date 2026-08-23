@@ -137,6 +137,11 @@ mapping = {
     "/set/enable/transcription_receive": {"status": False, "variable":controller.setEnableTranscriptionReceive},
     "/set/disable/transcription_receive": {"status": False, "variable":controller.setDisableTranscriptionReceive},
 
+    "/get/data/quick_wake_up": {"status": True, "variable":controller.getQuickWakeUp},
+    "/set/enable/quick_wake_up": {"status": True, "variable":controller.setEnableQuickWakeUp},
+    "/set/disable/quick_wake_up": {"status": True, "variable":controller.setDisableQuickWakeUp},
+    "/run/restore_quick_wake_up": {"status": True, "variable":controller.restoreQuickWakeUp},
+
     "/set/enable/live_session": {"status": False, "variable":controller.setEnableLiveSession},
     "/set/disable/live_session": {"status": False, "variable":controller.setDisableLiveSession},
 
