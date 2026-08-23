@@ -18,6 +18,58 @@
     overscroll-behavior-y: contain;
 }
 
+.landing_card {
+    width: min(48rem, 100%);
+    min-height: min(34rem, calc(100vh - 8rem));
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 2rem;
+    margin: 0 auto;
+    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.32);
+    border-radius: 1.4rem;
+    padding: clamp(2rem, 5vw, 4.5rem);
+    background:
+        radial-gradient(circle at 50% 0%, rgba(var(--accent_color_rgb), 0.2), transparent 48%),
+        rgba(12, 17, 32, 0.46);
+    box-shadow: 0 1.5rem 4.5rem rgba(0, 0, 0, 0.32);
+    text-align: center;
+}
+
+.landing_copy {
+    display: grid;
+    gap: 0.8rem;
+}
+
+.landing_copy h1 {
+    margin: 0;
+    color: var(--dark_100_color);
+    font-size: clamp(2rem, 4vw, 3.5rem);
+    letter-spacing: -0.08rem;
+}
+
+.landing_copy p:not(.eyebrow) {
+    max-width: 38rem;
+    margin: 0;
+    color: var(--dark_400_color);
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.6;
+}
+
+.landing_actions {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+}
+
+.landing_error {
+    margin: 0;
+    color: var(--error_color);
+    font-size: 0.88rem;
+    font-weight: 700;
+}
+
 .intro_card,
 .setup_card {
     border: 0.1rem solid rgba(255, 255, 255, 0.14);
@@ -848,6 +900,72 @@
     margin-top: 0.35rem;
 }
 
+.tour_backdrop {
+    position: fixed;
+    inset: var(--main_page_topbar_height, 4rem) 0 0;
+    z-index: 90;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: clamp(1rem, 2.5vw, 2rem);
+    background: linear-gradient(180deg, rgba(3, 5, 12, 0.08), rgba(3, 5, 12, 0.48));
+    animation: guided_skip_backdrop_in 180ms ease both;
+}
+
+.tour_dialog {
+    width: min(48rem, 100%);
+    display: grid;
+    gap: 0.8rem;
+    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.48);
+    border-radius: 1.1rem;
+    padding: clamp(1.2rem, 2.5vw, 1.8rem);
+    background: color-mix(in srgb, var(--surface_overlay_color) 94%, transparent);
+    box-shadow: 0 1.5rem 4.5rem rgba(0, 0, 0, 0.52);
+    backdrop-filter: blur(1.2rem) saturate(150%);
+    animation: guided_skip_dialog_in 220ms cubic-bezier(0.22, 0.8, 0.28, 1) both;
+}
+
+.tour_dialog h2,
+.tour_dialog p {
+    margin: 0;
+}
+
+.tour_dialog h2 {
+    color: var(--dark_100_color);
+    font-size: clamp(1.3rem, 2.5vw, 1.85rem);
+}
+
+.tour_dialog > p:not(.eyebrow):not(.tour_error) {
+    color: var(--dark_400_color);
+    font-size: 0.96rem;
+    font-weight: 600;
+    line-height: 1.55;
+}
+
+.tour_heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.tour_actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 0.4rem;
+}
+
+.tour_actions > :first-child {
+    margin-right: auto;
+}
+
+.tour_error {
+    color: var(--error_color);
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
 .primary_button,
 .secondary_button {
     min-height: 2.75rem;
@@ -961,6 +1079,16 @@
         flex-direction: column-reverse;
     }
 
+    .landing_actions,
+    .tour_actions {
+        width: 100%;
+        flex-direction: column;
+    }
+
+    .tour_actions > :first-child {
+        margin-right: 0;
+    }
+
     .language_picker_backdrop {
         padding: 0.7rem;
     }
@@ -1043,6 +1171,8 @@
     .step_transition,
     .skip_backdrop,
     .skip_dialog,
+    .tour_backdrop,
+    .tour_dialog,
     .language_picker_backdrop,
     .language_picker_dialog,
     .language_picker_trigger,

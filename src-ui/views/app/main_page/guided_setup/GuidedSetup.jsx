@@ -12,6 +12,10 @@ import {
 import { useStdoutToPython } from "@useStdoutToPython";
 import { CustomModernSelect } from "@common_components";
 import { useStore_ExperienceRoute } from "@store";
+import {
+    beginProductTour,
+    endOnboarding,
+} from "@logics_common/onboardingTourState.js";
 import { TopBar } from "../main_section/top_bar/TopBar";
 import { LanguageFlag } from "../sidebar_section/language_settings/LanguageFlag.jsx";
 import { TranscriptionTranslationStep } from "./TranscriptionTranslationStep.jsx";
@@ -301,12 +305,14 @@ const SetupToggle = ({ id, label, description, checked, disabled, onChange }) =>
 
 export const GuidedSetup = () => {
     const { t } = useI18n();
+    const [screen, setScreen] = useState("intro");
     const [step, setStep] = useState(1);
     const [stepDirection, setStepDirection] = useState("forward");
     const [completionIntent, setCompletionIntent] = useState(null);
     const [completionError, setCompletionError] = useState("");
     const [isSkipConfirmationOpen, setIsSkipConfirmationOpen] = useState(false);
     const skipCancelButtonRef = useRef(null);
+    const completionRequestRef = useRef(false);
     const { updateExperienceRoute } = useStore_ExperienceRoute();
     const { setIsOpenedConfigPage } = useIsOpenedConfigPage();
     const { showNotification_Success, showNotification_Error } = useNotificationStatus();
@@ -395,6 +401,8 @@ export const GuidedSetup = () => {
             }
             setCompletionIntent(null);
             setCompletionError("");
+            completionRequestRef.current = false;
+            endOnboarding();
             setIsOpenedConfigPage(false);
             updateExperienceRoute("live");
         }
@@ -411,6 +419,7 @@ export const GuidedSetup = () => {
         if (!completionIntent) return undefined;
 
         const timeoutId = window.setTimeout(() => {
+            completionRequestRef.current = false;
             setCompletionIntent(null);
             setCompletionError(t("main_page.guided_setup.setup_completion_error"));
         }, SETUP_COMPLETION_TIMEOUT_MS);
@@ -437,13 +446,15 @@ export const GuidedSetup = () => {
     }, [isSkipConfirmationOpen]);
 
     const completeSetup = async ({ showSuccessNotification = false } = {}) => {
-        if (isCompletingSetup) return;
+        if (completionRequestRef.current) return;
+        completionRequestRef.current = true;
 
         setCompletionError("");
         setCompletionIntent({ showSuccessNotification });
         const transportResult = await asyncStdoutToPython("/set/data/setup_completed", true);
 
         if (!transportResult.ok) {
+            completionRequestRef.current = false;
             setCompletionIntent(null);
             setCompletionError(t("main_page.guided_setup.setup_completion_error"));
             showNotification_Error(
@@ -452,8 +463,12 @@ export const GuidedSetup = () => {
             );
         }
     };
-    const finishSetup = () => completeSetup({ showSuccessNotification: true });
     const skipSetup = () => completeSetup();
+    const startProductTour = () => {
+        beginProductTour();
+        setIsOpenedConfigPage(false);
+        updateExperienceRoute("live");
+    };
     const moveToStep = (nextStep) => {
         const boundedStep = Math.max(1, Math.min(SETUP_STEPS.length, nextStep));
         if (boundedStep === step) return;
@@ -474,6 +489,37 @@ export const GuidedSetup = () => {
         <div className={styles.container}>
             <TopBar />
             <main className={styles.content} aria-labelledby="guided-setup-title">
+                {screen === "intro" ? (
+                    <section className={styles.landing_card}>
+                        <div className={styles.landing_copy}>
+                            <p className={styles.eyebrow}>{t("main_page.guided_setup.eyebrow")}</p>
+                            <h1 id="guided-setup-title">{t("main_page.guided_setup.title")}</h1>
+                            <p>{t("main_page.guided_setup.detail")}</p>
+                        </div>
+                        <div className={styles.landing_actions}>
+                            <button
+                                type="button"
+                                className={styles.secondary_button}
+                                disabled={isCompletingSetup}
+                                onClick={requestSkipSetup}
+                            >
+                                {t("main_page.guided_setup.skip")}
+                            </button>
+                            <button
+                                type="button"
+                                className={styles.primary_button}
+                                disabled={isCompletingSetup}
+                                onClick={() => setScreen("setup")}
+                            >
+                                {t("main_page.guided_setup.continue")}
+                            </button>
+                        </div>
+                        {completionError && (
+                            <p className={styles.landing_error} role="alert">{completionError}</p>
+                        )}
+                    </section>
+                ) : (
+                <>
                 <section className={styles.intro_card}>
                     <div>
                         <p className={styles.eyebrow}>{t("main_page.guided_setup.eyebrow")}</p>
@@ -743,10 +789,9 @@ export const GuidedSetup = () => {
                                 <button
                                     type="button"
                                     className={styles.primary_button}
-                                    disabled={isCompletingSetup}
-                                    onClick={finishSetup}
+                                    onClick={startProductTour}
                                 >
-                                    {t("main_page.guided_setup.finish")}
+                                    {t("main_page.guided_setup.continue")}
                                 </button>
                             ) : (
                                 <button
@@ -761,6 +806,8 @@ export const GuidedSetup = () => {
                         </div>
                     </footer>
                 </section>
+                </>
+                )}
             </main>
             {isSkipConfirmationOpen && (
                 <div

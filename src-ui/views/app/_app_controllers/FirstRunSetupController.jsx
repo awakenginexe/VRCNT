@@ -6,6 +6,7 @@ import {
     useIsOpenedConfigPage,
 } from "@logics_common";
 import { shouldOpenFirstRunSetup } from "@logics_common/firstRunSetupState.js";
+import { beginOnboarding } from "@logics_common/onboardingTourState.js";
 import { useStore_ExperienceRoute } from "@store";
 
 export const FirstRunSetupController = () => {
@@ -30,6 +31,7 @@ export const FirstRunSetupController = () => {
 
         if (!shouldOpen) return;
 
+        beginOnboarding();
         setIsOpenedConfigPage(false);
         updateExperienceRoute("setup");
     }, [

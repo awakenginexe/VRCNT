@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { useI18n } from "@useI18n";
+import { useOnboarding } from "@logics_configs";
 import {
     store,
     useStore_ExperienceRoute,
@@ -8,6 +9,11 @@ import {
 } from "@store";
 import { useIsOpenedConfigPage, usePipelineStatus, useSoftwareVersion } from "@logics_common";
 import { selectPipelineStatusSummary } from "@logics_common/pipelineStatusUtils.js";
+import {
+    canNavigateDuringOnboarding,
+    getOnboardingTourSnapshot,
+    subscribeToOnboardingTour,
+} from "@logics_common/onboardingTourState.js";
 import { DesktopOverlayButton } from "../../sidebar_section/desktop_overlay_button/DesktopOverlayButton";
 import logoBadge from "@images/vrcnt_logo_badge.png";
 import styles from "./LiveWeaveNavigation.module.scss";
@@ -29,6 +35,16 @@ export const LiveWeaveNavigation = () => {
     const { updateOpenedQuickSetting } = useStore_OpenedQuickSetting();
     const { currentLatestSoftwareVersionInfo } = useSoftwareVersion();
     const { currentPipelineStatus } = usePipelineStatus();
+    const { currentSetupCompleted } = useOnboarding();
+    const onboardingSnapshot = useSyncExternalStore(
+        subscribeToOnboardingTour,
+        getOnboardingTourSnapshot,
+        getOnboardingTourSnapshot,
+    );
+    const canManualNavigate = canNavigateDuringOnboarding({
+        setupCompleted: currentSetupCompleted.data,
+        onboardingActive: onboardingSnapshot.active,
+    });
     const hasUpdateAvailable = currentLatestSoftwareVersionInfo.data.is_update_available === true;
     const summary = useMemo(
         () => selectPipelineStatusSummary(currentPipelineStatus.data, Date.now()),
@@ -36,6 +52,7 @@ export const LiveWeaveNavigation = () => {
     );
 
     const openItem = (item) => {
+        if (!canManualNavigate) return;
         updateExperienceRoute(item.id);
         if (item.id === "live") {
             setIsOpenedConfigPage(false);
@@ -58,7 +75,10 @@ export const LiveWeaveNavigation = () => {
             <button
                 type="button"
                 className={styles.wordmark}
+                disabled={!canManualNavigate}
+                aria-disabled={!canManualNavigate}
                 onClick={() => {
+                    if (!canManualNavigate) return;
                     updateExperienceRoute("live");
                     setIsOpenedConfigPage(false);
                 }}
@@ -78,6 +98,8 @@ export const LiveWeaveNavigation = () => {
                             className={styles.navigation_item}
                             data-active={isActive}
                             aria-current={isActive ? "page" : undefined}
+                            disabled={!canManualNavigate}
+                            aria-disabled={!canManualNavigate}
                             onClick={() => openItem(item)}
                         >
                             <span className={styles.navigation_icon} aria-hidden="true">{item.icon}</span>

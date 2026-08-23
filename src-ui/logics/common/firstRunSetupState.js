@@ -8,3 +8,5 @@ export const shouldOpenFirstRunSetup = ({
     if (alreadyDecided === true) return false;
     return true;
 };
+
+export { canNavigateDuringOnboarding } from "./onboardingTourState.js";

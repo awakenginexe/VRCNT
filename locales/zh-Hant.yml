@@ -125,6 +125,21 @@ main_page:
     notifications:
         label: "通知"
         dismiss: "關閉通知"
+    onboarding_tour:
+        eyebrow: "產品導覽"
+        step_count: "導覽 {{current}} / {{total}}"
+        live_controls_title: "認識 Live 控制項"
+        live_controls_detail: "Translation 用於翻譯你的語音，Speaking 處理麥克風，Listening 處理來自他人的桌面音訊。"
+        live_services_title: "不離開 Live 即可切換服務"
+        live_services_detail: "使用 Live 頁面的選擇器，可以依照目前對話快速更換轉錄引擎與翻譯服務。"
+        recognition_title: "為每個來源選擇 Speech Recognition"
+        recognition_detail: "Speech Recognition 可為麥克風與接收的桌面音訊分別選擇辨識引擎、模型和運算裝置。"
+        translation_title: "設定 Translation Option"
+        translation_detail: "Translation Option 可選擇主要與備用翻譯提供者，讓 VRCNT 依照你偏好的路線運作。"
+        overlay_title: "使用 Overlay Studio 呈現對話"
+        overlay_detail: "Overlay Studio 控制桌面覆蓋層，以及面向 OSC 的 VRChat 體驗中的呈現選項。"
+        customize_title: "打造屬於你的 VRCNT"
+        customize_detail: "Customize 可個人化應用程式外觀，同時保留熟悉的對話工作區。"
     guided_setup:
         eyebrow: "快速開始"
         title: "設定 VRCNT"

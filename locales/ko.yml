@@ -125,6 +125,21 @@ main_page:
     notifications:
         label: "알림"
         dismiss: "알림 닫기"
+    onboarding_tour:
+        eyebrow: "제품 둘러보기"
+        step_count: "둘러보기 {{current}} / {{total}}"
+        live_controls_title: "Live 컨트롤 알아보기"
+        live_controls_detail: "Translation은 내 음성을 번역하고, Speaking은 마이크를, Listening은 다른 사람의 데스크톱 오디오를 처리합니다."
+        live_services_title: "Live에서 바로 서비스 전환"
+        live_services_detail: "Live 페이지의 선택 메뉴에서 현재 대화에 맞게 음성 인식 엔진과 번역 서비스를 빠르게 바꿀 수 있습니다."
+        recognition_title: "소스별 Speech Recognition 선택"
+        recognition_detail: "Speech Recognition에서 마이크와 수신 데스크톱 오디오에 서로 다른 인식 엔진, 모델, 연산 장치를 선택할 수 있습니다."
+        translation_title: "Translation Option 설정"
+        translation_detail: "Translation Option에서 기본 및 보조 번역 제공자를 선택해 원하는 번역 경로를 구성할 수 있습니다."
+        overlay_title: "Overlay Studio로 대화 표시"
+        overlay_detail: "Overlay Studio는 데스크톱 오버레이와 OSC 기반 VRChat 환경에 표시되는 방식을 제어합니다."
+        customize_title: "나만의 VRCNT 만들기"
+        customize_detail: "Customize에서 익숙한 대화 작업 공간은 유지하면서 앱의 외관을 원하는 대로 꾸밀 수 있습니다."
     guided_setup:
         eyebrow: "빠른 시작"
         title: "VRCNT 설정"

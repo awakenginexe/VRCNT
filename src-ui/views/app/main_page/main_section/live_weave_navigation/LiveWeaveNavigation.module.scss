@@ -42,6 +42,17 @@
     filter: drop-shadow(0 0 0.9rem rgba(var(--accent_color_rgb), 0.42));
 }
 
+.wordmark:disabled,
+.navigation_item:disabled {
+    cursor: not-allowed;
+    opacity: 0.42;
+    filter: saturate(0.35);
+}
+
+.wordmark:disabled .wordmark_badge {
+    filter: grayscale(0.7);
+}
+
 .navigation {
     min-width: 0;
     flex: 1 1 auto;
@@ -75,7 +86,7 @@
     white-space: nowrap;
     transition: all var(--transition_ui);
 
-    &:hover {
+    &:hover:not(:disabled) {
         color: var(--dark_100_color);
         background: rgba(255, 255, 255, 0.06);
         border-color: rgba(255, 255, 255, 0.1);
