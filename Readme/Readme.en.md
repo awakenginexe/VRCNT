@@ -11,7 +11,7 @@
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
   <a href="https://github.com/awakenginexe/VRCNT/releases/latest">
-    <img alt="VirusTotal status for VRCNT.exe and VRCNT-backend.exe" src="https://github.com/awakenginexe/VRCNT/releases/latest/download/VirusTotal-status.svg" />
+    <img alt="VirusTotal status for VRCNT.exe and VRCNT-backend.exe" src="VirusTotal-status.svg" />
   </a>
 </p>
 
