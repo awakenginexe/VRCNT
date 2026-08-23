@@ -10,6 +10,9 @@
   <img alt="Version" src="https://img.shields.io/badge/version-5.12.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
+</p>
+
+<p align="center">
   <a href="https://github.com/awakenginexe/VRCNT/releases/latest">
     <img alt="VRCNT.exe 和 VRCNT-backend.exe 的 VirusTotal 状态" src="VirusTotal-status.svg" />
   </a>
