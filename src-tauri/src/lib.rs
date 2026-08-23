@@ -3,9 +3,90 @@ use std::collections::HashSet;
 use std::fs;
 use std::io;
 use std::path::Path;
+use std::thread;
+use std::time::Duration;
+use sysinfo::{ProcessesToUpdate, System};
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::TrayIconBuilder;
 use tauri::Manager;
 
 pub mod font_packs;
+
+const BACKGROUND_STARTUP_ARGUMENT: &str = "--vrcnt-background";
+const VRCHAT_PROCESS_NAME: &str = "VRChat.exe";
+const VRCHAT_PROCESS_POLL_INTERVAL: Duration = Duration::from_secs(2);
+
+pub fn is_background_launch(args: &[String]) -> bool {
+    args.iter()
+        .any(|argument| argument == BACKGROUND_STARTUP_ARGUMENT)
+}
+
+pub fn is_vrchat_process_name(name: &str) -> bool {
+    name.eq_ignore_ascii_case(VRCHAT_PROCESS_NAME)
+}
+
+fn show_main_window(app: &tauri::AppHandle) {
+    let Some(main_window) = app.get_webview_window("main") else {
+        return;
+    };
+
+    let _ = main_window.show();
+    let _ = main_window.unminimize();
+    let _ = main_window.set_focus();
+}
+
+fn wait_for_vrchat_and_show_main_window(app: tauri::AppHandle) {
+    thread::spawn(move || {
+        let mut system = System::new();
+
+        loop {
+            system.refresh_processes(ProcessesToUpdate::All, true);
+            let vrchat_is_running = system.processes().values().any(|process| {
+                process
+                    .name()
+                    .to_str()
+                    .map(is_vrchat_process_name)
+                    .unwrap_or(false)
+            });
+
+            if vrchat_is_running {
+                show_main_window(&app);
+                return;
+            }
+
+            thread::sleep(VRCHAT_PROCESS_POLL_INTERVAL);
+        }
+    });
+}
+
+fn set_up_background_startup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    let main_window = app
+        .get_webview_window("main")
+        .ok_or("VRCNT main window is unavailable")?;
+    main_window.hide()?;
+
+    let open_vrcnt = MenuItem::with_id(app, "open-vrcnt", "Open VRCNT", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit-vrcnt", "Quit", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&open_vrcnt, &quit])?;
+    let icon = app
+        .default_window_icon()
+        .cloned()
+        .ok_or("VRCNT tray icon is unavailable")?;
+
+    let _tray_icon = TrayIconBuilder::with_id("vrcnt-background-startup")
+        .icon(icon)
+        .menu(&menu)
+        .tooltip("VRCNT")
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "open-vrcnt" => show_main_window(app),
+            "quit-vrcnt" => app.exit(0),
+            _ => {}
+        })
+        .build(app)?;
+
+    wait_for_vrchat_and_show_main_window(app.handle().clone());
+    Ok(())
+}
 
 fn managed_font_resource_root(
     app: &tauri::App,
@@ -58,6 +139,8 @@ pub fn run() {
     #[cfg(target_os = "windows")]
     migrate_renamed_webview_data().expect("Could not migrate the legacy VRCNT WebView data");
 
+    let background_launch = is_background_launch(&std::env::args().collect::<Vec<_>>());
+
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -66,7 +149,15 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
-        .setup(|app| -> Result<(), Box<dyn std::error::Error>> {
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![BACKGROUND_STARTUP_ARGUMENT]),
+        ))
+        .setup(move |app| -> Result<(), Box<dyn std::error::Error>> {
+            if background_launch {
+                set_up_background_startup(app)?;
+            }
+
             let font_root = managed_font_resource_root(app)?;
             let manifest = font_root.join("font-packs.v1.json");
             let service = font_packs::FontPackDownloadService::open_with_bundled_root(
@@ -108,7 +199,10 @@ async fn get_font_list() -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{migrate_directory_if_target_absent, migrate_directory_with};
+    use super::{
+        is_background_launch, is_vrchat_process_name, migrate_directory_if_target_absent,
+        migrate_directory_with,
+    };
     use std::fs;
     use std::io;
     use tempfile::tempdir;
@@ -171,5 +265,30 @@ mod tests {
         assert_eq!(result.unwrap_err().kind(), io::ErrorKind::PermissionDenied,);
         assert!(legacy.exists());
         assert!(!target.exists());
+    }
+
+    #[test]
+    fn background_launch_requires_the_exact_startup_argument() {
+        assert!(is_background_launch(&[
+            "VRCNT.exe".to_owned(),
+            "--vrcnt-background".to_owned(),
+        ]));
+        assert!(!is_background_launch(&[
+            "VRCNT.exe".to_owned(),
+            "--vrcnt-background-mode".to_owned(),
+        ]));
+        assert!(!is_background_launch(&[
+            "VRCNT.exe".to_owned(),
+            "--VRCNT-BACKGROUND".to_owned(),
+        ]));
+    }
+
+    #[test]
+    fn vrchat_process_matching_is_exact_and_case_insensitive() {
+        assert!(is_vrchat_process_name("VRChat.exe"));
+        assert!(is_vrchat_process_name("vrchat.EXE"));
+        assert!(!is_vrchat_process_name("VRChat.exe.bak"));
+        assert!(!is_vrchat_process_name("not-vrchat.exe"));
+        assert!(!is_vrchat_process_name("VRChat"));
     }
 }
