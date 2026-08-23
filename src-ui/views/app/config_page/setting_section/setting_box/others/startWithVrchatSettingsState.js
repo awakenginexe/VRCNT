@@ -43,6 +43,10 @@ export const readStartWithVrchatStatus = async ({
     }
 };
 
+export const shouldShowStartWithVrchatStatusError = ({ isTauri, state }) => (
+    isTauri && !state.isInteractive
+);
+
 export const reconcileStartWithVrchatMutation = async ({
     changeRegistration,
     getRegistrationStatus,
@@ -88,4 +92,9 @@ export const confirmStartWithVrchatRegistration = ({
 }) => reconcileStartWithVrchatMutation({
     changeRegistration: enableRegistration,
     getRegistrationStatus,
+});
+
+export const getStartWithVrchatConfirmationOutcome = (result) => ({
+    shouldClose: result.state.registration && !result.hasError,
+    shouldShowError: !result.state.registration || result.hasError,
 });

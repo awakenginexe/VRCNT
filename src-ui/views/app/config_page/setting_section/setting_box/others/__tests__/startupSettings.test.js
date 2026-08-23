@@ -188,3 +188,45 @@ test("Start with VRChat confirmation cannot be dismissed while registration is s
     assert.deepEqual(dismissed, { type: "dismissed" });
     assert.equal(modalCloseCalls, 1);
 });
+
+test("browser preview remains silent while its unavailable native control stays disabled", () => {
+    assert.equal(typeof startupSettingsState.shouldShowStartWithVrchatStatusError, "function");
+
+    assert.equal(startupSettingsState.shouldShowStartWithVrchatStatusError({
+        isTauri: false,
+        state: startupSettingsState.createInitialStartWithVrchatState(false),
+    }), false);
+});
+
+test("a rejected enable retains the confirmation and produces its localized failure outcome", async () => {
+    assert.equal(typeof startupSettingsState.getStartWithVrchatConfirmationOutcome, "function");
+
+    const result = await startupSettingsState.confirmStartWithVrchatRegistration({
+        enableRegistration: async () => {
+            throw new Error("enable rejected");
+        },
+        getRegistrationStatus: async () => true,
+    });
+
+    assert.deepEqual(result, {
+        state: startupSettingsState.createConfirmedStartWithVrchatState(true),
+        hasError: true,
+    });
+    assert.deepEqual(startupSettingsState.getStartWithVrchatConfirmationOutcome(result), {
+        shouldClose: false,
+        shouldShowError: true,
+    });
+});
+
+test("the rendered Checkbox and Start with VRChat modal consume the tested native-prop and error-outcome seams", () => {
+    const others = readSource("src-ui/views/app/config_page/setting_section/setting_box/others/Others.jsx");
+    const checkbox = readSource("src-ui/views/common_components/checkbox/Checkbox.jsx");
+
+    assert.match(others, /createStartWithVrchatCheckboxProps/);
+    assert.match(others, /<CheckboxContainer[\s\S]*?\{\.\.\.checkboxProps\}/);
+    assert.match(others, /getStartWithVrchatConfirmationOutcome/);
+    assert.match(others, /if \(outcome\.shouldClose\)/);
+    assert.match(others, /if \(outcome\.shouldShowError\)/);
+    assert.match(checkbox, /isCheckboxInputDisabled/);
+    assert.match(checkbox, /disabled=\{is_disabled\}/);
+});

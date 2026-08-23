@@ -14,14 +14,15 @@ import {
 } from "@logics_common/startWithVrchat.js";
 import {
     confirmStartWithVrchatRegistration,
-    createConfirmedStartWithVrchatState,
     createInitialStartWithVrchatState,
     createStartWithVrchatCheckboxProps,
     createUnknownStartWithVrchatState,
     dismissStartWithVrchatConfirmation,
+    getStartWithVrchatConfirmationOutcome,
     readStartWithVrchatStatus,
     reconcileStartWithVrchatMutation,
     requestStartWithVrchatChange,
+    shouldShowStartWithVrchatStatusError,
 } from "./startWithVrchatSettingsState.js";
 import { useStore_OpenedQuickSetting } from "@store";
 
@@ -114,6 +115,7 @@ const StartWithVrchatContainer = () => {
             if (!isTauri) {
                 if (isCurrent) {
                     setStartWithVrchatState(createInitialStartWithVrchatState(false));
+                    setError("");
                 }
                 return;
             }
@@ -124,7 +126,9 @@ const StartWithVrchatContainer = () => {
             });
             if (isCurrent) {
                 setStartWithVrchatState(nextState);
-                setError(nextState.isInteractive ? "" : t("config_page.others.start_with_vrchat.status_failed"));
+                setError(shouldShowStartWithVrchatStatusError({ isTauri, state: nextState })
+                    ? t("config_page.others.start_with_vrchat.status_failed")
+                    : "");
             }
         };
 
@@ -195,11 +199,14 @@ export const StartWithVrchatConfirmationModal = ({ onSavingChange = () => {} }) 
                 enableRegistration: enableStartWithVrchat,
                 getRegistrationStatus: getStartWithVrchatStatus,
             });
-            if (result.state.registration) {
+            const outcome = getStartWithVrchatConfirmationOutcome(result);
+            if (outcome.shouldClose) {
                 updateOpenedQuickSetting("");
                 return;
             }
-            setError(t("config_page.others.start_with_vrchat.confirmation.enable_failed"));
+            if (outcome.shouldShowError) {
+                setError(t("config_page.others.start_with_vrchat.confirmation.enable_failed"));
+            }
         } catch {
             setError(t("config_page.others.start_with_vrchat.confirmation.enable_failed"));
         } finally {
