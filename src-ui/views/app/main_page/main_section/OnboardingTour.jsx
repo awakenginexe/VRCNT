@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useI18n } from "@useI18n";
 import { useOnboarding } from "@logics_configs";
 import { useIsOpenedConfigPage, useNotificationStatus } from "@logics_common";
@@ -17,6 +17,7 @@ import { useStore_ExperienceRoute } from "@store";
 import styles from "../guided_setup/GuidedSetup.module.scss";
 
 const SETUP_COMPLETION_TIMEOUT_MS = 8000;
+const TOUR_SPOTLIGHT_PADDING = 12;
 
 export const OnboardingTour = () => {
     const { t } = useI18n();
@@ -24,7 +25,7 @@ export const OnboardingTour = () => {
     const { asyncStdoutToPython } = useStdoutToPython();
     const { setIsOpenedConfigPage } = useIsOpenedConfigPage();
     const { showNotification_Success, showNotification_Error } = useNotificationStatus();
-    const { updateExperienceRoute } = useStore_ExperienceRoute();
+    const { currentExperienceRoute, updateExperienceRoute } = useStore_ExperienceRoute();
     const {
         active,
         phase,
@@ -38,10 +39,66 @@ export const OnboardingTour = () => {
     );
     const [completionError, setCompletionError] = useState("");
     const [isSkipConfirmationOpen, setIsSkipConfirmationOpen] = useState(false);
+    const [spotlightRect, setSpotlightRect] = useState(null);
     const cancelSkipButtonRef = useRef(null);
     const dialogRef = useRef(null);
     const currentStep = ONBOARDING_TOUR_STEPS[stepIndex];
     const isCompletingSetup = completionPending;
+
+    useLayoutEffect(() => {
+        if (!active || phase !== "tour" || !currentStep?.target) {
+            setSpotlightRect(null);
+            return undefined;
+        }
+
+        let animationFrameId = null;
+        const measureSpotlight = () => {
+            const target = document.querySelector(`[data-onboarding-target="${currentStep.target}"]`)
+                ?? document.querySelector('[data-onboarding-target="tour-workspace"]');
+            if (!target) {
+                setSpotlightRect(null);
+                return;
+            }
+
+            const rect = target.getBoundingClientRect();
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            const left = Math.max(0, Math.min(viewportWidth, rect.left - TOUR_SPOTLIGHT_PADDING));
+            const top = Math.max(0, Math.min(viewportHeight, rect.top - TOUR_SPOTLIGHT_PADDING));
+            const right = Math.max(left, Math.min(viewportWidth, rect.right + TOUR_SPOTLIGHT_PADDING));
+            const bottom = Math.max(top, Math.min(viewportHeight, rect.bottom + TOUR_SPOTLIGHT_PADDING));
+
+            if (right <= left || bottom <= top) {
+                setSpotlightRect(null);
+                return;
+            }
+
+            const nextRect = { top, right, bottom, left, width: right - left, height: bottom - top };
+            setSpotlightRect((previousRect) => (
+                previousRect
+                && previousRect.top === nextRect.top
+                && previousRect.right === nextRect.right
+                && previousRect.bottom === nextRect.bottom
+                && previousRect.left === nextRect.left
+                    ? previousRect
+                    : nextRect
+            ));
+        };
+        const scheduleSpotlightMeasurement = () => {
+            if (animationFrameId !== null) window.cancelAnimationFrame(animationFrameId);
+            animationFrameId = window.requestAnimationFrame(measureSpotlight);
+        };
+
+        scheduleSpotlightMeasurement();
+        window.addEventListener("resize", scheduleSpotlightMeasurement);
+        window.addEventListener("scroll", scheduleSpotlightMeasurement, true);
+
+        return () => {
+            if (animationFrameId !== null) window.cancelAnimationFrame(animationFrameId);
+            window.removeEventListener("resize", scheduleSpotlightMeasurement);
+            window.removeEventListener("scroll", scheduleSpotlightMeasurement, true);
+        };
+    }, [active, currentExperienceRoute.data, currentStep?.target, phase]);
 
     useEffect(() => {
         if (!completionPending) return;
@@ -149,6 +206,39 @@ export const OnboardingTour = () => {
 
     return (
         <div className={styles.tour_backdrop}>
+            <div className={styles.tour_spotlight_layers} aria-hidden="true">
+                {spotlightRect ? (
+                    <>
+                        <div
+                            className={styles.tour_dimming_layer}
+                            style={{ top: 0, right: 0, left: 0, height: spotlightRect.top }}
+                        />
+                        <div
+                            className={styles.tour_dimming_layer}
+                            style={{ top: spotlightRect.top, left: 0, width: spotlightRect.left, height: spotlightRect.height }}
+                        />
+                        <div
+                            className={styles.tour_dimming_layer}
+                            style={{ top: spotlightRect.top, right: 0, left: spotlightRect.right, height: spotlightRect.height }}
+                        />
+                        <div
+                            className={styles.tour_dimming_layer}
+                            style={{ top: spotlightRect.bottom, right: 0, bottom: 0, left: 0 }}
+                        />
+                        <div
+                            className={styles.tour_spotlight}
+                            style={{
+                                top: spotlightRect.top,
+                                left: spotlightRect.left,
+                                width: spotlightRect.width,
+                                height: spotlightRect.height,
+                            }}
+                        />
+                    </>
+                ) : (
+                    <div className={styles.tour_dimming_layer} style={{ inset: 0 }} />
+                )}
+            </div>
             <section
                 ref={dialogRef}
                 className={styles.tour_dialog}

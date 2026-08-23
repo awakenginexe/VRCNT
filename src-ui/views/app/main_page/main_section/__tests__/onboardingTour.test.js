@@ -58,6 +58,38 @@ test("manual top navigation is visibly disabled and action-guarded throughout on
     );
 });
 
+test("the tour spotlights its real page target and keeps a measured workspace fallback", () => {
+    const tour = readSource("../OnboardingTour.jsx");
+    const tourStyles = readSource("../../guided_setup/GuidedSetup.module.scss");
+    const targetSources = [
+        [readSource("../live_control_rail/LiveControlRail.jsx"), "live-controls"],
+        [readSource("../live_control_rail/LiveControlRail.jsx"), "live-services"],
+        [readSource("../../engines/SpeechRecognitionCards.jsx"), "speech-recognition"],
+        [readSource("../../engines/TranslationRoutingCard.jsx"), "translation-routing"],
+        [readSource("../../overlay_studio/OverlayStudio.jsx"), "overlay-studio"],
+        [readSource("../../color_customization/ColorCustomization.jsx"), "customize-workspace"],
+    ];
+
+    assert.match(tour, /currentStep\.target/);
+    assert.match(tour, /\[data-onboarding-target="tour-workspace"\]/);
+    assert.match(tour, /getBoundingClientRect\(\)/);
+    assert.match(tour, /window\.addEventListener\("resize",/);
+    assert.match(tour, /window\.addEventListener\("scroll",/);
+    assert.match(tour, /styles\.tour_spotlight/);
+    assert.match(tourStyles, /\.tour_spotlight\b/);
+    assert.match(tourStyles, /\.tour_dimming_layer\b[\s\S]*?pointer-events:\s*none/);
+    for (const [source, target] of targetSources) {
+        assert.match(source, new RegExp(`data-onboarding-target="${target}"`));
+    }
+});
+
+test("the spotlight ring uses only defined color-token forms", () => {
+    const tourStyles = readSource("../../guided_setup/GuidedSetup.module.scss");
+
+    assert.doesNotMatch(tourStyles, /--dark_900_color_rgb/);
+    assert.match(tourStyles, /0 0 0 0\.12rem rgba\(0, 0, 0, 0\.72\)/);
+});
+
 test("all six locales expose the same onboarding-tour copy schema", () => {
     const localePaths = ["en", "ja", "ko", "th", "zh-Hans", "zh-Hant"];
     const tourKeys = localePaths.map((locale) => {
