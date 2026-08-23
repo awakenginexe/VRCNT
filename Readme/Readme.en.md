@@ -13,8 +13,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/awakenginexe/VRCNT/releases/latest">
-    <img alt="VirusTotal status for VRCNT.exe and VRCNT-backend.exe" src="VirusTotal-status.svg" />
+  <a data-virustotal-file="VRCNT.exe" href="https://www.virustotal.com/gui/file/a9a92e1cfafd06f202d05be6829d1c1bf0d1b654408b566b37e10de3e7853e3b">
+    <img alt="VirusTotal scan for VRCNT.exe" src="VirusTotal-VRCNT.svg" />
+  </a>
+  <a data-virustotal-file="VRCNT-backend.exe" href="https://www.virustotal.com/gui/file/e1978879936ab3dbd9fc3c837be12bcb6c9ed58c42ee31c56ec2705fabbf56d4">
+    <img alt="VirusTotal scan for VRCNT-backend.exe" src="VirusTotal-backend.svg" />
   </a>
 </p>
 

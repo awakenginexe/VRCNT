@@ -466,3 +466,51 @@ jobs:
           if ($installerSignature.label -ne "$env:INSTALLER_NAME.sig") {
             throw 'The installer signature display label is incorrect.'
           }
+
+      - name: Update README VirusTotal links
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          # The release is built from a tag, so switch to the current main branch
+          # before committing the latest per-file scan URLs and badge images.
+          git remote set-url origin "https://x-access-token:$env:GH_TOKEN@github.com/$env:GITHUB_REPOSITORY.git"
+          git fetch --no-tags origin main
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not fetch main before updating VirusTotal README links.'
+          }
+          git checkout --detach origin/main
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not check out main before updating VirusTotal README links.'
+          }
+
+          python ./utils/virustotal.py update-readme `
+            --report (Join-Path $env:ASSET_DIR 'VirusTotal-report.json') `
+            --repository-root .
+          if ($LASTEXITCODE -ne 0) {
+            throw 'VirusTotal README link generation failed.'
+          }
+
+          git add -- README.md `
+            Readme/Readme.en.md Readme/Readme.jp.md Readme/Readme.kr.md `
+            Readme/Readme.scn.md Readme/Readme.tcn.md Readme/Readme.th.md `
+            Readme/VirusTotal-VRCNT.svg Readme/VirusTotal-backend.svg
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not stage the generated VirusTotal README artifacts.'
+          }
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host 'VirusTotal README links are already current.'
+            exit 0
+          }
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "docs: update VirusTotal links for $env:VERSION"
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not commit the generated VirusTotal README artifacts.'
+          }
+          git push origin HEAD:main
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not push the generated VirusTotal README artifacts to main.'
+          }

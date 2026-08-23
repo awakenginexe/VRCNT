@@ -15,6 +15,7 @@ from virustotal import (
     BADGE_FILENAME,
     DIRECT_UPLOAD_LIMIT_BYTES,
     DIRECT_UPLOAD_URL,
+    FILE_BADGE_FILENAMES,
     HttpTransport,
     LARGE_UPLOAD_URL,
     REPORT_FILENAME,
@@ -23,6 +24,7 @@ from virustotal import (
     VirusTotalError,
     build_report,
     run,
+    update_readme_artifacts,
     write_report_artifacts,
 )
 
@@ -184,8 +186,53 @@ class VirusTotalReportTests(unittest.TestCase):
             )
             badge = (output_directory / BADGE_FILENAME).read_text(encoding="utf-8")
 
-        self.assertEqual(report, written_report)
-        self.assertIn("1 malicious, 2 suspicious", badge)
+            self.assertEqual(report, written_report)
+            self.assertIn("1 malicious, 2 suspicious", badge)
+
+    def test_writes_per_file_badges_and_updates_readme_links(self):
+        results = [
+            ScanResult(
+                name="VRCNT.exe",
+                sha256="a" * 64,
+                size=10,
+                analysis_id="analysis-app",
+                stats={"malicious": 1, "suspicious": 0, "undetected": 70, "type-unsupported": 4},
+            ),
+            ScanResult(
+                name="VRCNT-backend.exe",
+                sha256="b" * 64,
+                size=20,
+                analysis_id="analysis-backend",
+                stats={"malicious": 0, "suspicious": 1, "undetected": 70, "type-unsupported": 4},
+            ),
+        ]
+        report = build_report("5.13.0", results, generated_at="2026-08-23T12:00:00Z")
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            readme = root / "README.md"
+            readme.write_text(
+                '<a data-virustotal-file="VRCNT.exe" href="old-app">app</a>\n'
+                '<a data-virustotal-file="VRCNT-backend.exe" href="old-backend">backend</a>\n',
+                encoding="utf-8",
+            )
+
+            update_readme_artifacts(report, root, [readme])
+
+            content = readme.read_text(encoding="utf-8")
+            self.assertIn("https://www.virustotal.com/gui/file/" + "a" * 64, content)
+            self.assertIn("https://www.virustotal.com/gui/file/" + "b" * 64, content)
+            self.assertNotIn('href="old-app"', content)
+            self.assertNotIn('href="old-backend"', content)
+            app_badge = (root / "Readme" / FILE_BADGE_FILENAMES["VRCNT.exe"]).read_text(
+                encoding="utf-8"
+            )
+            backend_badge = (
+                root / "Readme" / FILE_BADGE_FILENAMES["VRCNT-backend.exe"]
+            ).read_text(encoding="utf-8")
+
+        self.assertIn("1 flagged / 75 engines", app_badge)
+        self.assertIn("1 flagged / 75 engines", backend_badge)
 
     def test_missing_key_fails_without_publishing_an_unscanned_status(self):
         with tempfile.TemporaryDirectory() as temporary_directory:

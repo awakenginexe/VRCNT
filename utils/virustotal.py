@@ -8,6 +8,7 @@ import html
 import http.client
 import json
 import os
+import re
 import secrets
 import sys
 import time
@@ -28,6 +29,22 @@ DIRECT_UPLOAD_LIMIT_BYTES = 32 * 1024 * 1024
 MAX_UPLOAD_BYTES = 650_000_000
 REPORT_FILENAME = "VirusTotal-report.json"
 BADGE_FILENAME = "VirusTotal-status.svg"
+FILE_BADGE_FILENAMES = {
+    "VRCNT.exe": "VirusTotal-VRCNT.svg",
+    "VRCNT-backend.exe": "VirusTotal-backend.svg",
+}
+DEFAULT_README_FILES = (
+    Path("README.md"),
+    Path("Readme/Readme.en.md"),
+    Path("Readme/Readme.jp.md"),
+    Path("Readme/Readme.kr.md"),
+    Path("Readme/Readme.scn.md"),
+    Path("Readme/Readme.tcn.md"),
+    Path("Readme/Readme.th.md"),
+)
+VIRUSTOTAL_FILE_URL_PATTERN = re.compile(
+    r"^https://www\.virustotal\.com/gui/file/[0-9a-f]{64}$"
+)
 DEFAULT_POLL_INTERVAL_SECONDS = 30
 DEFAULT_TIMEOUT_SECONDS = 30 * 60
 
@@ -346,8 +363,32 @@ def badge_message(report: Mapping) -> tuple[str, str]:
 
 def create_badge_svg(report: Mapping) -> str:
     message, color = badge_message(report)
-    label = "VirusTotal"
-    label_width = 78
+    return create_status_badge_svg("VirusTotal", message, color)
+
+
+def file_badge_message(file_report: Mapping, *, status: str = "completed") -> tuple[str, str]:
+    if status != "completed":
+        return "scan failed", "#cf222e"
+    stats = file_report.get("stats", {})
+    if not isinstance(stats, Mapping):
+        return "scan failed", "#cf222e"
+    engines = sum(int(count) for count in stats.values() if isinstance(count, int))
+    flagged = int(stats.get("malicious", 0)) + int(stats.get("suspicious", 0))
+    if flagged:
+        return f"{flagged} flagged / {engines} engines", "#bf8700"
+    return f"0 flagged / {engines} engines", "#1a7f37"
+
+
+def create_file_badge_svg(file_report: Mapping, *, status: str = "completed") -> str:
+    name = file_report.get("name")
+    if not isinstance(name, str) or not name:
+        raise VirusTotalError("VirusTotal report contains a file without a name.")
+    message, color = file_badge_message(file_report, status=status)
+    return create_status_badge_svg(name, message, color)
+
+
+def create_status_badge_svg(label: str, message: str, color: str) -> str:
+    label_width = max(78, 7 * len(label) + 18)
     message_width = max(105, 7 * len(message) + 18)
     total_width = label_width + message_width
     return (
@@ -375,6 +416,84 @@ def write_report_artifacts(output_directory: Path, report: Mapping) -> None:
         json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
     (output_directory / BADGE_FILENAME).write_text(create_badge_svg(report), encoding="utf-8")
+    for file_report in report.get("files", []):
+        if not isinstance(file_report, Mapping):
+            continue
+        badge_name = FILE_BADGE_FILENAMES.get(file_report.get("name"))
+        if badge_name:
+            (output_directory / badge_name).write_text(
+                create_file_badge_svg(file_report, status=report.get("status", "failed")),
+                encoding="utf-8",
+            )
+
+
+def update_readme_artifacts(
+    report: Mapping,
+    repository_root: Path,
+    readme_paths: Sequence[Path] | None = None,
+) -> None:
+    if report.get("status") != "completed":
+        raise VirusTotalError("Cannot update README links from an incomplete VirusTotal report.")
+
+    file_reports = {
+        file_report.get("name"): file_report
+        for file_report in report.get("files", [])
+        if isinstance(file_report, Mapping)
+    }
+    missing_files = [name for name in FILE_BADGE_FILENAMES if name not in file_reports]
+    if missing_files:
+        raise VirusTotalError(
+            "VirusTotal report is missing README scan targets: " + ", ".join(missing_files)
+        )
+
+    badge_directory = repository_root / "Readme"
+    badge_directory.mkdir(parents=True, exist_ok=True)
+    file_urls = {}
+    for name, badge_name in FILE_BADGE_FILENAMES.items():
+        file_report = file_reports[name]
+        sha256 = file_report.get("sha256")
+        url = file_report.get("url")
+        expected_url = f"https://www.virustotal.com/gui/file/{sha256}"
+        if not isinstance(sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", sha256):
+            raise VirusTotalError(f"VirusTotal report has an invalid SHA-256 for {name}.")
+        if url != expected_url or not VIRUSTOTAL_FILE_URL_PATTERN.fullmatch(url):
+            raise VirusTotalError(f"VirusTotal report has an invalid scan URL for {name}.")
+        file_urls[name] = url
+        (badge_directory / badge_name).write_text(
+            create_file_badge_svg(file_report, status=report["status"]), encoding="utf-8"
+        )
+
+    paths = readme_paths or DEFAULT_README_FILES
+    for readme_path in paths:
+        path = readme_path if readme_path.is_absolute() else repository_root / readme_path
+        content = path.read_text(encoding="utf-8")
+        found = set()
+
+        def replace_anchor(match: re.Match[str]) -> str:
+            anchor = match.group(0)
+            for name, url in file_urls.items():
+                marker = f'data-virustotal-file="{name}"'
+                if marker not in anchor:
+                    continue
+                if not re.search(r'\bhref="[^"]*"', anchor, flags=re.IGNORECASE):
+                    raise VirusTotalError(f"README anchor for {name} has no href in {path}.")
+                found.add(name)
+                return re.sub(
+                    r'\bhref="[^"]*"',
+                    f'href="{url}"',
+                    anchor,
+                    count=1,
+                    flags=re.IGNORECASE,
+                )
+            return anchor
+
+        updated = re.sub(r"<a\b[^>]*>", replace_anchor, content, flags=re.IGNORECASE)
+        missing_anchors = [name for name in file_urls if name not in found]
+        if missing_anchors:
+            raise VirusTotalError(
+                f"README {path} is missing VirusTotal anchors for: {', '.join(missing_anchors)}"
+            )
+        path.write_text(updated, encoding="utf-8")
 
 
 def parse_arguments(arguments: Sequence[str]) -> argparse.Namespace:
@@ -386,11 +505,22 @@ def parse_arguments(arguments: Sequence[str]) -> argparse.Namespace:
     scan_parser.add_argument("--file", type=Path, action="append", required=True)
     scan_parser.add_argument("--poll-interval-seconds", type=int, default=DEFAULT_POLL_INTERVAL_SECONDS)
     scan_parser.add_argument("--timeout-seconds", type=int, default=DEFAULT_TIMEOUT_SECONDS)
+    update_parser = subparsers.add_parser(
+        "update-readme", help="update per-file VirusTotal badges and README scan links"
+    )
+    update_parser.add_argument("--report", type=Path, required=True)
+    update_parser.add_argument("--repository-root", type=Path, default=Path("."))
+    update_parser.add_argument("--readme", type=Path, action="append")
     return parser.parse_args(arguments)
 
 
 def run(arguments: Sequence[str] | None = None, *, environment: Mapping[str, str] | None = None) -> int:
     args = parse_arguments(arguments if arguments is not None else sys.argv[1:])
+    if args.command == "update-readme":
+        report = json.loads(args.report.read_text(encoding="utf-8"))
+        update_readme_artifacts(report, args.repository_root, args.readme)
+        return 0
+
     file_paths = list(args.file)
     metadata = describe_files(file_paths)
     api_key = (environment if environment is not None else os.environ).get("VIRUSTOTAL_API_KEY", "").strip()
