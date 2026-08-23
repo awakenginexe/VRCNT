@@ -18,7 +18,7 @@ export const MainSection = () => {
     return (
         <div className={styles.container}>
             <TopBar />
-            <div className={styles.workspace}>
+            <div className={styles.workspace} data-onboarding-target="tour-workspace">
                 <LiveControlRail />
                 <section className={styles.chat_panel} aria-label={t("main_page.live_weave.conversation_title")}>
                     <header className={styles.workspace_header}>

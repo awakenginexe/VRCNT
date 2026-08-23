@@ -214,7 +214,7 @@ export const ColorCustomization = () => {
     return (
         <div className={styles.page}>
             <TopBar />
-            <div className={styles.content}>
+            <div className={styles.content} data-onboarding-target="tour-workspace">
                 <header className={styles.hero}>
                     <div>
                         <p className={styles.eyebrow}>{t("config_page.appearance.colors.eyebrow")}</p>
@@ -223,7 +223,7 @@ export const ColorCustomization = () => {
                     </div>
                     <div className={styles.feedback} aria-live="polite">{feedback}</div>
                 </header>
-                <div className={styles.workspace_grid}>
+                <div className={styles.workspace_grid} data-onboarding-target="customize-workspace">
                     <section className={styles.preview_card} aria-labelledby="color-preview-title">
                         <div className={styles.card_header}>
                             <div>

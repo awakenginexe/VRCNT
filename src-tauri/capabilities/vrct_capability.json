@@ -23,6 +23,10 @@
         "global-shortcut:allow-unregister",
         "global-shortcut:allow-unregister-all",
 
+        "autostart:allow-enable",
+        "autostart:allow-disable",
+        "autostart:allow-is-enabled",
+
         "updater:default",
         "process:default",
 

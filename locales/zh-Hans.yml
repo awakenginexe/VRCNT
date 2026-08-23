@@ -125,6 +125,21 @@ main_page:
     notifications:
         label: "通知"
         dismiss: "关闭通知"
+    onboarding_tour:
+        eyebrow: "产品导览"
+        step_count: "导览 {{current}} / {{total}}"
+        live_controls_title: "认识 Live 控件"
+        live_controls_detail: "Translation 用于翻译你的语音，Speaking 处理麦克风，Listening 处理来自他人的桌面音频。"
+        live_services_title: "无需离开 Live 即可切换服务"
+        live_services_detail: "使用 Live 页面上的选择器，可以根据当前对话快速更改转录引擎和翻译服务。"
+        recognition_title: "为每个来源选择 Speech Recognition"
+        recognition_detail: "Speech Recognition 可为麦克风和接收的桌面音频分别选择识别引擎、模型和计算设备。"
+        translation_title: "设置 Translation Option"
+        translation_detail: "Translation Option 可选择主要和备用翻译提供商，让 VRCNT 按你偏好的路线工作。"
+        overlay_title: "使用 Overlay Studio 展示对话"
+        overlay_detail: "Overlay Studio 控制桌面叠加层以及面向 OSC 的 VRChat 体验中的展示选项。"
+        customize_title: "打造属于你的 VRCNT"
+        customize_detail: "Customize 可个性化应用外观，同时保留熟悉的对话工作区。"
     guided_setup:
         eyebrow: "快速开始"
         title: "设置 VRCNT"
@@ -1099,6 +1114,20 @@ config_page:
     others:
         section_label_sounds: "声音"
         section_label_message_formats: "消息格式"
+        section_label_startup: "启动"
+        quick_wake_up:
+            label: "快速唤醒"
+            desc: "下次启动 VRCNT 时恢复 Translation、Speaking 和 Listening 状态。"
+        start_with_vrchat:
+            label: "随 VRChat 启动"
+            desc: "VRChat 启动时自动启动 VRCNT。"
+            status_failed: "无法更新 Windows 启动设置，请重试。"
+            confirmation:
+                title: "要随 VRChat 启动 VRCNT 吗？"
+                detail: "登录后，VRCNT 将以隐藏状态启动，并在后台等待 VRChat.exe。等待期间会占用系统资源。您可以稍后在启动设置中关闭此功能。"
+                cancel: "取消"
+                confirm: "启用"
+                enable_failed: "无法启用启动注册，请重试。"
         auto_clear_the_message_box:
             label: "发言后自动清空chatbox"
         send_only_translated_messages:

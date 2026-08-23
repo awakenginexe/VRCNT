@@ -234,7 +234,7 @@ export const ModelsHub = () => {
     return (
         <div className={styles.container}>
             <TopBar />
-            <main className={styles.content}>
+            <main className={styles.content} data-onboarding-target="tour-workspace">
                 <section className={styles.hero}>
                     <div>
                         <p className={styles.eyebrow}>{t("main_page.models_hub.eyebrow")}</p>

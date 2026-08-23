@@ -117,13 +117,14 @@ test("Guided Setup changes real persisted language, device, and VRChat settings"
     assert.doesNotMatch(setup, /RTX\s*5090|RTX\s*3070|Realtek|CABLE-A|mock|fake/i);
 });
 
-test("Guided Setup keeps audio and VRChat controls in their final steps and persists completion for finish or skip", () => {
+test("Guided Setup keeps audio and VRChat controls in their final steps and hands completion to the tour", () => {
     const setup = readSource("../../guided_setup/GuidedSetup.jsx");
 
     assert.match(setup, /step === 4/);
     assert.match(setup, /step === 6/);
     assert.match(setup, /"\/set\/data\/setup_completed"/);
     assert.match(setup, /const skipSetup = \(\) =>/);
+    assert.match(setup, /const tourRoute = beginProductTour\(\{ windowGeometry \}\)/);
     assert.match(setup, /main_page\.guided_setup\.skip/);
 
     for (const setter of [
@@ -137,13 +138,36 @@ test("Guided Setup keeps audio and VRChat controls in their final steps and pers
     }
 });
 
-test("Guided Setup waits for durable setup completion acknowledgement before leaving setup", () => {
+test("Guided Setup restores the saved native window scale after the product tour", () => {
     const setup = readSource("../../guided_setup/GuidedSetup.jsx");
+    const tour = readSource("../OnboardingTour.jsx");
+
+    assert.match(setup, /useWindow/);
+    assert.match(setup, /captureOnboardingWindowGeometry/);
+    assert.match(
+        setup,
+        /const startProductTour = async \(\) => \{[\s\S]*?await captureOnboardingWindowGeometry\(\)[\s\S]*?beginProductTour\(\{ windowGeometry \}\)/,
+    );
+    assert.match(tour, /restoreOnboardingWindowGeometry/);
+    assert.match(
+        tour,
+        /await restoreOnboardingWindowGeometry\(windowGeometry\)[\s\S]*?await asyncSaveWindowGeometry\(\)[\s\S]*?await asyncUpdateBreakPoint\(\)/,
+    );
+    assert.match(
+        tour,
+        /void \(async \(\) => \{[\s\S]*?try \{[\s\S]*?await restoreOnboardingWindowGeometry\(windowGeometry\)[\s\S]*?\} catch \(err\) \{[\s\S]*?console\.error\(/,
+    );
+});
+
+test("the persistent onboarding controller waits for durable setup completion acknowledgement before leaving", () => {
+    const setup = readSource("../../guided_setup/GuidedSetup.jsx");
+    const tour = readSource("../OnboardingTour.jsx");
 
     assert.match(setup, /useStdoutToPython/);
     assert.match(setup, /asyncStdoutToPython\(\s*"\/set\/data\/setup_completed"\s*,\s*true\s*\)/);
     assert.match(setup, /completionIntent/);
-    assert.match(setup, /currentSetupCompleted\.data\s*===\s*true/);
+    assert.match(tour, /currentSetupCompleted\.data\s*===\s*true/);
+    assert.match(tour, /acknowledgeOnboardingCompletion\(\)/);
     assert.match(setup, /main_page\.guided_setup\.setup_completion_error/);
     assert.doesNotMatch(
         setup,

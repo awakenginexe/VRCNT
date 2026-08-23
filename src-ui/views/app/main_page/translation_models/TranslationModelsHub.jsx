@@ -23,7 +23,7 @@ export const TranslationModelsHub = () => {
     return (
         <div className={styles.container}>
             <TopBar />
-            <main className={styles.content}>
+            <main className={styles.content} data-onboarding-target="tour-workspace">
                 <section className={styles.hero}>
                     <div>
                         <p className={styles.eyebrow}>

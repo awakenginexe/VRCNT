@@ -897,6 +897,14 @@ export const SETTINGS_ARRAY = [
         logics_template_id: "get_set",
         base_endpoint_name: "setup_completed",
     },
+    {
+        Category: "Onboarding",
+        Base_Name: "EnableQuickWakeUp",
+        default_value: false,
+        ui_template_id: "internal",
+        logics_template_id: "toggle_enable_disable",
+        base_endpoint_name: "quick_wake_up",
+    },
 
     // Others
     {

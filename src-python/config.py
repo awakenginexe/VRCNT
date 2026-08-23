@@ -656,14 +656,24 @@ def _overlay_color_palette_validator(val, inst):
     return _normalize_color_palette(val, OVERLAY_COLOR_PALETTE_DEFAULTS)
 
 def _main_window_geometry_validator(val, inst):
-    if not (isinstance(val, dict) and set(val.keys()) == set(inst.MAIN_WINDOW_GEOMETRY.keys())):
+    if not isinstance(val, dict):
         return None
+
+    defaults = inst.MAIN_WINDOW_GEOMETRY
+    expected_keys = set(defaults.keys())
+    legacy_keys = expected_keys - {"maximized"}
+    if set(val.keys()) not in (expected_keys, legacy_keys):
+        return None
+
     new = {}
-    for key, value in val.items():
-        if isinstance(value, int):
+    for key, fallback in defaults.items():
+        value = val.get(key, fallback)
+        if key == "maximized":
+            new[key] = value if isinstance(value, bool) else fallback
+        elif isinstance(value, int):
             new[key] = value
         else:
-            new[key] = inst.MAIN_WINDOW_GEOMETRY[key]
+            new[key] = fallback
     return new
 
 def _selected_transcription_compute_type_validator(val, inst):
@@ -1022,6 +1032,16 @@ class Config:
     ENABLE_TRANSLATION = ManagedProperty('ENABLE_TRANSLATION', type_=bool, serialize=False)
     ENABLE_TRANSCRIPTION_SEND = ManagedProperty('ENABLE_TRANSCRIPTION_SEND', type_=bool, serialize=False)
     ENABLE_TRANSCRIPTION_RECEIVE = ManagedProperty('ENABLE_TRANSCRIPTION_RECEIVE', type_=bool, serialize=False)
+    ENABLE_QUICK_WAKE_UP = ManagedProperty(
+        'ENABLE_QUICK_WAKE_UP',
+        type_=bool,
+        immediate_save=True,
+    )
+    QUICK_WAKE_UP_STATE = ManagedProperty(
+        'QUICK_WAKE_UP_STATE',
+        type_=dict,
+        immediate_save=True,
+    )
     ENABLE_FOREGROUND = ManagedProperty('ENABLE_FOREGROUND', type_=bool, serialize=False)
     ENABLE_CHECK_ENERGY_SEND = ManagedProperty('ENABLE_CHECK_ENERGY_SEND', type_=bool, serialize=False)
     ENABLE_CHECK_ENERGY_RECEIVE = ManagedProperty('ENABLE_CHECK_ENERGY_RECEIVE', type_=bool, serialize=False)
@@ -1062,7 +1082,11 @@ class Config:
     FONT_FAMILY = ManagedProperty('FONT_FAMILY', type_=str)
     FONT_DOWNLOAD_POLICY = ManagedProperty('FONT_DOWNLOAD_POLICY', type_=str, allowed=lambda v, inst: v in {"ask", "automatic", "never"})
     UI_LANGUAGE = ManagedProperty('UI_LANGUAGE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_UI_LANGUAGE_LIST)
-    SETUP_COMPLETED = ManagedProperty('SETUP_COMPLETED', type_=bool)
+    SETUP_COMPLETED = ManagedProperty(
+        'SETUP_COMPLETED',
+        type_=bool,
+        immediate_save=True,
+    )
     MAIN_WINDOW_GEOMETRY = ValidatedProperty('MAIN_WINDOW_GEOMETRY', _main_window_geometry_validator, immediate_save=True)
     APP_COLOR_PALETTE = ValidatedProperty('APP_COLOR_PALETTE', _app_color_palette_validator)
     COLOR_RESET_5_9_0 = ManagedProperty(
@@ -1209,7 +1233,7 @@ class Config:
 
     def init_config(self):
         # Read Only
-        self._VERSION = "5.12.0"
+        self._VERSION = "5.13.0"
         if getattr(sys, 'frozen', False):
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
@@ -1265,6 +1289,12 @@ class Config:
         self._ENABLE_CTRANSLATE2_AUTO_FALLBACK = False
         self._ENABLE_TRANSCRIPTION_SEND = False
         self._ENABLE_TRANSCRIPTION_RECEIVE = False
+        self._ENABLE_QUICK_WAKE_UP = False
+        self._QUICK_WAKE_UP_STATE = {
+            "translation": False,
+            "transcription_send": False,
+            "transcription_receive": False,
+        }
         self._ENABLE_FOREGROUND = False
         self._ENABLE_CHECK_ENERGY_SEND = False
         self._ENABLE_CHECK_ENERGY_RECEIVE = False
@@ -1368,6 +1398,7 @@ class Config:
             "y_pos": 0,
             "width": 870,
             "height": 654,
+            "maximized": False,
         }
         self._APP_COLOR_PALETTE = copy.deepcopy(APP_COLOR_PALETTE_DEFAULTS)
         self._COLOR_RESET_5_9_0 = 0

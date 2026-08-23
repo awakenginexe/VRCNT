@@ -2,6 +2,7 @@ import os
 import sys
 import types
 import unittest
+from unittest.mock import patch
 
 
 sys.path.insert(
@@ -19,6 +20,10 @@ def _resolve_setup_completion(*args, **kwargs):
     from config import _resolveSetupCompletion
 
     return _resolveSetupCompletion(*args, **kwargs)
+
+
+import controller as controller_module
+from controller import Controller
 
 
 class SetupCompletionTests(unittest.TestCase):
@@ -42,6 +47,20 @@ class SetupCompletionTests(unittest.TestCase):
 
     def test_explicit_true_stays_complete(self):
         self.assertIs(_resolve_setup_completion(False, True), True)
+
+    def test_acknowledged_setup_completion_is_saved_immediately(self):
+        with (
+            patch.object(controller_module.config, "_SETUP_COMPLETED", False),
+            patch.object(controller_module.config, "saveConfig") as save_config,
+        ):
+            response = Controller.setSetupCompleted(True)
+
+        self.assertEqual(response, {"status": 200, "result": True})
+        save_config.assert_called_once_with(
+            "SETUP_COMPLETED",
+            True,
+            immediate_save=True,
+        )
 
     def test_controller_exposes_setup_completion_methods(self):
         controller_path = os.path.abspath(

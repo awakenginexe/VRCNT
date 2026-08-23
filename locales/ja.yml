@@ -125,6 +125,21 @@ main_page:
     notifications:
         label: "通知"
         dismiss: "通知を閉じる"
+    onboarding_tour:
+        eyebrow: "製品ツアー"
+        step_count: "ツアー {{current}} / {{total}}"
+        live_controls_title: "Live の操作を確認"
+        live_controls_detail: "Translation は自分の音声を翻訳し、Speaking はマイク、Listening は他の人のデスクトップ音声を処理します。"
+        live_services_title: "Live からすぐにサービスを切り替え"
+        live_services_detail: "Live ページのセレクターで、会話に合わせて文字起こしエンジンと翻訳サービスを素早く変更できます。"
+        recognition_title: "音声ソースごとに Speech Recognition を選択"
+        recognition_detail: "Speech Recognition では、マイクと受信デスクトップ音声に別々の認識エンジン、モデル、処理デバイスを選べます。"
+        translation_title: "Translation Option を設定"
+        translation_detail: "Translation Option では、希望する経路に合わせてプライマリとセカンダリの翻訳プロバイダーを選べます。"
+        overlay_title: "Overlay Studio で会話を表示"
+        overlay_detail: "Overlay Studio では、デスクトップオーバーレイと OSC を使う VRChat 向けの表示オプションを管理できます。"
+        customize_title: "VRCNT を自分らしく"
+        customize_detail: "Customize では、使い慣れた会話ワークスペースを保ちながら外観を自分好みに調整できます。"
     guided_setup:
         eyebrow: "クイックスタート"
         title: "VRCNT をセットアップ"
@@ -1099,6 +1114,20 @@ config_page:
     others:
         section_label_sounds: "サウンド"
         section_label_message_formats: "メッセージフォーマット"
+        section_label_startup: "起動"
+        quick_wake_up:
+            label: "クイック起動"
+            desc: "次回 VRCNT を起動したときに、Translation、Speaking、Listening の状態を復元します。"
+        start_with_vrchat:
+            label: "VRChat と同時に起動"
+            desc: "VRChat の起動時に VRCNT を自動的に起動します。"
+            status_failed: "Windows の起動設定を更新できませんでした。もう一度お試しください。"
+            confirmation:
+                title: "VRChat と同時に VRCNT を起動しますか？"
+                detail: "サインイン後、VRCNT は非表示で起動し、VRChat.exe を待つ間もバックグラウンドで実行されます。待機中もシステムリソースを使用します。この設定は後から起動設定で無効にできます。"
+                cancel: "キャンセル"
+                confirm: "有効にする"
+                enable_failed: "起動登録を有効にできませんでした。もう一度お試しください。"
         auto_clear_the_message_box:
             label: "送信後はメッセージ入力欄を空にする"
         send_only_translated_messages:

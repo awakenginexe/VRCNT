@@ -125,6 +125,21 @@ main_page:
     notifications:
         label: "การแจ้งเตือน"
         dismiss: "ปิดการแจ้งเตือน"
+    onboarding_tour:
+        eyebrow: "ทัวร์แนะนำผลิตภัณฑ์"
+        step_count: "ทัวร์ {{current}} จาก {{total}}"
+        live_controls_title: "ทำความรู้จักส่วนควบคุม Live"
+        live_controls_detail: "Translation จะแปลเสียงพูดของคุณ, Speaking จัดการไมโครโฟน และ Listening จัดการเสียงเดสก์ท็อปจากผู้อื่น"
+        live_services_title: "สลับบริการได้ทันทีจาก Live"
+        live_services_detail: "ใช้ตัวเลือกในหน้า Live เพื่อเปลี่ยนเอนจินถอดเสียงและบริการแปลภาษาให้เหมาะกับบทสนทนาได้อย่างรวดเร็ว"
+        recognition_title: "เลือก Speech Recognition แยกตามแหล่งเสียง"
+        recognition_detail: "Speech Recognition ให้คุณเลือกเอนจิน โมเดล และอุปกรณ์ประมวลผลแยกกันสำหรับไมโครโฟนและเสียงเดสก์ท็อปที่รับเข้ามา"
+        translation_title: "ตั้งค่า Translation Option"
+        translation_detail: "Translation Option ให้คุณเลือกผู้ให้บริการแปลภาษาหลักและสำรอง เพื่อกำหนดเส้นทางการแปลตามที่ต้องการ"
+        overlay_title: "นำเสนอบทสนทนาด้วย Overlay Studio"
+        overlay_detail: "Overlay Studio ควบคุมโอเวอร์เลย์บนเดสก์ท็อปและตัวเลือกการแสดงผลสำหรับประสบการณ์ VRChat ที่ใช้ OSC"
+        customize_title: "ปรับ VRCNT ให้เป็นสไตล์ของคุณ"
+        customize_detail: "Customize ให้คุณปรับรูปลักษณ์ของแอปได้ โดยยังคงพื้นที่บทสนทนาที่คุ้นเคย"
     guided_setup:
         eyebrow: "เริ่มต้นด่วน"
         title: "ตั้งค่า VRCNT"
@@ -1100,6 +1115,20 @@ config_page:
     others:
         section_label_sounds: "เสียง"
         section_label_message_formats: "รูปแบบข้อความ"
+        section_label_startup: "การเริ่มต้น"
+        quick_wake_up:
+            label: "ปลุกอย่างรวดเร็ว"
+            desc: "คืนค่าสถานะ Translation, Speaking และ Listening เมื่อเปิด VRCNT ในครั้งถัดไป"
+        start_with_vrchat:
+            label: "เริ่มพร้อม VRChat"
+            desc: "เปิด VRCNT โดยอัตโนมัติเมื่อ VRChat เริ่มทำงาน"
+            status_failed: "ไม่สามารถอัปเดตการตั้งค่าการเริ่มต้นของ Windows ได้ โปรดลองอีกครั้ง"
+            confirmation:
+                title: "เริ่ม VRCNT พร้อม VRChat หรือไม่?"
+                detail: "หลังลงชื่อเข้าใช้ VRCNT จะเปิดแบบซ่อนและทำงานเบื้องหลังขณะรอ VRChat.exe ซึ่งใช้ทรัพยากรระบบระหว่างรอ คุณสามารถปิดได้ภายหลังในการตั้งค่าการเริ่มต้น"
+                cancel: "ยกเลิก"
+                confirm: "เปิดใช้"
+                enable_failed: "ไม่สามารถเปิดใช้การลงทะเบียนเริ่มต้นได้ โปรดลองอีกครั้ง"
         auto_clear_the_message_box:
             label: "ล้างกล่องข้อความอัตโนมัติ"
         send_only_translated_messages:

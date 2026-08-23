@@ -19,7 +19,7 @@ export const WindowTitleBar = () => {
     };
 
     return (
-        <div className={styles.container}>
+        <div className={styles.container} data-onboarding-title-bar>
             <div className={styles.wrapper} data-tauri-drag-region>
                 <div className={styles.title_wrapper}>
                     <img className={styles.title_logo} src={logoBadge} alt="" />

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useI18n } from "@useI18n";
 import styles from "./Others.module.scss";
 
@@ -5,9 +6,29 @@ import {
     useOpenFolder,
     useIsOscAvailable,
 } from "@logics_common";
+import { isTauriRuntime } from "@logics_common/tauriRuntime.js";
+import {
+    disableStartWithVrchat,
+    enableStartWithVrchat,
+    getStartWithVrchatStatus,
+} from "@logics_common/startWithVrchat.js";
+import {
+    confirmStartWithVrchatRegistration,
+    createInitialStartWithVrchatState,
+    createStartWithVrchatCheckboxProps,
+    createUnknownStartWithVrchatState,
+    dismissStartWithVrchatConfirmation,
+    getStartWithVrchatConfirmationOutcome,
+    readStartWithVrchatStatus,
+    reconcileStartWithVrchatMutation,
+    requestStartWithVrchatChange,
+    shouldShowStartWithVrchatStatusError,
+} from "./startWithVrchatSettingsState.js";
+import { useStore_OpenedQuickSetting } from "@store";
 
 import {
     useOthers,
+    useOnboarding,
 } from "@logics_configs";
 
 import {
@@ -55,9 +76,177 @@ export const Others = () => {
                 <ConvertMessageToHiraganaContainer />
             </div>
             <div>
+                <SectionLabelComponent label={t("config_page.others.section_label_startup")} />
+                <QuickWakeUpContainer />
+                <StartWithVrchatContainer />
+            </div>
+            <div>
                 <TelemetryContainer />
             </div>
         </div>
+    );
+};
+
+const QuickWakeUpContainer = () => {
+    const { t } = useI18n();
+    const { currentEnableQuickWakeUp, toggleEnableQuickWakeUp } = useOnboarding();
+
+    return (
+        <CheckboxContainer
+            label={t("config_page.others.quick_wake_up.label")}
+            desc={t("config_page.others.quick_wake_up.desc")}
+            variable={currentEnableQuickWakeUp}
+            toggleFunction={toggleEnableQuickWakeUp}
+        />
+    );
+};
+
+const StartWithVrchatContainer = () => {
+    const { t } = useI18n();
+    const { currentOpenedQuickSetting, updateOpenedQuickSetting } = useStore_OpenedQuickSetting();
+    const isTauri = isTauriRuntime();
+    const [startWithVrchatState, setStartWithVrchatState] = useState(() => createInitialStartWithVrchatState(isTauri));
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        let isCurrent = true;
+
+        const refreshRegistration = async () => {
+            if (!isTauri) {
+                if (isCurrent) {
+                    setStartWithVrchatState(createInitialStartWithVrchatState(false));
+                    setError("");
+                }
+                return;
+            }
+
+            const nextState = await readStartWithVrchatStatus({
+                isTauri,
+                getRegistrationStatus: getStartWithVrchatStatus,
+            });
+            if (isCurrent) {
+                setStartWithVrchatState(nextState);
+                setError(shouldShowStartWithVrchatStatusError({ isTauri, state: nextState })
+                    ? t("config_page.others.start_with_vrchat.status_failed")
+                    : "");
+            }
+        };
+
+        refreshRegistration();
+        return () => {
+            isCurrent = false;
+        };
+    }, [currentOpenedQuickSetting.data, isTauri, t]);
+
+    const toggleStartWithVrchat = async () => {
+        const requestedChange = await requestStartWithVrchatChange({
+            registration: startWithVrchatState.registration,
+            isInteractive: isTauri && startWithVrchatState.isInteractive,
+            onRequestConfirmation: () => updateOpenedQuickSetting("start_with_vrchat"),
+        });
+
+        if (requestedChange.type !== "disable") return;
+
+        setStartWithVrchatState(createUnknownStartWithVrchatState());
+        setError("");
+        const result = await reconcileStartWithVrchatMutation({
+            changeRegistration: disableStartWithVrchat,
+            getRegistrationStatus: getStartWithVrchatStatus,
+        });
+        setStartWithVrchatState(result.state);
+        if (result.hasError || result.state.registration) {
+            setError(t("config_page.others.start_with_vrchat.status_failed"));
+        }
+    };
+
+    const checkboxProps = createStartWithVrchatCheckboxProps({
+        isTauri,
+        startWithVrchatState,
+    });
+
+    return (
+        <div>
+            <CheckboxContainer
+                label={t("config_page.others.start_with_vrchat.label")}
+                desc={t("config_page.others.start_with_vrchat.desc")}
+                {...checkboxProps}
+                toggleFunction={toggleStartWithVrchat}
+            />
+            {error && <p className={styles.start_with_vrchat_error} role="alert">{error}</p>}
+        </div>
+    );
+};
+
+export const StartWithVrchatConfirmationModal = ({ onSavingChange = () => {} }) => {
+    const { t } = useI18n();
+    const { updateOpenedQuickSetting } = useStore_OpenedQuickSetting();
+    const [isSaving, setIsSaving] = useState(false);
+    const [error, setError] = useState("");
+
+    const closeModal = () => {
+        dismissStartWithVrchatConfirmation({
+            isSaving,
+            closeModal: () => updateOpenedQuickSetting(""),
+        });
+    };
+
+    const confirmStartWithVrchat = async () => {
+        setIsSaving(true);
+        onSavingChange(true);
+        setError("");
+        try {
+            const result = await confirmStartWithVrchatRegistration({
+                enableRegistration: enableStartWithVrchat,
+                getRegistrationStatus: getStartWithVrchatStatus,
+            });
+            const outcome = getStartWithVrchatConfirmationOutcome(result);
+            if (outcome.shouldClose) {
+                updateOpenedQuickSetting("");
+                return;
+            }
+            if (outcome.shouldShowError) {
+                setError(t("config_page.others.start_with_vrchat.confirmation.enable_failed"));
+            }
+        } catch {
+            setError(t("config_page.others.start_with_vrchat.confirmation.enable_failed"));
+        } finally {
+            setIsSaving(false);
+            onSavingChange(false);
+        }
+    };
+
+    const onKeyDown = (event) => {
+        if (event.key === "Escape") {
+            event.preventDefault();
+            closeModal();
+        }
+    };
+
+    return (
+        <section
+            className={styles.start_with_vrchat_confirmation}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="start-with-vrchat-confirmation-title"
+            aria-describedby="start-with-vrchat-confirmation-detail"
+            onKeyDown={onKeyDown}
+        >
+            <h2 id="start-with-vrchat-confirmation-title">
+                {t("config_page.others.start_with_vrchat.confirmation.title")}
+            </h2>
+            <p id="start-with-vrchat-confirmation-detail">
+                {t("config_page.others.start_with_vrchat.confirmation.detail")}
+            </p>
+            {error && <p className={styles.start_with_vrchat_error} role="alert">{error}</p>}
+            <div className={styles.start_with_vrchat_confirmation_actions}>
+                <button type="button" onClick={closeModal} disabled={isSaving} autoFocus>
+                    {t("config_page.others.start_with_vrchat.confirmation.cancel")}
+                </button>
+                <button type="button" onClick={confirmStartWithVrchat} disabled={isSaving}>
+                    {t("config_page.others.start_with_vrchat.confirmation.confirm")}
+                </button>
+            </div>
+        </section>
     );
 };
 

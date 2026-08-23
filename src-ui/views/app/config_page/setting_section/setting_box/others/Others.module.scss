@@ -26,3 +26,53 @@
     align-items: center;
     gap: 2rem;
 }
+
+.start_with_vrchat_error {
+    color: var(--error_color);
+    font-size: 1.2rem;
+    line-height: 1.4;
+    margin: -0.8rem 2rem 1.2rem;
+}
+
+.start_with_vrchat_confirmation {
+    display: flex;
+    flex-direction: column;
+    gap: 1.6rem;
+    max-width: 56rem;
+    margin: auto;
+    padding: 2.4rem;
+    border: 0.1rem solid rgba(var(--accent_color_rgb), 0.22);
+    border-radius: 0.9rem;
+    background: var(--surface_2_color);
+
+    h2 {
+        font-size: 2rem;
+        color: var(--dark_basic_text_color);
+    }
+
+    p {
+        color: var(--dark_450_color);
+        font-size: 1.35rem;
+        line-height: 1.55;
+        white-space: pre-line;
+    }
+}
+
+.start_with_vrchat_confirmation_actions {
+    display: flex;
+    justify-content: end;
+    gap: 1.2rem;
+
+    button {
+        min-width: 12rem;
+        padding: 1rem 1.4rem;
+        border-radius: 0.7rem;
+        color: var(--dark_basic_text_color);
+        background: var(--dark_800_color);
+    }
+
+    button:last-child {
+        background: rgba(var(--accent_color_rgb), 0.2);
+        border: 0.1rem solid rgba(var(--accent_color_rgb), 0.52);
+    }
+}

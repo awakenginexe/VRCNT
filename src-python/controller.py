@@ -88,6 +88,7 @@ class Controller:
             return None
         self.run: Callable[[int, str, Any], None] = _noop_run
         self.device_access_status: bool = True
+        self._quick_wake_up_lock = RLock()
         self._transcription_restart_lock = RLock()
         self._translation_activation_lock = RLock()
         self._download_cancellation_lock = Lock()
@@ -3276,7 +3277,7 @@ class Controller:
         return restored_enabled
 
     def setEnableTranslation(self, *args, **kwargs) -> dict:
-        with self._translation_activation_lock:
+        with self._quick_wake_up_lock, self._translation_activation_lock:
             selected_engine = config.SELECTED_TRANSLATION_ENGINES.get(
                 config.SELECTED_TAB_NO,
                 "CTranslate2",
@@ -3289,6 +3290,7 @@ class Controller:
             )
             try:
                 if config.ENABLE_TRANSLATION is True:
+                    self._recordQuickWakeUpState("translation", True)
                     return {"status": 200, "result": True}
                 providers = boundedTranslationProviderSnapshot(normalized_selection)
                 needs_local = self._isCTranslate2Primary(normalized_selection) or (
@@ -3307,16 +3309,112 @@ class Controller:
                     include_auto_fallback=True,
                 )
                 config.ENABLE_TRANSLATION = True
+                self._recordQuickWakeUpState("translation", True)
                 return {"status": 200, "result": True}
             except Exception as error:
                 config.ENABLE_TRANSLATION = False
                 return self._translationActivationError(error)
 
     def setDisableTranslation(self, *args, **kwargs) -> dict:
-        with self._translation_activation_lock:
+        with self._quick_wake_up_lock, self._translation_activation_lock:
             config.ENABLE_TRANSLATION = False
             self._releaseCTranslate2()
+            self._recordQuickWakeUpState("translation", False)
             return {"status": 200, "result": config.ENABLE_TRANSLATION}
+
+    @staticmethod
+    def _quickWakeUpDefaultState() -> dict[str, bool]:
+        return {
+            "translation": False,
+            "transcription_send": False,
+            "transcription_receive": False,
+        }
+
+    def _recordQuickWakeUpState(self, key: str, enabled: bool) -> None:
+        with self._quick_wake_up_lock:
+            if config.ENABLE_QUICK_WAKE_UP is not True:
+                return
+            state = self._quickWakeUpDefaultState()
+            persisted_state = config.QUICK_WAKE_UP_STATE
+            if isinstance(persisted_state, dict):
+                for state_key in state:
+                    if isinstance(persisted_state.get(state_key), bool):
+                        state[state_key] = persisted_state[state_key]
+            state[key] = enabled is True
+            config.QUICK_WAKE_UP_STATE = state
+
+    def _quickWakeUpCurrentState(self) -> dict[str, bool]:
+        return {
+            "translation": config.ENABLE_TRANSLATION is True,
+            "transcription_send": config.ENABLE_TRANSCRIPTION_SEND is True,
+            "transcription_receive": config.ENABLE_TRANSCRIPTION_RECEIVE is True,
+        }
+
+    @staticmethod
+    def getQuickWakeUp(*args, **kwargs) -> dict:
+        return {"status": 200, "result": config.ENABLE_QUICK_WAKE_UP}
+
+    def setEnableQuickWakeUp(self, *args, **kwargs) -> dict:
+        with self._quick_wake_up_lock:
+            if config.ENABLE_QUICK_WAKE_UP is not True:
+                # Persist the complete confirmed runtime snapshot before publishing
+                # the enabled flag, so an interrupted write cannot restore stale
+                # all-false intent on the next launch.
+                config.QUICK_WAKE_UP_STATE = self._quickWakeUpCurrentState()
+            config.ENABLE_QUICK_WAKE_UP = True
+            return {"status": 200, "result": config.ENABLE_QUICK_WAKE_UP}
+
+    def setDisableQuickWakeUp(self, *args, **kwargs) -> dict:
+        with self._quick_wake_up_lock:
+            config.ENABLE_QUICK_WAKE_UP = False
+            config.QUICK_WAKE_UP_STATE = self._quickWakeUpDefaultState()
+            return {"status": 200, "result": config.ENABLE_QUICK_WAKE_UP}
+
+    def restoreQuickWakeUp(self, *args, **kwargs) -> dict:
+        with self._quick_wake_up_lock:
+            if config.ENABLE_QUICK_WAKE_UP is not True:
+                return {"status": 200, "result": {}}
+
+            state = self._quickWakeUpDefaultState()
+            persisted_state = config.QUICK_WAKE_UP_STATE
+            if isinstance(persisted_state, dict):
+                for key in state:
+                    if isinstance(persisted_state.get(key), bool):
+                        state[key] = persisted_state[key]
+
+            operations = (
+                (
+                    "translation",
+                    "/set/enable/translation",
+                    "/set/disable/translation",
+                    self.setEnableTranslation,
+                    self.setDisableTranslation,
+                ),
+                (
+                    "transcription_send",
+                    "/set/enable/transcription_send",
+                    "/set/disable/transcription_send",
+                    self.setEnableTranscriptionSend,
+                    self.setDisableTranscriptionSend,
+                ),
+                (
+                    "transcription_receive",
+                    "/set/enable/transcription_receive",
+                    "/set/disable/transcription_receive",
+                    self.setEnableTranscriptionReceive,
+                    self.setDisableTranscriptionReceive,
+                ),
+            )
+            result = {}
+            for key, enable_endpoint, disable_endpoint, enable, disable in operations:
+                response = (enable if state[key] else disable)()
+                result[key] = response
+                self.run(
+                    response.get("status", 500),
+                    enable_endpoint if state[key] else disable_endpoint,
+                    response.get("result"),
+                )
+            return {"status": 200, "result": result}
 
     def _setLiveSession(self, enabled: bool) -> dict:
         """Apply live pipelines in one deterministic backend command.
@@ -5139,7 +5237,7 @@ class Controller:
         return {"status":200, "result":config.CTRANSLATE2_WEIGHT_TYPE}
 
     def setCtranslate2WeightType(self, data, *args, **kwargs) -> dict:
-        with self._translation_activation_lock:
+        with self._quick_wake_up_lock, self._translation_activation_lock:
             requested_value = str(data)
             previous_value = config.CTRANSLATE2_WEIGHT_TYPE
             if requested_value == previous_value:
@@ -5738,66 +5836,76 @@ class Controller:
         )
 
     def setEnableTranscriptionSend(self, *args, **kwargs) -> dict:
-        if config.ENABLE_TRANSCRIPTION_SEND is True:
-            return {"status": 200, "result": True}
-        language_error = self._transcriptionLanguageSupportError(PipelineSource.MIC)
-        if language_error is not None:
-            return language_error
-        readiness_error = self._transcriptionModelReadinessError(PipelineSource.MIC)
-        if readiness_error is not None:
-            return readiness_error
-        config.ENABLE_TRANSCRIPTION_SEND = True
-        try:
-            if self.startTranscriptionSendMessage() is not True:
-                raise RuntimeError("transcription activation was cancelled")
-            return {"status": 200, "result": True}
-        except Exception as error:
-            config.ENABLE_TRANSCRIPTION_SEND = False
+        with self._quick_wake_up_lock:
+            if config.ENABLE_TRANSCRIPTION_SEND is True:
+                self._recordQuickWakeUpState("transcription_send", True)
+                return {"status": 200, "result": True}
+            language_error = self._transcriptionLanguageSupportError(PipelineSource.MIC)
+            if language_error is not None:
+                return language_error
+            readiness_error = self._transcriptionModelReadinessError(PipelineSource.MIC)
+            if readiness_error is not None:
+                return readiness_error
+            config.ENABLE_TRANSCRIPTION_SEND = True
             try:
-                self.stopTranscriptionSendMessage()
-            except Exception:
-                errorLogging()
-            return self._transcriptionActivationError(
-                PipelineSource.MIC,
-                error,
-            )
+                if self.startTranscriptionSendMessage() is not True:
+                    raise RuntimeError("transcription activation was cancelled")
+                self._recordQuickWakeUpState("transcription_send", True)
+                return {"status": 200, "result": True}
+            except Exception as error:
+                config.ENABLE_TRANSCRIPTION_SEND = False
+                try:
+                    self.stopTranscriptionSendMessage()
+                except Exception:
+                    errorLogging()
+                return self._transcriptionActivationError(
+                    PipelineSource.MIC,
+                    error,
+                )
 
     def setDisableTranscriptionSend(self, *args, **kwargs) -> dict:
-        if config.ENABLE_TRANSCRIPTION_SEND is True:
-            config.ENABLE_TRANSCRIPTION_SEND = False
-            self.stopThreadingTranscriptionSendMessage()
-        return {"status":200, "result":config.ENABLE_TRANSCRIPTION_SEND}
+        with self._quick_wake_up_lock:
+            if config.ENABLE_TRANSCRIPTION_SEND is True:
+                config.ENABLE_TRANSCRIPTION_SEND = False
+                self.stopThreadingTranscriptionSendMessage()
+            self._recordQuickWakeUpState("transcription_send", False)
+            return {"status":200, "result":config.ENABLE_TRANSCRIPTION_SEND}
 
     def setEnableTranscriptionReceive(self, *args, **kwargs) -> dict:
-        if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
-            return {"status": 200, "result": True}
-        language_error = self._transcriptionLanguageSupportError(PipelineSource.SPEAKER)
-        if language_error is not None:
-            return language_error
-        readiness_error = self._transcriptionModelReadinessError(PipelineSource.SPEAKER)
-        if readiness_error is not None:
-            return readiness_error
-        config.ENABLE_TRANSCRIPTION_RECEIVE = True
-        try:
-            if self.startTranscriptionReceiveMessage() is not True:
-                raise RuntimeError("transcription activation was cancelled")
-            return {"status": 200, "result": True}
-        except Exception as error:
-            config.ENABLE_TRANSCRIPTION_RECEIVE = False
+        with self._quick_wake_up_lock:
+            if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
+                self._recordQuickWakeUpState("transcription_receive", True)
+                return {"status": 200, "result": True}
+            language_error = self._transcriptionLanguageSupportError(PipelineSource.SPEAKER)
+            if language_error is not None:
+                return language_error
+            readiness_error = self._transcriptionModelReadinessError(PipelineSource.SPEAKER)
+            if readiness_error is not None:
+                return readiness_error
+            config.ENABLE_TRANSCRIPTION_RECEIVE = True
             try:
-                self.stopTranscriptionReceiveMessage()
-            except Exception:
-                errorLogging()
-            return self._transcriptionActivationError(
-                PipelineSource.SPEAKER,
-                error,
-            )
+                if self.startTranscriptionReceiveMessage() is not True:
+                    raise RuntimeError("transcription activation was cancelled")
+                self._recordQuickWakeUpState("transcription_receive", True)
+                return {"status": 200, "result": True}
+            except Exception as error:
+                config.ENABLE_TRANSCRIPTION_RECEIVE = False
+                try:
+                    self.stopTranscriptionReceiveMessage()
+                except Exception:
+                    errorLogging()
+                return self._transcriptionActivationError(
+                    PipelineSource.SPEAKER,
+                    error,
+                )
 
     def setDisableTranscriptionReceive(self, *args, **kwargs) -> dict:
-        if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
-            config.ENABLE_TRANSCRIPTION_RECEIVE = False
-            self.stopThreadingTranscriptionReceiveMessage()
-        return {"status":200, "result":config.ENABLE_TRANSCRIPTION_RECEIVE}
+        with self._quick_wake_up_lock:
+            if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
+                config.ENABLE_TRANSCRIPTION_RECEIVE = False
+                self.stopThreadingTranscriptionReceiveMessage()
+            self._recordQuickWakeUpState("transcription_receive", False)
+            return {"status":200, "result":config.ENABLE_TRANSCRIPTION_RECEIVE}
 
     def sendMessageBox(self, data, *args, **kwargs) -> dict:
         response = self.chatMessage(data)

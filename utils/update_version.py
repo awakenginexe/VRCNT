@@ -15,6 +15,32 @@ def replace_in_file(path, replacements):
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write(content)
 
+
+def update_readme_versions(root, version):
+    readme_paths = (
+        os.path.join(root, "README.md"),
+        os.path.join(root, "Readme", "Readme.en.md"),
+        os.path.join(root, "Readme", "Readme.jp.md"),
+        os.path.join(root, "Readme", "Readme.kr.md"),
+        os.path.join(root, "Readme", "Readme.scn.md"),
+        os.path.join(root, "Readme", "Readme.tcn.md"),
+        os.path.join(root, "Readme", "Readme.th.md"),
+    )
+    replacements = [
+        (
+            r'(badge/version-)[0-9]+\.[0-9]+\.[0-9]+(-)',
+            rf'\g<1>{version}\g<2>',
+            1,
+        ),
+        (
+            r'(VRCNT_)[0-9]+\.[0-9]+\.[0-9]+(_x64-setup\.exe)',
+            rf'\g<1>{version}\g<2>',
+            1,
+        ),
+    ]
+    for readme_path in readme_paths:
+        replace_in_file(readme_path, replacements)
+
 def update_versions():
     root = os.path.join(os.path.dirname(os.path.dirname(__file__)))
 
@@ -74,17 +100,7 @@ def update_versions():
             [(r'(\[\[package\]\]\nname = "vrcnt"\nversion = ")[^"]+(")', rf'\g<1>{version}\g<2>', 1)]
         )
 
-    replace_in_file(
-        os.path.join(root, "README.md"),
-        [
-            (
-                r'(badge/version-)[0-9]+\.[0-9]+\.[0-9]+(-)',
-                rf'\g<1>{version}\g<2>',
-                1,
-            ),
-            (r'(VRCNT_)[0-9]+\.[0-9]+\.[0-9]+(_x64-setup\.exe)', rf'\g<1>{version}\g<2>', 1),
-        ]
-    )
+    update_readme_versions(root, version)
 
     replace_in_file(
         os.path.join(root, "src-ui", "logics", "store.js"),

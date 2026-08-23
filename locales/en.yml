@@ -125,6 +125,21 @@ main_page:
     notifications:
         label: "Notifications"
         dismiss: "Dismiss notification"
+    onboarding_tour:
+        eyebrow: "Product tour"
+        step_count: "Tour {{current}} of {{total}}"
+        live_controls_title: "Meet your Live controls"
+        live_controls_detail: "Translation converts your speech, Speaking handles your microphone, and Listening handles desktop audio from other people."
+        live_services_title: "Switch services without leaving Live"
+        live_services_detail: "Use the Live page selectors to quickly change the transcription engine and translation service for the conversation at hand."
+        recognition_title: "Choose Speech Recognition for each source"
+        recognition_detail: "Speech Recognition lets you choose separate recognition engines, models, and compute devices for your microphone and received desktop audio."
+        translation_title: "Set your Translation Option"
+        translation_detail: "Translation Option lets you choose primary and secondary translation providers so VRCNT has the routing you prefer."
+        overlay_title: "Present conversations with Overlay Studio"
+        overlay_detail: "Overlay Studio controls the desktop overlay and the presentation options used by OSC-facing VRChat experiences."
+        customize_title: "Make VRCNT feel like yours"
+        customize_detail: "Customize lets you personalize the app's appearance while keeping your conversation workspace familiar."
     guided_setup:
         eyebrow: "Quick start"
         title: "Set up VRCNT"
@@ -1099,6 +1114,20 @@ config_page:
     others:
         section_label_sounds: "Sounds"
         section_label_message_formats: "Message Formats"
+        section_label_startup: "Startup"
+        quick_wake_up:
+            label: "Quick Wake Up"
+            desc: "Restore Translation, Speaking, and Listening states the next time VRCNT launches."
+        start_with_vrchat:
+            label: "Start with VRChat"
+            desc: "Launch VRCNT automatically when VRChat starts."
+            status_failed: "VRCNT could not update the Windows startup setting. Please try again."
+            confirmation:
+                title: "Start VRCNT with VRChat?"
+                detail: "After you sign in, VRCNT will launch hidden and stay in the background while it waits for VRChat.exe. This uses system resources while waiting. You can disable it later in Startup settings."
+                cancel: "Cancel"
+                confirm: "Enable"
+                enable_failed: "VRCNT could not enable startup registration. Please try again."
         auto_clear_the_message_box:
             label: "Auto Clear Message box"
         send_only_translated_messages:
