@@ -1099,6 +1099,20 @@ config_page:
     others:
         section_label_sounds: "声音"
         section_label_message_formats: "消息格式"
+        section_label_startup: "启动"
+        quick_wake_up:
+            label: "快速唤醒"
+            desc: "下次启动 VRCNT 时恢复 Translation、Speaking 和 Listening 状态。"
+        start_with_vrchat:
+            label: "随 VRChat 启动"
+            desc: "VRChat 启动时自动启动 VRCNT。"
+            status_failed: "无法更新 Windows 启动设置，请重试。"
+            confirmation:
+                title: "要随 VRChat 启动 VRCNT 吗？"
+                detail: "登录后，VRCNT 将以隐藏状态启动，并在后台等待 VRChat.exe。等待期间会占用系统资源。您可以稍后在启动设置中关闭此功能。"
+                cancel: "取消"
+                confirm: "启用"
+                enable_failed: "无法启用启动注册，请重试。"
         auto_clear_the_message_box:
             label: "发言后自动清空chatbox"
         send_only_translated_messages:

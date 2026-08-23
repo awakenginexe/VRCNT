@@ -1099,6 +1099,20 @@ config_page:
     others:
         section_label_sounds: "사운드"
         section_label_message_formats: "메시지 형식"
+        section_label_startup: "시작"
+        quick_wake_up:
+            label: "빠른 깨우기"
+            desc: "다음에 VRCNT를 실행할 때 Translation, Speaking 및 Listening 상태를 복원합니다."
+        start_with_vrchat:
+            label: "VRChat과 함께 시작"
+            desc: "VRChat이 시작되면 VRCNT를 자동으로 실행합니다."
+            status_failed: "Windows 시작 설정을 업데이트하지 못했습니다. 다시 시도해 주세요."
+            confirmation:
+                title: "VRChat과 함께 VRCNT를 시작할까요?"
+                detail: "로그인 후 VRCNT가 숨김 상태로 실행되고 VRChat.exe를 기다리는 동안 백그라운드에서 계속 실행됩니다. 대기 중에도 시스템 리소스를 사용합니다. 이 설정은 나중에 시작 설정에서 끌 수 있습니다."
+                cancel: "취소"
+                confirm: "사용"
+                enable_failed: "시작 등록을 활성화하지 못했습니다. 다시 시도해 주세요."
         auto_clear_the_message_box:
             label: "챗박스 자동 삭제"
         send_only_translated_messages:

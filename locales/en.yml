@@ -1099,6 +1099,20 @@ config_page:
     others:
         section_label_sounds: "Sounds"
         section_label_message_formats: "Message Formats"
+        section_label_startup: "Startup"
+        quick_wake_up:
+            label: "Quick Wake Up"
+            desc: "Restore Translation, Speaking, and Listening states the next time VRCNT launches."
+        start_with_vrchat:
+            label: "Start with VRChat"
+            desc: "Launch VRCNT automatically when VRChat starts."
+            status_failed: "VRCNT could not update the Windows startup setting. Please try again."
+            confirmation:
+                title: "Start VRCNT with VRChat?"
+                detail: "After you sign in, VRCNT will launch hidden and stay in the background while it waits for VRChat.exe. This uses system resources while waiting. You can disable it later in Startup settings."
+                cancel: "Cancel"
+                confirm: "Enable"
+                enable_failed: "VRCNT could not enable startup registration. Please try again."
         auto_clear_the_message_box:
             label: "Auto Clear Message box"
         send_only_translated_messages:

@@ -1100,6 +1100,20 @@ config_page:
     others:
         section_label_sounds: "เสียง"
         section_label_message_formats: "รูปแบบข้อความ"
+        section_label_startup: "การเริ่มต้น"
+        quick_wake_up:
+            label: "ปลุกอย่างรวดเร็ว"
+            desc: "คืนค่าสถานะ Translation, Speaking และ Listening เมื่อเปิด VRCNT ในครั้งถัดไป"
+        start_with_vrchat:
+            label: "เริ่มพร้อม VRChat"
+            desc: "เปิด VRCNT โดยอัตโนมัติเมื่อ VRChat เริ่มทำงาน"
+            status_failed: "ไม่สามารถอัปเดตการตั้งค่าการเริ่มต้นของ Windows ได้ โปรดลองอีกครั้ง"
+            confirmation:
+                title: "เริ่ม VRCNT พร้อม VRChat หรือไม่?"
+                detail: "หลังลงชื่อเข้าใช้ VRCNT จะเปิดแบบซ่อนและทำงานเบื้องหลังขณะรอ VRChat.exe ซึ่งใช้ทรัพยากรระบบระหว่างรอ คุณสามารถปิดได้ภายหลังในการตั้งค่าการเริ่มต้น"
+                cancel: "ยกเลิก"
+                confirm: "เปิดใช้"
+                enable_failed: "ไม่สามารถเปิดใช้การลงทะเบียนเริ่มต้นได้ โปรดลองอีกครั้ง"
         auto_clear_the_message_box:
             label: "ล้างกล่องข้อความอัตโนมัติ"
         send_only_translated_messages:

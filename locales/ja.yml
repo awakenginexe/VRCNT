@@ -1099,6 +1099,20 @@ config_page:
     others:
         section_label_sounds: "サウンド"
         section_label_message_formats: "メッセージフォーマット"
+        section_label_startup: "起動"
+        quick_wake_up:
+            label: "クイック起動"
+            desc: "次回 VRCNT を起動したときに、Translation、Speaking、Listening の状態を復元します。"
+        start_with_vrchat:
+            label: "VRChat と同時に起動"
+            desc: "VRChat の起動時に VRCNT を自動的に起動します。"
+            status_failed: "Windows の起動設定を更新できませんでした。もう一度お試しください。"
+            confirmation:
+                title: "VRChat と同時に VRCNT を起動しますか？"
+                detail: "サインイン後、VRCNT は非表示で起動し、VRChat.exe を待つ間もバックグラウンドで実行されます。待機中もシステムリソースを使用します。この設定は後から起動設定で無効にできます。"
+                cancel: "キャンセル"
+                confirm: "有効にする"
+                enable_failed: "起動登録を有効にできませんでした。もう一度お試しください。"
         auto_clear_the_message_box:
             label: "送信後はメッセージ入力欄を空にする"
         send_only_translated_messages:
