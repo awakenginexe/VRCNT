@@ -40,7 +40,7 @@
 
 VRCNT เป็นแอปพลิเคชันแปลภาษาและถอดเสียงเป็นข้อความสำหรับ VRChat (อย่างไม่เป็นทางการ) ที่พัฒนาต่อยอดมาจากโปรเจกต์โอเพ่นซอร์ส [VRCT](https://github.com/misyaguziya/VRCT) ถูกออกแบบมาสำหรับการสนทนาที่ต้องการความเร็วและค่าความหน่วงต่ำ (Latency) เพื่อให้เสียงพูดถูกแปลเป็นข้อความได้อย่างรวดเร็ว โดยไม่ต้องรอนานจากบริการคลาวด์ที่อาจทำให้การสนทนาหยุดชะงัก
 
-## ตัวอย่างหน้าตาแอป VRCNT 5.6.3
+## ตัวอย่างหน้าตาแอป VRCNT 5.13.0
 
 <p align="center">
   <font size="4"><strong>สด</strong></font>
@@ -51,27 +51,31 @@ VRCNT เป็นแอปพลิเคชันแปลภาษาแล�
 </p>
 
 <p align="center">
-  <font size="4"><strong>เอนจินและเสียง</strong></font>
+  <font size="4"><strong>การรู้จำเสียงพูด</strong></font>
 </p>
 
 <p align="center">
-  <img src="../preview/Engine&Audio.png" alt="เอนจินและเสียง" width="960" />
+  <font size="4"><strong>ตัวเลือกเอนจิน</strong></font>
 </p>
 
 <p align="center">
-  <font size="4"><strong>โมเดลเสียง</strong></font>
+  <img src="../preview/Speech%20Recognition-engine.png" alt="การรู้จำเสียงพูด - ตัวเลือกเอนจิน" width="960" />
 </p>
 
 <p align="center">
-  <img src="../preview/SpeechModels.png" alt="โมเดลเสียง" width="960" />
+  <font size="4"><strong>ตัวเลือกโมเดล</strong></font>
 </p>
 
 <p align="center">
-  <font size="4"><strong>โมเดลแปลภาษา</strong></font>
+  <img src="../preview/Speech%20Recognition-model.png" alt="การรู้จำเสียงพูด - ตัวเลือกโมเดล" width="960" />
 </p>
 
 <p align="center">
-  <img src="../preview/TranslationModels.png" alt="โมเดลแปลภาษา" width="960" />
+  <font size="4"><strong>ตัวเลือกการแปลภาษา</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Translator%20Option.png" alt="ตัวเลือกการแปลภาษา" width="960" />
 </p>
 
 <p align="center">
@@ -79,7 +83,19 @@ VRCNT เป็นแอปพลิเคชันแปลภาษาแล�
 </p>
 
 <p align="center">
-  <img src="../preview/OverlayStudio.png" alt="สตูดิโอโอเวอร์เลย์" width="960" />
+  <font size="4"><strong>เดสก์ท็อป</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Overlay%20Studio-Desktop.png" alt="สตูดิโอโอเวอร์เลย์ - เดสก์ท็อป" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>VR</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Overlay%20Studio-VR.png" alt="สตูดิโอโอเวอร์เลย์ - VR" width="960" />
 </p>
 
 <p align="center">
@@ -87,7 +103,27 @@ VRCNT เป็นแอปพลิเคชันแปลภาษาแล�
 </p>
 
 <p align="center">
-  <img src="../preview/Customize.png" alt="ปรับแต่ง" width="960" />
+  <font size="4"><strong>สี UI</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Customize-Color.png" alt="ปรับแต่ง - สี UI" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>พื้นหลัง</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Customize-BG.png" alt="ปรับแต่ง - พื้นหลัง" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>การตั้งค่า (VRCT)</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Settings.png" alt="การตั้งค่า (VRCT)" width="960" />
 </p>
 
 ## คุณภาพการแปลและการมีส่วนร่วม

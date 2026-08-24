@@ -40,7 +40,7 @@
 
 VRCNT는 오픈소스 프로젝트인 [VRCT](https://github.com/misyaguziya/VRCT)를 기반으로 제작된 비공식 VRChat 번역 및 음성 텍스트 변환 애플리케이션입니다. 반응 속도(지연 시간)가 중요한 대화를 위해 설계되었으며, 클라우드 서비스의 지연으로 대화 흐름이 멈추지 않고 빠른 실시간 번역을 제공합니다.
 
-## VRCNT 5.6.3 미리보기
+## VRCNT 5.13.0 미리보기
 
 <p align="center">
   <font size="4"><strong>라이브</strong></font>
@@ -51,27 +51,31 @@ VRCNT는 오픈소스 프로젝트인 [VRCT](https://github.com/misyaguziya/VRCT
 </p>
 
 <p align="center">
-  <font size="4"><strong>엔진 및 오디오</strong></font>
+  <font size="4"><strong>음성 인식</strong></font>
 </p>
 
 <p align="center">
-  <img src="../preview/Engine&Audio.png" alt="엔진 및 오디오" width="960" />
+  <font size="4"><strong>엔진 선택</strong></font>
 </p>
 
 <p align="center">
-  <font size="4"><strong>음성 모델</strong></font>
+  <img src="../preview/Speech%20Recognition-engine.png" alt="음성 인식 - 엔진 선택" width="960" />
 </p>
 
 <p align="center">
-  <img src="../preview/SpeechModels.png" alt="음성 모델" width="960" />
+  <font size="4"><strong>모델 선택</strong></font>
 </p>
 
 <p align="center">
-  <font size="4"><strong>번역 모델</strong></font>
+  <img src="../preview/Speech%20Recognition-model.png" alt="음성 인식 - 모델 선택" width="960" />
 </p>
 
 <p align="center">
-  <img src="../preview/TranslationModels.png" alt="번역 모델" width="960" />
+  <font size="4"><strong>번역 옵션</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Translator%20Option.png" alt="번역 옵션" width="960" />
 </p>
 
 <p align="center">
@@ -79,7 +83,19 @@ VRCNT는 오픈소스 프로젝트인 [VRCT](https://github.com/misyaguziya/VRCT
 </p>
 
 <p align="center">
-  <img src="../preview/OverlayStudio.png" alt="오버레이 스튜디오" width="960" />
+  <font size="4"><strong>데스크톱</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Overlay%20Studio-Desktop.png" alt="오버레이 스튜디오 - 데스크톱" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>VR</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Overlay%20Studio-VR.png" alt="오버레이 스튜디오 - VR" width="960" />
 </p>
 
 <p align="center">
@@ -87,7 +103,27 @@ VRCNT는 오픈소스 프로젝트인 [VRCT](https://github.com/misyaguziya/VRCT
 </p>
 
 <p align="center">
-  <img src="../preview/Customize.png" alt="사용자 지정" width="960" />
+  <font size="4"><strong>UI 색상</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Customize-Color.png" alt="사용자 지정 - UI 색상" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>배경</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Customize-BG.png" alt="사용자 지정 - 배경" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>설정 (VRCT)</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Settings.png" alt="설정 (VRCT)" width="960" />
 </p>
 
 ## 번역 품질 및 기여

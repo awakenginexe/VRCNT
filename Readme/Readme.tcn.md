@@ -40,7 +40,7 @@
 
 VRCNT 是一款非官方的 VRChat 翻譯與語音轉文字應用，基於開源專案 [VRCT](https://github.com/misyaguziya/VRCT) 開發。它專為對延遲敏感的對話場景設計：語音可被快速轉譯為易讀的翻譯，不會因雲端服務商的卡頓而影響整體對話流程。
 
-## VRCNT 5.6.3 預覽
+## VRCNT 5.13.0 預覽
 
 <p align="center">
   <font size="4"><strong>即時</strong></font>
@@ -51,27 +51,31 @@ VRCNT 是一款非官方的 VRChat 翻譯與語音轉文字應用，基於開源
 </p>
 
 <p align="center">
-  <font size="4"><strong>引擎與音效</strong></font>
+  <font size="4"><strong>語音辨識</strong></font>
 </p>
 
 <p align="center">
-  <img src="../preview/Engine&Audio.png" alt="引擎與音效" width="960" />
+  <font size="4"><strong>引擎選擇</strong></font>
 </p>
 
 <p align="center">
-  <font size="4"><strong>語音模型</strong></font>
+  <img src="../preview/Speech%20Recognition-engine.png" alt="語音辨識 - 引擎選擇" width="960" />
 </p>
 
 <p align="center">
-  <img src="../preview/SpeechModels.png" alt="語音模型" width="960" />
+  <font size="4"><strong>模型選擇</strong></font>
 </p>
 
 <p align="center">
-  <font size="4"><strong>翻譯模型</strong></font>
+  <img src="../preview/Speech%20Recognition-model.png" alt="語音辨識 - 模型選擇" width="960" />
 </p>
 
 <p align="center">
-  <img src="../preview/TranslationModels.png" alt="翻譯模型" width="960" />
+  <font size="4"><strong>翻譯選項</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Translator%20Option.png" alt="翻譯選項" width="960" />
 </p>
 
 <p align="center">
@@ -79,7 +83,19 @@ VRCNT 是一款非官方的 VRChat 翻譯與語音轉文字應用，基於開源
 </p>
 
 <p align="center">
-  <img src="../preview/OverlayStudio.png" alt="覆蓋層工作室" width="960" />
+  <font size="4"><strong>桌面</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Overlay%20Studio-Desktop.png" alt="覆蓋層工作室 - 桌面" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>VR</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Overlay%20Studio-VR.png" alt="覆蓋層工作室 - VR" width="960" />
 </p>
 
 <p align="center">
@@ -87,7 +103,27 @@ VRCNT 是一款非官方的 VRChat 翻譯與語音轉文字應用，基於開源
 </p>
 
 <p align="center">
-  <img src="../preview/Customize.png" alt="自訂" width="960" />
+  <font size="4"><strong>UI 顏色</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Customize-Color.png" alt="自訂 - UI 顏色" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>背景</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Customize-BG.png" alt="自訂 - 背景" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>設定 (VRCT)</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Settings.png" alt="設定 (VRCT)" width="960" />
 </p>
 
 ## 翻譯品質與貢獻

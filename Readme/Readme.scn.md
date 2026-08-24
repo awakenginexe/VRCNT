@@ -40,7 +40,7 @@
 
 VRCNT 是一款非官方的 VRChat 翻译与语音转文字应用，基于开源项目 [VRCT](https://github.com/misyaguziya/VRCT) 开发。它专为对延迟敏感的对话场景设计：语音可被快速转换为易读的翻译，不会因云服务商的卡顿而影响整体对话流程。
 
-## VRCNT 5.6.3 预览
+## VRCNT 5.13.0 预览
 
 <p align="center">
   <font size="4"><strong>实时</strong></font>
@@ -51,27 +51,31 @@ VRCNT 是一款非官方的 VRChat 翻译与语音转文字应用，基于开源
 </p>
 
 <p align="center">
-  <font size="4"><strong>引擎和音频</strong></font>
+  <font size="4"><strong>语音识别</strong></font>
 </p>
 
 <p align="center">
-  <img src="../preview/Engine&Audio.png" alt="引擎和音频" width="960" />
+  <font size="4"><strong>引擎选择</strong></font>
 </p>
 
 <p align="center">
-  <font size="4"><strong>语音模型</strong></font>
+  <img src="../preview/Speech%20Recognition-engine.png" alt="语音识别 - 引擎选择" width="960" />
 </p>
 
 <p align="center">
-  <img src="../preview/SpeechModels.png" alt="语音模型" width="960" />
+  <font size="4"><strong>模型选择</strong></font>
 </p>
 
 <p align="center">
-  <font size="4"><strong>翻译模型</strong></font>
+  <img src="../preview/Speech%20Recognition-model.png" alt="语音识别 - 模型选择" width="960" />
 </p>
 
 <p align="center">
-  <img src="../preview/TranslationModels.png" alt="翻译模型" width="960" />
+  <font size="4"><strong>翻译选项</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Translator%20Option.png" alt="翻译选项" width="960" />
 </p>
 
 <p align="center">
@@ -79,7 +83,19 @@ VRCNT 是一款非官方的 VRChat 翻译与语音转文字应用，基于开源
 </p>
 
 <p align="center">
-  <img src="../preview/OverlayStudio.png" alt="叠加层工作室" width="960" />
+  <font size="4"><strong>桌面</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Overlay%20Studio-Desktop.png" alt="叠加层工作室 - 桌面" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>VR</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Overlay%20Studio-VR.png" alt="叠加层工作室 - VR" width="960" />
 </p>
 
 <p align="center">
@@ -87,7 +103,27 @@ VRCNT 是一款非官方的 VRChat 翻译与语音转文字应用，基于开源
 </p>
 
 <p align="center">
-  <img src="../preview/Customize.png" alt="自定义" width="960" />
+  <font size="4"><strong>UI 颜色</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Customize-Color.png" alt="自定义 - UI 颜色" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>背景</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Customize-BG.png" alt="自定义 - 背景" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>设置 (VRCT)</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Settings.png" alt="设置 (VRCT)" width="960" />
 </p>
 
 ## 翻译质量与贡献

@@ -41,7 +41,7 @@ for conversations where latency matters: speech should become readable
 translation quickly, without a slow cloud provider freezing the rest of the
 session.
 
-## VRCNT 5.6.3 preview
+## VRCNT 5.13.0 preview
 
 <p align="center">
   <font size="4"><strong>Live</strong></font>
@@ -52,27 +52,31 @@ session.
 </p>
 
 <p align="center">
-  <font size="4"><strong>Engine & Audio</strong></font>
+  <font size="4"><strong>Speech Recognition</strong></font>
 </p>
 
 <p align="center">
-  <img src="../preview/Engine&Audio.png" alt="Engine & Audio" width="960" />
+  <font size="4"><strong>Engine selector</strong></font>
 </p>
 
 <p align="center">
-  <font size="4"><strong>Speech Models</strong></font>
+  <img src="../preview/Speech%20Recognition-engine.png" alt="Speech Recognition - Engine selector" width="960" />
 </p>
 
 <p align="center">
-  <img src="../preview/SpeechModels.png" alt="Speech Models" width="960" />
+  <font size="4"><strong>Model selector</strong></font>
 </p>
 
 <p align="center">
-  <font size="4"><strong>Translation Models</strong></font>
+  <img src="../preview/Speech%20Recognition-model.png" alt="Speech Recognition - Model selector" width="960" />
 </p>
 
 <p align="center">
-  <img src="../preview/TranslationModels.png" alt="Translation Models" width="960" />
+  <font size="4"><strong>Translator Option</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Translator%20Option.png" alt="Translator Option" width="960" />
 </p>
 
 <p align="center">
@@ -80,7 +84,19 @@ session.
 </p>
 
 <p align="center">
-  <img src="../preview/OverlayStudio.png" alt="Overlay Studio" width="960" />
+  <font size="4"><strong>Desktop</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Overlay%20Studio-Desktop.png" alt="Overlay Studio - Desktop" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>VR</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Overlay%20Studio-VR.png" alt="Overlay Studio - VR" width="960" />
 </p>
 
 <p align="center">
@@ -88,7 +104,27 @@ session.
 </p>
 
 <p align="center">
-  <img src="../preview/Customize.png" alt="Customize" width="960" />
+  <font size="4"><strong>UI Color</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Customize-Color.png" alt="Customize - UI Color" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>Background</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Customize-BG.png" alt="Customize - Background" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>Settings (VRCT)</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Settings.png" alt="Settings (VRCT)" width="960" />
 </p>
 
 ## Translation quality and contributions

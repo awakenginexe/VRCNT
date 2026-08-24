@@ -40,7 +40,7 @@
 
 VRCNTは、オープンソースプロジェクト [VRCT](https://github.com/misyaguziya/VRCT) をベースとした非公式のVRChat向け翻訳・文字起こしアプリです。レイテンシ（遅延）が重視される会話のために設計されており、クラウドプロバイダーの遅延によってセッションが停止することなく、話した音声が迅速かつ読みやすい翻訳として表示されます。
 
-## VRCNT 5.6.3 プレビュー
+## VRCNT 5.13.0 プレビュー
 
 <p align="center">
   <font size="4"><strong>ライブ</strong></font>
@@ -51,27 +51,31 @@ VRCNTは、オープンソースプロジェクト [VRCT](https://github.com/mis
 </p>
 
 <p align="center">
-  <font size="4"><strong>エンジンと音声</strong></font>
+  <font size="4"><strong>音声認識</strong></font>
 </p>
 
 <p align="center">
-  <img src="../preview/Engine&Audio.png" alt="エンジンと音声" width="960" />
+  <font size="4"><strong>エンジン選択</strong></font>
 </p>
 
 <p align="center">
-  <font size="4"><strong>音声モデル</strong></font>
+  <img src="../preview/Speech%20Recognition-engine.png" alt="音声認識 - エンジン選択" width="960" />
 </p>
 
 <p align="center">
-  <img src="../preview/SpeechModels.png" alt="音声モデル" width="960" />
+  <font size="4"><strong>モデル選択</strong></font>
 </p>
 
 <p align="center">
-  <font size="4"><strong>翻訳モデル</strong></font>
+  <img src="../preview/Speech%20Recognition-model.png" alt="音声認識 - モデル選択" width="960" />
 </p>
 
 <p align="center">
-  <img src="../preview/TranslationModels.png" alt="翻訳モデル" width="960" />
+  <font size="4"><strong>翻訳オプション</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Translator%20Option.png" alt="翻訳オプション" width="960" />
 </p>
 
 <p align="center">
@@ -79,7 +83,19 @@ VRCNTは、オープンソースプロジェクト [VRCT](https://github.com/mis
 </p>
 
 <p align="center">
-  <img src="../preview/OverlayStudio.png" alt="オーバーレイスタジオ" width="960" />
+  <font size="4"><strong>デスクトップ</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Overlay%20Studio-Desktop.png" alt="オーバーレイスタジオ - デスクトップ" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>VR</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Overlay%20Studio-VR.png" alt="オーバーレイスタジオ - VR" width="960" />
 </p>
 
 <p align="center">
@@ -87,7 +103,27 @@ VRCNTは、オープンソースプロジェクト [VRCT](https://github.com/mis
 </p>
 
 <p align="center">
-  <img src="../preview/Customize.png" alt="カスタマイズ" width="960" />
+  <font size="4"><strong>UIカラー</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Customize-Color.png" alt="カスタマイズ - UIカラー" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>背景</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Customize-BG.png" alt="カスタマイズ - 背景" width="960" />
+</p>
+
+<p align="center">
+  <font size="4"><strong>設定 (VRCT)</strong></font>
+</p>
+
+<p align="center">
+  <img src="../preview/Settings.png" alt="設定 (VRCT)" width="960" />
 </p>
 
 ## 翻訳の品質と貢献
