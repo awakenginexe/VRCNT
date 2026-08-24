@@ -22,6 +22,7 @@ jobs:
     timeout-minutes: 240
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - name: Checkout release tag
         uses: actions/checkout@v6
@@ -467,7 +468,7 @@ jobs:
             throw 'The installer signature display label is incorrect.'
           }
 
-      - name: Update README VirusTotal links
+      - name: Open README VirusTotal links pull request
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
@@ -510,7 +511,33 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw 'Could not commit the generated VirusTotal README artifacts.'
           }
-          git push origin HEAD:main
+          $branchName = "automation/virustotal-links-$($env:RELEASE_TAG -replace '[^0-9A-Za-z._-]', '-')"
+          # This release-specific branch is owned by the workflow; force-updating it makes reruns deterministic.
+          git push origin "HEAD:refs/heads/$branchName" --force
           if ($LASTEXITCODE -ne 0) {
-            throw 'Could not push the generated VirusTotal README artifacts to main.'
+            throw "Could not push the generated VirusTotal README artifacts to $branchName."
           }
+          $existingPr = gh pr list `
+            --repo $env:GITHUB_REPOSITORY `
+            --base main `
+            --head $branchName `
+            --state open `
+            --json number `
+            --jq '.[0].number // empty'
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not check for an existing VirusTotal README pull request.'
+          }
+          if ($existingPr) {
+            Write-Host "VirusTotal README pull request #$existingPr is already open."
+            exit 0
+          }
+          $prUrl = gh pr create `
+            --repo $env:GITHUB_REPOSITORY `
+            --base main `
+            --head $branchName `
+            --title "docs: update VirusTotal links for $env:VERSION" `
+            --body "Automated VirusTotal scan links and badges for release $env:RELEASE_TAG."
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not create the VirusTotal README pull request.'
+          }
+          Write-Host "Created VirusTotal README pull request: $prUrl"
