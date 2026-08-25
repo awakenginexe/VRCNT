@@ -1,11 +1,14 @@
 import { useEffect, useRef } from "react";
 
 import styles from "./BlockingOperationOverlay.module.scss";
+import logoBadge from "@images/vrcnt_logo_badge.png";
 
 export const BlockingOperationOverlay = ({
     open,
     operationId,
+    terminalError = false,
     title,
+    phaseLabel,
     phase,
     detail,
     progress,
@@ -51,9 +54,9 @@ export const BlockingOperationOverlay = ({
 
     return (
         <div
-            className={styles.overlay}
+            className={`${styles.overlay}${terminalError ? ` ${styles.terminal_error}` : ""}`}
             role="dialog"
-            aria-modal="true"
+            aria-modal={terminalError ? undefined : "true"}
             aria-labelledby={titleId}
             aria-describedby={descriptionId}
         >
@@ -62,32 +65,45 @@ export const BlockingOperationOverlay = ({
                 ref={cardRef}
                 tabIndex={-1}
             >
-                <h2 className={styles.title} id={titleId}>{title}</h2>
+                <header className={styles.header}>
+                    <div className={styles.brand_mark_shell}>
+                        <img className={styles.brand_mark} src={logoBadge} alt="VRCNT" />
+                    </div>
+                    <div>
+                        <p className={styles.phase_label}>{phaseLabel}</p>
+                        <h2 className={styles.title} id={titleId}>{title}</h2>
+                    </div>
+                </header>
                 <div
                     id={descriptionId}
                     className={styles.description}
                     role="status"
-                    aria-live="polite"
+                    aria-live={terminalError ? "assertive" : "polite"}
                     aria-atomic="true"
                 >
                     <p className={styles.phase}>{phase}</p>
                     {detail ? <p className={styles.detail}>{detail}</p> : null}
                 </div>
-                <div
-                    className={progressClassName}
-                    role="progressbar"
-                    aria-label={progressLabel}
-                    {...progressAria}
-                >
-                    <span
-                        className={styles.progress_fill}
-                        style={determinate
-                            ? { "--progress-percent": `${progressPercent}%` }
-                            : undefined}
-                    />
+                <div className={styles.progress_section}>
+                    <div className={styles.progress_meta}>
+                        <span className={styles.progress_label}>{progressLabel}</span>
+                        <p className={styles.progress_text}>{progressText}</p>
+                    </div>
+                    <div
+                        className={progressClassName}
+                        role="progressbar"
+                        aria-label={progressLabel}
+                        {...progressAria}
+                    >
+                        <span
+                            className={styles.progress_fill}
+                            style={determinate
+                                ? { "--progress-percent": `${progressPercent}%` }
+                                : undefined}
+                        />
+                    </div>
+                    <p className={styles.elapsed}>{elapsedText}</p>
                 </div>
-                <p className={styles.progress_text}>{progressText}</p>
-                <p className={styles.elapsed}>{elapsedText}</p>
             </section>
         </div>
     );

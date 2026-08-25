@@ -296,7 +296,7 @@ class MicOutputAdmissionTests(unittest.TestCase):
 
         fake_model.oscSendMessage.assert_not_called()
 
-    def test_new_mic_voice_activity_cancels_pending_translation_resend(self):
+    def test_new_mic_voice_activity_does_not_cancel_translation_resend(self):
         controller = Controller()
         controller.run = Mock()
         fake_model = Mock()
@@ -317,10 +317,13 @@ class MicOutputAdmissionTests(unittest.TestCase):
 
         self.assertEqual(
             [call.args[0] for call in fake_model.oscSendMessage.call_args_list],
-            ["<m>spoken-voice-active</m>"],
+            [
+                "<m>spoken-voice-active</m>",
+                "<m>spoken-voice-active</m> | <t>translated-voice-active</t>",
+            ],
         )
 
-    def test_late_translation_resend_is_cancelled_after_next_mic_trace(self):
+    def test_late_translation_resends_are_kept_after_next_mic_trace(self):
         controller = Controller()
         controller.run = Mock()
         fake_model = Mock()
@@ -342,10 +345,16 @@ class MicOutputAdmissionTests(unittest.TestCase):
             controller._emitInitialTranscriptionTrace(first)
             controller._emitInitialTranscriptionTrace(second)
             controller._finalizeMicOutput(_final_task(first, first.original_message))
+            controller._finalizeMicOutput(_final_task(second, second.original_message))
 
         self.assertEqual(
             [call.args[0] for call in fake_model.oscSendMessage.call_args_list],
-            ["<m>spoken-first</m>", "<m>spoken-second</m>"],
+            [
+                "<m>spoken-first</m>",
+                "<m>spoken-second</m>",
+                "<m>spoken-first</m> | <t>translated-first</t>",
+                "<m>spoken-second</m> | <t>translated-second</t>",
+            ],
         )
 
 

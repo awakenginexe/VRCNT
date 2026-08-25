@@ -12,6 +12,7 @@ from typing import Any, Callable, Dict, Optional
 from time import sleep
 from threading import Thread
 from pythonosc import udp_client, dispatcher, osc_server
+from models.osc.chatbox_dispatcher import ChatboxDispatcher
 try:
     from tinyoscquery.queryservice import OSCQueryService
     from tinyoscquery.query import OSCQueryBrowser, OSCQueryClient
@@ -64,6 +65,10 @@ class OSCHandler:
         self.osc_server_port: Optional[int] = None
         self.dict_filter_and_target: Dict[str, Callable] = {}
         self.browser = None
+        self._chatbox_dispatcher = ChatboxDispatcher(
+            self._sendMessageNow,
+            send_with_metadata=self._sendMessageWithMetadata,
+        )
 
     def getIsOscQueryEnabled(self) -> bool:
         """Return whether OSCQuery support is enabled (local addresses only)."""
@@ -91,14 +96,40 @@ class OSCHandler:
         self.udp_client.send_message(self.osc_parameter_chatbox_typing, [flag])
 
     # send OSC message
-    def sendMessage(self, message: str = "", notification: bool = True) -> None:
+    def _sendMessageNow(self, message: str, notification: bool = True) -> None:
+        self.udp_client.send_message(
+            self.osc_parameter_chatbox_input,
+            [f"{message}", True, notification],
+        )
+
+    def _sendMessageWithMetadata(self, message: str, notification: bool) -> None:
+        self._sendMessageNow(message, notification)
+
+    def sendMessage(
+        self,
+        message: str = "",
+        notification: bool = True,
+        generation: Optional[int] = None,
+    ) -> bool:
         """Send /chatbox/input if message is non-empty.
 
         The second argument historically was a boolean flag for clearing; we keep
         compatibility by sending [message, True, notification].
         """
-        if len(message) > 0:
-            self.udp_client.send_message(self.osc_parameter_chatbox_input, [f"{message}", True, notification])
+        return self._chatbox_dispatcher.enqueue(
+            message,
+            generation=generation,
+            notification=notification,
+        )
+
+    def clearChatboxQueue(self) -> None:
+        self._chatbox_dispatcher.clear()
+
+    def invalidateChatboxGeneration(self, generation: int) -> None:
+        self._chatbox_dispatcher.invalidate_generation(generation)
+
+    def closeChatboxDispatcher(self) -> None:
+        self._chatbox_dispatcher.close()
 
     def getOSCParameterValue(self, address: str) -> Any:
         if not self.is_osc_query_enabled:

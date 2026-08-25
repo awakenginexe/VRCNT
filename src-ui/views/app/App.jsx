@@ -2,7 +2,9 @@ import { useEffect, useRef } from "react";
 
 import { useI18n } from "@useI18n";
 import { useAppearance, useOnboarding } from "@logics_configs";
+import { useMainFunction } from "@logics_main";
 import { useStdoutToPython } from "@useStdoutToPython";
+import { useStore_QuickWakeUpRestoreState } from "@store";
 
 import {
     KeyEventController,
@@ -28,7 +30,6 @@ import { DesktopOverlayBridge } from "./desktop_overlay/DesktopOverlayBridge";
 
 import {
     WindowTitleBar,
-    StartupStatusBanner,
     UpdateNotificationController,
     UpdatingComponent,
     ModalController,
@@ -42,6 +43,7 @@ import {
     useBlockingOperation,
     useCustomBackground,
     isColorResetMigrationRequired as shouldRequireColorResetMigration,
+    useInitStatus,
     useIsBackendReady,
     useIsSoftwareUpdating,
     useWindow,
@@ -51,7 +53,12 @@ import {
     isPageBlockingOperation,
 } from "@logics_common/blockingOperationState.js";
 import { isTauriRuntime } from "@logics_common/tauriRuntime.js";
-import { shouldRestoreQuickWakeUp } from "@logics_common/quickWakeUpState.js";
+import {
+    advanceQuickWakeUpRestoreState,
+    applyQuickWakeUpRestoreEvent,
+    beginQuickWakeUpRestore,
+    resetQuickWakeUpRestore,
+} from "@logics_common/quickWakeUpState.js";
 
 export const App = () => {
     const { i18n } = useI18n();
@@ -101,31 +108,119 @@ export const App = () => {
 
 const QuickWakeUpRestoreController = () => {
     const { currentIsBackendReady } = useIsBackendReady();
+    const { currentInitStatus } = useInitStatus();
     const { currentEnableQuickWakeUp } = useOnboarding();
     const { asyncStdoutToPython } = useStdoutToPython();
+    const {
+        currentQuickWakeUpRestoreState,
+        updateQuickWakeUpRestoreState,
+    } = useStore_QuickWakeUpRestoreState();
+    const {
+        pendingTranslationStatus,
+        pendingTranscriptionSendStatus,
+        pendingTranscriptionReceiveStatus,
+        clearPendingMainFunctionStatuses,
+    } = useMainFunction();
     const restoreStateRef = useRef("unconfirmed");
+    const restoreCycleStartedRef = useRef(false);
+    const isInitializationComplete = currentInitStatus.data.phase === "done"
+        && currentInitStatus.data.visible === false;
 
     useEffect(() => {
-        if (currentIsBackendReady.data !== true) return;
-        if (currentEnableQuickWakeUp.state !== "ok") return;
-
-        if (restoreStateRef.current === "unconfirmed") {
-            restoreStateRef.current = "confirmed";
+        if (currentIsBackendReady.data !== true) {
+            restoreStateRef.current = "unconfirmed";
+            restoreCycleStartedRef.current = false;
+            updateQuickWakeUpRestoreState(resetQuickWakeUpRestore());
+            return;
         }
 
-        if (!shouldRestoreQuickWakeUp({
+        if (
+            currentEnableQuickWakeUp.state !== "ok"
+            || currentEnableQuickWakeUp.data !== true
+        ) {
+            restoreCycleStartedRef.current = false;
+            updateQuickWakeUpRestoreState(resetQuickWakeUpRestore());
+            return;
+        }
+
+        const restoreTransition = advanceQuickWakeUpRestoreState({
             isBackendReady: currentIsBackendReady.data,
+            isInitializationComplete,
             enabled: currentEnableQuickWakeUp.data,
             restoreState: restoreStateRef.current,
-        })) return;
+        });
+        restoreStateRef.current = restoreTransition.restoreState;
 
-        restoreStateRef.current = "requested";
-        asyncStdoutToPython("/run/restore_quick_wake_up");
+        if (!restoreTransition.shouldRequest || restoreCycleStartedRef.current) return;
+        restoreCycleStartedRef.current = true;
+
+        updateQuickWakeUpRestoreState((current) => beginQuickWakeUpRestore(
+            current.data,
+            current.data.generation + 1,
+        ));
+        pendingTranslationStatus();
+        pendingTranscriptionSendStatus();
+        pendingTranscriptionReceiveStatus();
+
+        asyncStdoutToPython("/run/restore_quick_wake_up")
+            .then((transportResult) => {
+                if (transportResult?.ok === true) return;
+                updateQuickWakeUpRestoreState((current) => applyQuickWakeUpRestoreEvent(
+                    current.data,
+                    {
+                        generation: current.data.generation,
+                        phase: "failed",
+                        restoring: {
+                            translation: false,
+                            transcription_send: false,
+                            transcription_receive: false,
+                        },
+                        failed: { restore: "backend_unavailable" },
+                    },
+                ));
+                clearPendingMainFunctionStatuses();
+            })
+            .catch(() => {
+                updateQuickWakeUpRestoreState((current) => applyQuickWakeUpRestoreEvent(
+                    current.data,
+                    {
+                        generation: current.data.generation,
+                        phase: "failed",
+                        restoring: {
+                            translation: false,
+                            transcription_send: false,
+                            transcription_receive: false,
+                        },
+                        failed: { restore: "backend_unavailable" },
+                    },
+                ));
+                clearPendingMainFunctionStatuses();
+            });
     }, [
         asyncStdoutToPython,
+        clearPendingMainFunctionStatuses,
         currentEnableQuickWakeUp.data,
         currentEnableQuickWakeUp.state,
         currentIsBackendReady.data,
+        currentInitStatus.data.phase,
+        currentInitStatus.data.visible,
+        isInitializationComplete,
+        pendingTranscriptionReceiveStatus,
+        pendingTranscriptionSendStatus,
+        pendingTranslationStatus,
+        updateQuickWakeUpRestoreState,
+    ]);
+
+    useEffect(() => {
+        if (
+            currentQuickWakeUpRestoreState.data.phase === "ready"
+            || currentQuickWakeUpRestoreState.data.phase === "failed"
+        ) {
+            clearPendingMainFunctionStatuses();
+        }
+    }, [
+        clearPendingMainFunctionStatuses,
+        currentQuickWakeUpRestoreState.data.phase,
     ]);
 
     return null;
@@ -167,17 +262,22 @@ const Contents = () => {
                 : operation.detail ?? "";
             const progressText = operation.progress.kind === "determinate"
                 ? t("blocking_operation.progress_steps", {
-                    current: operation.progress.value,
+                    current: Math.min(
+                        operation.progress.max,
+                        Math.max(1, operation.progress.value),
+                    ),
                     total: operation.progress.max,
                 })
                 : t("blocking_operation.progress_indeterminate");
 
             return {
                 operationId: operation.id,
+                terminalError: operation.terminalError === true,
                 title: t(operation.titleKey),
                 phase,
                 detail,
                 progress: operation.progress,
+                phaseLabel: t("blocking_operation.phase_label"),
                 progressLabel: t("blocking_operation.progress_label"),
                 progressText,
                 elapsedText: t("blocking_operation.elapsed", {
@@ -192,7 +292,6 @@ const Contents = () => {
 
             <WindowTitleBar />
             <div className={styles.app_body}>
-                <StartupStatusBanner />
                 <UpdateNotificationController />
                 <div
                     className={styles.pages_wrapper}
@@ -209,9 +308,11 @@ const Contents = () => {
                 <ColorResetMigrationGate />
                 {overlayProps ? (
                     <BlockingOperationOverlay
-                        open={isBlocking}
+                        open={isBlockingOperation}
                         operationId={overlayProps.operationId}
+                        terminalError={overlayProps.terminalError}
                         title={overlayProps.title}
+                        phaseLabel={overlayProps.phaseLabel}
                         phase={overlayProps.phase}
                         detail={overlayProps.detail}
                         progress={overlayProps.progress}

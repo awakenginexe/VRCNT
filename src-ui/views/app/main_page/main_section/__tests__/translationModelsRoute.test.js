@@ -19,7 +19,7 @@ test("Translation Models is a top-level route between Speech Models and Overlay 
     assert.doesNotMatch(translationItem, /configTab/);
     assert.match(
         navigation,
-        /if \(item\.id === "models" \|\| item\.id === "translation_models" \|\| item\.id === "overlay" \|\| item\.id === "customize"\) \{\s*setIsOpenedConfigPage\(false\);\s*return;/,
+        /if \(item\.id === "models" \|\| item\.id === "translation_models" \|\| item\.id === "overlay" \|\| item\.id === "osc" \|\| item\.id === "customize"\) \{\s*setIsOpenedConfigPage\(false\);\s*return;/,
     );
 });
 

@@ -3,18 +3,39 @@ use std::collections::HashSet;
 use std::fs;
 use std::io;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 use sysinfo::{ProcessesToUpdate, System};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::Manager;
+use tauri::{Emitter, Manager, WindowEvent};
+use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
 
 pub mod font_packs;
 
 const BACKGROUND_STARTUP_ARGUMENT: &str = "--vrcnt-background";
 const VRCHAT_PROCESS_NAME: &str = "VRChat.exe";
 const VRCHAT_PROCESS_POLL_INTERVAL: Duration = Duration::from_secs(2);
+const BACKGROUND_TRAY_ID: &str = "vrcnt-background-startup";
+const RESIDENT_ACTIVATE_EVENT: &str = "vrcnt://resident-activate";
+const RESIDENT_CLOSE_REQUESTED_EVENT: &str = "vrcnt://resident-close-requested";
+
+struct ResidentRuntimeState {
+    waiting_for_activation: AtomicBool,
+    activation_pending: AtomicBool,
+    watcher_active: AtomicBool,
+}
+
+impl ResidentRuntimeState {
+    fn new() -> Self {
+        Self {
+            waiting_for_activation: AtomicBool::new(false),
+            activation_pending: AtomicBool::new(false),
+            watcher_active: AtomicBool::new(false),
+        }
+    }
+}
 
 pub fn is_background_launch(args: &[String]) -> bool {
     args.iter()
@@ -23,6 +44,10 @@ pub fn is_background_launch(args: &[String]) -> bool {
 
 pub fn is_vrchat_process_name(name: &str) -> bool {
     name.eq_ignore_ascii_case(VRCHAT_PROCESS_NAME)
+}
+
+pub fn should_activate_vrchat(previously_running: bool, currently_running: bool) -> bool {
+    currently_running && !previously_running
 }
 
 fn show_main_window(app: &tauri::AppHandle) {
@@ -35,9 +60,31 @@ fn show_main_window(app: &tauri::AppHandle) {
     let _ = main_window.set_focus();
 }
 
-fn wait_for_vrchat_and_show_main_window(app: tauri::AppHandle) {
+fn activate_main_window(app: &tauri::AppHandle) {
+    if let Some(state) = app.try_state::<ResidentRuntimeState>() {
+        state.waiting_for_activation.store(false, Ordering::SeqCst);
+        state.activation_pending.store(true, Ordering::SeqCst);
+    }
+    show_main_window(app);
+    let _ = app.emit(RESIDENT_ACTIVATE_EVENT, ());
+}
+
+fn wait_for_vrchat_start_and_activate(app: tauri::AppHandle) {
+    let Some(state) = app.try_state::<ResidentRuntimeState>() else {
+        return;
+    };
+    if state
+        .watcher_active
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return;
+    }
+
     thread::spawn(move || {
         let mut system = System::new();
+        let mut previously_running = false;
+        let mut has_process_sample = false;
 
         loop {
             system.refresh_processes(ProcessesToUpdate::All, true);
@@ -49,21 +96,26 @@ fn wait_for_vrchat_and_show_main_window(app: tauri::AppHandle) {
                     .unwrap_or(false)
             });
 
-            if vrchat_is_running {
-                show_main_window(&app);
-                return;
+            if has_process_sample && should_activate_vrchat(previously_running, vrchat_is_running) {
+                activate_main_window(&app);
+                break;
             }
 
+            has_process_sample = true;
+            previously_running = vrchat_is_running;
             thread::sleep(VRCHAT_PROCESS_POLL_INTERVAL);
+        }
+
+        if let Some(state) = app.try_state::<ResidentRuntimeState>() {
+            state.watcher_active.store(false, Ordering::SeqCst);
         }
     });
 }
 
-fn set_up_background_startup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let main_window = app
-        .get_webview_window("main")
-        .ok_or("VRCNT main window is unavailable")?;
-    main_window.hide()?;
+fn ensure_background_tray(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+    if app.tray_by_id(BACKGROUND_TRAY_ID).is_some() {
+        return Ok(());
+    }
 
     let open_vrcnt = MenuItem::with_id(app, "open-vrcnt", "Open VRCNT", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit-vrcnt", "Quit", true, None::<&str>)?;
@@ -73,18 +125,51 @@ fn set_up_background_startup(app: &tauri::App) -> Result<(), Box<dyn std::error:
         .cloned()
         .ok_or("VRCNT tray icon is unavailable")?;
 
-    let _tray_icon = TrayIconBuilder::with_id("vrcnt-background-startup")
+    TrayIconBuilder::with_id(BACKGROUND_TRAY_ID)
         .icon(icon)
         .menu(&menu)
         .tooltip("VRCNT")
         .on_menu_event(|app, event| match event.id().as_ref() {
-            "open-vrcnt" => show_main_window(app),
+            "open-vrcnt" => activate_main_window(app),
             "quit-vrcnt" => app.exit(0),
             _ => {}
         })
         .build(app)?;
 
-    wait_for_vrchat_and_show_main_window(app.handle().clone());
+    Ok(())
+}
+
+fn set_up_background_mode(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+    let main_window = app
+        .get_webview_window("main")
+        .ok_or("VRCNT main window is unavailable")?;
+    main_window.hide()?;
+
+    if let Some(state) = app.try_state::<ResidentRuntimeState>() {
+        state.waiting_for_activation.store(true, Ordering::SeqCst);
+        state.activation_pending.store(false, Ordering::SeqCst);
+    }
+    ensure_background_tray(app)?;
+    wait_for_vrchat_start_and_activate(app.clone());
+    Ok(())
+}
+
+fn configure_close_behavior(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    let main_window = app
+        .get_webview_window("main")
+        .ok_or("VRCNT main window is unavailable")?;
+    let app_handle = app.handle().clone();
+
+    main_window.on_window_event(move |event| {
+        if let WindowEvent::CloseRequested { api, .. } = event {
+            let start_with_vrchat = app_handle.autolaunch().is_enabled().unwrap_or(false);
+            if start_with_vrchat {
+                api.prevent_close();
+                let _ = app_handle.emit(RESIDENT_CLOSE_REQUESTED_EVENT, ());
+            }
+        }
+    });
+
     Ok(())
 }
 
@@ -153,9 +238,11 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec![BACKGROUND_STARTUP_ARGUMENT]),
         ))
+        .manage(ResidentRuntimeState::new())
         .setup(move |app| -> Result<(), Box<dyn std::error::Error>> {
+            configure_close_behavior(app)?;
             if background_launch {
-                set_up_background_startup(app)?;
+                set_up_background_mode(&app.handle())?;
             }
 
             let font_root = managed_font_resource_root(app)?;
@@ -171,6 +258,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_font_list,
+            enter_background_mode,
+            is_background_startup,
+            consume_resident_activation,
             font_packs::download_optional_font_pack,
             font_packs::cancel_optional_font_pack,
             font_packs::resolve_managed_font_assets,
@@ -179,6 +269,21 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[tauri::command]
+fn enter_background_mode(app: tauri::AppHandle) -> Result<(), String> {
+    set_up_background_mode(&app).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn is_background_startup(state: tauri::State<'_, ResidentRuntimeState>) -> bool {
+    state.waiting_for_activation.load(Ordering::SeqCst)
+}
+
+#[tauri::command]
+fn consume_resident_activation(state: tauri::State<'_, ResidentRuntimeState>) -> bool {
+    state.activation_pending.swap(false, Ordering::SeqCst)
 }
 
 #[tauri::command]
@@ -201,7 +306,7 @@ async fn get_font_list() -> Vec<String> {
 mod tests {
     use super::{
         is_background_launch, is_vrchat_process_name, migrate_directory_if_target_absent,
-        migrate_directory_with,
+        migrate_directory_with, should_activate_vrchat,
     };
     use std::fs;
     use std::io;
@@ -290,5 +395,12 @@ mod tests {
         assert!(!is_vrchat_process_name("VRChat.exe.bak"));
         assert!(!is_vrchat_process_name("not-vrchat.exe"));
         assert!(!is_vrchat_process_name("VRChat"));
+    }
+
+    #[test]
+    fn vrchat_activation_requires_a_new_process_transition() {
+        assert!(should_activate_vrchat(false, true));
+        assert!(!should_activate_vrchat(true, true));
+        assert!(!should_activate_vrchat(false, false));
     }
 }

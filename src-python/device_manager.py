@@ -9,8 +9,10 @@ except Exception:  # pragma: no cover - optional runtime
     comtypes = None  # type: ignore
 
 try:
+    import pyaudiowpatch as pyaudio_module
     from pyaudiowpatch import PyAudio, paWASAPI
 except Exception:  # pragma: no cover - optional runtime
+    pyaudio_module = None  # type: ignore
     PyAudio = None  # type: ignore
     paWASAPI = None  # type: ignore
 
@@ -22,6 +24,7 @@ except Exception:  # pragma: no cover - optional runtime
     AudioUtilities = None  # type: ignore
 
 from utils import errorLogging
+from audio_runtime import shared_pyaudio_context
 
 class Client(MMNotificationClient):
     """Callback client used by pycaw to detect device changes.
@@ -152,7 +155,9 @@ class DeviceManager:
             return
 
         try:
-            with PyAudio() as p:
+            with shared_pyaudio_context(pyaudio_module) as p:
+                if p is None:
+                    raise RuntimeError("PyAudio is unavailable")
                 # gather input devices grouped by host
                 for host_index in range(p.get_host_api_count()):
                     host = p.get_host_api_info_by_index(host_index)

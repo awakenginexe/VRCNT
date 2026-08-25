@@ -4,6 +4,7 @@ import { useMainFunction } from "../main/useMainFunction";
 import { useLanguageSettings } from "../main/useLanguageSettings";
 import {
     getBlockingOperationCandidate,
+    isInitializationTerminal,
     translationSelectionUsesCTranslate2,
 } from "./blockingOperationState.js";
 import { useInitProgress } from "./useInitProgress";
@@ -31,8 +32,9 @@ export const useBlockingOperation = () => {
     const startedAtByOperationRef = useRef({});
     const [nowMs, setNowMs] = useState(() => Date.now());
     const activeById = {
-        startup: currentIsBackendReady.data !== true
-            && currentInitStatus.data.phase !== "error",
+        startup: currentInitStatus.data.phase === "error"
+            || currentIsBackendReady.data !== true
+            || !isInitializationTerminal(currentInitStatus.data),
         translation: currentTranslationStatus.state === "pending"
             && currentTranslationStatus.data === false
             || translationSelectionPending,

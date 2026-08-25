@@ -8,6 +8,7 @@ import {
     captureOnboardingWindowGeometry as captureOnboardingWindowGeometryForTour,
     restoreOnboardingWindowGeometry as restoreOnboardingWindowGeometryForTour,
 } from "./onboardingWindowGeometry.js";
+import { getStartWithVrchatStatus } from "./startWithVrchat.js";
 
 export const useWindow = () => {
     const { asyncStdoutToPython } = useStdoutToPython();
@@ -201,8 +202,18 @@ export const useWindow = () => {
     };
 
     const asyncCloseApp = async () => {
-        asyncStdoutToPython("/run/shutdown");
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        let startWithVrchat = false;
+        try {
+            startWithVrchat = await getStartWithVrchatStatus();
+        } catch (error) {
+            console.error("Error reading Start with VRChat status:", error);
+        }
+
+        if (!startWithVrchat) {
+            asyncStdoutToPython("/run/shutdown");
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+
         await appWindow.close();
     };
 

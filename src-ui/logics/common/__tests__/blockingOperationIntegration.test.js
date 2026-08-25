@@ -26,15 +26,10 @@ const switchStylesPath = (
     + "MainFunctionSwitch.module.scss"
 );
 const appPath = "src-ui/views/app/App.jsx";
+const controllerPath = "src-python/controller.py";
 const appStylesPath = "src-ui/views/app/App.module.scss";
 const titleBarStylesPath = (
     "src-ui/views/app/others/window_title_bar/WindowTitleBar.module.scss"
-);
-const startupBannerPath = (
-    "src-ui/views/app/others/startup_status_banner/StartupStatusBanner.jsx"
-);
-const startupBannerStylesPath = (
-    "src-ui/views/app/others/startup_status_banner/StartupStatusBanner.module.scss"
 );
 const blockingOverlayStylesPath = (
     "src-ui/views/app/others/blocking_operation_overlay/"
@@ -74,7 +69,7 @@ test("the blocking hook derives timing from all existing operation state", () =>
     )?.[1] ?? "";
     assert.match(
         activeByIdSource,
-        /startup:[\s\S]*?currentIsBackendReady\.data\s*!==\s*true[\s\S]*?currentInitStatus\.data\.phase\s*!==\s*["']error["']/,
+        /startup:[\s\S]*?currentIsBackendReady\.data\s*!==\s*true[\s\S]*?!isInitializationTerminal\(currentInitStatus\.data\)/,
     );
     for (const [operationId, statusName] of [
         ["translation", "currentTranslationStatus"],
@@ -421,17 +416,25 @@ test("sidecar startup failures produce terminal InitStatus and deduplicated copy
         1,
     );
 
-    const spawnCall = source.indexOf("const backend_subprocess = await command.spawn()");
+    const spawnCall = source.indexOf(
+        "const backend_subprocess = await spawnBackendWithTimeout(",
+    );
     const spawnTryStart = source.lastIndexOf("try {", spawnCall);
     const spawnSource = source.slice(spawnTryStart, source.indexOf("\n    };", spawnCall));
     assert.ok(spawnTryStart >= 0 && spawnCall > spawnTryStart);
     assert.match(
         spawnSource,
-        /catch\s*\(error\)\s*\{\s*markBackendStartupError\(error\);\s*throw error;/,
+        /catch\s*\(error\)\s*\{[\s\S]*?sessionGuardRef\.current\.isCurrent\(sessionId\)[\s\S]*?markBackendStartupError\(error\);[\s\S]*?throw error;/,
         "spawn rejection must terminate startup before propagating",
     );
 
-    assert.doesNotMatch(source, /updateIsBackendReady\(false\)/);
+    const startFunctionEnd = source.indexOf("\n    const startWatchdog", startFunctionStart);
+    const startFunctionSource = source.slice(startFunctionStart, startFunctionEnd);
+    assert.match(
+        startFunctionSource,
+        /sessionGuardRef\.current\.begin\(\)[\s\S]*?updateIsBackendReady\(false\)[\s\S]*?spawnBackendWithTimeout/,
+        "a new backend session clears readiness before it starts spawning",
+    );
 });
 
 test("color theme waits for backend readiness before requesting the saved palette", () => {
@@ -566,7 +569,7 @@ test("the app keeps one inert page boundary beneath the native title bar", () =>
     );
     assert.match(
         contentsSource,
-        /\{overlayProps \? \([\s\S]*?<BlockingOperationOverlay[\s\S]*?open=\{isBlocking\}[\s\S]*?\) : null\}/,
+        /\{overlayProps \? \([\s\S]*?<BlockingOperationOverlay[\s\S]*?open=\{isBlockingOperation\}[\s\S]*?\) : null\}/,
     );
     assert.doesNotMatch(contentsSource, /<SnackbarController/);
     assert.match(
@@ -601,7 +604,25 @@ test("the native title bar reserves a non-collapsing row above every page", () =
     assert.match(titleBarStyles, /\.container\s*\{[\s\S]*?z-index:\s*120/);
 });
 
-test("app overlay copy is localized and the startup error banner persists", () => {
+test("the final initialization status is published before the completion snapshot", () => {
+    const source = readSource(controllerPath);
+    const finishStart = source.indexOf("def _finishInitializationInBackground");
+    const finishSource = source.slice(
+        finishStart,
+        source.indexOf("self.startWatchdog()", finishStart),
+    );
+    const terminalStatus = finishSource.indexOf(
+        'self.initializationStatus("", "", visible=False, phase="done")',
+    );
+    const completionSnapshot = finishSource.indexOf("self.updateConfigSettings()");
+
+    assert.ok(
+        terminalStatus >= 0 && terminalStatus < completionSnapshot,
+        "the UI must receive done/hidden before /run/initialization_complete",
+    );
+});
+
+test("the app uses the overlay as its only startup surface and keeps terminal errors non-inert", () => {
     const appSource = readSource(appPath);
     assert.match(appSource, /useBlockingOperation\(\)/);
     assert.match(appSource, /getMainFunctionPendingCopyKey\(/);
@@ -616,43 +637,22 @@ test("app overlay copy is localized and the startup error banner persists", () =
         /operation\.detailKey\s*\?\s*t\(operation\.detailKey\)\s*:\s*operation\.detail/,
     );
     assert.match(appSource, /blocking_operation\.progress_steps/);
-    assert.match(appSource, /current:\s*operation\.progress\.value/);
+    assert.match(
+        appSource,
+        /current:\s*Math\.min\([\s\S]*?Math\.max\(1, operation\.progress\.value\)/,
+    );
     assert.match(appSource, /total:\s*operation\.progress\.max/);
     assert.match(appSource, /blocking_operation\.progress_indeterminate/);
     assert.match(appSource, /blocking_operation\.progress_label/);
+    assert.match(appSource, /phaseLabel:\s*t\("blocking_operation\.phase_label"\)/);
     assert.match(appSource, /blocking_operation\.elapsed/);
     assert.match(appSource, /Math\.floor\(operation\.elapsedMs \/ 1000\)/);
 
-    const bannerSource = readSource(startupBannerPath);
-    assert.match(bannerSource, /useI18n\(\)/);
+    assert.doesNotMatch(appSource, /StartupStatusBanner/);
+    assert.match(appSource, /open=\{isBlockingOperation\}/);
+    assert.match(appSource, /terminalError=\{overlayProps\.terminalError\}/);
     assert.match(
-        bannerSource,
-        /const isError = currentInitStatus\.data\.phase === "error"/,
+        appSource,
+        /inert=\{isBlocking \|\| isColorResetMigrationRequired \? "" : undefined\}/,
     );
-    assert.match(bannerSource, /if \(isError\) return undefined/);
-    assert.match(bannerSource, /setTimeout\([\s\S]*?,\s*2200\)/);
-    assert.match(
-        bannerSource,
-        /const shouldShowError = isError/,
-    );
-    assert.match(
-        bannerSource,
-        /const shouldShowOptionalStatus =[\s\S]*?currentIsBackendReady\.data === true[\s\S]*?!isError[\s\S]*?!isDismissed/,
-    );
-    assert.match(bannerSource, /blocking_operation\.startup_failed/);
-    assert.match(bannerSource, /blocking_operation\.startup_failed_detail/);
-    assert.match(
-        bannerSource,
-        /currentInitStatus\.data\.message_key\s*\|\|\s*"blocking_operation\.startup_failed"/,
-    );
-    assert.match(
-        bannerSource,
-        /currentInitStatus\.data\.detail_key\s*\|\|\s*"blocking_operation\.startup_failed_detail"/,
-    );
-    assert.match(bannerSource, /blocking_operation\.backend_startup_progress/);
-    assert.doesNotMatch(bannerSource, /Backend startup/);
-
-    const bannerStyles = readSource(startupBannerStylesPath);
-    assert.match(bannerStyles, /\.container\s*\{[\s\S]*?z-index:\s*50/);
-    assert.match(bannerStyles, /pointer-events:\s*none/);
 });

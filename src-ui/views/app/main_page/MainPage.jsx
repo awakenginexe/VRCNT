@@ -6,6 +6,7 @@ import { GuidedSetup } from "./guided_setup/GuidedSetup";
 import { ModelsHub } from "./models/ModelsHub";
 import { TranslationModelsHub } from "./translation_models/TranslationModelsHub";
 import { OverlayStudio } from "./overlay_studio/OverlayStudio";
+import { OscStudio } from "./osc_studio/OscStudio";
 import { ColorCustomization } from "./color_customization/ColorCustomization";
 import { OnboardingTour } from "./main_section/OnboardingTour";
 import { useIsOpenedConfigPage } from "@logics_common";
@@ -37,9 +38,10 @@ export const MainPage = () => {
             >
                 {currentExperienceRoute.data === "setup" ? <GuidedSetup /> :
                     currentExperienceRoute.data === "engines" || currentExperienceRoute.data === "models" ? <ModelsHub /> :
-                            currentExperienceRoute.data === "translation_models" ? <TranslationModelsHub /> :
-                                currentExperienceRoute.data === "overlay" ? <OverlayStudio /> :
-                                    currentExperienceRoute.data === "customize" ? <ColorCustomization /> : <MainSection />}
+                                currentExperienceRoute.data === "translation_models" ? <TranslationModelsHub /> :
+                                    currentExperienceRoute.data === "overlay" ? <OverlayStudio /> :
+                                        currentExperienceRoute.data === "osc" ? <OscStudio /> :
+                                            currentExperienceRoute.data === "customize" ? <ColorCustomization /> : <MainSection />}
             </div>
             <OnboardingTour />
         </div>

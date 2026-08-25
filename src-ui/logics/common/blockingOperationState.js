@@ -12,7 +12,13 @@ export const translationSelectionUsesCTranslate2 = (transition) => (
 );
 
 export const isPageBlockingOperation = ({ isBlocking, operation }) => (
-    isBlocking === true && operation?.id === "startup"
+    isBlocking === true
+    && operation?.id === "startup"
+    && operation?.terminalError !== true
+);
+
+export const isInitializationTerminal = (initStatus) => (
+    initStatus?.phase === "done" && initStatus?.visible === false
 );
 
 const ACTIVATION_OPERATIONS = [
@@ -65,9 +71,25 @@ export const getBlockingOperationCandidate = ({
     transcriptionReceiveStatus,
     translationSelectionPending = false,
 }) => {
-    if (initStatus?.phase === "error") return null;
+    if (initStatus?.phase === "error") {
+        return {
+            id: "startup",
+            titleKey: "blocking_operation.startup_failed",
+            phase: initStatus.message ?? "",
+            detail: initStatus.detail ?? "",
+            phaseKey: initStatus.message_key ?? "",
+            detailKey: initStatus.detail_key ?? "",
+            delayMs: 0,
+            terminalError: true,
+            progress: {
+                kind: "determinate",
+                value: 4,
+                max: 4,
+            },
+        };
+    }
 
-    if (isBackendReady !== true) {
+    if (isBackendReady !== true || !isInitializationTerminal(initStatus)) {
         return {
             id: "startup",
             titleKey: "blocking_operation.startup_operation",

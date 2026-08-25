@@ -13,12 +13,146 @@ from threading import Event, Lock, Thread, current_thread
 import time
 from typing import Any
 
-from speech_recognition import Recognizer, Microphone
+from speech_recognition import Microphone as _SpeechRecognitionMicrophone
+from speech_recognition import Recognizer
+
+from audio_runtime import (
+    audio_api_lock,
+    get_shared_pyaudio,
+    reset_shared_pyaudio,
+)
 
 from models.pipeline.pipeline_types import AudioChunk
 
 
 logger = logging.getLogger(__name__)
+
+
+class _LockedPortAudioStream:
+    """Serialize PyAudio calls without holding the lock while idle."""
+
+    def __init__(self, stream: Any) -> None:
+        self._stream = stream
+
+    def read(self, *args: Any, **kwargs: Any) -> Any:
+        with audio_api_lock:
+            return self._stream.read(*args, **kwargs)
+
+    def get_read_available(self) -> Any:
+        with audio_api_lock:
+            return self._stream.get_read_available()
+
+    def is_stopped(self) -> Any:
+        with audio_api_lock:
+            return self._stream.is_stopped()
+
+    def stop_stream(self) -> Any:
+        with audio_api_lock:
+            return self._stream.stop_stream()
+
+    def close(self) -> Any:
+        with audio_api_lock:
+            return self._stream.close()
+
+
+class SharedMicrophone(_SpeechRecognitionMicrophone):
+    """SpeechRecognition microphone backed by one shared PyAudio context."""
+
+    def __init__(
+        self,
+        device_index=None,
+        sample_rate=None,
+        chunk_size=1024,
+        speaker=False,
+        channels=1,
+    ) -> None:
+        assert device_index is None or isinstance(device_index, int), (
+            "Device index must be None or an integer"
+        )
+        assert sample_rate is None or (
+            isinstance(sample_rate, int) and sample_rate > 0
+        ), "Sample rate must be None or a positive integer"
+        assert isinstance(chunk_size, int) and chunk_size > 0, (
+            "Chunk size must be a positive integer"
+        )
+
+        self.speaker = speaker
+        self.pyaudio_module = _SpeechRecognitionMicrophone.get_pyaudio()
+        audio = get_shared_pyaudio(self.pyaudio_module)
+        if audio is None:
+            raise AttributeError("Could not find PyAudio; check installation")
+
+        with audio_api_lock:
+            count = audio.get_device_count()
+            if device_index is not None:
+                assert 0 <= device_index < count, (
+                    "Device index out of range ({0} devices available; "
+                    "device index should be between 0 and {1} inclusive)"
+                ).format(count, count - 1)
+            if sample_rate is None:
+                device_info = (
+                    audio.get_device_info_by_index(device_index)
+                    if device_index is not None
+                    else audio.get_default_input_device_info()
+                )
+                assert isinstance(device_info.get("defaultSampleRate"), (float, int)) and (
+                    device_info["defaultSampleRate"] > 0
+                ), f"Invalid device info returned from PyAudio: {device_info}"
+                sample_rate = int(device_info["defaultSampleRate"])
+
+        self.device_index = device_index
+        self.format = self.pyaudio_module.paInt16
+        self.SAMPLE_WIDTH = self.pyaudio_module.get_sample_size(self.format)
+        self.SAMPLE_RATE = sample_rate
+        self.CHUNK = chunk_size
+        self.channels = channels
+        self.audio = None
+        self.stream = None
+
+    def __enter__(self):
+        assert self.stream is None, (
+            "This audio source is already inside a context manager"
+        )
+        self.audio = get_shared_pyaudio(self.pyaudio_module)
+        try:
+            with audio_api_lock:
+                if self.speaker:
+                    raw_stream = self.audio.open(
+                        input_device_index=self.device_index,
+                        channels=self.channels,
+                        format=self.format,
+                        rate=self.SAMPLE_RATE,
+                        frames_per_buffer=self.CHUNK,
+                        input=True,
+                    )
+                else:
+                    raw_stream = self.audio.open(
+                        input_device_index=self.device_index,
+                        channels=1,
+                        format=self.format,
+                        rate=self.SAMPLE_RATE,
+                        frames_per_buffer=self.CHUNK,
+                        input=True,
+                    )
+                self.stream = _SpeechRecognitionMicrophone.MicrophoneStream(
+                    _LockedPortAudioStream(raw_stream)
+                )
+        except Exception:
+            self.audio = None
+            self.stream = None
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        try:
+            if self.stream is not None:
+                self.stream.close()
+        finally:
+            self.stream = None
+            self.audio = None
+
+
+# Keep the existing constructor seam used by tests and all recorder classes.
+Microphone = SharedMicrophone
 
 
 def _validate_audio_source(source: Any) -> Any:

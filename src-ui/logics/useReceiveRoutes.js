@@ -1,6 +1,11 @@
+import { useRef } from "react";
+
 import * as common from "@logics_common";
 import * as main from "@logics_main";
 import * as configs from "@logics_configs";
+import { useStore_QuickWakeUpRestoreState } from "@store";
+import { isInitializationTerminal } from "@logics_common/blockingOperationState.js";
+import { applyQuickWakeUpRestoreEvent } from "@logics_common/quickWakeUpState.js";
 import { _useBackendErrorHandling } from "./_useBackendErrorHandling";
 import { SETTINGS_ARRAY } from "./configs/config_page_setter/ui_config_setter";
 import {
@@ -138,6 +143,7 @@ export const useReceiveRoutes = () => {
     const { showNotification_Error } = common.useNotificationStatus();
     const { errorHandling_Backend } = _useBackendErrorHandling();
     const { updateIsBackendReady } = common.useIsBackendReady();
+    const { updateQuickWakeUpRestoreState } = useStore_QuickWakeUpRestoreState();
 
     const ROUTE_META_LIST = buildRouteMetaList();
 
@@ -173,10 +179,40 @@ export const useReceiveRoutes = () => {
     const routeMetaByEndpoint = new Map(
         ROUTE_META_LIST.map((routeMeta) => [routeMeta.endpoint, routeMeta]),
     );
+    const initializationStatusRef = useRef(
+        hook_results.useInitStatus?.currentInitStatus?.data,
+    );
+    const initializationCompleteRef = useRef(false);
+    const markBackendReadyAfterFinalStatus = () => {
+        if (
+            initializationCompleteRef.current
+            && isInitializationTerminal(initializationStatusRef.current)
+        ) {
+            updateIsBackendReady(true);
+        }
+    };
 
 
     const receiveRoutes = (parsed_data) => {
         const { endpoint, status, result } = parsed_data;
+
+        if (
+            endpoint === "/set/enable/live_session"
+            || endpoint === "/set/disable/live_session"
+        ) {
+            if (result && typeof result === "object" && "errors" in result) {
+                hook_results.useMainFunction?.settleLiveSessionBatch?.(result);
+            }
+            return;
+        }
+
+        if (endpoint === "/run/quick_wake_up_restore") {
+            updateQuickWakeUpRestoreState((current) => applyQuickWakeUpRestoreEvent(
+                current.data,
+                result,
+            ));
+            return;
+        }
 
         if (
             endpoint === "/get/data/translation_provider_cooldowns"
@@ -230,7 +266,18 @@ export const useReceiveRoutes = () => {
             }
         };
 
+        if (endpoint === "/run/initialization_status") {
+            initializationStatusRef.current = result;
+            if (!isInitializationTerminal(result)) {
+                initializationCompleteRef.current = false;
+            }
+            routes[endpoint](result);
+            markBackendReadyAfterFinalStatus();
+            return;
+        }
+
         if (endpoint === "/run/initialization_complete") {
+            initializationCompleteRef.current = true;
             Object.entries(result).forEach(([ep, value]) => {
                 if (ep in routes) {
                     routes[ep](value);
@@ -238,7 +285,7 @@ export const useReceiveRoutes = () => {
                     handleInvalidEndpoint({ endpoint: ep, result: value });
                 }
             });
-            updateIsBackendReady(true);
+            markBackendReadyAfterFinalStatus();
             return;
         }
 

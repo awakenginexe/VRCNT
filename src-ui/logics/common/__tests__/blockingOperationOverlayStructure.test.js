@@ -34,7 +34,7 @@ test("the dialog owns its accessible name, description, and focus lifecycle", ()
     const source = readSource(componentPath);
 
     assert.match(source, /role="dialog"/);
-    assert.match(source, /aria-modal="true"/);
+    assert.match(source, /aria-modal=\{terminalError \? undefined : "true"\}/);
     assert.match(source, /aria-labelledby=\{titleId\}/);
     assert.match(source, /aria-describedby=\{descriptionId\}/);
     assert.match(source, /id=\{titleId\}/);
@@ -50,11 +50,15 @@ test("the dialog owns its accessible name, description, and focus lifecycle", ()
         /<div\s+id=\{descriptionId\}[\s\S]*?<\/div>/,
     )?.[0] ?? "";
     assert.match(statusRegion, /role="status"/);
-    assert.match(statusRegion, /aria-live="polite"/);
+    assert.match(statusRegion, /aria-live=\{terminalError \? "assertive" : "polite"\}/);
     assert.match(statusRegion, /aria-atomic="true"/);
+    assert.match(source, /className=\{styles\.brand_mark\}/);
+    assert.match(source, /alt="VRCNT"/);
+    assert.match(source, /className=\{styles\.phase_label\}>\{phaseLabel\}/);
     assert.match(statusRegion, /\{phase\}/);
     assert.match(statusRegion, /\{detail \?/);
     assert.doesNotMatch(statusRegion, /elapsedText/);
+    assert.match(source, /className=\{styles\.progress_meta\}/);
     assert.match(source, /className=\{styles\.elapsed\}>\{elapsedText\}/);
 });
 
@@ -81,6 +85,17 @@ test("the overlay has no user dismissal path", () => {
     assert.doesNotMatch(source, /<button\b/);
 });
 
+test("terminal startup errors are explicitly non-modal and keep their card interactive", () => {
+    const source = readSource(componentPath);
+    const styles = readSource(stylesheetPath);
+
+    assert.match(source, /terminalError/);
+    assert.match(source, /styles\.terminal_error/);
+    assert.match(source, /aria-modal=\{terminalError \? undefined : "true"\}/);
+    assert.match(styles, /\.terminal_error\s*\{[\s\S]*?pointer-events:\s*none/);
+    assert.match(styles, /\.terminal_error\s*\{[\s\S]*?\.card\s*\{[\s\S]*?pointer-events:\s*auto/);
+});
+
 test("responsive styling keeps reduced-motion and performance fallbacks", () => {
     const styles = readSource(stylesheetPath);
 
@@ -90,9 +105,9 @@ test("responsive styling keeps reduced-motion and performance fallbacks", () => 
         /z-index:\s*100/,
         /display:\s*grid/,
         /place-items:\s*center/,
-        /background:\s*color-mix\(in srgb,\s*var\(--canvas_color\) 72%,\s*transparent\)/,
+        /background:[\s\S]*color-mix\(in srgb,\s*var\(--canvas_color\) 72%,\s*transparent\)/,
         /backdrop-filter:\s*blur\(18px\) saturate\(0\.8\)/,
-        /width:\s*min\(42rem, calc\(100% - 3\.2rem\)\)/,
+        /width:\s*min\(50rem, calc\(100% - 3\.2rem\)\)/,
         /max-height:\s*calc\(100% - 3\.2rem\)/,
         /overflow:\s*auto/,
         /font-variant-numeric:\s*tabular-nums/,

@@ -170,6 +170,7 @@ class MainFunctionActivationTests(unittest.TestCase):
                     "translation": False,
                     "transcription_send": False,
                     "transcription_receive": False,
+                    "errors": [],
                 },
             },
         )
@@ -184,6 +185,38 @@ class MainFunctionActivationTests(unittest.TestCase):
                 (200, "/run/enable_transcription_receive", False),
             ],
         )
+
+    def test_live_session_stop_continues_after_one_pipeline_failure(self):
+        controller = _controller_for_activation()
+        controller.setDisableTranslation = Mock(
+            side_effect=RuntimeError("translation stop failed")
+        )
+        controller.setDisableTranscriptionSend = Mock(
+            return_value={"status": 200, "result": False}
+        )
+        controller.setDisableTranscriptionReceive = Mock(
+            return_value={"status": 200, "result": False}
+        )
+        with patch.object(controller_module.model, "clearOscMessageQueue") as clear_queue:
+            response = controller.setDisableLiveSession()
+
+        self.assertEqual(response["status"], 200)
+        self.assertEqual(
+            response["result"]["transcription_send"],
+            False,
+        )
+        self.assertEqual(
+            response["result"]["transcription_receive"],
+            False,
+        )
+        self.assertEqual(len(response["result"]["errors"]), 1)
+        self.assertEqual(
+            response["result"]["errors"][0]["operation"],
+            "translation",
+        )
+        controller.setDisableTranscriptionSend.assert_called_once_with()
+        controller.setDisableTranscriptionReceive.assert_called_once_with()
+        clear_queue.assert_called_once_with()
 
     def test_live_session_transport_routes_target_the_serialized_controller_commands(self):
         mainloop_path = os.path.join(os.path.dirname(__file__), "..", "mainloop.py")

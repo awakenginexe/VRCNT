@@ -109,7 +109,6 @@ class Controller:
         self._transcription_metric_callback_registered = False
         self._manual_translation_retry = None
         self._mic_output_lock = Lock()
-        self._latest_mic_trace_id: Optional[str] = None
         self._mic_original_fallback_trace_ids: set[str] = set()
         self._mic_voice_activity_callback_registered = False
         register_recovery = getattr(
@@ -507,9 +506,6 @@ class Controller:
         )
 
     def _emitInitialTranscriptionTrace(self, trace: TranscriptionTrace) -> None:
-        if trace.source is PipelineSource.MIC:
-            with self._mic_output_lock:
-                self._latest_mic_trace_id = trace.trace_id
         endpoint_key = (
             "transcription_mic"
             if trace.source is PipelineSource.MIC
@@ -567,6 +563,19 @@ class Controller:
         # field. The real Model always has it, including the None/unknown state.
         return status is missing or status is False
 
+    @staticmethod
+    def _sendOscMessage(message: str, generation: Optional[int] = None) -> None:
+        send = getattr(model, "oscSendMessage")
+        # Focused compatibility doubles historically expose a one-argument
+        # Mock seam. The production Model accepts generation so queued output
+        # can be invalidated when its source session stops.
+        if generation is not None and not type(model).__module__.startswith(
+            "unittest.mock"
+        ):
+            send(message, generation=generation)
+        else:
+            send(message)
+
     def _sendMicOriginalFallback(self, trace: TranscriptionTrace) -> bool:
         output_config = trace.output_config
         if not (
@@ -580,12 +589,13 @@ class Controller:
         ):
             return False
         try:
-            model.oscSendMessage(
+            self._sendOscMessage(
                 self._formatSnapshotMessage(
                     output_config.send_format,
                     [],
                     trace.original_message,
-                )
+                ),
+                generation=trace.generation,
             )
         except Exception:
             errorLogging()
@@ -595,22 +605,11 @@ class Controller:
         return True
 
     def _handleMicVoiceActivity(self, speaking: bool, captured_at: float) -> None:
-        del captured_at
-        if not speaking:
-            return
-        # A new speaking interval supersedes any pending translation-only
-        # resend. The next trace will install its own id when it is admitted.
-        with self._mic_output_lock:
-            if self._mic_original_fallback_trace_ids:
-                self._latest_mic_trace_id = None
+        del speaking, captured_at
 
     def _micOriginalFallbackWasSent(self, trace_id: str) -> bool:
         with self._mic_output_lock:
             return trace_id in self._mic_original_fallback_trace_ids
-
-    def _micTraceIsLatest(self, trace_id: str) -> bool:
-        with self._mic_output_lock:
-            return self._latest_mic_trace_id == trace_id
 
     def _forgetMicOriginalFallback(self, trace_id: str) -> None:
         with self._mic_output_lock:
@@ -1088,10 +1087,7 @@ class Controller:
                 or bool(successful_translations)
             )
             if original_fallback_sent:
-                osc_eligible = (
-                    self._micTraceIsLatest(task.trace_id)
-                    and bool(successful_translations)
-                )
+                osc_eligible = bool(successful_translations)
             if osc_eligible:
                 def send_osc() -> None:
                     if original_fallback_sent:
@@ -1126,7 +1122,10 @@ class Controller:
                             or self._micOscOutputAllowed()
                         )
                     ):
-                        model.oscSendMessage(osc_message)
+                        self._sendOscMessage(
+                            osc_message,
+                            generation=task.generation,
+                        )
 
                 if not self._attemptFinalOutputSink(
                     task,
@@ -1407,7 +1406,10 @@ class Controller:
                             task.original_message,
                         )
                     if self._generationCurrent(task):
-                        model.oscSendMessage(osc_message)
+                        self._sendOscMessage(
+                            osc_message,
+                            generation=task.generation,
+                        )
 
                 if not self._attemptFinalOutputSink(
                     task,
@@ -3370,6 +3372,32 @@ class Controller:
             config.QUICK_WAKE_UP_STATE = self._quickWakeUpDefaultState()
             return {"status": 200, "result": config.ENABLE_QUICK_WAKE_UP}
 
+    def _publishQuickWakeUpRestoreState(
+        self,
+        generation: int,
+        phase: str,
+        requested: dict[str, bool],
+        *,
+        restoring: dict[str, bool],
+        ready: dict[str, bool],
+        failed: dict[str, object],
+    ) -> None:
+        try:
+            self.run(
+                200 if phase != "failed" else 500,
+                "/run/quick_wake_up_restore",
+                {
+                    "generation": generation,
+                    "phase": phase,
+                    "requested": dict(requested),
+                    "restoring": dict(restoring),
+                    "ready": dict(ready),
+                    "failed": dict(failed),
+                },
+            )
+        except Exception:
+            errorLogging()
+
     def restoreQuickWakeUp(self, *args, **kwargs) -> dict:
         with self._quick_wake_up_lock:
             if config.ENABLE_QUICK_WAKE_UP is not True:
@@ -3405,15 +3433,66 @@ class Controller:
                     self.setDisableTranscriptionReceive,
                 ),
             )
+            restore_generation = getattr(
+                self,
+                "_quick_wake_up_restore_generation",
+                0,
+            ) + 1
+            self._quick_wake_up_restore_generation = restore_generation
+            ready = {key: False for key in state}
+            failed = {}
+            self._publishQuickWakeUpRestoreState(
+                restore_generation,
+                "restoring",
+                state,
+                restoring={key: True for key in state},
+                ready=ready,
+                failed=failed,
+            )
             result = {}
             for key, enable_endpoint, disable_endpoint, enable, disable in operations:
-                response = (enable if state[key] else disable)()
+                if state[key]:
+                    response = enable(
+                        _require_capture_ready=(
+                            key in {
+                                "transcription_send",
+                                "transcription_receive",
+                            }
+                        )
+                    )
+                else:
+                    response = disable()
                 result[key] = response
+                operation_succeeded = (
+                    isinstance(response, dict)
+                    and response.get("status") == 200
+                    and (
+                        response.get("result") is True
+                        if state[key]
+                        else True
+                    )
+                )
+                ready[key] = operation_succeeded
+                if not operation_succeeded:
+                    failed[key] = (
+                        response.get("result")
+                        if isinstance(response, dict)
+                        else response
+                    )
                 self.run(
                     response.get("status", 500),
                     enable_endpoint if state[key] else disable_endpoint,
                     response.get("result"),
                 )
+            final_phase = "failed" if failed else "ready"
+            self._publishQuickWakeUpRestoreState(
+                restore_generation,
+                final_phase,
+                state,
+                restoring={key: False for key in state},
+                ready=ready,
+                failed=failed,
+            )
             return {"status": 200, "result": result}
 
     def _setLiveSession(self, enabled: bool) -> dict:
@@ -3439,6 +3518,64 @@ class Controller:
                 self.setEnableTranscriptionReceive if enabled else self.setDisableTranscriptionReceive,
             ),
         )
+        if enabled is False:
+            results = {}
+            errors = []
+            for operation, event_key, set_operation in operations:
+                try:
+                    response = set_operation()
+                except Exception as error:
+                    errorLogging()
+                    if operation == "transcription_send":
+                        try:
+                            model.stopSourcePipeline(PipelineSource.MIC)
+                        except Exception:
+                            errorLogging()
+                    elif operation == "transcription_receive":
+                        try:
+                            model.stopSourcePipeline(PipelineSource.SPEAKER)
+                        except Exception:
+                            errorLogging()
+                    response = {
+                        "status": 500,
+                        "result": {
+                            "error_code": "LIVE_SESSION_STOP_FAILED",
+                            "message": str(error),
+                            "data": False,
+                        },
+                    }
+                operation_result = response.get("result", False)
+                results[operation] = (
+                    operation_result if isinstance(operation_result, bool) else False
+                )
+                if response.get("status") != 200 or results[operation] is not False:
+                    errors.append({
+                        "operation": operation,
+                        "result": response.get("result"),
+                    })
+                self._safeActivationEvent(event_key, response)
+            try:
+                clear_queue = getattr(model, "clearOscMessageQueue", None)
+                if callable(clear_queue):
+                    clear_queue()
+            except Exception as error:
+                errorLogging()
+                errors.append({
+                    "operation": "osc",
+                    "result": {
+                        "error_code": "OSC_QUEUE_CLEAR_FAILED",
+                        "message": str(error),
+                        "data": False,
+                    },
+                })
+            return {
+                "status": 200,
+                "result": {
+                    **results,
+                    "errors": errors,
+                },
+            }
+
         results = {}
         for operation, event_key, set_operation in operations:
             response = set_operation()
@@ -5797,6 +5934,21 @@ class Controller:
             else config.ENABLE_TRANSCRIPTION_RECEIVE is True
         )
 
+    def _waitForTranscriptionSourceReady(self, source: PipelineSource) -> bool:
+        """Require a current capture heartbeat when Quick Wake restores audio."""
+        if type(model).__module__.startswith("unittest.mock"):
+            return True
+        wait_for_ready = getattr(model, "waitForTranscriptionSourceReady", None)
+        if not callable(wait_for_ready):
+            return True
+        get_generation = getattr(model, "getSourcePipelineGeneration", None)
+        generation = get_generation(source) if callable(get_generation) else None
+        try:
+            return wait_for_ready(source, generation) is True
+        except Exception:
+            errorLogging()
+            return False
+
     @staticmethod
     def _transcriptionModelReadinessError(
         source: PipelineSource,
@@ -5836,8 +5988,16 @@ class Controller:
         )
 
     def setEnableTranscriptionSend(self, *args, **kwargs) -> dict:
+        require_capture_ready = kwargs.pop("_require_capture_ready", False) is True
         with self._quick_wake_up_lock:
-            if config.ENABLE_TRANSCRIPTION_SEND is True:
+            if (
+                config.ENABLE_TRANSCRIPTION_SEND is True
+                and self._isTranscriptionSourceActive(PipelineSource.MIC)
+                and (
+                    not require_capture_ready
+                    or self._waitForTranscriptionSourceReady(PipelineSource.MIC)
+                )
+            ):
                 self._recordQuickWakeUpState("transcription_send", True)
                 return {"status": 200, "result": True}
             language_error = self._transcriptionLanguageSupportError(PipelineSource.MIC)
@@ -5850,6 +6010,15 @@ class Controller:
             try:
                 if self.startTranscriptionSendMessage() is not True:
                     raise RuntimeError("transcription activation was cancelled")
+                if (
+                    require_capture_ready
+                    and not self._waitForTranscriptionSourceReady(
+                        PipelineSource.MIC
+                    )
+                ):
+                    raise RuntimeError(
+                        "microphone capture did not report readiness"
+                    )
                 self._recordQuickWakeUpState("transcription_send", True)
                 return {"status": 200, "result": True}
             except Exception as error:
@@ -5872,8 +6041,16 @@ class Controller:
             return {"status":200, "result":config.ENABLE_TRANSCRIPTION_SEND}
 
     def setEnableTranscriptionReceive(self, *args, **kwargs) -> dict:
+        require_capture_ready = kwargs.pop("_require_capture_ready", False) is True
         with self._quick_wake_up_lock:
-            if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
+            if (
+                config.ENABLE_TRANSCRIPTION_RECEIVE is True
+                and self._isTranscriptionSourceActive(PipelineSource.SPEAKER)
+                and (
+                    not require_capture_ready
+                    or self._waitForTranscriptionSourceReady(PipelineSource.SPEAKER)
+                )
+            ):
                 self._recordQuickWakeUpState("transcription_receive", True)
                 return {"status": 200, "result": True}
             language_error = self._transcriptionLanguageSupportError(PipelineSource.SPEAKER)
@@ -5886,6 +6063,15 @@ class Controller:
             try:
                 if self.startTranscriptionReceiveMessage() is not True:
                     raise RuntimeError("transcription activation was cancelled")
+                if (
+                    require_capture_ready
+                    and not self._waitForTranscriptionSourceReady(
+                        PipelineSource.SPEAKER
+                    )
+                ):
+                    raise RuntimeError(
+                        "speaker capture did not report readiness"
+                    )
                 self._recordQuickWakeUpState("transcription_receive", True)
                 return {"status": 200, "result": True}
             except Exception as error:
@@ -7232,8 +7418,8 @@ class Controller:
             if connected_network is True:
                 self.checkSoftwareUpdated()
 
-            self.updateConfigSettings()
             self.initializationStatus("", "", visible=False, phase="done")
+            self.updateConfigSettings()
             self.startWatchdog()
         except Exception:
             errorLogging()

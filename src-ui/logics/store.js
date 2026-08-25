@@ -199,6 +199,26 @@ export const { atomInstance: Atom_MainFunctionsStateMemory, useHook: useStore_Ma
     transcription_send: false,
     transcription_receive: false,
 }, "MainFunctionsStateMemory");
+export const { atomInstance: Atom_QuickWakeUpRestoreState, useHook: useStore_QuickWakeUpRestoreState } = createAtomWithHook({
+    generation: 0,
+    phase: "idle",
+    requested: {
+        translation: false,
+        transcription_send: false,
+        transcription_receive: false,
+    },
+    restoring: {
+        translation: false,
+        transcription_send: false,
+        transcription_receive: false,
+    },
+    ready: {
+        translation: false,
+        transcription_send: false,
+        transcription_receive: false,
+    },
+    failed: {},
+}, "QuickWakeUpRestoreState", { is_state_ok: true });
 export const { atomInstance: Atom_OpenedQuickSetting, useHook: useStore_OpenedQuickSetting } = createAtomWithHook("", "OpenedQuickSetting");
 export const { atomInstance: Atom_LatestSoftwareVersionInfo, useHook: useStore_LatestSoftwareVersionInfo } = createAtomWithHook({
     is_update_available: false,
@@ -209,6 +229,7 @@ export const { atomInstance: Atom_InitProgress, useHook: useStore_InitProgress }
 export const { atomInstance: Atom_InitStatus, useHook: useStore_InitStatus } = createAtomWithHook({
     visible: IS_TAURI_RUNTIME,
     message: "Starting VRCNT",
+    message_key: "blocking_operation.startup_operation",
     detail: "Preparing startup.",
     phase: "starting",
 }, "InitStatus");
@@ -300,7 +321,7 @@ export const { atomInstance: Atom_MessageInputValue, useHook: useStore_MessageIn
 
 // Config Page
 // Common
-export const { atomInstance: Atom_SoftwareVersion, useHook: useStore_SoftwareVersion } = createAtomWithHook("5.13.0", "SoftwareVersion");
+export const { atomInstance: Atom_SoftwareVersion, useHook: useStore_SoftwareVersion } = createAtomWithHook("5.14.0", "SoftwareVersion");
 export const { atomInstance: Atom_SelectedConfigTabId, useHook: useStore_SelectedConfigTabId } = createAtomWithHook("device", "SelectedConfigTabId");
 export const { atomInstance: Atom_SettingBoxScrollPosition, useHook: useStore_SettingBoxScrollPosition } = createAtomWithHook(0, "SettingBoxScrollPosition");
 export const { atomInstance: Atom_IsOpenedDropdownMenu, useHook: useStore_IsOpenedDropdownMenu } = createAtomWithHook("", "IsOpenedDropdownMenu");

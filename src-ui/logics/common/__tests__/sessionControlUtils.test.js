@@ -5,6 +5,11 @@ import {
     getSessionEndpoint,
     getSessionTransitionPlan,
 } from "../../main/sessionControlUtils.js";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 
 const readyStatuses = (values = {}) => ({
     translation: { data: values.translation ?? false, state: values.translationState ?? "ok" },
@@ -51,4 +56,20 @@ test("the primary session action never fabricates readiness while the backend or
         }),
         { action: "start", isBusy: true, isDisabled: true },
     );
+});
+
+test("session stop settles the aggregate response and preserves partial-stop errors", () => {
+    const useMainFunction = fs.readFileSync(
+        path.join(repoRoot, "src-ui/logics/main/useMainFunction.js"),
+        "utf8",
+    );
+    const receiveRoutes = fs.readFileSync(
+        path.join(repoRoot, "src-ui/logics/useReceiveRoutes.js"),
+        "utf8",
+    );
+
+    assert.match(useMainFunction, /settleLiveSessionBatch/);
+    assert.match(useMainFunction, /session_stop_partial/);
+    assert.match(receiveRoutes, /settleLiveSessionBatch/);
+    assert.match(receiveRoutes, /"errors" in result/);
 });

@@ -9,6 +9,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 import controller as controller_module
 from controller import Controller
+from model import Model
+from models.pipeline.pipeline_types import PipelineSource
 
 
 def _controller_for_main_functions():
@@ -121,6 +123,86 @@ class QuickWakeUpTests(unittest.TestCase):
                 "transcription_send": False,
                 "transcription_receive": False,
             },
+        )
+
+    def test_enabled_speaking_flag_restarts_when_pipeline_is_not_active(self):
+        with (
+            patch.object(controller_module.config, "_ENABLE_QUICK_WAKE_UP", True),
+            patch.object(
+                controller_module.config,
+                "_QUICK_WAKE_UP_STATE",
+                {
+                    "translation": False,
+                    "transcription_send": True,
+                    "transcription_receive": False,
+                },
+            ),
+            patch.object(controller_module.config, "_ENABLE_TRANSCRIPTION_SEND", True),
+            patch.object(
+                controller_module.model,
+                "isTranscriptionSourceActive",
+                return_value=False,
+            ),
+            patch.object(
+                self.controller,
+                "_transcriptionLanguageSupportError",
+                return_value=None,
+            ),
+            patch.object(
+                self.controller,
+                "_transcriptionModelReadinessError",
+                return_value=None,
+            ),
+            patch.object(
+                self.controller,
+                "startTranscriptionSendMessage",
+                return_value=True,
+            ) as start_speaking,
+            patch.object(controller_module.config, "saveConfig"),
+        ):
+            response = self.controller.setEnableTranscriptionSend()
+
+        self.assertEqual(response, {"status": 200, "result": True})
+        start_speaking.assert_called_once_with()
+
+    def test_capture_readiness_requires_current_generation_heartbeat(self):
+        instance = object.__new__(Model)
+        instance._inited = True
+        instance._ensureTranscriptionLifecycleState()
+        generation = 7
+        ready_event = threading.Event()
+        stop_event = threading.Event()
+        instance._source_pipeline_generations = {
+            PipelineSource.MIC: generation,
+        }
+        instance.mic_source_pipeline = object()
+        instance._source_transcription_sessions[PipelineSource.MIC] = {
+            "generation": generation,
+            "stop_event": stop_event,
+            "capture_ready_event": ready_event,
+        }
+
+        self.assertFalse(
+            instance.waitForTranscriptionSourceReady(
+                PipelineSource.MIC,
+                generation,
+                timeout=0.01,
+            )
+        )
+        ready_event.set()
+        self.assertTrue(
+            instance.waitForTranscriptionSourceReady(
+                PipelineSource.MIC,
+                generation,
+                timeout=0.01,
+            )
+        )
+        self.assertFalse(
+            instance.waitForTranscriptionSourceReady(
+                PipelineSource.MIC,
+                generation + 1,
+                timeout=0.01,
+            )
         )
 
     def test_concurrent_quick_wake_updates_do_not_lose_state_bits(self):

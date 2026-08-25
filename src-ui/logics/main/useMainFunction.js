@@ -130,6 +130,22 @@ export const useMainFunction = () => {
         return true;
     };
 
+    const settleLiveSessionBatch = (result = {}) => {
+        updateTranslationStatus(result.translation === true);
+        updateTranscriptionSendStatus(result.transcription_send === true);
+        updateTranscriptionReceiveStatus(result.transcription_receive === true);
+        clearPendingMainFunctionStatuses();
+        if (Array.isArray(result.errors) && result.errors.length > 0) {
+            showNotification_Error(
+                t("main_page.live_workspace.session_stop_partial"),
+                {
+                    category_id: "live_session_stop_partial",
+                    hide_duration: 5000,
+                },
+            );
+        }
+    };
+
     const toggleForeground = async () => {
         const is_foreground_enabled = !currentForegroundStatus.data;
         await appWindow.setAlwaysOnTop(is_foreground_enabled);
@@ -163,5 +179,6 @@ export const useMainFunction = () => {
 
         clearPendingMainFunctionStatuses,
         clearPendingMainFunctionError,
+        settleLiveSessionBatch,
     };
 };

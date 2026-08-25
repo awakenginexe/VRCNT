@@ -161,6 +161,86 @@ def make_full_audio_queue():
 
 
 class TranscriptionRecorderConstructorTests(unittest.TestCase):
+    def test_selected_audio_sources_share_one_portaudio_context(self):
+        import models.transcription.transcription_recorder as recorder_module
+
+        class FakeStream:
+            def __init__(self):
+                self.closed = False
+
+            def is_stopped(self):
+                return self.closed
+
+            def stop_stream(self):
+                self.closed = True
+
+            def close(self):
+                self.closed = True
+
+            def get_read_available(self):
+                return 0
+
+            def read(self, *_args, **_kwargs):
+                return b""
+
+        class FakePyAudio:
+            def __init__(self):
+                self.open_calls = []
+                self.terminate_calls = 0
+
+            def get_device_count(self):
+                return 2
+
+            def get_device_info_by_index(self, index):
+                return {
+                    "index": index,
+                    "defaultSampleRate": 48000.0,
+                }
+
+            def open(self, **kwargs):
+                self.open_calls.append(kwargs)
+                return FakeStream()
+
+            def terminate(self):
+                self.terminate_calls += 1
+
+        class FakePyAudioModule:
+            paInt16 = 8
+
+            @staticmethod
+            def get_sample_size(_format):
+                return 2
+
+        fake_audio = FakePyAudio()
+        fake_module = FakePyAudioModule()
+        recorder_module.reset_shared_pyaudio()
+
+        with patch.object(recorder_module, "_SpeechRecognitionMicrophone") as base_microphone:
+            base_microphone.get_pyaudio.return_value = fake_module
+            base_microphone.MicrophoneStream = lambda stream: stream
+            with patch.object(
+                recorder_module,
+                "get_shared_pyaudio",
+                return_value=fake_audio,
+            ):
+                mic = recorder_module.SharedMicrophone(
+                    device_index=0,
+                    sample_rate=48000,
+                )
+                speaker = recorder_module.SharedMicrophone(
+                    device_index=1,
+                    sample_rate=48000,
+                    speaker=True,
+                    channels=2,
+                )
+                mic.__enter__()
+                speaker.__enter__()
+                mic.__exit__(None, None, None)
+                speaker.__exit__(None, None, None)
+
+        self.assertEqual(len(fake_audio.open_calls), 2)
+        self.assertEqual(fake_audio.terminate_calls, 0)
+
     def test_create_microphone_falls_back_without_closing_unopened_source(self):
         selected_source = FakeAudioSource(opens=False)
         fallback_source = FakeAudioSource(opens=True)

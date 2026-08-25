@@ -34,6 +34,17 @@ test("Others exposes startup controls and routes Start with VRChat confirmation 
     assert.match(modalController, /case "start_with_vrchat"/);
 });
 
+test("quick setting confirmation renders above the full-screen settings page", () => {
+    const configPage = readSource("src-ui/views/app/config_page/ConfigPage.module.scss");
+    const modalController = readSource("src-ui/views/app/others/modal_controller/ModalController.module.scss");
+    const configZIndex = Number(configPage.match(/\.page\s*\{[\s\S]*?z-index:\s*(\d+)/)?.[1]);
+    const modalZIndex = Number(modalController.match(/\.container\s*\{[\s\S]*?z-index:\s*(\d+)/)?.[1]);
+
+    assert.ok(Number.isFinite(configZIndex));
+    assert.ok(Number.isFinite(modalZIndex));
+    assert.ok(modalZIndex > configZIndex);
+});
+
 test("opening then backdrop-dismissal of Start with VRChat confirmation closes without enabling registration", async () => {
     assert.equal(typeof startupSettingsState.requestStartWithVrchatChange, "function");
     assert.equal(typeof startupSettingsState.dismissStartWithVrchatConfirmation, "function");

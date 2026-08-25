@@ -24,6 +24,7 @@ test("the approved shell exposes every top-level destination through one route a
     for (const route of [
         "live",
         "models",
+        "osc",
         "overlay",
         "customize",
         "settings",

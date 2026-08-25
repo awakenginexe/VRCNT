@@ -14,7 +14,8 @@ import {
 const createInput = (overrides = {}) => ({
     isBackendReady: true,
     initStatus: {
-        phase: "ready",
+        phase: "done",
+        visible: false,
         message: "Ready",
         detail: "",
         message_key: "",
@@ -69,7 +70,30 @@ test("startup progress is clamped at zero", () => {
     });
 });
 
-test("backend readiness removes startup immediately", () => {
+test("backend readiness cannot complete startup before its final invisible status", () => {
+    const stillVisible = getBlockingOperationCandidate(createInput({
+        initStatus: {
+            phase: "done",
+            visible: true,
+            message: "Finishing",
+            detail: "Applying settings",
+            message_key: "",
+            detail_key: "",
+        },
+    }));
+    const stillRunning = getBlockingOperationCandidate(createInput({
+        initStatus: {
+            phase: "services",
+            visible: false,
+            message: "Starting services",
+            detail: "",
+            message_key: "",
+            detail_key: "",
+        },
+    }));
+
+    assert.equal(stillVisible.id, "startup");
+    assert.equal(stillRunning.id, "startup");
     assert.equal(getBlockingOperationCandidate(createInput()), null);
 });
 
@@ -92,7 +116,7 @@ test("only a blocking startup operation blocks the page", () => {
     }), false);
 });
 
-test("a terminal startup error removes blocking even before backend readiness", () => {
+test("a terminal startup error stays visible without making the page inert", () => {
     const operation = getBlockingOperationCandidate(createInput({
         isBackendReady: false,
         initStatus: {
@@ -105,7 +129,12 @@ test("a terminal startup error removes blocking even before backend readiness", 
         translationStatus: { state: "pending", data: false },
     }));
 
-    assert.equal(operation, null);
+    assert.equal(operation.id, "startup");
+    assert.equal(operation.terminalError, true);
+    assert.equal(isPageBlockingOperation({
+        isBlocking: true,
+        operation,
+    }), false);
 });
 
 test("only a pending activation whose old value is false is selected", () => {

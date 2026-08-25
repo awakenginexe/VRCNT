@@ -84,6 +84,7 @@ logger = logging.getLogger(__name__)
 TRANSCRIPT_THREAD_JOIN_TIMEOUT = 2.0
 TRANSCRIPT_STALL_RESTART_SECONDS = 90.0
 TRANSCRIPT_STALL_CHECK_SECONDS = 5.0
+TRANSCRIPTION_SOURCE_READY_TIMEOUT_SECONDS = 10.0
 DEFAULT_TRANSLATION_ENGINE = "CTranslate2"
 TRANSCRIPTION_AUDIO_QUEUE_SIZE = 4
 TRANSCRIPTION_PIPELINE_METRIC_HISTORY_SIZE = 256
@@ -550,6 +551,8 @@ class Model:
                 self._source_transcription_sessions = {}
             if not hasattr(self, "_source_heartbeat_timestamps"):
                 self._source_heartbeat_timestamps = {}
+            if not hasattr(self, "_source_pending_capture_ready"):
+                self._source_pending_capture_ready = {}
             if not hasattr(self, "_mic_voice_activity_callback"):
                 self._mic_voice_activity_callback = None
         self._ensureTranscriptionMetricState()
@@ -700,6 +703,62 @@ class Model:
                 and current_generation == session["generation"]
                 and pipeline is not None
             )
+
+    def isTranscriptionSourceReady(
+        self,
+        source: PipelineSource,
+        generation: Optional[int] = None,
+    ) -> bool:
+        """Return true only after the current capture path has heartbeated."""
+        self.ensure_initialized()
+        self._ensureTranscriptionLifecycleState()
+        with self._source_session_lock:
+            session = self._source_transcription_sessions.get(source)
+            current_generation = self._source_pipeline_generations.get(source)
+            pipeline = getattr(
+                self,
+                self._sourcePipelineAttribute(source),
+                None,
+            )
+            expected_generation = (
+                current_generation if generation is None else generation
+            )
+            ready_event = session.get("capture_ready_event") if session else None
+            return bool(
+                session is not None
+                and ready_event is not None
+                and ready_event.is_set()
+                and not session["stop_event"].is_set()
+                and current_generation == expected_generation
+                and session.get("generation") == expected_generation
+                and pipeline is not None
+            )
+
+    def waitForTranscriptionSourceReady(
+        self,
+        source: PipelineSource,
+        generation: Optional[int] = None,
+        timeout: float = TRANSCRIPTION_SOURCE_READY_TIMEOUT_SECONDS,
+    ) -> bool:
+        """Wait for a real capture heartbeat without masking a stale session."""
+        self.ensure_initialized()
+        self._ensureTranscriptionLifecycleState()
+        with self._source_session_lock:
+            current_generation = self._source_pipeline_generations.get(source)
+            expected_generation = (
+                current_generation if generation is None else generation
+            )
+            session = self._source_transcription_sessions.get(source)
+            if (
+                session is None
+                or session.get("generation") != expected_generation
+                or current_generation != expected_generation
+            ):
+                return False
+            ready_event = session.get("capture_ready_event")
+        if ready_event is None or ready_event.wait(max(0.0, float(timeout))) is not True:
+            return False
+        return self.isTranscriptionSourceReady(source, expected_generation)
 
     def isSourcePipelineGenerationCurrent(
         self,
@@ -1493,9 +1552,37 @@ class Model:
     def resetMicTyping(self) -> None:
         self._ensureTypingCoordinator().reset()
 
-    def oscSendMessage(self, message:str):
+    def oscSendMessage(
+        self,
+        message: str,
+        generation: Optional[int] = None,
+    ) -> bool:
         self.ensure_initialized()
-        self.osc_handler.sendMessage(message=message, notification=config.NOTIFICATION_VRC_SFX)
+        return self.osc_handler.sendMessage(
+            message=message,
+            notification=config.NOTIFICATION_VRC_SFX,
+            generation=generation,
+        )
+
+    def clearOscMessageQueue(self) -> None:
+        self.ensure_initialized()
+        clear_queue = getattr(
+            getattr(self, "osc_handler", None),
+            "clearChatboxQueue",
+            None,
+        )
+        if callable(clear_queue):
+            clear_queue()
+
+    def invalidateOscMessageGeneration(self, generation: int) -> None:
+        self.ensure_initialized()
+        invalidate = getattr(
+            getattr(self, "osc_handler", None),
+            "invalidateChatboxGeneration",
+            None,
+        )
+        if callable(invalidate):
+            invalidate(generation)
 
     def setMuteSelfStatus(self):
         self.ensure_initialized()
@@ -1768,6 +1855,29 @@ class Model:
             queue_depth=0,
         )
 
+    def _registerPendingCaptureReady(
+        self,
+        source: PipelineSource,
+        generation: int,
+        ready_event: Event,
+    ) -> None:
+        self._ensureTranscriptionLifecycleState()
+        with self._source_session_lock:
+            self._source_pending_capture_ready[source] = (generation, ready_event)
+
+    def _clearPendingCaptureReady(
+        self,
+        source: PipelineSource,
+        generation: Optional[int] = None,
+    ) -> None:
+        self._ensureTranscriptionLifecycleState()
+        with self._source_session_lock:
+            pending_capture = self._source_pending_capture_ready.get(source)
+            if pending_capture is None:
+                return
+            if generation is None or pending_capture[0] == generation:
+                self._source_pending_capture_ready.pop(source, None)
+
     def _recordCaptureHeartbeat(
         self,
         source: PipelineSource,
@@ -1776,6 +1886,12 @@ class Model:
     ) -> None:
         self._ensureTranscriptionLifecycleState()
         with self._source_session_lock:
+            pending_capture = self._source_pending_capture_ready.get(source)
+            if (
+                pending_capture is not None
+                and pending_capture[0] == generation
+            ):
+                pending_capture[1].set()
             session = self._source_transcription_sessions.get(source)
             if (
                 session is not None
@@ -1791,6 +1907,9 @@ class Model:
             ):
                 self._source_heartbeat_timestamps[source] = captured_at
                 session["heartbeat_at"] = captured_at
+                ready_event = session.get("capture_ready_event")
+                if ready_event is not None:
+                    ready_event.set()
 
     def _recordVoiceActivity(
         self,
@@ -2206,6 +2325,12 @@ class Model:
                     error_code="recorder_construction_failed",
                 )
                 raise
+            capture_ready_event = Event()
+            self._registerPendingCaptureReady(
+                PipelineSource.MIC,
+                generation,
+                capture_ready_event,
+            )
             # Bing owns direct frame streaming; other engines retain the
             # existing phrase-based recorder and queue.
             if transcription_engine != "Bing":
@@ -2294,8 +2419,21 @@ class Model:
                     "lease": whisper_runtime_lease,
                     "stop_event": stop_event,
                     "heartbeat_at": heartbeat_at,
+                    "capture_ready_event": capture_ready_event,
                     "speech_started_at": None,
                 }
+                pending_capture = self._source_pending_capture_ready.get(
+                    PipelineSource.MIC
+                )
+                if (
+                    pending_capture is not None
+                    and pending_capture[0] == generation
+                    and pending_capture[1] is capture_ready_event
+                ):
+                    self._source_pending_capture_ready.pop(
+                        PipelineSource.MIC,
+                        None,
+                    )
             stall_seconds = max(
                 TRANSCRIPT_STALL_RESTART_SECONDS,
                 float(record_timeout) * 4.0,
@@ -2594,6 +2732,15 @@ class Model:
                 finally:
                     self._endSourcePipelineTransition(PipelineSource.MIC)
 
+        retired_generation = detached_pipeline[1]
+        if retired_generation is None:
+            retired_generation = self.getSourcePipelineGeneration(
+                PipelineSource.MIC
+            )
+        if retired_generation is not None:
+            self.invalidateOscMessageGeneration(retired_generation)
+        self._clearPendingCaptureReady(PipelineSource.MIC)
+
         whisper_runtime_lease = self.mic_whisper_runtime_lease
         close_error = None
         try:
@@ -2776,6 +2923,12 @@ class Model:
                     error_code="recorder_construction_failed",
                 )
                 raise
+            capture_ready_event = Event()
+            self._registerPendingCaptureReady(
+                PipelineSource.SPEAKER,
+                generation,
+                capture_ready_event,
+            )
             # Bing owns direct frame streaming; other engines retain the
             # existing phrase-based recorder and queue.
             if transcription_engine != "Bing":
@@ -2863,7 +3016,20 @@ class Model:
                     "lease": whisper_runtime_lease,
                     "stop_event": stop_event,
                     "heartbeat_at": heartbeat_at,
+                    "capture_ready_event": capture_ready_event,
                 }
+                pending_capture = self._source_pending_capture_ready.get(
+                    PipelineSource.SPEAKER
+                )
+                if (
+                    pending_capture is not None
+                    and pending_capture[0] == generation
+                    and pending_capture[1] is capture_ready_event
+                ):
+                    self._source_pending_capture_ready.pop(
+                        PipelineSource.SPEAKER,
+                        None,
+                    )
             stall_seconds = max(
                 TRANSCRIPT_STALL_RESTART_SECONDS,
                 float(record_timeout) * 4.0,
@@ -3006,6 +3172,15 @@ class Model:
                     self._stopDetachedSourcePipeline(*detached_pipeline)
                 finally:
                     self._endSourcePipelineTransition(PipelineSource.SPEAKER)
+
+        retired_generation = detached_pipeline[1]
+        if retired_generation is None:
+            retired_generation = self.getSourcePipelineGeneration(
+                PipelineSource.SPEAKER
+            )
+        if retired_generation is not None:
+            self.invalidateOscMessageGeneration(retired_generation)
+        self._clearPendingCaptureReady(PipelineSource.SPEAKER)
 
         whisper_runtime_lease = self.speaker_whisper_runtime_lease
         close_error = None
@@ -3493,6 +3668,18 @@ class Model:
             seen_managers.add(id(manager))
             try:
                 manager.shutdown()
+            except Exception as error:
+                if first_error is None:
+                    first_error = error
+                errorLogging()
+        close_chatbox = getattr(
+            getattr(self, "osc_handler", None),
+            "closeChatboxDispatcher",
+            None,
+        )
+        if callable(close_chatbox):
+            try:
+                close_chatbox()
             except Exception as error:
                 if first_error is None:
                     first_error = error
