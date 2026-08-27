@@ -8,6 +8,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $SevenZip = (Resolve-Path $SevenZip).Path
 $Minisign = (Resolve-Path $Minisign).Path
 $testRoot = Join-Path $repoRoot 'tmp/release-helper-integration'
+$previousLocalAppData = $env:LOCALAPPDATA
 $resolvedTestRoot = [IO.Path]::GetFullPath($testRoot)
 $resolvedRepoRoot = [IO.Path]::GetFullPath($repoRoot) + [IO.Path]::DirectorySeparatorChar
 if (-not $resolvedTestRoot.StartsWith($resolvedRepoRoot, [StringComparison]::OrdinalIgnoreCase) -or
@@ -18,6 +19,7 @@ if (Test-Path $testRoot) {
   Remove-Item -LiteralPath $testRoot -Recurse -Force
 }
 New-Item -ItemType Directory -Path $testRoot -Force | Out-Null
+$env:LOCALAPPDATA = Join-Path $testRoot 'local-app-data'
 
 function Invoke-Helper([string]$InstallerDirectory, [string]$CacheDirectory, [string]$Destination, [string]$BaseUrl) {
   $arguments = @(
@@ -41,6 +43,7 @@ try {
   New-Item -ItemType Directory -Path "$payload/frontend", "$payload/_internal" -Force | Out-Null
   Set-Content -LiteralPath "$payload/VRCNT.exe" -Value 'test executable' -Encoding utf8
   Set-Content -LiteralPath "$payload/VRCNT-backend.exe" -Value 'test backend' -Encoding utf8
+  Set-Content -LiteralPath "$payload/VRCNT.runtime.json" -Value '{"product":"VRCNT","version":"4.2.2","variant":"Cpu","architecture":"x64","buildIdentity":"fixture-cpu"}' -Encoding utf8
   Set-Content -LiteralPath "$payload/frontend/index.html" -Value '<html>test</html>' -Encoding utf8
   Set-Content -LiteralPath "$payload/_internal/runtime.txt" -Value 'runtime' -Encoding utf8
 
@@ -49,7 +52,7 @@ try {
   $archive = Join-Path $release 'VRCNT_4.2.2.7z'
   Push-Location $payload
   try {
-    & $SevenZip a -t7z -mx=1 $archive VRCNT.exe VRCNT-backend.exe frontend _internal | Out-Null
+    & $SevenZip a -t7z -mx=1 $archive VRCNT.exe VRCNT-backend.exe VRCNT.runtime.json frontend _internal | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Fixture archive generation failed.' }
   } finally {
     Pop-Location
@@ -61,17 +64,19 @@ sys.path.insert(0, sys.argv[1])
 from release import split_exactly
 import hashlib, json
 root = pathlib.Path(sys.argv[2])
+payload = pathlib.Path(sys.argv[3])
 parts = split_exactly(root / "VRCNT_4.2.2.7z", 3, 2_000_000_000)
 entries = [{"name": part.name, "size": part.stat().st_size, "sha256": hashlib.sha256(part.read_bytes()).hexdigest()} for part in parts]
 digest = hashlib.sha256(b"fixture").hexdigest()
+marker_sha256 = hashlib.sha256((payload / "VRCNT.runtime.json").read_bytes()).hexdigest()
 manifest = {
   "schema": 1, "product": "VRCNT", "version": "4.2.2", "architecture": "x64",
   "bootstrapper": {"name": "VRCNT-setup.exe", "size": 1, "sha256": digest, "managerProtocol": 1, "manifestSchema": 1, "runtimeStateSchema": 1, "activationProtocol": 1},
-  "variants": {"cpu": {"archiveFormat": "7z", "compressedSize": sum(item["size"] for item in entries), "installedSize": 1, "parts": entries, "requiresNvidia": False, "markerPath": "VRCNT.exe", "identity": {"product": "VRCNT", "version": "4.2.2", "variant": "Cpu", "architecture": "x64", "buildIdentity": "fixture-cpu", "markerSha256": digest}}}
+  "variants": {"cpu": {"archiveFormat": "7z", "compressedSize": sum(item["size"] for item in entries), "installedSize": 1, "parts": entries, "requiresNvidia": False, "markerPath": "VRCNT.runtime.json", "identity": {"product": "VRCNT", "version": "4.2.2", "variant": "Cpu", "architecture": "x64", "buildIdentity": "fixture-cpu", "markerSha256": marker_sha256}}}
 }
 (root / "package-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 '@
-  $python | python - (Join-Path $repoRoot 'utils') $release
+  $python | python - (Join-Path $repoRoot 'utils') $release $payload
   if ($LASTEXITCODE -ne 0) { throw 'Fixture multipart generation failed.' }
 
   $publicKey = Join-Path $testRoot 'manifest.pub'
@@ -109,6 +114,13 @@ manifest = {
   }
   if ($local.Output -notmatch 'Found all signed manifest-selected package files beside the installer') {
     throw 'Local installation did not select the adjacent package path.'
+  }
+
+  $existingExecutable = [IO.File]::ReadAllText("$localDestination/VRCNT.exe")
+  Set-Content -LiteralPath "$localDestination/VRCNT.runtime.json" -Value '{"product":"VRCNT","version":"4.2.2","variant":"Cpu","architecture":"x64","buildIdentity":"tampered"}' -Encoding utf8
+  $blockedReplacement = Invoke-Helper $release (Join-Path $testRoot 'blocked-cache') $localDestination 'http://127.0.0.1:1'
+  if ($blockedReplacement.ExitCode -eq 0 -or [IO.File]::ReadAllText("$localDestination/VRCNT.exe") -ne $existingExecutable) {
+    throw "Existing runtime replacement was not blocked before overwrite:`n$($blockedReplacement.Output)"
   }
 
   $portable = Join-Path $testRoot 'portable'
@@ -161,6 +173,7 @@ manifest = {
 
   Write-Output 'Release helper integration scenarios passed: local, online, resume, signature/hash rejection, and portable extraction.'
 } finally {
+  if ($null -eq $previousLocalAppData) { Remove-Item Env:LOCALAPPDATA -ErrorAction SilentlyContinue } else { $env:LOCALAPPDATA = $previousLocalAppData }
   if (Test-Path $testRoot) {
     Remove-Item -LiteralPath $testRoot -Recurse -Force
   }

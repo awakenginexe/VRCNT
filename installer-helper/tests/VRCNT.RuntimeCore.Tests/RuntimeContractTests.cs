@@ -31,8 +31,8 @@ public sealed class RuntimeContractTests
             new BootstrapperMetadata("VRCNT-setup.exe", 128, "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", 1, 1, 1, 1),
             new Dictionary<string, VariantPackage>
             {
-                ["cpu"] = new("7z", 100, 200, [new PackagePart("cpu.7z", 100, "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd")], false, "VRCNT.exe", cpuIdentity),
-                ["cuda"] = new("7z", 300, 400, [new PackagePart("cuda.7z", 300, "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")], true, "VRCNT.exe", cudaIdentity),
+                ["cpu"] = new("7z", 100, 200, [new PackagePart("cpu.7z", 100, "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd")], false, "VRCNT.runtime.json", cpuIdentity),
+                ["cuda"] = new("7z", 300, 400, [new PackagePart("cuda.7z", 300, "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")], true, "VRCNT.runtime.json", cudaIdentity),
             });
 
         var json = JsonSerializer.Serialize(manifest);

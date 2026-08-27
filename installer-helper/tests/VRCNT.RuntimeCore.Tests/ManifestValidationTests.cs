@@ -68,6 +68,21 @@ public sealed class ManifestValidationTests : IDisposable
             .LoadAndVerifyAsync(manifestPath, signaturePath, "5.15.0", default));
     }
 
+    [Theory]
+    [InlineData("VRCNT.exe")]
+    [InlineData("markers/VRCNT.runtime.json")]
+    [InlineData("..\\VRCNT.runtime.json")]
+    public async Task LoadAndVerifyAsync_rejects_a_non_root_runtime_marker_path(string markerPath)
+    {
+        var manifest = CreateManifest();
+        var cpu = manifest.Variants["cpu"] with { MarkerPath = markerPath };
+        var variants = new Dictionary<string, VariantPackage>(manifest.Variants) { ["cpu"] = cpu };
+        var (manifestPath, signaturePath) = await WriteManifestAsync(manifest with { Variants = variants });
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => new ManifestLoader(new AcceptingSignatureVerifier())
+            .LoadAndVerifyAsync(manifestPath, signaturePath, "5.15.0", default));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root)) Directory.Delete(_root, true);
@@ -91,7 +106,7 @@ public sealed class ManifestValidationTests : IDisposable
             return new(
             "7z", parts.Sum(part => part.Size), parts.Sum(part => part.Size) * 2,
             parts,
-            variant == RuntimeVariant.Cuda, "VRCNT.exe",
+            variant == RuntimeVariant.Cuda, "VRCNT.runtime.json",
             new RuntimeIdentity("VRCNT", "5.15.0", variant, "x64", $"{prefix}-build", Hash(prefix)));
         }
         return new PackageManifest(1, "VRCNT", "5.15.0", "x64",

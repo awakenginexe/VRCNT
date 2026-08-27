@@ -97,11 +97,11 @@ def _getUserDataPath(app_name: str = "VRCNT") -> str:
 
 
 def _migrateRenamedUserData(legacy_path: str, target_path: str) -> bool:
-    """Move the 4.0 data directory only when the new destination is absent."""
-    if os_path.isdir(legacy_path) is False or os_path.exists(target_path):
+    """Copy legacy data into the current root without deleting or overwriting."""
+    if os_path.isdir(legacy_path) is False:
         return False
     try:
-        shutil.move(legacy_path, target_path)
+        _copytree_merge(legacy_path, target_path)
         return True
     except Exception:
         errorLogging()
@@ -1633,10 +1633,7 @@ class Config:
             if os_path.isdir(legacy_path) is False:
                 continue
             try:
-                if os_path.exists(target_path) is False:
-                    shutil.move(legacy_path, target_path)
-                else:
-                    _copytree_merge(legacy_path, target_path)
+                _copytree_merge(legacy_path, target_path)
             except Exception:
                 errorLogging()
 

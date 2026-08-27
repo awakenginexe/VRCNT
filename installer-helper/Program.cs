@@ -2,7 +2,10 @@ using System.Diagnostics;
 using VRCNT.RuntimeCore.Manifest;
 using VRCNT.RuntimeCore.Models;
 using VRCNT.RuntimeCore.Packages;
+using VRCNT.RuntimeCore.Migration;
+using VRCNT.RuntimeCore.Paths;
 using VRCNT.RuntimeCore.Security;
+using VRCNT.RuntimeCore.State;
 
 namespace VRCNT.ReleaseHelper;
 
@@ -22,6 +25,10 @@ internal static class Program
         var verified = await new ManifestLoader(new MinisignVerifier(options.MinisignPath)).LoadAndVerifyAsync(manifestPath, signaturePath, options.Version, default);
         var key = options.Variant == RuntimeVariant.Cpu ? "cpu" : "cuda";
         var package = verified.Manifest.Variants.TryGetValue(key, out var selected) ? selected : throw new InvalidDataException($"Signed manifest does not offer the requested {key} package.");
+        var pathResolver = new UserDataPathResolver();
+        var userDataPaths = pathResolver.Resolve(options.Destination);
+        var canonicalDestination = pathResolver.ValidateCustomInstallPath(options.Destination);
+        var payloadIdentityReader = new PayloadIdentityReader();
         var offline = package.Parts.All(part => File.Exists(Path.Combine(options.InstallerDirectory, part.Name)));
         Console.WriteLine(offline ? "[source] Found all signed manifest-selected package files beside the installer." : "[source] Downloading missing manifest-selected package files.");
         var paths = await new VariantPackageAcquirer(offline ? null : Http).AcquireAsync(verified.Manifest, options.Variant, new Uri(options.ReleaseBaseUrl.TrimEnd('/') + "/"), offline ? options.InstallerDirectory : options.CacheDirectory, null, default);
@@ -32,7 +39,22 @@ internal static class Program
             await RunProcessAsync(options.SevenZipPath, ["x", "-y", "-aoa", $"-o{staging}", paths[0]]);
             if (options.Variant == RuntimeVariant.Cpu) CpuPayloadValidator.ValidateStagedPayload(staging);
             else if (!File.Exists(Path.Combine(staging, "VRCNT.exe"))) throw new InvalidDataException("Staged payload is missing VRCNT.exe.");
-            CopyStagedPayload(staging, options.Destination);
+            if (!File.Exists(Path.Combine(staging, "VRCNT-backend.exe"))) throw new InvalidDataException("Staged payload is missing VRCNT-backend.exe.");
+            payloadIdentityReader.ReadAndValidate(staging, package.MarkerPath, package.Identity);
+            if (Directory.Exists(canonicalDestination))
+            {
+                var state = new RuntimeStateStore().Read(userDataPaths.DataRoot);
+                var validated = new RuntimeStateValidator(payloadIdentityReader).Validate(state, canonicalDestination, package);
+                if (validated.Status != RuntimeStateStatus.Active)
+                    throw new InvalidDataException("Existing runtime identity cannot authorize replacement; recovery or migration is required.");
+            }
+            var legacy = new LegacyInstallationDetector(pathResolver).Detect(userDataPaths);
+            new LegacyInstallationDetector(pathResolver).PreserveUserData(legacy);
+            CopyStagedPayload(staging, canonicalDestination);
+            new RuntimeStateStore().WriteAtomic(userDataPaths.DataRoot, new RuntimeState(
+                1, RuntimeStateStatus.Active, package.Identity.Product, package.Identity.Version, package.Identity.Variant,
+                package.Identity.Architecture, canonicalDestination, package.Identity.BuildIdentity, package.Identity.MarkerSha256,
+                DateTimeOffset.UtcNow));
         }
         finally { TryDeleteDirectory(staging); }
         if (!offline) foreach (var path in paths) { TryDelete(path); TryDelete(path + ".partial"); }

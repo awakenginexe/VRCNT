@@ -30,10 +30,10 @@ public sealed class RuntimeStateTests : IDisposable
     {
         var installPath = Path.Combine(_root, "runtime");
         var state = CreateState(installPath) with { Status = persistedStatus };
-        WriteMarker(installPath, IdentityFor(state));
+        WritePayload(installPath, IdentityFor(state));
         state = state with { MarkerSha256 = FileHash(Path.Combine(installPath, "VRCNT.runtime.json")) };
 
-        var validated = new RuntimeStateValidator(new PayloadIdentityReader()).Validate(state);
+        var validated = new RuntimeStateValidator(new PayloadIdentityReader()).Validate(state, installPath, PackageFor(IdentityFor(state)));
 
         Assert.Equal(expectedStatus, validated.Status);
     }
@@ -54,7 +54,19 @@ public sealed class RuntimeStateTests : IDisposable
     {
         var state = CreateState(Path.Combine(_root, "missing-runtime"));
 
-        var validated = new RuntimeStateValidator(new PayloadIdentityReader()).Validate(state);
+        var validated = new RuntimeStateValidator(new PayloadIdentityReader()).Validate(state, state.InstallPath, PackageFor(CreateIdentity()));
+
+        Assert.Equal(RuntimeStateStatus.Recovery, validated.Status);
+    }
+
+    [Fact]
+    public void Validate_malformed_install_path_classifies_the_runtime_as_recovery()
+    {
+        var state = CreateState("\0");
+        var canonicalInstallPath = Path.Combine(_root, "runtime");
+
+        var validated = new RuntimeStateValidator(new PayloadIdentityReader()).Validate(
+            state, canonicalInstallPath, PackageFor(CreateIdentity()));
 
         Assert.Equal(RuntimeStateStatus.Recovery, validated.Status);
     }
@@ -79,7 +91,7 @@ public sealed class RuntimeStateTests : IDisposable
         WriteMarker(installPath, marker);
         expected = expected with { MarkerSha256 = FileHash(Path.Combine(installPath, "VRCNT.runtime.json")) };
 
-        Assert.Throws<InvalidDataException>(() => new PayloadIdentityReader().ReadAndValidate(installPath, expected));
+        Assert.Throws<InvalidDataException>(() => new PayloadIdentityReader().ReadAndValidate(installPath, "VRCNT.runtime.json", expected));
     }
 
     [Fact]
@@ -88,7 +100,7 @@ public sealed class RuntimeStateTests : IDisposable
         var installPath = Path.Combine(_root, "runtime");
         WriteMarker(installPath, CreateIdentity());
 
-        Assert.Throws<CryptographicException>(() => new PayloadIdentityReader().ReadAndValidate(installPath, CreateIdentity()));
+        Assert.Throws<CryptographicException>(() => new PayloadIdentityReader().ReadAndValidate(installPath, "VRCNT.runtime.json", CreateIdentity()));
     }
 
     [Fact]
@@ -96,14 +108,14 @@ public sealed class RuntimeStateTests : IDisposable
     {
         var installPath = Path.Combine(_root, "runtime");
         var identity = CreateIdentity();
-        WriteMarker(installPath, identity);
+        WritePayload(installPath, identity);
         var state = CreateState(installPath) with
         {
             MarkerBuildIdentity = identity.BuildIdentity,
             MarkerSha256 = FileHash(Path.Combine(installPath, "VRCNT.runtime.json")),
         };
 
-        var validated = new RuntimeStateValidator(new PayloadIdentityReader()).Validate(state);
+        var validated = new RuntimeStateValidator(new PayloadIdentityReader()).Validate(state, installPath, PackageFor(identity with { MarkerSha256 = state.MarkerSha256 }));
 
         Assert.Equal(RuntimeStateStatus.Active, validated.Status);
     }
@@ -113,16 +125,46 @@ public sealed class RuntimeStateTests : IDisposable
     {
         var installPath = Path.Combine(_root, "runtime");
         var identity = CreateIdentity();
-        WriteMarker(installPath, identity);
+        WritePayload(installPath, identity);
         var state = CreateState(installPath) with
         {
             MarkerBuildIdentity = identity.BuildIdentity,
             MarkerSha256 = FileHash(Path.Combine(installPath, "VRCNT.runtime.json")).ToUpperInvariant(),
         };
 
-        var validated = new RuntimeStateValidator(new PayloadIdentityReader()).Validate(state);
+        var validated = new RuntimeStateValidator(new PayloadIdentityReader()).Validate(state, installPath, PackageFor(identity with { MarkerSha256 = FileHash(Path.Combine(installPath, "VRCNT.runtime.json")) }));
 
         Assert.Equal(RuntimeStateStatus.Active, validated.Status);
+    }
+
+    [Fact]
+    public void Validate_uses_authenticated_manifest_identity_instead_of_mutable_state_evidence()
+    {
+        var installPath = Path.Combine(_root, "runtime");
+        var identity = CreateIdentity();
+        WritePayload(installPath, identity);
+        var markerSha256 = FileHash(Path.Combine(installPath, "VRCNT.runtime.json"));
+        var state = CreateState(installPath) with { MarkerBuildIdentity = "tampered-state", MarkerSha256 = new string('b', 64) };
+
+        var validated = new RuntimeStateValidator(new PayloadIdentityReader()).Validate(
+            state, installPath, PackageFor(identity with { MarkerSha256 = markerSha256 }));
+
+        Assert.Equal(RuntimeStateStatus.Recovery, validated.Status);
+    }
+
+    [Fact]
+    public void Validate_missing_expected_runtime_executables_classifies_the_runtime_as_recovery()
+    {
+        var installPath = Path.Combine(_root, "runtime");
+        var identity = CreateIdentity();
+        WriteMarker(installPath, identity);
+        var markerSha256 = FileHash(Path.Combine(installPath, "VRCNT.runtime.json"));
+        var state = CreateState(installPath) with { MarkerSha256 = markerSha256 };
+
+        var validated = new RuntimeStateValidator(new PayloadIdentityReader()).Validate(
+            state, installPath, PackageFor(identity with { MarkerSha256 = markerSha256 }));
+
+        Assert.Equal(RuntimeStateStatus.Recovery, validated.Status);
     }
 
     public void Dispose()
@@ -138,6 +180,17 @@ public sealed class RuntimeStateTests : IDisposable
 
     private static RuntimeIdentity IdentityFor(RuntimeState state) => new(
         state.Product, state.Version, state.Variant, state.Architecture, state.MarkerBuildIdentity, state.MarkerSha256);
+
+    private static VariantPackage PackageFor(RuntimeIdentity identity) => new(
+        "7z", 1, 1, [new PackagePart("payload.7z", 1, new string('c', 64))], identity.Variant == RuntimeVariant.Cuda,
+        "VRCNT.runtime.json", identity);
+
+    private static void WritePayload(string installPath, RuntimeIdentity identity)
+    {
+        WriteMarker(installPath, identity);
+        File.WriteAllText(Path.Combine(installPath, "VRCNT.exe"), "app");
+        File.WriteAllText(Path.Combine(installPath, "VRCNT-backend.exe"), "backend");
+    }
 
     private static void WriteMarker(string installPath, RuntimeIdentity identity)
     {

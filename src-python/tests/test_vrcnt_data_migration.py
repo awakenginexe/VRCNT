@@ -49,7 +49,7 @@ class VrcntDataMigrationTests(unittest.TestCase):
             installer_source.index(create_target),
         )
 
-    def test_legacy_directory_moves_to_absent_vrcnt_data_directory(self):
+    def test_legacy_directory_copies_to_absent_vrcnt_data_directory_without_deleting_source(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             legacy_path = os.path.join(
                 temporary_directory,
@@ -74,7 +74,7 @@ class VrcntDataMigrationTests(unittest.TestCase):
             )
 
             self.assertTrue(migrated)
-            self.assertFalse(os.path.exists(legacy_path))
+            self.assertTrue(os.path.exists(legacy_path))
             with open(
                 os.path.join(target_path, "config.json"),
                 "rb",
@@ -86,7 +86,7 @@ class VrcntDataMigrationTests(unittest.TestCase):
             ) as model_file:
                 self.assertEqual(model_file.read(), b"model-bytes")
 
-    def test_existing_target_leaves_both_directories_unchanged(self):
+    def test_existing_target_preserves_both_directories_and_never_overwrites_target(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             legacy_path = os.path.join(
                 temporary_directory,
@@ -107,7 +107,7 @@ class VrcntDataMigrationTests(unittest.TestCase):
                 target_path,
             )
 
-            self.assertFalse(migrated)
+            self.assertTrue(migrated)
             with open(legacy_file, "rb") as file_handle:
                 self.assertEqual(file_handle.read(), b"legacy")
             with open(target_file, "rb") as file_handle:
@@ -129,7 +129,7 @@ class VrcntDataMigrationTests(unittest.TestCase):
             self.assertFalse(migrated)
             self.assertFalse(os.path.exists(target_path))
 
-    def test_failed_move_uses_legacy_directory_without_creating_target(self):
+    def test_failed_copy_uses_legacy_directory_without_deleting_source(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             legacy_path = os.path.join(
                 temporary_directory,
@@ -137,8 +137,10 @@ class VrcntDataMigrationTests(unittest.TestCase):
             )
             target_path = os.path.join(temporary_directory, "VRCNTData")
             os.makedirs(legacy_path)
+            with open(os.path.join(legacy_path, "config.json"), "wb") as file_handle:
+                file_handle.write(b"legacy")
             with patch(
-                "config.shutil.move",
+                "config.shutil.copy2",
                 side_effect=PermissionError("directory is in use"),
             ):
                 selected_path = _resolveRenamedUserDataPath(
@@ -148,7 +150,6 @@ class VrcntDataMigrationTests(unittest.TestCase):
 
             self.assertEqual(selected_path, legacy_path)
             self.assertTrue(os.path.isdir(legacy_path))
-            self.assertFalse(os.path.exists(target_path))
 
     def test_legacy_local_data_merge_never_overwrites_existing_user_files(self):
         with tempfile.TemporaryDirectory() as temporary_directory:

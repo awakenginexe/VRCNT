@@ -8,7 +8,11 @@ public sealed class LegacyInstallationDetector(UserDataPathResolver pathResolver
 {
     public LegacyInstallation Detect(string localAppData, string installPath)
     {
-        var paths = pathResolver.Resolve(localAppData, installPath);
+        return Detect(pathResolver.Resolve(localAppData, installPath));
+    }
+
+    public LegacyInstallation Detect(UserDataPaths paths)
+    {
         var hasRuntimeMarker = File.Exists(Path.Combine(paths.InstallPath, "VRCNT.runtime.json"));
         var sources = new[] { paths.LegacyDataRoot, paths.InstallPath }
             .Where(HasPreservableUserData)

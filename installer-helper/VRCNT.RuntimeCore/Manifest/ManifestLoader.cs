@@ -40,7 +40,8 @@ public sealed class ManifestLoader(IManifestSignatureVerifier verifier) : IManif
         foreach (var (key, package) in manifest.Variants)
         {
             if (!TryVariant(key, out var variant) || package is null || package.Parts is null || package.Parts.Count == 0 ||
-                package.Identity is null || package.RequiresNvidia != (variant == RuntimeVariant.Cuda) ||
+                package.Identity is null || !string.Equals(package.MarkerPath, "VRCNT.runtime.json", StringComparison.Ordinal) ||
+                string.IsNullOrWhiteSpace(package.Identity.BuildIdentity) || !IsSha256(package.Identity.MarkerSha256) || package.RequiresNvidia != (variant == RuntimeVariant.Cuda) ||
                 package.Identity.Variant != variant || !string.Equals(package.Identity.Product, manifest.Product, StringComparison.Ordinal) ||
                 !string.Equals(package.Identity.Version, manifest.Version, StringComparison.Ordinal) || !string.Equals(package.Identity.Architecture, manifest.Architecture, StringComparison.Ordinal))
                 throw new InvalidDataException($"Package manifest variant '{key}' is invalid.");

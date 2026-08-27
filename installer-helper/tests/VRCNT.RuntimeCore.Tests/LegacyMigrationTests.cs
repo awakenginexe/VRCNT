@@ -22,6 +22,16 @@ public sealed class LegacyMigrationTests : IDisposable
     }
 
     [Fact]
+    public void ValidateCustomInstallPath_rejects_another_users_profile_path()
+    {
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var anotherUserInstallPath = Path.Combine(Directory.GetParent(userProfile)!.FullName, "another-user", "VRCNT");
+
+        Assert.Throws<InvalidDataException>(() => new UserDataPathResolver()
+            .Resolve(Path.Combine(_root, "local-app-data"), anotherUserInstallPath));
+    }
+
+    [Fact]
     public void PreserveUserData_copies_legacy_and_install_local_files_without_overwriting_user_data()
     {
         var localAppData = Path.Combine(_root, "local-app-data");
