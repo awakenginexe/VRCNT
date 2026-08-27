@@ -86,7 +86,8 @@ public sealed class RuntimeTransactionEngine(
     TransactionJournalStore journalStore,
     IRuntimeDirectoryMover directoryMover,
     IRuntimeStateTransition runtimeStateTransition,
-    Action? onCommit = null)
+    Action? onCommit = null,
+    Action? onPreflightValidated = null)
 {
     public async Task<RuntimeOperationResult> ExecuteAsync(RuntimeReplacementRequest request, IProgress<InstallProgress>? progress, CancellationToken cancellationToken)
     {
@@ -107,6 +108,7 @@ public sealed class RuntimeTransactionEngine(
                 runtimeStateTransition.ValidateExistingRuntime(request.InstallPath);
                 if (processCoordinator is IRuntimeProcessInstallPathObserver observer) observer.SetActiveInstallPath(request.InstallPath);
             }
+            onPreflightValidated?.Invoke();
 
             Report(progress, TransactionPhase.Acquire, "Acquiring resumable runtime archives.");
             var archiveParts = await archiveAcquirer.AcquireAsync(request, cancellationToken);

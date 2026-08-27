@@ -1,6 +1,7 @@
 param(
   [Parameter(Mandatory = $true)][string]$SevenZip,
-  [Parameter(Mandatory = $true)][string]$Minisign
+  [Parameter(Mandatory = $true)][string]$Minisign,
+  [ValidateSet('All', 'InvalidTargetPreservation')][string]$Scenario = 'All'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -106,6 +107,26 @@ manifest = {
   dotnet publish "$testProject/VRCNT.ReleaseHelper.csproj" -c Release -o "$testProject/publish"
   if ($LASTEXITCODE -ne 0) { throw 'Fixture helper build failed.' }
   $script:helperExe = "$testProject/publish/VRCNT.ReleaseHelper.exe"
+
+  $unownedDestination = Join-Path $testRoot 'unowned-install'
+  New-Item -ItemType Directory -Path "$unownedDestination/weights", "$unownedDestination/logs" -Force | Out-Null
+  Set-Content -LiteralPath "$unownedDestination/VRCNT.exe" -Value 'unowned executable' -Encoding utf8
+  Set-Content -LiteralPath "$unownedDestination/VRCNT-backend.exe" -Value 'unowned backend' -Encoding utf8
+  Set-Content -LiteralPath "$unownedDestination/VRCNT.runtime.json" -Value '{"product":"VRCNT","version":"4.2.2","variant":"Cpu","architecture":"x64","buildIdentity":"tampered"}' -Encoding utf8
+  Set-Content -LiteralPath "$unownedDestination/config.json" -Value '{"legacy":true}' -Encoding utf8
+  Set-Content -LiteralPath "$unownedDestination/weights/model.bin" -Value 'legacy weights' -Encoding utf8
+  Set-Content -LiteralPath "$unownedDestination/logs/legacy.log" -Value 'legacy log' -Encoding utf8
+  $unowned = Invoke-Helper $release (Join-Path $testRoot 'unowned-cache') $unownedDestination 'http://127.0.0.1:1'
+  if ($unowned.ExitCode -eq 0) {
+    throw "Unowned runtime replacement unexpectedly succeeded:`n$($unowned.Output)"
+  }
+  if (Test-Path (Join-Path $env:LOCALAPPDATA 'VRCNTData')) {
+    throw 'Unowned runtime replacement modified the user-data root before ownership validation.'
+  }
+  if ($Scenario -eq 'InvalidTargetPreservation') {
+    Write-Output 'Release helper invalid-target preservation scenario passed.'
+    return
+  }
 
   $localDestination = Join-Path $testRoot 'local-install'
   $local = Invoke-Helper $release (Join-Path $testRoot 'local-cache') $localDestination 'http://127.0.0.1:1'

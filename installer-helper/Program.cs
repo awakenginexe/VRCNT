@@ -32,9 +32,7 @@ internal static class Program
         var canonicalDestination = pathResolver.ValidateCustomInstallPath(options.Destination);
         var offline = package.Parts.All(part => File.Exists(Path.Combine(options.InstallerDirectory, part.Name)));
         Console.WriteLine(offline ? "[source] Found all signed manifest-selected package files beside the installer." : "[source] Downloading missing manifest-selected package files.");
-        var userDataPaths = pathResolver.Resolve(canonicalDestination);
-        var legacy = new LegacyInstallationDetector(pathResolver).Detect(userDataPaths);
-        new LegacyInstallationDetector(pathResolver).PreserveUserData(legacy);
+        var legacyDetector = new LegacyInstallationDetector(pathResolver);
         var engine = new RuntimeTransactionEngine(
             new ManifestArchiveAcquirer(verified.Manifest, options.Variant, new Uri(options.ReleaseBaseUrl.TrimEnd('/') + "/"), offline ? options.InstallerDirectory : options.CacheDirectory, offline ? null : Http),
             new SevenZipExtractor(options.SevenZipPath),
@@ -44,7 +42,8 @@ internal static class Program
             new ActivationProtocolRequiredHealthMonitor(),
             new TransactionJournalStore(),
             new RuntimeDirectoryMover(),
-            new Task3RuntimeStateTransition());
+            new Task3RuntimeStateTransition(),
+            onPreflightValidated: () => legacyDetector.PreserveUserData(legacyDetector.Detect(pathResolver.Resolve(canonicalDestination))));
         var request = new RuntimeReplacementRequest(canonicalDestination, options.CacheDirectory, package.Parts.Select(part => Path.Combine(offline ? options.InstallerDirectory : options.CacheDirectory, part.Name)).ToArray(), package.InstalledSize, package.Identity,
             new ActivationRequest($"vrcnt-activation-{Guid.NewGuid():N}", Convert.ToHexString(Guid.NewGuid().ToByteArray()), Guid.NewGuid().ToString("N")), false);
         var result = await engine.ExecuteAsync(request, null, default);

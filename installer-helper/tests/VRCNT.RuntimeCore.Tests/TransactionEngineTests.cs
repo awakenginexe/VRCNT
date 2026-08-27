@@ -48,6 +48,26 @@ public sealed class TransactionEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task ExecuteAsync_does_not_run_the_preflight_hook_when_existing_runtime_validation_fails()
+    {
+        var request = CreateRequest("unowned", "runtime");
+        WriteActiveRuntime(request);
+        var acquirer = new RecordingAcquirer();
+        var preservationRan = false;
+        var engine = CreateEngine(
+            acquirer: acquirer,
+            stateTransition: new RejectingStateTransition(),
+            onPreflightValidated: () => preservationRan = true);
+
+        var result = await engine.ExecuteAsync(request, null, default);
+
+        Assert.False(result.Succeeded);
+        Assert.False(preservationRan);
+        Assert.False(acquirer.WasCalled);
+        Assert.Equal("old-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
+    }
+
+    [Fact]
     public void GetTransactionContainer_rejects_an_install_path_beneath_a_reparse_point()
     {
         if (!OperatingSystem.IsWindows()) return;
@@ -337,7 +357,8 @@ public sealed class TransactionEngineTests : IDisposable
         IRuntimeDirectoryMover? mover = null,
         TestHealthMonitor? health = null,
         Action? onCommit = null,
-        IRuntimeStateTransition? stateTransition = null) => new(
+        IRuntimeStateTransition? stateTransition = null,
+        Action? onPreflightValidated = null) => new(
             acquirer ?? new RecordingAcquirer(),
             extractor ?? new TestExtractor(),
             new RuntimePathValidator(probe ?? new RecordingVolumeProbe("same")),
@@ -347,7 +368,8 @@ public sealed class TransactionEngineTests : IDisposable
             new TransactionJournalStore(),
             mover ?? new CallbackMover(),
             stateTransition ?? new RecordingStateTransition(),
-            onCommit);
+            onCommit,
+            onPreflightValidated);
 
     private RuntimeReplacementRequest CreateRequest(params string[] segments)
     {
@@ -431,6 +453,12 @@ public sealed class TransactionEngineTests : IDisposable
             ActiveIdentity = identity;
             BackupExistedWhenWritten = _backupExists();
         }
+    }
+
+    private sealed class RejectingStateTransition : IRuntimeStateTransition
+    {
+        public void ValidateExistingRuntime(string installPath) => throw new InvalidDataException("existing runtime is unowned");
+        public void WriteActiveRuntime(string installPath, RuntimeIdentity identity) => throw new InvalidOperationException("The invalid runtime cannot commit.");
     }
 
     private sealed class TestProcessCoordinator(ProcessStopResult stopResult, Action? onStop = null, bool? knownProcessesStopped = null) : IRuntimeProcessCoordinator, IRuntimeProcessForceCloser
