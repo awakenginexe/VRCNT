@@ -6,24 +6,56 @@ import {
 } from "@logics_configs";
 import { useIsOscAvailable } from "@logics_common";
 import {
-    CheckboxContainer,
     EntryWithSaveButtonContainer,
     MessageFormatContainer,
 } from "../../config_page/setting_section/setting_box/_templates/Templates";
 import { TopBar } from "../main_section/top_bar/TopBar";
 import styles from "./OscStudio.module.scss";
 
-const ToggleCard = ({ label, desc, variable, toggleFunction, available = true }) => (
-    <div className={styles.toggle_card}>
-        <CheckboxContainer
-            label={label}
-            desc={desc}
-            variable={variable}
-            is_available={available}
-            toggleFunction={toggleFunction}
-        />
-    </div>
-);
+const ToggleCard = ({
+    label,
+    desc,
+    variable,
+    toggleFunction,
+    available = true,
+    statusEnabled = "Active",
+    statusDisabled = "Disabled",
+}) => {
+    const isActive = variable.data === true;
+    const isPending = variable.state === "pending";
+
+    return (
+        <button
+            type="button"
+            className={styles.toggle_card}
+            data-active={isActive}
+            data-available={available}
+            disabled={!available || isPending}
+            onClick={() => {
+                if (available && !isPending) toggleFunction();
+            }}
+            aria-pressed={isActive}
+        >
+            <div className={styles.toggle_card_info}>
+                <div className={styles.toggle_title_row}>
+                    <span className={styles.toggle_title}>{label}</span>
+                    <span className={styles.status_badge} data-active={isActive}>
+                        {isActive ? statusEnabled : statusDisabled}
+                    </span>
+                </div>
+                {desc && <p className={styles.toggle_desc}>{desc}</p>}
+            </div>
+            <div
+                className={styles.toggle_switch}
+                data-active={isActive}
+                data-pending={isPending}
+                aria-hidden="true"
+            >
+                <span className={styles.switch_thumb} />
+            </div>
+        </button>
+    );
+};
 
 const OriginalOrderPicker = ({ variable, toggleFunction, t }) => {
     const originalFirst = variable.data === true;
@@ -134,6 +166,9 @@ export const OscStudio = () => {
     const oscAvailable = currentIsOscAvailable.data === true;
     const oscPending = currentIsOscAvailable.data == null;
 
+    const statusEnabled = t("main_page.osc_studio.status_enabled");
+    const statusDisabled = t("main_page.osc_studio.status_disabled");
+
     return (
         <div className={styles.page}>
             <TopBar />
@@ -179,10 +214,12 @@ export const OscStudio = () => {
                         </div>
 
                         <ToggleCard
-                            label={t("config_page.others.send_message_to_vrc.label")}
-                            desc={t("config_page.others.send_message_to_vrc.desc")}
+                            label={t("main_page.osc_studio.send_chatbox_label")}
+                            desc={t("main_page.osc_studio.send_chatbox_desc")}
                             variable={currentEnableSendMessageToVrc}
                             toggleFunction={toggleEnableSendMessageToVrc}
+                            statusEnabled={statusEnabled}
+                            statusDisabled={statusDisabled}
                         />
                         <OriginalOrderPicker
                             variable={currentEnableSendOriginalWhileTranslating}
@@ -191,17 +228,21 @@ export const OscStudio = () => {
                         />
                         <div className={styles.compact_grid}>
                             <ToggleCard
-                                label={t("config_page.others.notification_vrc_sfx.label")}
-                                desc={t("config_page.others.notification_vrc_sfx.desc")}
+                                label={t("main_page.osc_studio.notification_sfx_label")}
+                                desc={t("main_page.osc_studio.notification_sfx_desc")}
                                 variable={currentEnableNotificationVrcSfx}
                                 toggleFunction={toggleEnableNotificationVrcSfx}
+                                statusEnabled={statusEnabled}
+                                statusDisabled={statusDisabled}
                             />
                             <ToggleCard
-                                label={t("config_page.others.vrc_mic_mute_sync.label")}
-                                desc={t("config_page.others.vrc_mic_mute_sync.desc")}
+                                label={t("main_page.osc_studio.mic_mute_sync_label")}
+                                desc={t("main_page.osc_studio.mic_mute_sync_desc")}
                                 variable={currentEnableVrcMicMuteSync}
                                 available={oscAvailable}
                                 toggleFunction={toggleEnableVrcMicMuteSync}
+                                statusEnabled={statusEnabled}
+                                statusDisabled={statusDisabled}
                             />
                         </div>
                         <div className={styles.format_block}>
@@ -226,10 +267,12 @@ export const OscStudio = () => {
                             <span className={styles.card_number}>02</span>
                         </div>
                         <ToggleCard
-                            label={t("config_page.others.send_received_message_to_vrc.label")}
-                            desc={t("config_page.others.send_received_message_to_vrc.desc")}
+                            label={t("main_page.osc_studio.received_chatbox_label")}
+                            desc={t("main_page.osc_studio.received_chatbox_desc")}
                             variable={currentEnableSendReceivedMessageToVrc}
                             toggleFunction={toggleEnableSendReceivedMessageToVrc}
+                            statusEnabled={statusEnabled}
+                            statusDisabled={statusDisabled}
                         />
                         <div className={styles.format_block}>
                             <p className={styles.section_kicker}>{t("main_page.osc_studio.format_kicker")}</p>
