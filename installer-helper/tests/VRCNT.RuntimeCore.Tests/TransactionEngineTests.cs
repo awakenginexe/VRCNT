@@ -1,0 +1,336 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using VRCNT.RuntimeCore.Archive;
+using VRCNT.RuntimeCore.Filesystem;
+using VRCNT.RuntimeCore.Models;
+using VRCNT.RuntimeCore.Process;
+using VRCNT.RuntimeCore.Storage;
+using VRCNT.RuntimeCore.Transactions;
+using Xunit;
+
+namespace VRCNT.RuntimeCore.Tests;
+
+public sealed class TransactionEngineTests : IDisposable
+{
+    private readonly string _root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+
+    [Fact]
+    public async Task ExecuteAsync_uses_a_transaction_beside_a_custom_installation_on_its_target_volume()
+    {
+        var probe = new RecordingVolumeProbe("custom-volume");
+        var engine = CreateEngine(probe: probe);
+        var request = CreateRequest("custom", "runtime");
+
+        var result = await engine.ExecuteAsync(request, null, default);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal("new-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
+        Assert.NotEmpty(probe.Paths);
+        Assert.All(probe.Paths, path => Assert.StartsWith(Path.GetDirectoryName(request.InstallPath)!, Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_rejects_cross_volume_transaction_paths_before_acquiring_or_replacing()
+    {
+        var acquirer = new RecordingAcquirer();
+        var request = CreateRequest("cross-volume", "runtime");
+        WriteActiveRuntime(request);
+        var engine = CreateEngine(acquirer: acquirer, probe: new RecordingVolumeProbe(path => path.Contains(".vrcnt-transactions", StringComparison.OrdinalIgnoreCase) ? "other" : "target"));
+
+        var result = await engine.ExecuteAsync(request, null, default);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("cross_volume", result.ErrorCode);
+        Assert.False(acquirer.WasCalled);
+        Assert.Equal("old-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_rejects_insufficient_target_volume_space_before_extraction()
+    {
+        var extractor = new TestExtractor();
+        var request = CreateRequest("space", "runtime") with { InstalledSize = 4_096 };
+        var engine = CreateEngine(extractor: extractor, space: new FixedSpaceProbe(1));
+
+        var result = await engine.ExecuteAsync(request, null, default);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("insufficient_space", result.ErrorCode);
+        Assert.False(extractor.Extracted);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_rejects_archive_traversal_before_live_runtime_is_touched()
+    {
+        var request = CreateRequest("traversal", "runtime");
+        WriteActiveRuntime(request);
+        var extractor = new TestExtractor(entries: ["VRCNT.exe", "../escape.txt"]);
+        var engine = CreateEngine(extractor: extractor);
+
+        var result = await engine.ExecuteAsync(request, null, default);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("unsafe_archive", result.ErrorCode);
+        Assert.False(extractor.Extracted);
+        Assert.Equal("old-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_extracts_only_to_the_staging_directory_never_the_live_runtime()
+    {
+        var request = CreateRequest("stage", "runtime");
+        var extractor = new TestExtractor();
+        var engine = CreateEngine(extractor: extractor);
+
+        var result = await engine.ExecuteAsync(request, null, default);
+
+        Assert.True(result.Succeeded);
+        Assert.NotNull(extractor.ExtractionDestination);
+        Assert.NotEqual(Path.GetFullPath(request.InstallPath), Path.GetFullPath(extractor.ExtractionDestination!), StringComparer.OrdinalIgnoreCase);
+        Assert.Contains(".vrcnt-transactions", extractor.ExtractionDestination!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_refuses_process_lock_without_confirmed_targeted_force_close()
+    {
+        var request = CreateRequest("locked", "runtime");
+        WriteActiveRuntime(request);
+        var processes = new TestProcessCoordinator(new(false, [123], true, null));
+        var engine = CreateEngine(processes: processes);
+
+        var result = await engine.ExecuteAsync(request, null, default);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("processes_running", result.ErrorCode);
+        Assert.False(processes.ForceCloseCalled);
+        Assert.Equal("old-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_rolls_back_the_active_runtime_when_the_staged_move_fails()
+    {
+        var request = CreateRequest("move-failure", "runtime");
+        WriteActiveRuntime(request);
+        var engine = CreateEngine(mover: new ThrowingMover(failDestination: request.InstallPath));
+
+        var result = await engine.ExecuteAsync(request, null, default);
+
+        Assert.False(result.Succeeded);
+        Assert.True(result.RolledBack);
+        Assert.Equal("old-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
+    }
+
+    [Fact]
+    public async Task RecoverPendingAsync_restores_the_backup_after_simulated_termination_during_replace()
+    {
+        var request = CreateRequest("recovery", "runtime");
+        WriteActiveRuntime(request);
+        var paths = RuntimeTransactionPaths.For(request.InstallPath, "terminated");
+        Directory.CreateDirectory(Path.GetDirectoryName(paths.BackupPath)!);
+        Directory.Move(request.InstallPath, paths.BackupPath);
+        Directory.CreateDirectory(paths.StagingPath);
+        File.WriteAllText(Path.Combine(paths.StagingPath, "VRCNT.exe"), "new-app");
+        new TransactionJournalStore().WriteAtomic(paths.JournalPath, new RuntimeTransactionJournal(
+            "terminated", TransactionPhase.Replace, request.InstallPath, paths.StagingPath, paths.BackupPath,
+            request.ExpectedIdentity, true, false));
+        var engine = CreateEngine();
+
+        var result = await engine.RecoverPendingAsync(request.InstallPath, default);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal("old-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
+        Assert.False(File.Exists(paths.JournalPath));
+    }
+
+    [Theory]
+    [InlineData(TransactionPhase.Acquire)]
+    [InlineData(TransactionPhase.Stage)]
+    public async Task ExecuteAsync_cancellation_before_quiesce_leaves_the_active_runtime_unchanged(TransactionPhase phase)
+    {
+        var request = CreateRequest("cancel-before", phase.ToString());
+        WriteActiveRuntime(request);
+        using var cancellation = new CancellationTokenSource();
+        var engine = CreateEngine(acquirer: new RecordingAcquirer(onAcquire: () => { if (phase == TransactionPhase.Acquire) cancellation.Cancel(); }),
+            extractor: new TestExtractor(onExtract: () => { if (phase == TransactionPhase.Stage) cancellation.Cancel(); }));
+
+        var result = await engine.ExecuteAsync(request, null, cancellation.Token);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("cancelled", result.ErrorCode);
+        Assert.Equal("old-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
+    }
+
+    [Theory]
+    [InlineData(TransactionPhase.Quiesce)]
+    [InlineData(TransactionPhase.Replace)]
+    [InlineData(TransactionPhase.Activate)]
+    [InlineData(TransactionPhase.Commit)]
+    public async Task ExecuteAsync_defers_post_quiesce_cancellation_to_a_safe_runtime_state(TransactionPhase phase)
+    {
+        var request = CreateRequest("cancel-after", phase.ToString());
+        WriteActiveRuntime(request);
+        using var cancellation = new CancellationTokenSource();
+        var processes = new TestProcessCoordinator(new(true, [], false, null), onStop: () => { if (phase == TransactionPhase.Quiesce) cancellation.Cancel(); });
+        var mover = new CallbackMover((_, _) => { if (phase == TransactionPhase.Replace) cancellation.Cancel(); });
+        var health = new TestHealthMonitor(onCheck: () => { if (phase == TransactionPhase.Activate) cancellation.Cancel(); });
+        var engine = CreateEngine(processes: processes, mover: mover, health: health, onCommit: () => { if (phase == TransactionPhase.Commit) cancellation.Cancel(); });
+
+        var result = await engine.ExecuteAsync(request, null, cancellation.Token);
+
+        Assert.True(result.Succeeded || result.RolledBack || result.ErrorCode == "cancelled");
+        Assert.True(File.Exists(Path.Combine(request.InstallPath, "VRCNT.exe")));
+        Assert.True(processes.RelaunchCalled || result.Succeeded);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_requires_health_confirmation_in_addition_to_process_launch_before_commit()
+    {
+        var request = CreateRequest("health", "runtime");
+        WriteActiveRuntime(request);
+        var processes = new TestProcessCoordinator(new(true, [], false, null));
+        var engine = CreateEngine(processes: processes, health: new TestHealthMonitor(ready: false));
+
+        var result = await engine.ExecuteAsync(request, null, default);
+
+        Assert.False(result.Succeeded);
+        Assert.True(result.RolledBack);
+        Assert.True(processes.LaunchCalled);
+        Assert.Equal("old-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_root)) Directory.Delete(_root, true);
+    }
+
+    private RuntimeTransactionEngine CreateEngine(
+        IRuntimeArchiveAcquirer? acquirer = null,
+        TestExtractor? extractor = null,
+        IVolumeIdentityProbe? probe = null,
+        IAvailableSpaceProbe? space = null,
+        TestProcessCoordinator? processes = null,
+        IRuntimeDirectoryMover? mover = null,
+        TestHealthMonitor? health = null,
+        Action? onCommit = null) => new(
+            acquirer ?? new RecordingAcquirer(),
+            extractor ?? new TestExtractor(),
+            new RuntimePathValidator(probe ?? new RecordingVolumeProbe("same")),
+            new RequiredSpaceCalculator(space ?? new FixedSpaceProbe(long.MaxValue)),
+            processes ?? new TestProcessCoordinator(new(true, [], false, null)),
+            health ?? new TestHealthMonitor(),
+            new TransactionJournalStore(),
+            mover ?? new CallbackMover(),
+            new AllowExistingRuntimeValidator(),
+            onCommit);
+
+    private RuntimeReplacementRequest CreateRequest(params string[] segments)
+    {
+        var installPath = Path.Combine([_root, .. segments]);
+        var cacheDirectory = Path.Combine(_root, "cache", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(cacheDirectory);
+        var archive = Path.Combine(cacheDirectory, "runtime.7z");
+        File.WriteAllText(archive, "archive");
+        return new RuntimeReplacementRequest(installPath, cacheDirectory, [archive], 512, CreateIdentity(), new ActivationRequest("pipe", "token", "nonce"), false);
+    }
+
+    private void WriteActiveRuntime(RuntimeReplacementRequest request)
+    {
+        Directory.CreateDirectory(request.InstallPath);
+        File.WriteAllText(Path.Combine(request.InstallPath, "VRCNT.exe"), "old-app");
+        File.WriteAllText(Path.Combine(request.InstallPath, "VRCNT-backend.exe"), "old-backend");
+    }
+
+    private static RuntimeIdentity CreateIdentity()
+    {
+        var marker = JsonSerializer.Serialize(new { Product = "VRCNT", Version = "5.15.0", Variant = RuntimeVariant.Cpu, Architecture = "x64", BuildIdentity = "build" });
+        return new RuntimeIdentity("VRCNT", "5.15.0", RuntimeVariant.Cpu, "x64", "build", Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(marker))).ToLowerInvariant());
+    }
+
+    private sealed class RecordingAcquirer(Action? onAcquire = null) : IRuntimeArchiveAcquirer
+    {
+        public bool WasCalled { get; private set; }
+        public Task<IReadOnlyList<string>> AcquireAsync(RuntimeReplacementRequest request, CancellationToken cancellationToken)
+        {
+            WasCalled = true;
+            onAcquire?.Invoke();
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(request.ArchiveParts);
+        }
+    }
+
+    private sealed class TestExtractor(IReadOnlyList<string>? entries = null, Action? onExtract = null) : IArchiveExtractor
+    {
+        public bool Extracted { get; private set; }
+        public string? ExtractionDestination { get; private set; }
+        public Task<IReadOnlyList<string>> ListEntriesAsync(IReadOnlyList<string> archiveParts, CancellationToken cancellationToken) => Task.FromResult(entries ?? (IReadOnlyList<string>)["VRCNT.exe", "VRCNT-backend.exe", "VRCNT.runtime.json"]);
+        public Task TestAsync(IReadOnlyList<string> archiveParts, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ExtractAsync(IReadOnlyList<string> archiveParts, string destination, CancellationToken cancellationToken)
+        {
+            Extracted = true;
+            ExtractionDestination = destination;
+            Directory.CreateDirectory(destination);
+            File.WriteAllText(Path.Combine(destination, "VRCNT.exe"), "new-app");
+            File.WriteAllText(Path.Combine(destination, "VRCNT-backend.exe"), "new-backend");
+            File.WriteAllText(Path.Combine(destination, "VRCNT.runtime.json"), JsonSerializer.Serialize(new { Product = "VRCNT", Version = "5.15.0", Variant = RuntimeVariant.Cpu, Architecture = "x64", BuildIdentity = "build" }));
+            onExtract?.Invoke();
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingVolumeProbe : IVolumeIdentityProbe
+    {
+        private readonly Func<string, string> _resolver;
+        public RecordingVolumeProbe(string identity) => _resolver = _ => identity;
+        public RecordingVolumeProbe(Func<string, string> resolver) => _resolver = resolver;
+        public List<string> Paths { get; } = [];
+        public string GetVolumeIdentity(string path) { Paths.Add(path); return _resolver!(path); }
+    }
+
+    private sealed class FixedSpaceProbe(long availableBytes) : IAvailableSpaceProbe
+    {
+        public long GetAvailableBytes(string path) => availableBytes;
+    }
+
+    private sealed class AllowExistingRuntimeValidator : IRuntimeReplacementValidator
+    {
+        public void ValidateExistingRuntime(string installPath, RuntimeIdentity targetIdentity) { }
+    }
+
+    private sealed class TestProcessCoordinator(ProcessStopResult stopResult, Action? onStop = null) : IRuntimeProcessCoordinator, IRuntimeProcessForceCloser
+    {
+        public bool RelaunchCalled { get; private set; }
+        public bool LaunchCalled { get; private set; }
+        public bool ForceCloseCalled { get; private set; }
+        public Task<ProcessStopResult> RequestGracefulStopAsync(CancellationToken cancellationToken) { onStop?.Invoke(); return Task.FromResult(stopResult); }
+        public Task<bool> AreKnownProcessesStoppedAsync(CancellationToken cancellationToken) => Task.FromResult(stopResult.Stopped);
+        public Task<ProcessStopResult> ForceCloseRemainingAsync(IReadOnlyList<int> processIds, CancellationToken cancellationToken) { ForceCloseCalled = true; return Task.FromResult(new ProcessStopResult(true, [], false, null)); }
+        public Task LaunchForActivationAsync(string installPath, ActivationRequest request, CancellationToken cancellationToken) { LaunchCalled = true; return Task.CompletedTask; }
+        public Task RelaunchActiveRuntimeAsync(CancellationToken cancellationToken) { RelaunchCalled = true; return Task.CompletedTask; }
+    }
+
+    private sealed class TestHealthMonitor(bool ready = true, Action? onCheck = null) : IRuntimeActivationHealthMonitor
+    {
+        public Task<RuntimeActivationHealthResult> WaitForReadyAsync(string installPath, ActivationRequest request, CancellationToken cancellationToken)
+        {
+            onCheck?.Invoke();
+            return Task.FromResult(new RuntimeActivationHealthResult(ready, false, ready ? null : "activation_unhealthy"));
+        }
+    }
+
+    private sealed class ThrowingMover(string failDestination) : IRuntimeDirectoryMover
+    {
+        private bool _failed;
+        public void Move(string source, string destination)
+        {
+            if (!_failed && string.Equals(Path.GetFullPath(destination), Path.GetFullPath(failDestination), StringComparison.OrdinalIgnoreCase)) { _failed = true; throw new IOException("simulated move failure"); }
+            Directory.Move(source, destination);
+        }
+    }
+
+    private sealed class CallbackMover(Action<string, string>? callback = null) : IRuntimeDirectoryMover
+    {
+        public void Move(string source, string destination) { callback?.Invoke(source, destination); Directory.Move(source, destination); }
+    }
+}

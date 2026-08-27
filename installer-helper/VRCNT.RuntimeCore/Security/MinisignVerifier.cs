@@ -24,7 +24,7 @@ public sealed class MinisignVerifier(string minisignPath) : IManifestSignatureVe
             var start = new ProcessStartInfo(minisignPath) { UseShellExecute = false, CreateNoWindow = true };
             start.ArgumentList.Add("-Vm"); start.ArgumentList.Add(manifestPath); start.ArgumentList.Add("-x"); start.ArgumentList.Add(signature);
             start.ArgumentList.Add("-p"); start.ArgumentList.Add(publicKey); start.ArgumentList.Add("-q");
-            using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start minisign.");
+            using var process = System.Diagnostics.Process.Start(start) ?? throw new InvalidOperationException("Could not start minisign.");
             await process.WaitForExitAsync(cancellationToken);
             if (process.ExitCode != 0) throw new CryptographicException("Package manifest signature verification failed. No package hashes were trusted.");
         }
