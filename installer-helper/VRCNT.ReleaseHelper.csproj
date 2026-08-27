@@ -8,4 +8,8 @@
     <RootNamespace>VRCNT.ReleaseHelper</RootNamespace>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="VRCNT.RuntimeCore\**\*.cs;tests\**\*.cs" />
+    <ProjectReference Include="VRCNT.RuntimeCore\VRCNT.RuntimeCore.csproj" />
+  </ItemGroup>
 </Project>
