@@ -13,10 +13,10 @@
 </p>
 
 <p align="center">
-  <a data-virustotal-file="VRCNT.exe" href="https://www.virustotal.com/gui/file/d0fdb2ad78e3262500a0e0632b6d29001618ff7c92984f03a676756f40d2f1f8">
+  <a data-virustotal-file="VRCNT.exe" href="https://www.virustotal.com/gui/file/d722316b329d09468ada7d460010b4f662031261f3b5a8207218d956cff1203a">
     <img alt="ผลการสแกน VirusTotal ของ VRCNT.exe" src="VirusTotal-VRCNT.svg" />
   </a>
-  <a data-virustotal-file="VRCNT-backend.exe" href="https://www.virustotal.com/gui/file/4f0ab4b2daf84dfe59e95821bc548754639b517c88eb46f1a1c6202dc36fbb75">
+  <a data-virustotal-file="VRCNT-backend.exe" href="https://www.virustotal.com/gui/file/b31845acede1c4d12f8e7c98992c1a0020ecc39904649f4956841e98af1a6137">
     <img alt="ผลการสแกน VirusTotal ของ VRCNT-backend.exe" src="VirusTotal-backend.svg" />
   </a>
 </p>
