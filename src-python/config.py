@@ -151,8 +151,10 @@ def _copytree_merge(src: str, dst: str) -> None:
         for filename in filenames:
             source_file = os_path.join(current_root, filename)
             target_file = os_path.join(target_root, filename)
+            if os_path.exists(target_file):
+                continue
             try:
-                if os_path.exists(target_file) and os_path.samefile(source_file, target_file):
+                if os_path.samefile(source_file, target_file):
                     continue
             except Exception:
                 pass

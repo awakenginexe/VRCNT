@@ -11,6 +11,7 @@ sys.path.insert(
 )
 
 from config import (
+    _copytree_merge,
     _migrateRenamedUserData,
     _resolveRenamedUserDataPath,
 )
@@ -148,6 +149,28 @@ class VrcntDataMigrationTests(unittest.TestCase):
             self.assertEqual(selected_path, legacy_path)
             self.assertTrue(os.path.isdir(legacy_path))
             self.assertFalse(os.path.exists(target_path))
+
+    def test_legacy_local_data_merge_never_overwrites_existing_user_files(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            legacy_path = os.path.join(temporary_directory, "legacy")
+            target_path = os.path.join(temporary_directory, "VRCNTData")
+            os.makedirs(os.path.join(legacy_path, "weights"))
+            os.makedirs(os.path.join(target_path, "weights"))
+            with open(os.path.join(legacy_path, "config.json"), "wb") as file_handle:
+                file_handle.write(b"legacy-config")
+            with open(os.path.join(target_path, "config.json"), "wb") as file_handle:
+                file_handle.write(b"current-config")
+            with open(os.path.join(legacy_path, "weights", "model.bin"), "wb") as file_handle:
+                file_handle.write(b"legacy-model")
+            with open(os.path.join(target_path, "weights", "model.bin"), "wb") as file_handle:
+                file_handle.write(b"current-model")
+
+            _copytree_merge(legacy_path, target_path)
+
+            with open(os.path.join(target_path, "config.json"), "rb") as file_handle:
+                self.assertEqual(file_handle.read(), b"current-config")
+            with open(os.path.join(target_path, "weights", "model.bin"), "rb") as file_handle:
+                self.assertEqual(file_handle.read(), b"current-model")
 
 
 if __name__ == "__main__":
