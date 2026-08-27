@@ -20,6 +20,10 @@ public sealed class RuntimePathValidator(IVolumeIdentityProbe volumeIdentityProb
         var target = new UserDataPathResolver().ValidateCustomInstallPath(installPath);
         RejectReparsePointParents(target);
         var paths = RuntimeTransactionPaths.For(target, transactionId);
+        var container = Path.GetDirectoryName(paths.TransactionRoot)!;
+        Directory.CreateDirectory(container);
+        if (new DirectoryInfo(container).Attributes.HasFlag(FileAttributes.ReparsePoint))
+            throw new InvalidDataException("The transaction container cannot be a reparse point.");
         var identities = new[] { target, paths.TransactionRoot, paths.StagingPath, paths.BackupPath, paths.JournalPath }
             .Select(volumeIdentityProbe.GetVolumeIdentity)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -31,11 +35,17 @@ public sealed class RuntimePathValidator(IVolumeIdentityProbe volumeIdentityProb
     public string GetTransactionContainer(string installPath)
     {
         var target = new UserDataPathResolver().ValidateCustomInstallPath(installPath);
-        return Path.Combine(Path.GetDirectoryName(target)!, ".vrcnt-transactions");
+        RejectReparsePointParents(target);
+        var container = Path.Combine(Path.GetDirectoryName(target)!, ".vrcnt-transactions");
+        if (Directory.Exists(container) && new DirectoryInfo(container).Attributes.HasFlag(FileAttributes.ReparsePoint))
+            throw new InvalidDataException("The transaction container cannot be a reparse point.");
+        return container;
     }
 
     private static void RejectReparsePointParents(string target)
     {
+        if (Directory.Exists(target) && new DirectoryInfo(target).Attributes.HasFlag(FileAttributes.ReparsePoint))
+            throw new InvalidDataException("The install target cannot be a reparse point.");
         for (var current = new DirectoryInfo(Path.GetDirectoryName(target)!); current is not null; current = current.Parent)
         {
             if (current.Exists && current.Attributes.HasFlag(FileAttributes.ReparsePoint))

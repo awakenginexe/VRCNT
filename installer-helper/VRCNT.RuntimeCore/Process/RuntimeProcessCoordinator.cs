@@ -25,7 +25,7 @@ public interface IRuntimeProcessInstallPathObserver
 
 public sealed class RuntimeProcessCoordinator(TimeSpan? gracefulShutdownTimeout = null) : IRuntimeProcessCoordinator, IRuntimeProcessForceCloser, IRuntimeProcessInstallPathObserver
 {
-    private static readonly HashSet<string> KnownProcessNames = new(StringComparer.OrdinalIgnoreCase) { "VRCNT", "VRCNT-backend", "VRCNT-backend.exe", "VRCNT-resident" };
+    private static readonly HashSet<string> KnownProcessNames = new(StringComparer.OrdinalIgnoreCase) { "VRCNT", "VRCNT-backend", "VRCNT-backend.exe", "VRCNT-resident", "VRCNT.Resident" };
     private readonly TimeSpan _gracefulShutdownTimeout = gracefulShutdownTimeout ?? TimeSpan.FromSeconds(10);
     private string? _lastInstallPath;
 
@@ -81,7 +81,20 @@ public sealed class RuntimeProcessCoordinator(TimeSpan? gracefulShutdownTimeout 
         return Task.CompletedTask;
     }
 
-    private static List<System.Diagnostics.Process> FindKnownProcesses() => System.Diagnostics.Process.GetProcesses()
-        .Where(process => KnownProcessNames.Contains(process.ProcessName) || KnownProcessNames.Contains(process.ProcessName + ".exe"))
-        .ToList();
+    private List<System.Diagnostics.Process> FindKnownProcesses() => string.IsNullOrWhiteSpace(_lastInstallPath)
+        ? []
+        : System.Diagnostics.Process.GetProcesses()
+            .Where(process => (KnownProcessNames.Contains(process.ProcessName) || KnownProcessNames.Contains(process.ProcessName + ".exe")) && IsFromActiveInstall(process))
+            .ToList();
+
+    private bool IsFromActiveInstall(System.Diagnostics.Process process)
+    {
+        try
+        {
+            var executable = process.MainModule?.FileName;
+            return executable is not null && string.Equals(Path.GetFullPath(executable), Path.Combine(Path.GetFullPath(_lastInstallPath!), "VRCNT.exe"), StringComparison.OrdinalIgnoreCase)
+                || executable is not null && string.Equals(Path.GetDirectoryName(Path.GetFullPath(executable)), Path.GetFullPath(_lastInstallPath!), StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception) { return false; }
+    }
 }

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text;
 using VRCNT.RuntimeCore.Models;
 
 namespace VRCNT.RuntimeCore.Transactions;
@@ -10,7 +11,9 @@ public sealed record RuntimeTransactionJournal(
     string StagingPath,
     string BackupPath,
     RuntimeIdentity ExpectedIdentity,
+    bool ActiveMoveIntent,
     bool ActiveRuntimeMoved,
+    bool StagedMoveIntent,
     bool StagedRuntimeMoved);
 
 public sealed class TransactionJournalStore
@@ -24,7 +27,12 @@ public sealed class TransactionJournalStore
         var temporary = Path.Combine(directory, $"transaction.{Guid.NewGuid():N}.tmp");
         try
         {
-            File.WriteAllText(temporary, JsonSerializer.Serialize(journal, JsonOptions));
+            var content = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(journal, JsonOptions));
+            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+            {
+                stream.Write(content);
+                stream.Flush(flushToDisk: true);
+            }
             File.Move(temporary, journalPath, true);
         }
         finally

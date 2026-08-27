@@ -3,6 +3,7 @@ using VRCNT.RuntimeCore.Filesystem;
 using VRCNT.RuntimeCore.Models;
 using VRCNT.RuntimeCore.Paths;
 using VRCNT.RuntimeCore.Process;
+using VRCNT.RuntimeCore.Packages;
 using VRCNT.RuntimeCore.State;
 using VRCNT.RuntimeCore.Storage;
 
@@ -22,9 +23,10 @@ public interface IRuntimeArchiveAcquirer
     Task<IReadOnlyList<string>> AcquireAsync(RuntimeReplacementRequest request, CancellationToken cancellationToken);
 }
 
-public interface IRuntimeReplacementValidator
+public interface IRuntimeStateTransition
 {
-    void ValidateExistingRuntime(string installPath, RuntimeIdentity targetIdentity);
+    void ValidateExistingRuntime(string installPath);
+    void WriteActiveRuntime(string installPath, RuntimeIdentity identity);
 }
 
 public interface IRuntimeDirectoryMover
@@ -45,9 +47,15 @@ public interface IRuntimeActivationHealthMonitor
     Task<RuntimeActivationHealthResult> WaitForReadyAsync(string installPath, ActivationRequest request, CancellationToken cancellationToken);
 }
 
-public sealed class Task3RuntimeReplacementValidator : IRuntimeReplacementValidator
+public sealed class ActivationProtocolRequiredHealthMonitor : IRuntimeActivationHealthMonitor
 {
-    public void ValidateExistingRuntime(string installPath, RuntimeIdentity targetIdentity)
+    public Task<RuntimeActivationHealthResult> WaitForReadyAsync(string installPath, ActivationRequest request, CancellationToken cancellationToken) =>
+        Task.FromResult(new RuntimeActivationHealthResult(false, false, "activation_protocol_unavailable"));
+}
+
+public sealed class Task3RuntimeStateTransition : IRuntimeStateTransition
+{
+    public void ValidateExistingRuntime(string installPath)
     {
         var resolver = new UserDataPathResolver();
         var paths = resolver.Resolve(installPath);
@@ -57,6 +65,14 @@ public sealed class Task3RuntimeReplacementValidator : IRuntimeReplacementValida
         var validated = new RuntimeStateValidator(new PayloadIdentityReader()).Validate(state, paths.InstallPath, currentPackage);
         if (validated.Status != RuntimeStateStatus.Active)
             throw new InvalidDataException("Existing runtime identity cannot authorize replacement; recovery or migration is required.");
+    }
+
+    public void WriteActiveRuntime(string installPath, RuntimeIdentity identity)
+    {
+        var paths = new UserDataPathResolver().Resolve(installPath);
+        new RuntimeStateStore().WriteAtomic(paths.DataRoot, new RuntimeState(
+            1, RuntimeStateStatus.Active, identity.Product, identity.Version, identity.Variant, identity.Architecture,
+            paths.InstallPath, identity.BuildIdentity, identity.MarkerSha256, DateTimeOffset.UtcNow));
     }
 }
 
@@ -69,7 +85,7 @@ public sealed class RuntimeTransactionEngine(
     IRuntimeActivationHealthMonitor activationHealthMonitor,
     TransactionJournalStore journalStore,
     IRuntimeDirectoryMover directoryMover,
-    IRuntimeReplacementValidator existingRuntimeValidator,
+    IRuntimeStateTransition runtimeStateTransition,
     Action? onCommit = null)
 {
     public async Task<RuntimeOperationResult> ExecuteAsync(RuntimeReplacementRequest request, IProgress<InstallProgress>? progress, CancellationToken cancellationToken)
@@ -86,6 +102,11 @@ public sealed class RuntimeTransactionEngine(
             paths = pathValidator.CreateTransactionPaths(request.InstallPath, Guid.NewGuid().ToString("N"));
             if (!requiredSpaceCalculator.HasRequiredSpace(request.InstallPath, request.InstalledSize))
                 return Fail("insufficient_space", "The target volume does not have enough free space for a transactional replacement.");
+            if (Directory.Exists(request.InstallPath))
+            {
+                runtimeStateTransition.ValidateExistingRuntime(request.InstallPath);
+                if (processCoordinator is IRuntimeProcessInstallPathObserver observer) observer.SetActiveInstallPath(request.InstallPath);
+            }
 
             Report(progress, TransactionPhase.Acquire, "Acquiring resumable runtime archives.");
             var archiveParts = await archiveAcquirer.AcquireAsync(request, cancellationToken);
@@ -99,19 +120,13 @@ public sealed class RuntimeTransactionEngine(
             cancellationToken.ThrowIfCancellationRequested();
 
             Directory.CreateDirectory(paths.TransactionRoot);
-            journal = new RuntimeTransactionJournal(Path.GetFileName(paths.TransactionRoot), TransactionPhase.Stage, request.InstallPath, paths.StagingPath, paths.BackupPath, request.ExpectedIdentity, false, false);
+            journal = new RuntimeTransactionJournal(Path.GetFileName(paths.TransactionRoot), TransactionPhase.Stage, request.InstallPath, paths.StagingPath, paths.BackupPath, request.ExpectedIdentity, false, false, false, false);
             journalStore.WriteAtomic(paths.JournalPath, journal);
             Report(progress, TransactionPhase.Stage, "Extracting archive into the transaction staging directory.");
             await archiveExtractor.ExtractAsync(archiveParts, paths.StagingPath, cancellationToken);
             ValidateStagedPayload(paths.StagingPath, request.ExpectedIdentity);
+            if (request.ExpectedIdentity.Variant == RuntimeVariant.Cpu) CpuPayloadValidator.ValidateStagedPayload(paths.StagingPath);
             cancellationToken.ThrowIfCancellationRequested();
-
-            // Task 3 validation happens after staged-package validation but before any running process is quiesced.
-            if (Directory.Exists(request.InstallPath))
-            {
-                existingRuntimeValidator.ValidateExistingRuntime(request.InstallPath, request.ExpectedIdentity);
-                if (processCoordinator is IRuntimeProcessInstallPathObserver observer) observer.SetActiveInstallPath(request.InstallPath);
-            }
 
             journal = journal with { Phase = TransactionPhase.Quiesce };
             journalStore.WriteAtomic(paths.JournalPath, journal);
@@ -138,17 +153,29 @@ public sealed class RuntimeTransactionEngine(
                 DeleteTransaction(paths.TransactionRoot);
                 return Fail("cancelled", "Cancellation was applied before runtime replacement.");
             }
+            if (!await processCoordinator.AreKnownProcessesStoppedAsync(CancellationToken.None))
+            {
+                await processCoordinator.RelaunchActiveRuntimeAsync(CancellationToken.None);
+                DeleteTransaction(paths.TransactionRoot);
+                return Fail("processes_running", "A VRCNT process restarted before the runtime could be replaced.");
+            }
 
             journal = journal with { Phase = TransactionPhase.Replace };
             journalStore.WriteAtomic(paths.JournalPath, journal);
             Report(progress, TransactionPhase.Replace, "Replacing the runtime transactionally.");
             if (Directory.Exists(request.InstallPath))
             {
+                journal = journal with { ActiveMoveIntent = true };
+                journalStore.WriteAtomic(paths.JournalPath, journal);
                 directoryMover.Move(request.InstallPath, paths.BackupPath);
                 journal = journal with { ActiveRuntimeMoved = true };
                 journalStore.WriteAtomic(paths.JournalPath, journal);
             }
             if (cancellationToken.IsCancellationRequested) return await CancelAfterDestructiveStepAsync(paths, journal, request.InstallPath, processCoordinator);
+            if (!await processCoordinator.AreKnownProcessesStoppedAsync(CancellationToken.None))
+                return await RollbackAfterDestructiveStepAsync(paths, journal, request.InstallPath, processCoordinator, "processes_running", "A VRCNT process restarted during runtime replacement.");
+            journal = journal with { StagedMoveIntent = true };
+            journalStore.WriteAtomic(paths.JournalPath, journal);
             directoryMover.Move(paths.StagingPath, request.InstallPath);
             journal = journal with { StagedRuntimeMoved = true };
             journalStore.WriteAtomic(paths.JournalPath, journal);
@@ -162,6 +189,7 @@ public sealed class RuntimeTransactionEngine(
 
             journal = journal with { Phase = TransactionPhase.Commit };
             journalStore.WriteAtomic(paths.JournalPath, journal);
+            runtimeStateTransition.WriteActiveRuntime(request.InstallPath, request.ExpectedIdentity);
             onCommit?.Invoke();
             Report(progress, TransactionPhase.Commit, "Committing the activated runtime.");
             DeleteTransaction(paths.TransactionRoot);
@@ -194,12 +222,21 @@ public sealed class RuntimeTransactionEngine(
                 var transactionRoot = Path.GetDirectoryName(journalPath)!;
                 if (!PathsEqual(journal.TargetPath, installPath) || !IsWithin(container, transactionRoot) || !PathsEqual(journal.BackupPath, Path.Combine(transactionRoot, "backup")) || !PathsEqual(journal.StagingPath, Path.Combine(transactionRoot, "staging")))
                     return Task.FromResult(new RuntimeOperationResult(false, false, true, "unsafe_journal", "The pending runtime transaction journal is unsafe."));
-                if (journal.ActiveRuntimeMoved && Directory.Exists(journal.BackupPath))
+                var targetExists = Directory.Exists(installPath);
+                var backupExists = Directory.Exists(journal.BackupPath);
+                var stagingExists = Directory.Exists(journal.StagingPath);
+                if (backupExists && !targetExists)
                 {
-                    if (Directory.Exists(installPath))
-                        return Task.FromResult(new RuntimeOperationResult(false, false, true, "recovery_required", "Both runtime candidates exist; preserving the backup for recovery."));
                     directoryMover.Move(journal.BackupPath, installPath);
                 }
+                else if (backupExists && targetExists)
+                    return Task.FromResult(new RuntimeOperationResult(false, false, true, "recovery_required", "Both runtime candidates exist; preserving the backup for recovery."));
+                else if (journal.StagedMoveIntent && targetExists)
+                    return Task.FromResult(new RuntimeOperationResult(false, false, true, "recovery_required", "The staged runtime may not have completed activation; preserving the transaction for recovery."));
+                else if ((journal.ActiveMoveIntent || journal.StagedMoveIntent) && !targetExists)
+                    return Task.FromResult(new RuntimeOperationResult(false, false, true, "recovery_required", "The interrupted replacement has no recoverable active runtime."));
+                else if (stagingExists && !targetExists)
+                    return Task.FromResult(new RuntimeOperationResult(false, false, true, "recovery_required", "The interrupted transaction has staging material without an active runtime."));
                 DeleteTransaction(transactionRoot);
             }
             return Task.FromResult(new RuntimeOperationResult(true, false, false, null, null));
@@ -209,17 +246,24 @@ public sealed class RuntimeTransactionEngine(
     }
 
     private async Task<RuntimeOperationResult> CancelAfterDestructiveStepAsync(RuntimeTransactionPaths paths, RuntimeTransactionJournal journal, string targetPath, IRuntimeProcessCoordinator coordinator)
+        => await RollbackAfterDestructiveStepAsync(paths, journal, targetPath, coordinator, "cancelled", "Cancellation was applied after runtime replacement began.");
+
+    private async Task<RuntimeOperationResult> RollbackAfterDestructiveStepAsync(RuntimeTransactionPaths paths, RuntimeTransactionJournal journal, string targetPath, IRuntimeProcessCoordinator coordinator, string errorCode, string errorMessage)
     {
         var rollback = await RollbackAsync(paths, journal, targetPath, coordinator, true);
-        return new RuntimeOperationResult(false, rollback, !rollback, "cancelled", "Cancellation was applied after runtime replacement began.");
+        return new RuntimeOperationResult(false, rollback, !rollback, errorCode, errorMessage);
     }
 
     private async Task<bool> RollbackAsync(RuntimeTransactionPaths paths, RuntimeTransactionJournal journal, string targetPath, IRuntimeProcessCoordinator coordinator, bool quiesced)
     {
         try
         {
-            if (journal.StagedRuntimeMoved && Directory.Exists(targetPath)) Directory.Delete(targetPath, true);
-            if (journal.ActiveRuntimeMoved && Directory.Exists(paths.BackupPath) && !Directory.Exists(targetPath)) directoryMover.Move(paths.BackupPath, targetPath);
+            if (Directory.Exists(paths.BackupPath))
+            {
+                if (Directory.Exists(targetPath)) Directory.Delete(targetPath, true);
+                directoryMover.Move(paths.BackupPath, targetPath);
+            }
+            else if (journal.StagedMoveIntent && Directory.Exists(targetPath)) Directory.Delete(targetPath, true);
             if (quiesced) await coordinator.RelaunchActiveRuntimeAsync(CancellationToken.None);
             DeleteTransaction(paths.TransactionRoot);
             return true;

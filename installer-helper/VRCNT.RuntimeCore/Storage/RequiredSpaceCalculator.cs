@@ -1,5 +1,7 @@
 namespace VRCNT.RuntimeCore.Storage;
 
+using System.Runtime.InteropServices;
+
 public interface IAvailableSpaceProbe
 {
     long GetAvailableBytes(string path);
@@ -9,9 +11,27 @@ public sealed class AvailableSpaceProbe : IAvailableSpaceProbe
 {
     public long GetAvailableBytes(string path)
     {
-        var root = Path.GetPathRoot(Path.GetFullPath(path)) ?? throw new InvalidDataException("The path has no filesystem root.");
+        var fullPath = Path.GetFullPath(path);
+        if (OperatingSystem.IsWindows() && GetDiskFreeSpaceEx(FindExistingAncestor(fullPath), out var availableBytes, out _, out _))
+            return checked((long)availableBytes);
+        var root = Path.GetPathRoot(fullPath) ?? throw new InvalidDataException("The path has no filesystem root.");
         return new DriveInfo(root).AvailableFreeSpace;
     }
+
+    private static string FindExistingAncestor(string fullPath)
+    {
+        var candidate = fullPath;
+        while (!Directory.Exists(candidate) && !File.Exists(candidate))
+        {
+            var parent = Path.GetDirectoryName(candidate);
+            if (string.IsNullOrEmpty(parent) || string.Equals(parent, candidate, StringComparison.Ordinal)) break;
+            candidate = parent;
+        }
+        return candidate;
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool GetDiskFreeSpaceEx(string directoryName, out ulong freeBytesAvailableToCaller, out ulong totalNumberOfBytes, out ulong totalNumberOfFreeBytes);
 }
 
 public sealed class RequiredSpaceCalculator(IAvailableSpaceProbe availableSpaceProbe)
