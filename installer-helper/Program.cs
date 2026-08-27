@@ -16,7 +16,7 @@ internal static class Program
     }
     private static async Task InstallAsync(Options options)
     {
-        Directory.CreateDirectory(options.CacheDirectory); Directory.CreateDirectory(options.Destination);
+        Directory.CreateDirectory(options.CacheDirectory);
         var manifestPath = await AcquireMetadataAsync(options, options.ManifestName);
         var signaturePath = await AcquireMetadataAsync(options, options.SignatureName);
         var verified = await new ManifestLoader(new MinisignVerifier(options.MinisignPath)).LoadAndVerifyAsync(manifestPath, signaturePath, options.Version, default);
@@ -24,9 +24,17 @@ internal static class Program
         var package = verified.Manifest.Variants.TryGetValue(key, out var selected) ? selected : throw new InvalidDataException($"Signed manifest does not offer the requested {key} package.");
         var offline = package.Parts.All(part => File.Exists(Path.Combine(options.InstallerDirectory, part.Name)));
         Console.WriteLine(offline ? "[source] Found all signed manifest-selected package files beside the installer." : "[source] Downloading missing manifest-selected package files.");
-        var paths = await new VariantPackageAcquirer(Http).AcquireAsync(verified.Manifest, options.Variant, new Uri(options.ReleaseBaseUrl.TrimEnd('/') + "/"), offline ? options.InstallerDirectory : options.CacheDirectory, null, default);
-        await RunProcessAsync(options.SevenZipPath, ["x", "-y", "-aoa", $"-o{options.Destination}", paths[0]]);
-        if (!File.Exists(Path.Combine(options.Destination, "VRCNT.exe"))) throw new InvalidDataException("Extraction completed but VRCNT.exe is missing.");
+        var paths = await new VariantPackageAcquirer(offline ? null : Http).AcquireAsync(verified.Manifest, options.Variant, new Uri(options.ReleaseBaseUrl.TrimEnd('/') + "/"), offline ? options.InstallerDirectory : options.CacheDirectory, null, default);
+        var staging = Path.Combine(options.CacheDirectory, $"staging-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(staging);
+        try
+        {
+            await RunProcessAsync(options.SevenZipPath, ["x", "-y", "-aoa", $"-o{staging}", paths[0]]);
+            if (options.Variant == RuntimeVariant.Cpu) CpuPayloadValidator.ValidateStagedPayload(staging);
+            else if (!File.Exists(Path.Combine(staging, "VRCNT.exe"))) throw new InvalidDataException("Staged payload is missing VRCNT.exe.");
+            CopyStagedPayload(staging, options.Destination);
+        }
+        finally { TryDeleteDirectory(staging); }
         if (!offline) foreach (var path in paths) { TryDelete(path); TryDelete(path + ".partial"); }
         Console.WriteLine("[complete] VRCNT package installation finished successfully.");
     }
@@ -44,6 +52,13 @@ internal static class Program
         using var process = Process.Start(info) ?? throw new InvalidOperationException($"Could not start {executable}."); await process.WaitForExitAsync(); if (process.ExitCode != 0) throw new InvalidOperationException($"{Path.GetFileName(executable)} failed with exit code {process.ExitCode}.");
     }
     private static void TryDelete(string path) { try { if (File.Exists(path)) File.Delete(path); } catch { } }
+    private static void TryDeleteDirectory(string path) { try { if (Directory.Exists(path)) Directory.Delete(path, true); } catch { } }
+    private static void CopyStagedPayload(string source, string destination)
+    {
+        foreach (var directory in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories)) Directory.CreateDirectory(Path.Combine(destination, Path.GetRelativePath(source, directory)));
+        Directory.CreateDirectory(destination);
+        foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories)) File.Copy(file, Path.Combine(destination, Path.GetRelativePath(source, file)), true);
+    }
     private sealed record Options(string Version, string ReleaseBaseUrl, string InstallerDirectory, string CacheDirectory, string Destination, string ManifestName, string SignatureName, RuntimeVariant Variant, string SevenZipPath, string MinisignPath)
     {
         public static Options Parse(string[] args)

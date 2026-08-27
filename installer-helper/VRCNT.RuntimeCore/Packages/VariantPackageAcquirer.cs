@@ -14,7 +14,7 @@ public interface IVariantPackageAcquirer
     Task<IReadOnlyList<string>> AcquireAsync(PackageManifest manifest, RuntimeVariant variant, Uri releaseBaseUri, string cacheDirectory, IProgress<TransferProgress>? progress, CancellationToken cancellationToken);
 }
 
-public sealed class VariantPackageAcquirer(HttpClient httpClient) : IVariantPackageAcquirer
+public sealed class VariantPackageAcquirer(HttpClient? httpClient) : IVariantPackageAcquirer
 {
     public async Task<IReadOnlyList<string>> AcquireAsync(PackageManifest manifest, RuntimeVariant variant, Uri releaseBaseUri, string cacheDirectory, IProgress<TransferProgress>? progress, CancellationToken cancellationToken)
     {
@@ -29,8 +29,19 @@ public sealed class VariantPackageAcquirer(HttpClient httpClient) : IVariantPack
             if (!ManifestLoader.IsSafeAssetName(part.Name) || part.Size <= 0 || !ManifestLoader.IsSha256(part.Sha256)) throw new InvalidDataException($"Unsafe package part '{part.Name}'.");
             var finalPath = Path.Combine(cacheDirectory, part.Name);
             if (await IsVerifiedAsync(finalPath, part, cancellationToken)) { completed += part.Size; complete.Add(finalPath); continue; }
+            if (httpClient is null && File.Exists(finalPath))
+                throw new CryptographicException($"SHA-256 mismatch for {part.Name}. The package was rejected.");
             TryDelete(finalPath);
             var partialPath = finalPath + ".partial";
+            if (await IsVerifiedAsync(partialPath, part, cancellationToken))
+            {
+                File.Move(partialPath, finalPath, true);
+                completed += part.Size;
+                complete.Add(finalPath);
+                continue;
+            }
+            if (File.Exists(partialPath) && new FileInfo(partialPath).Length == part.Size) TryDelete(partialPath);
+            if (httpClient is null) throw new FileNotFoundException($"Required offline package part is missing: {part.Name}.", finalPath);
             await DownloadAsync(new Uri(releaseBaseUri, part.Name), partialPath, part, completed, total, progress, cancellationToken);
             if (!await IsVerifiedAsync(partialPath, part, cancellationToken)) { TryDelete(partialPath); throw new CryptographicException($"SHA-256 mismatch for {part.Name}. The package was rejected."); }
             File.Move(partialPath, finalPath, true);
@@ -50,7 +61,7 @@ public sealed class VariantPackageAcquirer(HttpClient httpClient) : IVariantPack
             {
                 using var request = new HttpRequestMessage(HttpMethod.Get, uri);
                 if (existing > 0) request.Headers.Range = new RangeHeaderValue(existing, null);
-                using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                using var response = await httpClient!.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                 if (existing > 0 && response.StatusCode == HttpStatusCode.OK) { TryDelete(partialPath); existing = 0; }
                 response.EnsureSuccessStatusCode();
                 if (existing > 0 && response.StatusCode != HttpStatusCode.PartialContent) throw new HttpRequestException($"Unexpected resume response {response.StatusCode}.");

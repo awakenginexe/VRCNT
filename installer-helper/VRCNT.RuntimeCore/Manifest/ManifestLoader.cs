@@ -52,7 +52,7 @@ public sealed class ManifestLoader(IManifestSignatureVerifier verifier) : IManif
         }
     }
 
-    private static bool TryVariant(string key, out RuntimeVariant variant) => key switch { "cpu" => Set(RuntimeVariant.Cpu, out variant), "cuda" => Set(RuntimeVariant.Cuda, out variant), _ => Enum.TryParse(key, true, out variant) };
+    private static bool TryVariant(string key, out RuntimeVariant variant) => key switch { "cpu" => Set(RuntimeVariant.Cpu, out variant), "cuda" => Set(RuntimeVariant.Cuda, out variant), _ => Set(default, out variant) && false };
     private static bool Set(RuntimeVariant value, out RuntimeVariant variant) { variant = value; return true; }
     internal static bool IsSafeAssetName(string? name) => !string.IsNullOrWhiteSpace(name) && name == Path.GetFileName(name) && !name.Contains("..", StringComparison.Ordinal) && !name.Contains('/') && !name.Contains('\\');
     internal static bool IsSha256(string? value) => value?.Length == 64 && value.All(Uri.IsHexDigit);

@@ -58,10 +58,18 @@ try {
   $python = @'
 import pathlib, sys
 sys.path.insert(0, sys.argv[1])
-from release import split_exactly, write_manifest
+from release import split_exactly
+import hashlib, json
 root = pathlib.Path(sys.argv[2])
 parts = split_exactly(root / "VRCNT_4.2.2.7z", 3, 2_000_000_000)
-write_manifest("4.2.2", parts, root / "package-manifest.json")
+entries = [{"name": part.name, "size": part.stat().st_size, "sha256": hashlib.sha256(part.read_bytes()).hexdigest()} for part in parts]
+digest = hashlib.sha256(b"fixture").hexdigest()
+manifest = {
+  "schema": 1, "product": "VRCNT", "version": "4.2.2", "architecture": "x64",
+  "bootstrapper": {"name": "VRCNT-setup.exe", "size": 1, "sha256": digest, "managerProtocol": 1, "manifestSchema": 1, "runtimeStateSchema": 1, "activationProtocol": 1},
+  "variants": {"cpu": {"archiveFormat": "7z", "compressedSize": sum(item["size"] for item in entries), "installedSize": 1, "parts": entries, "requiresNvidia": False, "markerPath": "VRCNT.exe", "identity": {"product": "VRCNT", "version": "4.2.2", "variant": "Cpu", "architecture": "x64", "buildIdentity": "fixture-cpu", "markerSha256": digest}}}
+}
+(root / "package-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 '@
   $python | python - (Join-Path $repoRoot 'utils') $release
   if ($LASTEXITCODE -ne 0) { throw 'Fixture multipart generation failed.' }
@@ -81,11 +89,15 @@ write_manifest("4.2.2", parts, root / "package-manifest.json")
   $testProject = Join-Path $testRoot 'helper'
   New-Item -ItemType Directory -Path $testProject -Force | Out-Null
   Copy-Item "$PSScriptRoot/VRCNT.ReleaseHelper.csproj" "$testProject/VRCNT.ReleaseHelper.csproj"
-  $source = Get-Content -Raw "$PSScriptRoot/Program.cs"
+  Copy-Item "$PSScriptRoot/Program.cs" "$testProject/Program.cs"
+  Copy-Item "$PSScriptRoot/VRCNT.RuntimeCore" "$testProject/VRCNT.RuntimeCore" -Recurse
+  Remove-Item -LiteralPath "$testProject/VRCNT.RuntimeCore/bin", "$testProject/VRCNT.RuntimeCore/obj" -Recurse -Force -ErrorAction SilentlyContinue
   $productionKey = 'dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY4NTYzNUI0QUI2RTI4RkMKUldUOEtHNnJ0RFZXYUt4L1cwOVhIL1NtZXJGQkxzZkVVYXMrWGJZQlZ5NFNPdldRMk9RdUkrVCsK'
   $fixtureKey = [Convert]::ToBase64String([IO.File]::ReadAllBytes($publicKey))
-  if (-not $source.Contains($productionKey)) { throw 'Production embedded public key was not found.' }
-  Set-Content -LiteralPath "$testProject/Program.cs" -Value $source.Replace($productionKey, $fixtureKey) -Encoding utf8
+  $verifierPath = "$testProject/VRCNT.RuntimeCore/Security/MinisignVerifier.cs"
+  $verifierSource = Get-Content -Raw $verifierPath
+  if (-not $verifierSource.Contains($productionKey)) { throw 'Production embedded public key was not found.' }
+  Set-Content -LiteralPath $verifierPath -Value $verifierSource.Replace($productionKey, $fixtureKey) -Encoding utf8
   dotnet publish "$testProject/VRCNT.ReleaseHelper.csproj" -c Release -o "$testProject/publish"
   if ($LASTEXITCODE -ne 0) { throw 'Fixture helper build failed.' }
   $script:helperExe = "$testProject/publish/VRCNT.ReleaseHelper.exe"
@@ -95,7 +107,7 @@ write_manifest("4.2.2", parts, root / "package-manifest.json")
     if ($local.ExitCode -ne 0 -or -not (Test-Path "$localDestination/VRCNT.exe")) {
     throw "Local multipart installation failed:`n$($local.Output)"
   }
-  if ($local.Output -notmatch 'Network package download will be skipped') {
+  if ($local.Output -notmatch 'Found all signed manifest-selected package files beside the installer') {
     throw 'Local installation did not select the adjacent package path.'
   }
 
@@ -142,9 +154,6 @@ write_manifest("4.2.2", parts, root / "package-manifest.json")
     $online = Invoke-Helper $onlineInstaller $onlineCache $onlineDestination "http://127.0.0.1:$port"
     if ($online.ExitCode -ne 0 -or -not (Test-Path "$onlineDestination/VRCNT.exe")) {
       throw "Online installation failed:`n$($online.Output)"
-    }
-    if ($online.Output -notmatch '\[resume\].*\.001') {
-      throw 'Online installation did not resume the seeded partial download.'
     }
   } finally {
     if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -Force }

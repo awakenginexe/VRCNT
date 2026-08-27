@@ -52,6 +52,22 @@ public sealed class ManifestValidationTests : IDisposable
             .LoadAndVerifyAsync(manifestPath, signaturePath, "5.15.1", default));
     }
 
+    [Theory]
+    [InlineData("CPU")]
+    [InlineData("0")]
+    public async Task LoadAndVerifyAsync_rejects_noncanonical_variant_keys(string alias)
+    {
+        var manifest = CreateManifest();
+        var variants = new Dictionary<string, VariantPackage>(manifest.Variants);
+        var cpu = variants["cpu"];
+        variants.Remove("cpu");
+        variants[alias] = cpu;
+        var (manifestPath, signaturePath) = await WriteManifestAsync(manifest with { Variants = variants });
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => new ManifestLoader(new AcceptingSignatureVerifier())
+            .LoadAndVerifyAsync(manifestPath, signaturePath, "5.15.0", default));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root)) Directory.Delete(_root, true);

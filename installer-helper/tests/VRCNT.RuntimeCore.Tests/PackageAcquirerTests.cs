@@ -53,6 +53,32 @@ public sealed class PackageAcquirerTests : IDisposable
         Assert.Single(paths);
     }
 
+    [Fact]
+    public async Task AcquireAsync_promotes_a_verified_exact_sized_partial_without_network()
+    {
+        var manifest = ManifestValidationTests.CreateManifest();
+        Directory.CreateDirectory(_root);
+        await File.WriteAllBytesAsync(Path.Combine(_root, "cpu.001.partial"), Bytes("cpu1"));
+        using var client = new HttpClient(new AssetHandler(new Dictionary<string, byte[]>(), throwOnRequest: true));
+
+        var paths = await new VariantPackageAcquirer(client).AcquireAsync(manifest, RuntimeVariant.Cpu, new Uri("https://example.test/release/"), _root, null, default);
+
+        Assert.Single(paths);
+        Assert.True(File.Exists(Path.Combine(_root, "cpu.001")));
+        Assert.False(File.Exists(Path.Combine(_root, "cpu.001.partial")));
+    }
+
+    [Fact]
+    public async Task AcquireAsync_rejects_invalid_local_part_without_network_when_offline()
+    {
+        var manifest = ManifestValidationTests.CreateManifest();
+        Directory.CreateDirectory(_root);
+        await File.WriteAllTextAsync(Path.Combine(_root, "cpu.001"), "evil");
+
+        await Assert.ThrowsAsync<CryptographicException>(() => new VariantPackageAcquirer(null)
+            .AcquireAsync(manifest, RuntimeVariant.Cpu, new Uri("https://example.test/release/"), _root, null, default));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root)) Directory.Delete(_root, true);
