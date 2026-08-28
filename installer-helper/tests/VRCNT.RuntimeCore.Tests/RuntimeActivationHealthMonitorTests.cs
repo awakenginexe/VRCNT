@@ -7,16 +7,23 @@ using Xunit;
 
 namespace VRCNT.RuntimeCore.Tests;
 
-public sealed class RuntimeActivationHealthMonitorTests
+public sealed class RuntimeActivationHealthMonitorTests : IDisposable
 {
     private static readonly RuntimeIdentity Identity = new("VRCNT", "5.15.0", RuntimeVariant.Cpu, "x64", "build", new string('a', 64));
+    private readonly string _installPath = Path.Combine(Path.GetTempPath(), "vrcnt-runtime-activation", Guid.NewGuid().ToString("N"));
+
+    public RuntimeActivationHealthMonitorTests()
+    {
+        Directory.CreateDirectory(_installPath);
+        File.WriteAllText(Path.Combine(_installPath, "VRCNT-backend.exe"), "staged backend");
+    }
 
     [Fact]
     public async Task WaitForReadyAsync_accepts_one_complete_proof_from_the_pipe_client_process()
     {
         var request = Request();
-        var monitor = new NamedPipeRuntimeActivationHealthMonitor(TimeSpan.FromSeconds(2));
-        var waiting = monitor.WaitForReadyAsync("unused", Identity, request, default);
+        var monitor = new NamedPipeRuntimeActivationHealthMonitor(TimeSpan.FromSeconds(2), _ => StagedBackendPath());
+        var waiting = monitor.WaitForReadyAsync(_installPath, Identity, request, default);
 
         await SendProofAsync(request, new RuntimeActivationProof(1, "ready", request.SingleUseToken, request.Nonce, Environment.ProcessId, "5.15.0", "cpu"));
 
@@ -34,8 +41,8 @@ public sealed class RuntimeActivationHealthMonitorTests
     public async Task WaitForReadyAsync_rejects_invalid_identity_bound_proofs(string token, string nonce, int ignoredPid, string version, string variant)
     {
         var request = Request();
-        var monitor = new NamedPipeRuntimeActivationHealthMonitor(TimeSpan.FromSeconds(2));
-        var waiting = monitor.WaitForReadyAsync("unused", Identity, request, default);
+        var monitor = new NamedPipeRuntimeActivationHealthMonitor(TimeSpan.FromSeconds(2), _ => StagedBackendPath());
+        var waiting = monitor.WaitForReadyAsync(_installPath, Identity, request, default);
 
         await SendProofAsync(request, new RuntimeActivationProof(1, "ready", token, nonce, Environment.ProcessId + ignoredPid, version, variant));
 
@@ -47,15 +54,37 @@ public sealed class RuntimeActivationHealthMonitorTests
     [Fact]
     public async Task WaitForReadyAsync_fails_closed_when_process_launch_produces_no_proof()
     {
-        var monitor = new NamedPipeRuntimeActivationHealthMonitor(TimeSpan.FromMilliseconds(50));
+        var monitor = new NamedPipeRuntimeActivationHealthMonitor(TimeSpan.FromMilliseconds(50), _ => StagedBackendPath());
 
-        var result = await monitor.WaitForReadyAsync("unused", Identity, Request(), default);
+        var result = await monitor.WaitForReadyAsync(_installPath, Identity, Request(), default);
 
         Assert.False(result.Ready);
         Assert.Equal("activation_timeout", result.ErrorCode);
     }
 
+    [Fact]
+    public async Task WaitForReadyAsync_rejects_a_forged_same_user_pipe_client_even_when_its_proof_claims_the_backend_pid()
+    {
+        var request = Request();
+        // This test process is the actual same-user pipe client, but is not the staged backend executable.
+        var monitor = new NamedPipeRuntimeActivationHealthMonitor(TimeSpan.FromSeconds(2));
+        var waiting = monitor.WaitForReadyAsync(_installPath, Identity, request, default);
+
+        await SendProofAsync(request, new RuntimeActivationProof(1, "ready", request.SingleUseToken, request.Nonce, Environment.ProcessId, "5.15.0", "cpu"));
+
+        var result = await waiting;
+        Assert.False(result.Ready);
+        Assert.Equal("activation_invalid_proof", result.ErrorCode);
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_installPath)) Directory.Delete(_installPath, true);
+    }
+
     private static ActivationRequest Request() => new($"vrcnt-activation-{Guid.NewGuid():N}", "token", "nonce");
+
+    private string StagedBackendPath() => Path.Combine(_installPath, "VRCNT-backend.exe");
 
     private static async Task SendProofAsync(ActivationRequest request, RuntimeActivationProof proof)
     {

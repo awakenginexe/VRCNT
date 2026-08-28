@@ -178,9 +178,23 @@ public sealed class RuntimeTransactionEngine(
             journal = journal with { Phase = TransactionPhase.Activate };
             journalStore.WriteAtomic(paths.JournalPath, journal);
             Report(progress, TransactionPhase.Activate, "Waiting for Tauri and backend activation health.");
-            await processCoordinator.LaunchForActivationAsync(request.InstallPath, request.ExpectedIdentity, request.Activation, CancellationToken.None);
-            var health = await activationHealthMonitor.WaitForReadyAsync(request.InstallPath, request.ExpectedIdentity, request.Activation, CancellationToken.None);
-            if (!health.Ready) throw new InvalidDataException(health.ErrorCode ?? "activation_unhealthy");
+            using (var activationLifetime = new CancellationTokenSource())
+            {
+                // Calling the monitor creates the pipe before the fast backend can attempt its one proof.
+                var healthTask = activationHealthMonitor.WaitForReadyAsync(request.InstallPath, request.ExpectedIdentity, request.Activation, activationLifetime.Token);
+                try
+                {
+                    await processCoordinator.LaunchForActivationAsync(request.InstallPath, request.ExpectedIdentity, request.Activation, CancellationToken.None);
+                    var health = await healthTask;
+                    if (!health.Ready) throw new InvalidDataException(health.ErrorCode ?? "activation_unhealthy");
+                }
+                finally
+                {
+                    activationLifetime.Cancel();
+                    try { await healthTask; }
+                    catch (OperationCanceledException) { }
+                }
+            }
 
             journal = journal with { Phase = TransactionPhase.Commit };
             journalStore.WriteAtomic(paths.JournalPath, journal);

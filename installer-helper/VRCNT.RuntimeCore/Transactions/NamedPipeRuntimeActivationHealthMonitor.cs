@@ -23,10 +23,21 @@ public sealed record RuntimeActivationProof(
 /// Owns the manager-side named-pipe endpoint.  A launched process alone cannot commit:
 /// it must deliver a complete proof from its actual pipe-client process before this bounded wait expires.
 /// </summary>
-public sealed class NamedPipeRuntimeActivationHealthMonitor(TimeSpan? timeout = null) : IRuntimeActivationHealthMonitor
+public sealed class NamedPipeRuntimeActivationHealthMonitor : IRuntimeActivationHealthMonitor
 {
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
-    private readonly TimeSpan _timeout = timeout ?? TimeSpan.FromSeconds(30);
+    private readonly TimeSpan _timeout;
+    private readonly Func<uint, string?> _clientExecutablePathResolver;
+
+    public NamedPipeRuntimeActivationHealthMonitor(TimeSpan? timeout = null)
+        : this(timeout, ResolveClientExecutablePath) { }
+
+    // Tests supply a deterministic process-image lookup; installer production always uses the Windows process image.
+    public NamedPipeRuntimeActivationHealthMonitor(TimeSpan? timeout, Func<uint, string?> clientExecutablePathResolver)
+    {
+        _timeout = timeout ?? TimeSpan.FromSeconds(30);
+        _clientExecutablePathResolver = clientExecutablePathResolver ?? throw new ArgumentNullException(nameof(clientExecutablePathResolver));
+    }
 
     public async Task<RuntimeActivationHealthResult> WaitForReadyAsync(string installPath, RuntimeIdentity expectedIdentity, ActivationRequest request, CancellationToken cancellationToken)
     {
@@ -44,7 +55,7 @@ public sealed class NamedPipeRuntimeActivationHealthMonitor(TimeSpan? timeout = 
             using var reader = new StreamReader(server, Encoding.UTF8, false, 4096, leaveOpen: true);
             var line = await reader.ReadLineAsync(deadline.Token);
             var proof = string.IsNullOrWhiteSpace(line) ? null : JsonSerializer.Deserialize<RuntimeActivationProof>(line, Json);
-            return IsValid(proof, clientProcessId, expectedIdentity, request)
+            return IsValid(proof, clientProcessId, installPath, expectedIdentity, request)
                 ? new RuntimeActivationHealthResult(true, false, null)
                 : Fail("activation_invalid_proof");
         }
@@ -62,7 +73,7 @@ public sealed class NamedPipeRuntimeActivationHealthMonitor(TimeSpan? timeout = 
         }
     }
 
-    private static bool IsValid(RuntimeActivationProof? proof, uint clientProcessId, RuntimeIdentity expectedIdentity, ActivationRequest request) =>
+    private bool IsValid(RuntimeActivationProof? proof, uint clientProcessId, string installPath, RuntimeIdentity expectedIdentity, ActivationRequest request) =>
         proof is not null
         && proof.ProtocolVersion == 1
         && string.Equals(proof.Status, "ready", StringComparison.Ordinal)
@@ -70,11 +81,41 @@ public sealed class NamedPipeRuntimeActivationHealthMonitor(TimeSpan? timeout = 
         && FixedTimeEquals(proof.Nonce, request.Nonce)
         && proof.BackendPid > 0
         && proof.BackendPid == clientProcessId
+        && ClientRunsStagedBackend(clientProcessId, installPath)
         && string.Equals(proof.AppVersion, expectedIdentity.Version, StringComparison.Ordinal)
         && string.Equals(proof.RuntimeVariant, expectedIdentity.Variant == RuntimeVariant.Cuda ? "cuda" : "cpu", StringComparison.Ordinal);
 
-    private static bool FixedTimeEquals(string candidate, string expected) =>
-        CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(candidate), Encoding.UTF8.GetBytes(expected));
+    private bool ClientRunsStagedBackend(uint clientProcessId, string installPath)
+    {
+        try
+        {
+            var clientPath = _clientExecutablePathResolver(clientProcessId);
+            var expectedPath = Path.GetFullPath(Path.Combine(installPath, "VRCNT-backend.exe"));
+            return !string.IsNullOrWhiteSpace(clientPath)
+                && File.Exists(expectedPath)
+                && string.Equals(Path.GetFullPath(clientPath), expectedPath, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    private static string? ResolveClientExecutablePath(uint clientProcessId)
+    {
+        try
+        {
+            using var client = System.Diagnostics.Process.GetProcessById(checked((int)clientProcessId));
+            return client.MainModule?.FileName;
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception or OverflowException)
+        {
+            return null;
+        }
+    }
+
+    private static bool FixedTimeEquals(string? candidate, string expected) =>
+        candidate is not null && CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(candidate), Encoding.UTF8.GetBytes(expected));
 
     private static RuntimeActivationHealthResult Fail(string errorCode) => new(false, false, errorCode);
 

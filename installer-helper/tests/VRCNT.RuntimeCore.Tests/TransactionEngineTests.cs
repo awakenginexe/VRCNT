@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Diagnostics;
+using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
 using VRCNT.RuntimeCore.Archive;
@@ -343,6 +344,78 @@ public sealed class TransactionEngineTests : IDisposable
         Assert.Equal("old-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
     }
 
+    [Fact]
+    public async Task ExecuteAsync_starts_the_real_pipe_listener_before_launch_and_commits_only_after_a_staged_backend_proof()
+    {
+        var request = CreateRequest("real-listener", "valid-proof") with
+        {
+            Activation = new ActivationRequest($"vrcnt-activation-{Guid.NewGuid():N}", "token", "nonce"),
+        };
+        WriteActiveRuntime(request);
+        var processes = new ImmediateProofProcessCoordinator([ProofFor(request)]);
+        var monitor = new NamedPipeRuntimeActivationHealthMonitor(
+            TimeSpan.FromSeconds(2), _ => Path.Combine(request.InstallPath, "VRCNT-backend.exe"));
+        var state = new RecordingStateTransition();
+        var engine = CreateEngine(processes: processes, health: monitor, stateTransition: state);
+
+        var result = await engine.ExecuteAsync(request, null, default);
+
+        Assert.True(result.Succeeded);
+        Assert.True(processes.LaunchCalled);
+        Assert.Equal(request.ExpectedIdentity, state.ActiveIdentity);
+        Assert.Equal("new-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_rolls_back_when_real_listener_receives_no_post_launch_proof()
+    {
+        var request = CreateRequest("real-listener", "launch-only") with
+        {
+            Activation = new ActivationRequest($"vrcnt-activation-{Guid.NewGuid():N}", "token", "nonce"),
+        };
+        WriteActiveRuntime(request);
+        var processes = new TestProcessCoordinator(new(true, [], false, null));
+        var monitor = new NamedPipeRuntimeActivationHealthMonitor(
+            TimeSpan.FromMilliseconds(50), _ => Path.Combine(request.InstallPath, "VRCNT-backend.exe"));
+        var engine = CreateEngine(processes: processes, health: monitor);
+
+        var result = await engine.ExecuteAsync(request, null, default);
+
+        Assert.False(result.Succeeded);
+        Assert.True(result.RolledBack);
+        Assert.True(processes.LaunchCalled);
+        Assert.Equal("old-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
+    }
+
+    [Theory]
+    [InlineData("stale")]
+    [InlineData("forged")]
+    [InlineData("duplicate")]
+    public async Task ExecuteAsync_rejects_forged_stale_or_duplicate_actual_pipe_proofs(string proofMode)
+    {
+        var request = CreateRequest("real-listener", proofMode) with
+        {
+            Activation = new ActivationRequest($"vrcnt-activation-{Guid.NewGuid():N}", "token", "nonce"),
+        };
+        WriteActiveRuntime(request);
+        var valid = ProofFor(request);
+        var proofs = proofMode == "duplicate"
+            ? new[] { valid with { Token = "stale-token" }, valid }
+            : new[] { proofMode == "stale" ? valid with { Nonce = "stale-nonce" } : valid };
+        var processes = new ImmediateProofProcessCoordinator(proofs);
+        var monitor = new NamedPipeRuntimeActivationHealthMonitor(
+            TimeSpan.FromSeconds(2), _ => proofMode == "forged"
+                ? Path.Combine(request.InstallPath, "forged-client.exe")
+                : Path.Combine(request.InstallPath, "VRCNT-backend.exe"));
+        var engine = CreateEngine(processes: processes, health: monitor);
+
+        var result = await engine.ExecuteAsync(request, null, default);
+
+        Assert.False(result.Succeeded);
+        Assert.True(result.RolledBack);
+        Assert.Equal("old-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root)) Directory.Delete(_root, true);
@@ -353,7 +426,7 @@ public sealed class TransactionEngineTests : IDisposable
         TestExtractor? extractor = null,
         IVolumeIdentityProbe? probe = null,
         IAvailableSpaceProbe? space = null,
-        TestProcessCoordinator? processes = null,
+        IRuntimeProcessCoordinator? processes = null,
         IRuntimeDirectoryMover? mover = null,
         IRuntimeActivationHealthMonitor? health = null,
         Action? onCommit = null,
@@ -471,6 +544,27 @@ public sealed class TransactionEngineTests : IDisposable
         public Task<ProcessStopResult> ForceCloseRemainingAsync(IReadOnlyList<int> processIds, CancellationToken cancellationToken) { ForceCloseCalled = true; return Task.FromResult(new ProcessStopResult(true, [], false, null)); }
         public Task LaunchForActivationAsync(string installPath, RuntimeIdentity expectedIdentity, ActivationRequest request, CancellationToken cancellationToken) { LaunchCalled = true; return Task.CompletedTask; }
         public Task RelaunchActiveRuntimeAsync(CancellationToken cancellationToken) { RelaunchCalled = true; return Task.CompletedTask; }
+    }
+
+    private static RuntimeActivationProof ProofFor(RuntimeReplacementRequest request) => new(
+        1, "ready", request.Activation.SingleUseToken, request.Activation.Nonce, Environment.ProcessId,
+        request.ExpectedIdentity.Version, "cpu");
+
+    private sealed class ImmediateProofProcessCoordinator(IEnumerable<RuntimeActivationProof> proofs) : IRuntimeProcessCoordinator
+    {
+        public bool LaunchCalled { get; private set; }
+        public Task<ProcessStopResult> RequestGracefulStopAsync(CancellationToken cancellationToken) => Task.FromResult(new ProcessStopResult(true, [], false, null));
+        public Task<bool> AreKnownProcessesStoppedAsync(CancellationToken cancellationToken) => Task.FromResult(true);
+        public async Task LaunchForActivationAsync(string installPath, RuntimeIdentity expectedIdentity, ActivationRequest activation, CancellationToken cancellationToken)
+        {
+            LaunchCalled = true;
+            using var client = new NamedPipeClientStream(".", activation.PipeName, PipeDirection.Out, PipeOptions.Asynchronous);
+            await client.ConnectAsync(0, cancellationToken);
+            await using var writer = new StreamWriter(client) { AutoFlush = true };
+            foreach (var proof in proofs)
+                await writer.WriteLineAsync(JsonSerializer.Serialize(proof));
+        }
+        public Task RelaunchActiveRuntimeAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class TestHealthMonitor(bool ready = true, Action? onCheck = null) : IRuntimeActivationHealthMonitor
