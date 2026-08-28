@@ -112,6 +112,22 @@ if ($hasPortableBackend -and $hasBuiltBackend) { throw 'The backend payload cont
 $backendExecutable = if ($hasPortableBackend) { $portableBackend } elseif ($hasBuiltBackend) { $builtBackend } else { $null }
 if ($null -eq $backendExecutable) { throw 'The backend payload is missing its VRCNT backend executable.' }
 if (Test-Path -LiteralPath (Join-Path $backend 'VRCNT.runtime.json')) { throw 'The backend payload must not provide a runtime identity marker.' }
+$backendExecutablePattern = '(?i)^vrcnt-backend(?:[-_.][^.]+)*\.exe$'
+$backendPayloadDirectoryPattern = '(?i)^vrcnt-backend(?:[-_.][^.]+)*$'
+$additionalBackendExecutables = @(Get-ChildItem -LiteralPath $backend -File -Recurse -Force | Where-Object {
+  $_.FullName -ne $backendExecutable -and $_.Name -match $backendExecutablePattern
+})
+if ($additionalBackendExecutables.Count -gt 0) {
+  $paths = $additionalBackendExecutables | ForEach-Object { Get-RelativeFilePath ($backend.TrimEnd([char[]]'\/') + [IO.Path]::DirectorySeparatorChar) $_.FullName }
+  throw "The backend payload contains an additional backend executable: $($paths -join ', ')."
+}
+$nestedBackendPayloadDirectories = @(Get-ChildItem -LiteralPath $backend -Directory -Recurse -Force | Where-Object {
+  $_.Name -match $backendPayloadDirectoryPattern
+})
+if ($nestedBackendPayloadDirectories.Count -gt 0) {
+  $paths = $nestedBackendPayloadDirectories | ForEach-Object { Get-RelativeFilePath ($backend.TrimEnd([char[]]'\/') + [IO.Path]::DirectorySeparatorChar) $_.FullName }
+  throw "The backend payload contains a nested backend payload directory: $($paths -join ', ')."
+}
 
 $shellFiles = @{}
 $shellRoot = $shell.TrimEnd([char[]]'\/') + [IO.Path]::DirectorySeparatorChar

@@ -146,6 +146,27 @@ class RuntimePayloadBoundaryTests(unittest.TestCase):
             result.stdout + result.stderr,
         )
 
+    def test_cpu_staging_rejects_a_nested_cuda_backend_and_creates_no_payload(self):
+        self._write(
+            self.cpu_backend / "nested-cuda" / "VRCNT-BACKEND-CUDA.EXE",
+            b"nested-cuda-backend",
+        )
+
+        result = self._powershell(
+            STAGE_SCRIPT,
+            "-Variant", "cpu",
+            "-ShellPath", self.shell,
+            "-BackendPayloadPath", self.cpu_backend,
+            "-OutputPath", self.cpu_payload,
+            "-Version", VERSION,
+            "-SourceCommit", SOURCE_COMMIT,
+            "-BuildRecipe", BUILD_RECIPE,
+        )
+
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("additional backend executable", (result.stdout + result.stderr).lower())
+        self.assertFalse(self.cpu_payload.exists())
+
     def test_shared_analysis_selects_only_the_requested_environment(self):
         spec_root = ROOT / "spec"
         sys.path.insert(0, str(spec_root))
