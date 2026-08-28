@@ -19,5 +19,6 @@
   <ItemGroup>
     <Compile Include="..\..\VRCNT.Setup\CommandLine\SetupCommandLine.cs" Link="CommandLine\SetupCommandLine.cs" />
     <Compile Include="..\..\VRCNT.Setup\CommandLine\SetupCommandDispatcher.cs" Link="CommandLine\SetupCommandDispatcher.cs" />
+    <Compile Include="..\..\VRCNT.Setup\SetupToolLayout.cs" Link="Setup\SetupToolLayout.cs" />
   </ItemGroup>
 </Project>

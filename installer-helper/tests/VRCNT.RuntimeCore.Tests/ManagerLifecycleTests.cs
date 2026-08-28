@@ -6,6 +6,7 @@ using System.Text.Json;
 using VRCNT.RuntimeCore.Manager;
 using VRCNT.RuntimeCore.Models;
 using VRCNT.Setup.CommandLine;
+using VRCNT.Setup;
 using Xunit;
 
 namespace VRCNT.RuntimeCore.Tests;
@@ -151,7 +152,7 @@ public sealed class ManagerLifecycleTests : IDisposable
                 return Task.CompletedTask;
             });
 
-        await Assert.ThrowsAsync<ManagerHandoffException>(() => handoff.PromoteAsync(candidatePath, default));
+        await Assert.ThrowsAsync<ManagerHandoffException>(() => PromoteCandidateAsync(handoff, candidatePath));
 
         Assert.Equal(new[] { "candidate-self-check", "exit-old-manager", "candidate-self-check", "promoted-self-check" }, events);
         Assert.Equal("old-manager", await File.ReadAllTextAsync(managerPath));
@@ -184,7 +185,7 @@ public sealed class ManagerLifecycleTests : IDisposable
                 return Task.CompletedTask;
             });
 
-        await Assert.ThrowsAsync<ManagerHandoffException>(() => handoff.PromoteAsync(candidatePath, default));
+        await Assert.ThrowsAsync<ManagerHandoffException>(() => PromoteCandidateAsync(handoff, candidatePath));
 
         Assert.Equal(new[] { "candidate-self-check", "exit-old-manager", "candidate-self-check" }, events);
         Assert.Equal("old-manager", await File.ReadAllTextAsync(managerPath));
@@ -196,6 +197,7 @@ public sealed class ManagerLifecycleTests : IDisposable
     {
         var managerPath = WriteFile(Path.Combine("VRCNTInstaller", "VRCNT.Setup.exe"), "old-manager");
         var candidatePath = WriteFile(Path.Combine("VRCNTInstaller", "repair", "VRCNT.Setup.exe"), "new-manager");
+        WriteFile(Path.Combine("VRCNTInstaller", "repair", "VRCNT.Setup.exe.sig"), "signature");
         var checks = 0;
         var handoff = new ManagerHandoff(
             managerPath,
@@ -209,7 +211,7 @@ public sealed class ManagerLifecycleTests : IDisposable
             (_, _) => Task.FromResult(new ManagerSelfCheckResult(true, true, null)),
             _ => Task.CompletedTask);
 
-        await Assert.ThrowsAsync<ManagerHandoffException>(() => handoff.PromoteAsync(candidatePath, default));
+        await Assert.ThrowsAsync<ManagerHandoffException>(() => PromoteCandidateAsync(handoff, candidatePath));
 
         Assert.Equal("old-manager", await File.ReadAllTextAsync(managerPath));
         Assert.Equal("tampered-manager", await File.ReadAllTextAsync(candidatePath));
@@ -222,13 +224,14 @@ public sealed class ManagerLifecycleTests : IDisposable
         var managerPath = Path.Combine(_root, "VRCNTInstaller", "VRCNT.Setup.exe");
         Directory.CreateDirectory(managerPath);
         var candidatePath = WriteFile(Path.Combine("VRCNTInstaller", "repair", "VRCNT.Setup.exe"), "new-manager");
+        WriteFile(Path.Combine("VRCNTInstaller", "repair", "VRCNT.Setup.exe.sig"), "signature");
         var handoff = new ManagerHandoff(
             managerPath,
             (_, _) => Task.FromResult(new ManagerSelfCheckResult(true, true, null)),
             (_, _) => Task.FromResult(new ManagerSelfCheckResult(true, true, null)),
             _ => Task.CompletedTask);
 
-        var exception = await Assert.ThrowsAsync<ManagerHandoffException>(() => handoff.PromoteAsync(candidatePath, default));
+        var exception = await Assert.ThrowsAsync<ManagerHandoffException>(() => PromoteCandidateAsync(handoff, candidatePath));
 
         Assert.Equal("manager_handoff_failed", exception.FailureCode);
         Assert.True(Directory.Exists(managerPath));
@@ -377,6 +380,34 @@ public sealed class ManagerLifecycleTests : IDisposable
         Assert.False(string.IsNullOrWhiteSpace(candidatePath));
     }
 
+    [Fact]
+    public async Task Public_lifecycle_promotion_rejects_a_version_matching_but_unsigned_candidate()
+    {
+        var managerPath = WriteFile(Path.Combine("VRCNTInstaller", "VRCNT.Setup.exe"), "old-manager");
+        var candidatePath = WriteFile(Path.Combine("VRCNTInstaller", "repair", "VRCNT.Setup.exe"), "new-manager");
+        var lifecycle = CreateLifecycle(managerPath, CreateManifest(), CreateStateStore(managerPath), new FixedRepairSource(candidatePath));
+
+        await Assert.ThrowsAsync<ManagerHandoffException>(() => lifecycle.PromoteAsync(candidatePath, default));
+
+        Assert.Equal("old-manager", await File.ReadAllTextAsync(managerPath));
+        Assert.Equal("new-manager", await File.ReadAllTextAsync(candidatePath));
+    }
+
+    [Fact]
+    public void Published_layout_requires_and_copies_both_authenticated_tool_inputs_for_a_worker()
+    {
+        var source = Path.Combine(_root, "published");
+        var worker = Path.Combine(_root, "VRCNTInstaller", "repair", "worker");
+        WriteFile(Path.Combine("published", "minisign.exe"), "verified-minisign");
+        WriteFile(Path.Combine("published", "7za.exe"), "verified-7za");
+
+        var layout = SetupToolLayout.Require(source);
+        SetupToolLayout.CopyToWorker(layout, worker);
+
+        Assert.Equal("verified-minisign", File.ReadAllText(Path.Combine(worker, "minisign.exe")));
+        Assert.Equal("verified-7za", File.ReadAllText(Path.Combine(worker, "7za.exe")));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root)) Directory.Delete(_root, true);
@@ -428,6 +459,14 @@ public sealed class ManagerLifecycleTests : IDisposable
             new Dictionary<string, VariantPackage>());
 
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+
+    private static Task PromoteCandidateAsync(ManagerHandoff handoff, string candidatePath) => handoff.PromoteAsync(
+        candidatePath,
+        new ManagerArtifactExpectation(
+            new BootstrapperMetadata("VRCNT.Setup.exe", Encoding.UTF8.GetByteCount("new-manager"), Hash("new-manager"), 1, 1, 1, 1),
+            candidatePath + ".sig",
+            new ManagerSelfCheck(ManagerCapabilities.Current, new FixedSignatureVerifier(true))),
+        default);
 
     private sealed class FixedRepairSource(string candidatePath) : IManagerRepairSource
     {

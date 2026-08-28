@@ -37,8 +37,9 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
         var managerDirectory = Path.Combine(localAppData, "VRCNTInstaller");
         var managerPath = Path.Combine(managerDirectory, "VRCNT.Setup.exe");
         var cacheDirectory = Path.Combine(managerDirectory, "runtime-cache");
-        var minisignPath = Path.Combine(AppContext.BaseDirectory, "minisign.exe");
-        var sevenZipPath = Path.Combine(AppContext.BaseDirectory, "7za.exe");
+        var tools = SetupToolLayout.Require(AppContext.BaseDirectory);
+        var minisignPath = tools.MinisignPath;
+        var sevenZipPath = tools.SevenZipPath;
         var manifestLoader = new VRCNT.RuntimeCore.Manifest.ManifestLoader(new VRCNT.RuntimeCore.Security.MinisignVerifier(minisignPath));
         var signatureVerifier = new MinisignSetupSignatureVerifier(minisignPath);
         var source = new HttpManagerRepairSource(capabilities, manifestLoader, signatureVerifier, new Uri(ReleaseEndpoint), managerDirectory);
@@ -93,6 +94,9 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
         Directory.CreateDirectory(workerDirectory);
         var workerPath = Path.Combine(workerDirectory, "VRCNT.Setup.exe");
         File.Copy(currentPath, workerPath);
+        var tools = SetupToolLayout.Require(AppContext.BaseDirectory);
+        SetupToolLayout.CopyToWorker(tools, workerDirectory);
+        SetupToolLayout.CopyToWorker(tools, _managerDirectory);
 
         var start = new ProcessStartInfo(workerPath)
         {

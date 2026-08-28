@@ -24,7 +24,14 @@ public sealed record VerifiedManagerUpdate(
     BootstrapperMetadata? Bootstrapper = null,
     PackageManifest? Manifest = null);
 
-public sealed record ManagerArtifactExpectation(long Size, string Sha256);
+public sealed record ManagerArtifactExpectation(
+    BootstrapperMetadata Bootstrapper,
+    string SignaturePath,
+    ManagerSelfCheck SelfCheck)
+{
+    public long Size => Bootstrapper.Size;
+    public string Sha256 => Bootstrapper.Sha256;
+}
 
 public interface IManagerRepairSource
 {
@@ -51,23 +58,20 @@ public sealed class ManagerHandoff
 
     private readonly Func<string, CancellationToken, Task<ManagerSelfCheckResult>> _candidateSelfCheck;
 
-    public async Task PromoteAsync(string verifiedSetupPath, CancellationToken cancellationToken)
-        => await PromoteAsync(verifiedSetupPath, _candidateSelfCheck, _newManagerSelfCheck, cancellationToken);
-
     public async Task PromoteAsync(
         string verifiedSetupPath,
-        Func<string, CancellationToken, Task<ManagerSelfCheckResult>> candidateSelfCheck,
-        Func<string, CancellationToken, Task<ManagerSelfCheckResult>> promotedSelfCheck,
+        ManagerArtifactExpectation expectedArtifact,
         CancellationToken cancellationToken)
-        => await PromoteAsync(verifiedSetupPath, candidateSelfCheck, promotedSelfCheck, null, cancellationToken);
+        => await PromoteAsync(verifiedSetupPath, expectedArtifact, _candidateSelfCheck, _newManagerSelfCheck, cancellationToken);
 
     public async Task PromoteAsync(
         string verifiedSetupPath,
+        ManagerArtifactExpectation expectedArtifact,
         Func<string, CancellationToken, Task<ManagerSelfCheckResult>> candidateSelfCheck,
         Func<string, CancellationToken, Task<ManagerSelfCheckResult>> promotedSelfCheck,
-        ManagerArtifactExpectation? expectedArtifact,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(expectedArtifact);
         var candidatePath = Path.GetFullPath(verifiedSetupPath);
         EnsureSameVolume(candidatePath, _stableManagerPath);
         EnsureStagedBelowManagerDirectory(candidatePath, _stableManagerPath);
@@ -76,7 +80,7 @@ public sealed class ManagerHandoff
             throw new ManagerHandoffException("The manager cannot replace itself from its active image.", "candidate_is_active_manager");
 
         await EnsureSelfCheckAsync(candidatePath, candidateSelfCheck, cancellationToken);
-        var expected = expectedArtifact ?? await CaptureArtifactAsync(candidatePath, cancellationToken);
+        await VerifyArtifactAsync(candidatePath, expectedArtifact, cancellationToken);
 
         var backupPath = _stableManagerPath + ".last-known-good";
         var hadPrevious = File.Exists(_stableManagerPath);
@@ -84,7 +88,7 @@ public sealed class ManagerHandoff
         // The old process may have held the candidate path open or another process may have
         // changed it while shutdown was in progress. Re-verify immediately before promotion.
         await EnsureSelfCheckAsync(candidatePath, candidateSelfCheck, cancellationToken);
-        await VerifyArtifactAsync(candidatePath, expected, cancellationToken);
+        await VerifyArtifactAsync(candidatePath, expectedArtifact, cancellationToken);
         var promoted = false;
         try
         {
@@ -95,6 +99,7 @@ public sealed class ManagerHandoff
                 File.Move(candidatePath, _stableManagerPath);
             promoted = true;
 
+            await VerifyArtifactAsync(_stableManagerPath, expectedArtifact, cancellationToken);
             await EnsureSelfCheckAsync(_stableManagerPath, promotedSelfCheck, cancellationToken);
             TryDeleteBackup(backupPath);
         }
@@ -133,7 +138,7 @@ public sealed class ManagerHandoff
         if (hadPrevious && File.Exists(backupPath)) File.Move(backupPath, stablePath, true);
     }
 
-    private static async Task<ManagerArtifactExpectation> CaptureArtifactAsync(string path, CancellationToken cancellationToken)
+    private static async Task<(long Size, string Sha256)> CaptureArtifactAsync(string path, CancellationToken cancellationToken)
     {
         try
         {
@@ -141,7 +146,7 @@ public sealed class ManagerHandoff
             var size = stream.Length;
             var hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken)).ToLowerInvariant();
             if (stream.Length != size) throw new IOException("The manager candidate changed while it was being hashed.");
-            return new ManagerArtifactExpectation(size, hash);
+            return (size, hash);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -155,6 +160,9 @@ public sealed class ManagerHandoff
 
     private static async Task VerifyArtifactAsync(string path, ManagerArtifactExpectation expected, CancellationToken cancellationToken)
     {
+        var signedCheck = await expected.SelfCheck.CheckAsync(path, expected.Bootstrapper, expected.SignaturePath, cancellationToken);
+        if (!signedCheck.IsIntact || !signedCheck.IsCompatible)
+            throw new ManagerHandoffException("The manager artifact failed signed verification.", signedCheck.FailureCode ?? "manager_verification_failed");
         var actual = await CaptureArtifactAsync(path, cancellationToken);
         if (actual.Size != expected.Size || !string.Equals(actual.Sha256, expected.Sha256, StringComparison.OrdinalIgnoreCase))
             throw new ManagerHandoffException("The manager candidate changed before promotion.", "candidate_changed");
@@ -296,9 +304,9 @@ public sealed class SetupManagerLifecycle : IManagerLifecycle
 
             await _handoff.PromoteAsync(
                 update.SetupPath,
+                new ManagerArtifactExpectation(expectedBootstrapper, update.SignaturePath, _selfCheck),
                 (path, _) => _selfCheck.CheckAsync(path, expectedBootstrapper, update.SignaturePath, cancellationToken),
                 (path, _) => _selfCheck.CheckAsync(path, expectedBootstrapper, update.SignaturePath, cancellationToken),
-                new ManagerArtifactExpectation(expectedBootstrapper.Size, expectedBootstrapper.Sha256),
                 cancellationToken);
             // The promoted image was just verified against this signed hash. Reuse it for
             // diagnostics so a post-promotion read failure cannot turn success into failure.
@@ -339,7 +347,19 @@ public sealed class SetupManagerLifecycle : IManagerLifecycle
     }
 
     public Task PromoteAsync(string verifiedSetupPath, CancellationToken cancellationToken) =>
-        _handoff.PromoteAsync(verifiedSetupPath, cancellationToken);
+        Task.FromException(new ManagerHandoffException(
+            "Promotion requires signed bootstrapper metadata and its setup signature.",
+            "signed_metadata_required"));
+
+    public Task PromoteAsync(
+        string verifiedSetupPath,
+        BootstrapperMetadata expectedBootstrapper,
+        string signaturePath,
+        CancellationToken cancellationToken) =>
+        _handoff.PromoteAsync(
+            verifiedSetupPath,
+            new ManagerArtifactExpectation(expectedBootstrapper, signaturePath, _selfCheck),
+            cancellationToken);
 
 }
 

@@ -15,8 +15,17 @@
     <Version>5.15.0</Version>
     <AssemblyVersion>5.15.0.0</AssemblyVersion>
     <FileVersion>5.15.0.0</FileVersion>
+    <SetupToolSourceDirectory Condition="'$(SetupToolSourceDirectory)' == ''">$(MSBuildProjectDirectory)\..\..\src-tauri\nsis\bin</SetupToolSourceDirectory>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\VRCNT.RuntimeCore\VRCNT.RuntimeCore.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <AuthenticatedSetupTool Include="$(SetupToolSourceDirectory)\minisign.exe" />
+    <AuthenticatedSetupTool Include="$(SetupToolSourceDirectory)\7za.exe" />
+  </ItemGroup>
+  <Target Name="ValidateAndCopyAuthenticatedSetupTools" AfterTargets="Publish">
+    <Error Condition="!Exists('%(AuthenticatedSetupTool.Identity)')" Text="Authenticated setup tool input is missing: %(AuthenticatedSetupTool.Identity). Provide the verified release/build tool directory through SetupToolSourceDirectory." />
+    <Copy SourceFiles="@(AuthenticatedSetupTool)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
+  </Target>
 </Project>
