@@ -202,8 +202,16 @@ const useStartPython = () => {
             const runtimeActivationContext = await invoke("get_runtime_activation_context");
             const runtimeActivationArgs = runtimeActivationContext
                 ? [
+                    "--runtime-activation-pipe",
+                    runtimeActivationContext.pipeName,
                     "--runtime-activation-token",
                     runtimeActivationContext.activationToken,
+                    "--runtime-activation-nonce",
+                    runtimeActivationContext.nonce,
+                    "--runtime-activation-app-version",
+                    runtimeActivationContext.appVersion,
+                    "--runtime-activation-runtime-variant",
+                    runtimeActivationContext.runtimeVariant,
                     "--runtime-activation-generation",
                     String(sessionId),
                 ]
@@ -256,11 +264,7 @@ const useStartPython = () => {
                     parsed_data = JSON.parse(line);
                     receiveRoutes(parsed_data);
                     if (runtimeActivationHandshake) {
-                        void runtimeActivationHandshake.accept(parsed_data).catch((error) => {
-                            if (sessionGuardRef.current.isCurrent(sessionId)) {
-                                markBackendStartupError(error);
-                            }
-                        });
+                        runtimeActivationHandshake.accept(parsed_data);
                     }
                 } catch (error) {
                     console.log(error, line);
@@ -296,8 +300,8 @@ const useStartPython = () => {
                         activationToken: runtimeActivationContext.activationToken,
                         generation: sessionId,
                         backendPid: backend_subprocess.pid,
-                        signalReady: () => invoke("signal_runtime_activation_ready", { backendReady: true }),
                     });
+                    const readinessResponse = runtimeActivationHandshake.waitForResponse();
                     const readinessRequest = await asyncStdoutToPython(
                         RUNTIME_ACTIVATION_READINESS_ENDPOINT,
                         {
@@ -308,6 +312,7 @@ const useStartPython = () => {
                     if (!readinessRequest.ok) {
                         throw readinessRequest.error;
                     }
+                    await readinessResponse;
                 }
                 return backend_subprocess;
             } catch (error) {

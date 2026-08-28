@@ -41,16 +41,9 @@ public sealed class RuntimeDirectoryMover : IRuntimeDirectoryMover
 
 public sealed record RuntimeActivationHealthResult(bool Ready, bool Retryable, string? ErrorCode);
 
-// Task 5 supplies this monitor with the combined Tauri-plus-backend readiness handshake.
 public interface IRuntimeActivationHealthMonitor
 {
-    Task<RuntimeActivationHealthResult> WaitForReadyAsync(string installPath, ActivationRequest request, CancellationToken cancellationToken);
-}
-
-public sealed class ActivationProtocolRequiredHealthMonitor : IRuntimeActivationHealthMonitor
-{
-    public Task<RuntimeActivationHealthResult> WaitForReadyAsync(string installPath, ActivationRequest request, CancellationToken cancellationToken) =>
-        Task.FromResult(new RuntimeActivationHealthResult(false, false, "activation_protocol_unavailable"));
+    Task<RuntimeActivationHealthResult> WaitForReadyAsync(string installPath, RuntimeIdentity expectedIdentity, ActivationRequest request, CancellationToken cancellationToken);
 }
 
 public sealed class Task3RuntimeStateTransition : IRuntimeStateTransition
@@ -185,8 +178,8 @@ public sealed class RuntimeTransactionEngine(
             journal = journal with { Phase = TransactionPhase.Activate };
             journalStore.WriteAtomic(paths.JournalPath, journal);
             Report(progress, TransactionPhase.Activate, "Waiting for Tauri and backend activation health.");
-            await processCoordinator.LaunchForActivationAsync(request.InstallPath, request.Activation, CancellationToken.None);
-            var health = await activationHealthMonitor.WaitForReadyAsync(request.InstallPath, request.Activation, CancellationToken.None);
+            await processCoordinator.LaunchForActivationAsync(request.InstallPath, request.ExpectedIdentity, request.Activation, CancellationToken.None);
+            var health = await activationHealthMonitor.WaitForReadyAsync(request.InstallPath, request.ExpectedIdentity, request.Activation, CancellationToken.None);
             if (!health.Ready) throw new InvalidDataException(health.ErrorCode ?? "activation_unhealthy");
 
             journal = journal with { Phase = TransactionPhase.Commit };

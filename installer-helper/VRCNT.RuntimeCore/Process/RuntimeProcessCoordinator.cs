@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using VRCNT.RuntimeCore.Models;
 
 namespace VRCNT.RuntimeCore.Process;
 
@@ -9,7 +10,7 @@ public interface IRuntimeProcessCoordinator
 {
     Task<ProcessStopResult> RequestGracefulStopAsync(CancellationToken cancellationToken);
     Task<bool> AreKnownProcessesStoppedAsync(CancellationToken cancellationToken);
-    Task LaunchForActivationAsync(string installPath, ActivationRequest request, CancellationToken cancellationToken);
+    Task LaunchForActivationAsync(string installPath, RuntimeIdentity expectedIdentity, ActivationRequest request, CancellationToken cancellationToken);
     Task RelaunchActiveRuntimeAsync(CancellationToken cancellationToken);
 }
 
@@ -57,7 +58,7 @@ public sealed class RuntimeProcessCoordinator(TimeSpan? gracefulShutdownTimeout 
         return Task.FromResult(new ProcessStopResult(remaining.Count == 0, remaining.Select(process => process.Id).ToArray(), remaining.Count > 0, remaining.Count > 0 ? "processes_running" : null));
     }
 
-    public Task LaunchForActivationAsync(string installPath, ActivationRequest request, CancellationToken cancellationToken)
+    public Task LaunchForActivationAsync(string installPath, RuntimeIdentity expectedIdentity, ActivationRequest request, CancellationToken cancellationToken)
     {
         _lastInstallPath = installPath;
         var executable = Path.Combine(installPath, "VRCNT.exe");
@@ -65,6 +66,9 @@ public sealed class RuntimeProcessCoordinator(TimeSpan? gracefulShutdownTimeout 
         var start = new ProcessStartInfo(executable) { UseShellExecute = false };
         start.ArgumentList.Add("--runtime-activation-pipe"); start.ArgumentList.Add(request.PipeName);
         start.ArgumentList.Add("--runtime-activation-token"); start.ArgumentList.Add(request.SingleUseToken);
+        start.ArgumentList.Add("--runtime-activation-nonce"); start.ArgumentList.Add(request.Nonce);
+        start.ArgumentList.Add("--runtime-activation-app-version"); start.ArgumentList.Add(expectedIdentity.Version);
+        start.ArgumentList.Add("--runtime-activation-runtime-variant"); start.ArgumentList.Add(expectedIdentity.Variant == RuntimeVariant.Cuda ? "cuda" : "cpu");
         _ = System.Diagnostics.Process.Start(start) ?? throw new InvalidOperationException("Unable to start VRCNT for runtime activation.");
         return Task.CompletedTask;
     }

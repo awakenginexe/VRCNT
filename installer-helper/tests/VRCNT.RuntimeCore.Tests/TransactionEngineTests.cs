@@ -355,7 +355,7 @@ public sealed class TransactionEngineTests : IDisposable
         IAvailableSpaceProbe? space = null,
         TestProcessCoordinator? processes = null,
         IRuntimeDirectoryMover? mover = null,
-        TestHealthMonitor? health = null,
+        IRuntimeActivationHealthMonitor? health = null,
         Action? onCommit = null,
         IRuntimeStateTransition? stateTransition = null,
         Action? onPreflightValidated = null) => new(
@@ -469,13 +469,13 @@ public sealed class TransactionEngineTests : IDisposable
         public Task<ProcessStopResult> RequestGracefulStopAsync(CancellationToken cancellationToken) { onStop?.Invoke(); return Task.FromResult(stopResult); }
         public Task<bool> AreKnownProcessesStoppedAsync(CancellationToken cancellationToken) => Task.FromResult(knownProcessesStopped ?? stopResult.Stopped);
         public Task<ProcessStopResult> ForceCloseRemainingAsync(IReadOnlyList<int> processIds, CancellationToken cancellationToken) { ForceCloseCalled = true; return Task.FromResult(new ProcessStopResult(true, [], false, null)); }
-        public Task LaunchForActivationAsync(string installPath, ActivationRequest request, CancellationToken cancellationToken) { LaunchCalled = true; return Task.CompletedTask; }
+        public Task LaunchForActivationAsync(string installPath, RuntimeIdentity expectedIdentity, ActivationRequest request, CancellationToken cancellationToken) { LaunchCalled = true; return Task.CompletedTask; }
         public Task RelaunchActiveRuntimeAsync(CancellationToken cancellationToken) { RelaunchCalled = true; return Task.CompletedTask; }
     }
 
     private sealed class TestHealthMonitor(bool ready = true, Action? onCheck = null) : IRuntimeActivationHealthMonitor
     {
-        public Task<RuntimeActivationHealthResult> WaitForReadyAsync(string installPath, ActivationRequest request, CancellationToken cancellationToken)
+        public Task<RuntimeActivationHealthResult> WaitForReadyAsync(string installPath, RuntimeIdentity expectedIdentity, ActivationRequest request, CancellationToken cancellationToken)
         {
             onCheck?.Invoke();
             return Task.FromResult(new RuntimeActivationHealthResult(ready, false, ready ? null : "activation_unhealthy"));

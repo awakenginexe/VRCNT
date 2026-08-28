@@ -1,43 +1,28 @@
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
-use std::fmt::Write as _;
-use std::fs::OpenOptions;
-use std::io::Write;
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const RUNTIME_ACTIVATION_PIPE_ARGUMENT: &str = "--runtime-activation-pipe";
 pub const RUNTIME_ACTIVATION_TOKEN_ARGUMENT: &str = "--runtime-activation-token";
-pub const RUNTIME_ACTIVATION_PROTOCOL_VERSION: u8 = 1;
-
-static NONCE_COUNTER: AtomicU64 = AtomicU64::new(0);
+pub const RUNTIME_ACTIVATION_NONCE_ARGUMENT: &str = "--runtime-activation-nonce";
+pub const RUNTIME_ACTIVATION_APP_VERSION_ARGUMENT: &str = "--runtime-activation-app-version";
+pub const RUNTIME_ACTIVATION_RUNTIME_VARIANT_ARGUMENT: &str = "--runtime-activation-runtime-variant";
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeActivationFrontendContext {
+    pub pipe_name: String,
     pub activation_token: String,
     pub nonce: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct RuntimeActivationMessage {
-    pub protocol_version: u8,
-    pub status: &'static str,
-    pub token: String,
-    pub nonce: String,
+    pub app_version: String,
+    pub runtime_variant: String,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum RuntimeActivationError {
     MissingArguments,
     InvalidPipeName,
-    TokenMismatch,
-    NonceMismatch,
-    AlreadyCompleted,
-    BackendNotReady,
-    PipeWriteFailed,
+    InvalidRuntimeVariant,
+    RendererProofRejected,
 }
 
 impl std::fmt::Display for RuntimeActivationError {
@@ -49,16 +34,9 @@ impl std::fmt::Display for RuntimeActivationError {
 impl std::error::Error for RuntimeActivationError {}
 
 #[derive(Debug)]
-struct RuntimeActivationBinding {
-    pipe_name: String,
-    token: String,
-    nonce: String,
-}
-
-#[derive(Debug)]
 pub struct RuntimeActivationContext {
-    binding: Option<RuntimeActivationBinding>,
-    completed: Mutex<bool>,
+    binding: Option<RuntimeActivationFrontendContext>,
+    renderer_signal_rejected: Mutex<bool>,
 }
 
 impl RuntimeActivationContext {
@@ -67,164 +45,73 @@ impl RuntimeActivationContext {
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
+        let arguments: Vec<String> = args.into_iter().map(|argument| argument.as_ref().to_owned()).collect();
         let mut pipe_name = None;
-        let mut token = None;
-        let arguments: Vec<String> = args
-            .into_iter()
-            .map(|argument| argument.as_ref().to_owned())
-            .collect();
+        let mut activation_token = None;
+        let mut nonce = None;
+        let mut app_version = None;
+        let mut runtime_variant = None;
+        let mut activation_mode = false;
+
         let mut index = 0;
         while index < arguments.len() {
+            let value = value_after(&arguments, index);
             match arguments[index].as_str() {
-                RUNTIME_ACTIVATION_PIPE_ARGUMENT => {
-                    pipe_name = arguments.get(index + 1).cloned();
-                    index += 1;
-                }
-                RUNTIME_ACTIVATION_TOKEN_ARGUMENT => {
-                    token = arguments.get(index + 1).cloned();
-                    index += 1;
-                }
+                RUNTIME_ACTIVATION_PIPE_ARGUMENT => { activation_mode = true; pipe_name = value; }
+                RUNTIME_ACTIVATION_TOKEN_ARGUMENT => { activation_mode = true; activation_token = value; }
+                RUNTIME_ACTIVATION_NONCE_ARGUMENT => { activation_mode = true; nonce = value; }
+                RUNTIME_ACTIVATION_APP_VERSION_ARGUMENT => { activation_mode = true; app_version = value; }
+                RUNTIME_ACTIVATION_RUNTIME_VARIANT_ARGUMENT => { activation_mode = true; runtime_variant = value; }
                 _ => {}
             }
             index += 1;
         }
 
-        let (Some(pipe_name), Some(token)) = (pipe_name, token) else {
-            return if arguments.iter().any(|argument| {
-                argument == RUNTIME_ACTIVATION_PIPE_ARGUMENT
-                    || argument == RUNTIME_ACTIVATION_TOKEN_ARGUMENT
-            }) {
-                Err(RuntimeActivationError::MissingArguments)
-            } else {
-                Ok(None)
+        if !activation_mode {
+            return Ok(None);
+        }
+        let (Some(pipe_name), Some(activation_token), Some(nonce), Some(app_version), Some(runtime_variant)) =
+            (pipe_name, activation_token, nonce, app_version, runtime_variant) else {
+                return Err(RuntimeActivationError::MissingArguments);
             };
-        };
         if !is_valid_pipe_name(&pipe_name) {
             return Err(RuntimeActivationError::InvalidPipeName);
         }
-        if token.trim().is_empty() {
+        if activation_token.trim().is_empty() || nonce.trim().is_empty() || app_version.trim().is_empty() {
             return Err(RuntimeActivationError::MissingArguments);
+        }
+        if !matches!(runtime_variant.as_str(), "cpu" | "cuda") {
+            return Err(RuntimeActivationError::InvalidRuntimeVariant);
         }
 
         Ok(Some(Self {
-            binding: Some(RuntimeActivationBinding {
-                nonce: generate_nonce(&pipe_name, &token),
-                pipe_name,
-                token,
-            }),
-            completed: Mutex::new(false),
+            binding: Some(RuntimeActivationFrontendContext { pipe_name, activation_token, nonce, app_version, runtime_variant }),
+            renderer_signal_rejected: Mutex::new(false),
         }))
     }
 
     pub fn inactive() -> Self {
-        Self {
-            binding: None,
-            completed: Mutex::new(false),
-        }
+        Self { binding: None, renderer_signal_rejected: Mutex::new(false) }
     }
 
     pub fn frontend_context(&self) -> Option<RuntimeActivationFrontendContext> {
-        self.binding
-            .as_ref()
-            .map(|binding| RuntimeActivationFrontendContext {
-                activation_token: binding.token.clone(),
-                nonce: binding.nonce.clone(),
-            })
+        self.binding.clone()
     }
 
-    pub fn signal_ready(&self, backend_ready: bool) -> Result<bool, RuntimeActivationError> {
-        if !backend_ready {
-            return Err(RuntimeActivationError::BackendNotReady);
-        }
-        let Some(binding) = self.binding.as_ref() else {
-            return Ok(false);
-        };
-        self.complete_if_matches(&binding.token, &binding.nonce, |message| {
-            write_named_pipe(&binding.pipe_name, &message)
-        })?;
-        Ok(true)
+    /// Renderer/webview input is deliberately never a readiness authority.
+    pub fn reject_renderer_ready_signal(&self) -> Result<bool, RuntimeActivationError> {
+        let mut rejected = self.renderer_signal_rejected.lock().map_err(|_| RuntimeActivationError::RendererProofRejected)?;
+        *rejected = true;
+        Err(RuntimeActivationError::RendererProofRejected)
     }
+}
 
-    pub fn complete_if_matches<F>(
-        &self,
-        token: &str,
-        nonce: &str,
-        deliver: F,
-    ) -> Result<(), RuntimeActivationError>
-    where
-        F: FnOnce(RuntimeActivationMessage) -> Result<(), RuntimeActivationError>,
-    {
-        let Some(binding) = self.binding.as_ref() else {
-            return Err(RuntimeActivationError::MissingArguments);
-        };
-        if token != binding.token {
-            return Err(RuntimeActivationError::TokenMismatch);
-        }
-        if nonce != binding.nonce {
-            return Err(RuntimeActivationError::NonceMismatch);
-        }
-
-        let mut completed = self
-            .completed
-            .lock()
-            .map_err(|_| RuntimeActivationError::AlreadyCompleted)?;
-        if *completed {
-            return Err(RuntimeActivationError::AlreadyCompleted);
-        }
-        deliver(RuntimeActivationMessage {
-            protocol_version: RUNTIME_ACTIVATION_PROTOCOL_VERSION,
-            status: "ready",
-            token: binding.token.clone(),
-            nonce: binding.nonce.clone(),
-        })?;
-        *completed = true;
-        Ok(())
-    }
+fn value_after(arguments: &[String], index: usize) -> Option<String> {
+    arguments.get(index + 1).filter(|value| !value.starts_with("--")).cloned()
 }
 
 fn is_valid_pipe_name(pipe_name: &str) -> bool {
-    !pipe_name.is_empty()
-        && pipe_name.len() <= 128
-        && pipe_name.bytes().all(|character| {
-            character.is_ascii_alphanumeric() || character == b'-' || character == b'_'
-        })
-}
-
-fn generate_nonce(pipe_name: &str, token: &str) -> String {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    let counter = NONCE_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let mut hasher = Sha256::new();
-    hasher.update(pipe_name.as_bytes());
-    hasher.update(token.as_bytes());
-    hasher.update(std::process::id().to_le_bytes());
-    hasher.update(now.to_le_bytes());
-    hasher.update(counter.to_le_bytes());
-    let mut nonce = String::with_capacity(64);
-    for byte in hasher.finalize() {
-        let _ = write!(nonce, "{byte:02x}");
-    }
-    nonce
-}
-
-fn write_named_pipe(
-    pipe_name: &str,
-    message: &RuntimeActivationMessage,
-) -> Result<(), RuntimeActivationError> {
-    let path = named_pipe_path(pipe_name);
-    let serialized =
-        serde_json::to_vec(message).map_err(|_| RuntimeActivationError::PipeWriteFailed)?;
-    let mut pipe = OpenOptions::new()
-        .write(true)
-        .open(path)
-        .map_err(|_| RuntimeActivationError::PipeWriteFailed)?;
-    pipe.write_all(&serialized)
-        .and_then(|_| pipe.write_all(b"\n"))
-        .map_err(|_| RuntimeActivationError::PipeWriteFailed)
-}
-
-fn named_pipe_path(pipe_name: &str) -> PathBuf {
-    PathBuf::from(format!(r"\\.\pipe\{pipe_name}"))
+    !pipe_name.is_empty() && pipe_name.len() <= 128 && pipe_name.bytes().all(|character| {
+        character.is_ascii_alphanumeric() || character == b'-' || character == b'_'
+    })
 }

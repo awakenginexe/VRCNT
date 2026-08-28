@@ -9,6 +9,7 @@ using VRCNT.RuntimeCore.Filesystem;
 using VRCNT.RuntimeCore.Process;
 using VRCNT.RuntimeCore.Storage;
 using VRCNT.RuntimeCore.Transactions;
+using System.Security.Cryptography;
 
 namespace VRCNT.ReleaseHelper;
 
@@ -39,17 +40,18 @@ internal static class Program
             new RuntimePathValidator(new VolumeIdentityProbe()),
             new RequiredSpaceCalculator(new AvailableSpaceProbe()),
             new RuntimeProcessCoordinator(),
-            new ActivationProtocolRequiredHealthMonitor(),
+            new NamedPipeRuntimeActivationHealthMonitor(),
             new TransactionJournalStore(),
             new RuntimeDirectoryMover(),
             new Task3RuntimeStateTransition(),
             onPreflightValidated: () => legacyDetector.PreserveUserData(legacyDetector.Detect(pathResolver.Resolve(canonicalDestination))));
         var request = new RuntimeReplacementRequest(canonicalDestination, options.CacheDirectory, package.Parts.Select(part => Path.Combine(offline ? options.InstallerDirectory : options.CacheDirectory, part.Name)).ToArray(), package.InstalledSize, package.Identity,
-            new ActivationRequest($"vrcnt-activation-{Guid.NewGuid():N}", Convert.ToHexString(Guid.NewGuid().ToByteArray()), Guid.NewGuid().ToString("N")), false);
+            new ActivationRequest($"vrcnt-activation-{RandomHex(16)}", RandomHex(32), RandomHex(32)), false);
         var result = await engine.ExecuteAsync(request, null, default);
         if (!result.Succeeded) throw new InvalidOperationException(result.ErrorMessage ?? result.ErrorCode ?? "Runtime replacement failed.");
         Console.WriteLine("[complete] VRCNT package installation finished successfully.");
     }
+    private static string RandomHex(int byteCount) => Convert.ToHexString(RandomNumberGenerator.GetBytes(byteCount));
     private static async Task<string> AcquireMetadataAsync(Options options, string name)
     {
         var local = Path.Combine(options.InstallerDirectory, name); if (File.Exists(local)) return local;

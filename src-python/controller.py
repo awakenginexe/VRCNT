@@ -9,6 +9,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
 import json
 import os
+import hmac
+from os import path as os_path
 import uuid
 from device_manager import device_manager
 from config import config
@@ -79,6 +81,53 @@ from models.pipeline.pipeline_types import (
 from models.pipeline.manual_translation_retry import ManualTranslationRetryCoordinator
 from models.pipeline.latest_queue import LatestQueue, QueueClosed
 from resource_usage import collect_resource_usage
+
+_RUNTIME_ACTIVATION_ARGUMENTS = (
+    "--runtime-activation-pipe",
+    "--runtime-activation-token",
+    "--runtime-activation-nonce",
+    "--runtime-activation-app-version",
+    "--runtime-activation-runtime-variant",
+)
+
+
+def parseRuntimeActivationLaunchArgs(arguments: list[str]) -> Optional[dict]:
+    """Return the manager-issued local activation context, or fail closed in activation mode."""
+    values: dict[str, str] = {}
+    activation_mode = False
+    for index, argument in enumerate(arguments):
+        if argument not in _RUNTIME_ACTIVATION_ARGUMENTS:
+            continue
+        activation_mode = True
+        value = arguments[index + 1] if index + 1 < len(arguments) else ""
+        if not isinstance(value, str) or not value or value.startswith("--"):
+            raise ValueError("runtime activation arguments are incomplete")
+        values[argument] = value
+    if not activation_mode:
+        return None
+    if any(argument not in values for argument in _RUNTIME_ACTIVATION_ARGUMENTS):
+        raise ValueError("runtime activation arguments are incomplete")
+    pipe_name = values["--runtime-activation-pipe"]
+    if len(pipe_name) > 128 or not pipe_name or not all(character.isalnum() or character in "-_" for character in pipe_name):
+        raise ValueError("runtime activation pipe is invalid")
+    runtime_variant = values["--runtime-activation-runtime-variant"]
+    if runtime_variant not in ("cpu", "cuda"):
+        raise ValueError("runtime activation runtime variant is invalid")
+    return {
+        "pipe_name": pipe_name,
+        "activation_token": values["--runtime-activation-token"],
+        "nonce": values["--runtime-activation-nonce"],
+        "app_version": values["--runtime-activation-app-version"],
+        "runtime_variant": runtime_variant,
+    }
+
+
+def writeRuntimeActivationProof(activation_context: dict, proof: dict) -> None:
+    """Write the backend-owned proof directly to the manager's local named pipe."""
+    pipe_path = rf"\\.\pipe\{activation_context['pipe_name']}"
+    with open(pipe_path, "w", encoding="utf-8", newline="\n") as pipe:
+        pipe.write(json.dumps(proof, separators=(",", ":")))
+        pipe.write("\n")
 
 class Controller:
     def __init__(self) -> None:
@@ -2700,22 +2749,44 @@ class Controller:
         return "cpu"
 
     @staticmethod
-    def getRuntimeReadiness(data: Optional[dict] = None, *args, **kwargs) -> dict:
+    def getRuntimeReadiness(data: Optional[dict] = None, activation_context: Optional[dict] = None, *args, **kwargs) -> dict:
         """Confirm only the local controller/mainloop infrastructure is available."""
         activation = data if isinstance(data, dict) else {}
         activation_token = activation.get("activation_token")
         generation = activation.get("generation")
+        result = {
+            "protocol_version": 1,
+            "status": "ready",
+            "backend_pid": os.getpid(),
+            "app_version": config.VERSION,
+            "runtime_variant": Controller.getRuntimeVariant(),
+            "activation_token": activation_token if isinstance(activation_token, str) else None,
+            "generation": generation if isinstance(generation, int) else None,
+        }
+        if activation_context is not None:
+            if (
+                not isinstance(activation_token, str)
+                or not isinstance(generation, int)
+                or not hmac.compare_digest(activation_context["activation_token"], activation_token)
+                or not hmac.compare_digest(activation_context["app_version"], result["app_version"])
+                or not hmac.compare_digest(activation_context["runtime_variant"], result["runtime_variant"])
+            ):
+                return {"status": 403, "result": {"error": "activation_request_invalid"}}
+            try:
+                writeRuntimeActivationProof(activation_context, {
+                    "protocol_version": 1,
+                    "status": "ready",
+                    "token": activation_context["activation_token"],
+                    "nonce": activation_context["nonce"],
+                    "backend_pid": result["backend_pid"],
+                    "app_version": result["app_version"],
+                    "runtime_variant": result["runtime_variant"],
+                })
+            except OSError:
+                return {"status": 503, "result": {"error": "activation_proof_delivery_failed"}}
         return {
             "status": 200,
-            "result": {
-                "protocol_version": 1,
-                "status": "ready",
-                "backend_pid": os.getpid(),
-                "app_version": config.VERSION,
-                "runtime_variant": Controller.getRuntimeVariant(),
-                "activation_token": activation_token if isinstance(activation_token, str) else None,
-                "generation": generation if isinstance(generation, int) else None,
-            },
+            "result": result,
         }
 
     def checkSoftwareUpdated(self) -> dict:

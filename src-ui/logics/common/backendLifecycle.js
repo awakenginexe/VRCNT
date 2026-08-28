@@ -1,5 +1,6 @@
 export const BACKEND_SPAWN_TIMEOUT_MS = 10000;
 export const RUNTIME_ACTIVATION_READINESS_ENDPOINT = "/get/health/readiness";
+export const RUNTIME_ACTIVATION_READINESS_TIMEOUT_MS = 10000;
 
 const BACKEND_SPAWN_TIMEOUT = Symbol("backend-spawn-timeout");
 
@@ -45,9 +46,14 @@ export const createRuntimeActivationHandshake = ({
     activationToken,
     generation,
     backendPid,
-    signalReady,
+    timeoutMs = RUNTIME_ACTIVATION_READINESS_TIMEOUT_MS,
 }) => {
-    let completed = false;
+    let state = "idle";
+    let result;
+    let waiting;
+    let timeoutId;
+    let resolveWaiting;
+    let rejectWaiting;
 
     const hasRequiredActivationArguments = () => (
         typeof activationToken === "string"
@@ -73,12 +79,43 @@ export const createRuntimeActivationHandshake = ({
     };
 
     return {
-        accept: async (response) => {
-            if (completed || !accepts(response)) return false;
-            await signalReady();
-            completed = true;
+        waitForResponse: () => {
+            if (!hasRequiredActivationArguments()) {
+                return Promise.reject(new Error("Runtime activation context is incomplete."));
+            }
+            if (state === "completed") return Promise.resolve(result);
+            if (state === "failed") return Promise.reject(new Error("Runtime activation readiness failed."));
+            if (state === "pending") return waiting;
+
+            state = "pending";
+            waiting = new Promise((resolve, reject) => {
+                resolveWaiting = resolve;
+                rejectWaiting = reject;
+            });
+            timeoutId = setTimeout(() => {
+                if (state !== "pending") return;
+                state = "failed";
+                rejectWaiting(new Error(`Runtime activation readiness timed out after ${timeoutMs}ms.`));
+            }, timeoutMs);
+            return waiting;
+        },
+        accept: (response) => {
+            if (state !== "pending") return false;
+            if (response?.endpoint !== RUNTIME_ACTIVATION_READINESS_ENDPOINT) return false;
+            if (response?.status !== 200) {
+                state = "failed";
+                clearTimeout(timeoutId);
+                rejectWaiting(new Error("Runtime activation readiness request failed."));
+                return false;
+            }
+            if (!accepts(response)) return false;
+            state = "completed";
+            result = response.result;
+            clearTimeout(timeoutId);
+            resolveWaiting(result);
             return true;
         },
         isActive: () => hasRequiredActivationArguments(),
+        isPending: () => state === "pending",
     };
 };

@@ -304,11 +304,11 @@ fn get_runtime_activation_context(
 
 #[tauri::command]
 fn signal_runtime_activation_ready(
-    backend_ready: bool,
+    _backend_ready: bool,
     state: tauri::State<'_, runtime_activation::RuntimeActivationContext>,
 ) -> Result<bool, String> {
     state
-        .signal_ready(backend_ready)
+        .reject_renderer_ready_signal()
         .map_err(|error| error.to_string())
 }
 
