@@ -7,6 +7,8 @@ from subprocess import Popen
 from threading import Condition, Event, Lock, RLock, Thread
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
+import json
+import os
 import uuid
 from device_manager import device_manager
 from config import config
@@ -2683,6 +2685,38 @@ class Controller:
     @staticmethod
     def getVersion(*args, **kwargs) -> dict:
         return {"status":200, "result":config.VERSION}
+
+    @staticmethod
+    def getRuntimeVariant() -> str:
+        """Read the installed runtime marker without loading AI runtimes."""
+        try:
+            marker_path = os_path.join(config.PATH_LOCAL, "VRCNT.runtime.json")
+            with open(marker_path, "r", encoding="utf-8") as marker_file:
+                marker = json.load(marker_file)
+            if str(marker.get("variant", "")).lower() == "cuda":
+                return "cuda"
+        except (OSError, ValueError, TypeError):
+            pass
+        return "cpu"
+
+    @staticmethod
+    def getRuntimeReadiness(data: Optional[dict] = None, *args, **kwargs) -> dict:
+        """Confirm only the local controller/mainloop infrastructure is available."""
+        activation = data if isinstance(data, dict) else {}
+        activation_token = activation.get("activation_token")
+        generation = activation.get("generation")
+        return {
+            "status": 200,
+            "result": {
+                "protocol_version": 1,
+                "status": "ready",
+                "backend_pid": os.getpid(),
+                "app_version": config.VERSION,
+                "runtime_variant": Controller.getRuntimeVariant(),
+                "activation_token": activation_token if isinstance(activation_token, str) else None,
+                "generation": generation if isinstance(generation, int) else None,
+            },
+        }
 
     def checkSoftwareUpdated(self) -> dict:
         software_update_info = model.checkSoftwareUpdated()

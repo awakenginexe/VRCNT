@@ -13,6 +13,7 @@ use tauri::{Emitter, Manager, WindowEvent};
 use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
 
 pub mod font_packs;
+pub mod runtime_activation;
 
 const BACKGROUND_STARTUP_ARGUMENT: &str = "--vrcnt-background";
 const VRCHAT_PROCESS_NAME: &str = "VRChat.exe";
@@ -224,7 +225,12 @@ pub fn run() {
     #[cfg(target_os = "windows")]
     migrate_renamed_webview_data().expect("Could not migrate the legacy VRCNT WebView data");
 
-    let background_launch = is_background_launch(&std::env::args().collect::<Vec<_>>());
+    let launch_args = std::env::args().collect::<Vec<_>>();
+    let background_launch = is_background_launch(&launch_args);
+    let runtime_activation =
+        runtime_activation::RuntimeActivationContext::from_launch_args(&launch_args)
+            .expect("Invalid runtime activation arguments")
+            .unwrap_or_else(runtime_activation::RuntimeActivationContext::inactive);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
@@ -239,6 +245,7 @@ pub fn run() {
             Some(vec![BACKGROUND_STARTUP_ARGUMENT]),
         ))
         .manage(ResidentRuntimeState::new())
+        .manage(runtime_activation)
         .setup(move |app| -> Result<(), Box<dyn std::error::Error>> {
             configure_close_behavior(app)?;
             if background_launch {
@@ -261,6 +268,8 @@ pub fn run() {
             enter_background_mode,
             is_background_startup,
             consume_resident_activation,
+            get_runtime_activation_context,
+            signal_runtime_activation_ready,
             font_packs::download_optional_font_pack,
             font_packs::cancel_optional_font_pack,
             font_packs::resolve_managed_font_assets,
@@ -284,6 +293,23 @@ fn is_background_startup(state: tauri::State<'_, ResidentRuntimeState>) -> bool 
 #[tauri::command]
 fn consume_resident_activation(state: tauri::State<'_, ResidentRuntimeState>) -> bool {
     state.activation_pending.swap(false, Ordering::SeqCst)
+}
+
+#[tauri::command]
+fn get_runtime_activation_context(
+    state: tauri::State<'_, runtime_activation::RuntimeActivationContext>,
+) -> Option<runtime_activation::RuntimeActivationFrontendContext> {
+    state.frontend_context()
+}
+
+#[tauri::command]
+fn signal_runtime_activation_ready(
+    backend_ready: bool,
+    state: tauri::State<'_, runtime_activation::RuntimeActivationContext>,
+) -> Result<bool, String> {
+    state
+        .signal_ready(backend_ready)
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

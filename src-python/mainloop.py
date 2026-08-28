@@ -207,6 +207,7 @@ mapping = {
     # Config Window
     # Appearance
     "/get/data/version": {"status": True, "variable":controller.getVersion},
+    "/get/health/readiness": {"status": True, "variable":controller.getRuntimeReadiness},
 
     "/get/data/transparency": {"status": True, "variable":controller.getTransparency},
     "/set/data/transparency": {"status": True, "variable":controller.setTransparency},

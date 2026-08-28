@@ -21,6 +21,8 @@ import { isBenignSidecarStderr } from "@logics_common/sidecarStderrUtils.js";
 import { buildFontFamilyOptions } from "@logics_common";
 import {
     createBackendProcessLifecycle,
+    createRuntimeActivationHandshake,
+    RUNTIME_ACTIVATION_READINESS_ENDPOINT,
     spawnBackendWithTimeout,
 } from "@logics_common/backendLifecycle.js";
 import { createBackendSessionGuard } from "@logics_common/backendSessionGuard.js";
@@ -197,7 +199,19 @@ const useStartPython = () => {
                 message_key: "blocking_operation.startup_operation",
                 detail: "Preparing the backend process.",
             });
-            const command = Command.sidecar("bin/VRCNT-backend");
+            const runtimeActivationContext = await invoke("get_runtime_activation_context");
+            const runtimeActivationArgs = runtimeActivationContext
+                ? [
+                    "--runtime-activation-token",
+                    runtimeActivationContext.activationToken,
+                    "--runtime-activation-generation",
+                    String(sessionId),
+                ]
+                : [];
+            let runtimeActivationHandshake = null;
+            const command = runtimeActivationArgs.length === 0
+                ? Command.sidecar("bin/VRCNT-backend")
+                : Command.sidecar("bin/VRCNT-backend", runtimeActivationArgs);
             updateInitStatus({
                 visible: true,
                 phase: "starting",
@@ -241,6 +255,13 @@ const useStartPython = () => {
                 try {
                     parsed_data = JSON.parse(line);
                     receiveRoutes(parsed_data);
+                    if (runtimeActivationHandshake) {
+                        void runtimeActivationHandshake.accept(parsed_data).catch((error) => {
+                            if (sessionGuardRef.current.isCurrent(sessionId)) {
+                                markBackendStartupError(error);
+                            }
+                        });
+                    }
                 } catch (error) {
                     console.log(error, line);
                 }
@@ -270,6 +291,24 @@ const useStartPython = () => {
                 backend_subprocess_ref = backend_subprocess;
                 backendRecord.subprocess = backend_subprocess;
                 store.backend_subprocess = backend_subprocess;
+                if (runtimeActivationContext) {
+                    runtimeActivationHandshake = createRuntimeActivationHandshake({
+                        activationToken: runtimeActivationContext.activationToken,
+                        generation: sessionId,
+                        backendPid: backend_subprocess.pid,
+                        signalReady: () => invoke("signal_runtime_activation_ready", { backendReady: true }),
+                    });
+                    const readinessRequest = await asyncStdoutToPython(
+                        RUNTIME_ACTIVATION_READINESS_ENDPOINT,
+                        {
+                            activation_token: runtimeActivationContext.activationToken,
+                            generation: sessionId,
+                        },
+                    );
+                    if (!readinessRequest.ok) {
+                        throw readinessRequest.error;
+                    }
+                }
                 return backend_subprocess;
             } catch (error) {
                 if (sessionGuardRef.current.isCurrent(sessionId)) {
