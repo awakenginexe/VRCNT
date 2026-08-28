@@ -22,8 +22,6 @@ public sealed class DxgiGpuDetector : IGpuDetector
             ? Combine(primary, _wmiFallback.Detect())
             : primary;
         var corroboration = _nvidiaSmi.Probe();
-        if (result.Status == GpuDetectionStatus.Inconclusive && result.EnumeratedNvidiaEvidence && corroboration.NvidiaDetected)
-            return new GpuDetectionResult(GpuDetectionStatus.NvidiaDetected, corroboration.DisplayName ?? result.DisplayName, corroboration.AdapterId ?? result.AdapterId, $"{result.Evidence}; {corroboration.Evidence}");
         return result with { Evidence = $"{result.Evidence}; {corroboration.Evidence}" };
     }
 

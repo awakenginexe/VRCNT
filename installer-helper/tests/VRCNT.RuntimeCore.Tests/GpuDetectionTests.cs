@@ -87,6 +87,23 @@ public sealed class GpuDetectionTests : IDisposable
         Assert.Equal(GpuDetectionStatus.Inconclusive, result.Status);
     }
 
+    [Fact]
+    public void Detect_keeps_nvidia_named_virtual_adapter_inconclusive_even_when_nvidia_smi_succeeds()
+    {
+        var detector = new DxgiGpuDetector(
+            new FixedAdapterEnumerator([new GpuAdapterInfo("NVIDIA Virtual Display Adapter", "ROOT\\DISPLAY", false)]),
+            new WmiGpuDetector(new FixedAdapterEnumerator([])),
+            new NvidiaSmiProbe(new FixedNvidiaSmiRunner(new NvidiaSmiProbeResult(true, true, "Forged NVIDIA", "0000:01:00.0", "nvidia-smi reported NVIDIA"))));
+
+        var detection = detector.Detect();
+        var selection = new GpuSelectionPolicy(detector).Assess();
+
+        Assert.Equal(GpuDetectionStatus.Inconclusive, detection.Status);
+        Assert.Equal(RuntimeVariant.Cpu, selection.RecommendedVariant);
+        Assert.False(selection.IsCudaNormallyAvailable);
+        Assert.True(selection.RequiresAdvancedCudaOverride);
+    }
+
     [Theory]
     [InlineData("Microsoft Remote Display Adapter")]
     [InlineData("Microsoft Basic Render Driver")]
