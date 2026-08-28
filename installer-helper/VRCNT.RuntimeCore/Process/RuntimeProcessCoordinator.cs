@@ -67,7 +67,18 @@ public sealed class RuntimeProcessCoordinator(TimeSpan? gracefulShutdownTimeout 
                     handoff.TargetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu",
                     handoff.CurrentAppPath))))
             throw new InvalidDataException("The runtime shutdown handoff is not authenticated.");
-        return RequestGracefulStopAsync(cancellationToken);
+        var dataRoot = Path.GetDirectoryName(handoff.StatusPath)
+            ?? throw new InvalidDataException("The runtime shutdown status path is invalid.");
+        var statusStore = new RuntimeSwitchStatusStore(dataRoot, handoff.StatusPath);
+        statusStore.WriteShutdownRequested(handoff.TargetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu", handoff);
+        return WaitForSwitchShutdownAsync(statusStore, handoff, cancellationToken);
+    }
+
+    private async Task<ProcessStopResult> WaitForSwitchShutdownAsync(RuntimeSwitchStatusStore statusStore, RuntimeShutdownHandoff handoff, CancellationToken cancellationToken)
+    {
+        if (!await statusStore.WaitForShutdownAcknowledgementAsync(handoff, _gracefulShutdownTimeout, cancellationToken))
+            return new ProcessStopResult(false, FindKnownProcesses().Select(process => process.Id).ToArray(), false, "shutdown_acknowledgement_timeout");
+        return await RequestGracefulStopAsync(cancellationToken);
     }
 
     public Task<bool> AreKnownProcessesStoppedAsync(CancellationToken cancellationToken) => Task.FromResult(FindKnownProcesses().Count == 0);

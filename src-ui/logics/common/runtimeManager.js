@@ -84,11 +84,12 @@ export const requestRuntimeSwitch = ({ runtime, targetVariant }) => {
 };
 
 const SWITCH_TERMINAL_STATES = new Set(["succeeded", "failed", "cancelled", "stale"]);
+const SWITCH_ACTIVE_STATES = new Set(["pending", "accepted", "running", "shutdown_requested", "shutdown_acknowledged"]);
 
 const wait = (intervalMs) => new Promise((resolve) => setTimeout(resolve, intervalMs));
 
 export const normalizeRuntimeSwitchStatus = (status) => {
-    if (!status || !["idle", "pending", "accepted", "running", ...SWITCH_TERMINAL_STATES].includes(status.status)) {
+    if (!status || !["idle", ...SWITCH_ACTIVE_STATES, ...SWITCH_TERMINAL_STATES].includes(status.status)) {
         return { status: "stale", errorCode: "invalid_switch_status", message: "Runtime switch recovery is required." };
     }
     return {
@@ -101,13 +102,28 @@ export const normalizeRuntimeSwitchStatus = (status) => {
     };
 };
 
+export const reconcilePersistedRuntimeSwitch = async ({ getStatus, refreshRuntime }) => {
+    const status = normalizeRuntimeSwitchStatus(await getStatus());
+    const isTerminal = SWITCH_TERMINAL_STATES.has(status.status);
+    const runtime = await refreshRuntime();
+    return {
+        status,
+        runtime,
+        switchState: createRuntimeSwitchState({
+            isBusy: SWITCH_ACTIVE_STATES.has(status.status),
+            pendingTarget: null,
+        }),
+        isTerminal,
+    };
+};
+
 export const waitForRuntimeSwitchAcceptance = async ({ getStatus, targetVariant, timeoutMs = 10000, intervalMs = 100 }) => {
     if (typeof getStatus !== "function") return { accepted: true, targetVariant };
     const deadline = Date.now() + timeoutMs;
     while (Date.now() <= deadline) {
         const status = normalizeRuntimeSwitchStatus(await getStatus());
         if (status.targetVariant && status.targetVariant !== targetVariant) throw new Error("The runtime switch target was changed.");
-        if (status.status === "accepted" || status.status === "running") return { accepted: true, targetVariant };
+        if (["accepted", "running", "shutdown_requested", "shutdown_acknowledged"].includes(status.status)) return { accepted: true, targetVariant };
         if (SWITCH_TERMINAL_STATES.has(status.status)) throw new Error(status.message || status.errorCode || "Runtime switch was not accepted.");
         await wait(intervalMs);
     }

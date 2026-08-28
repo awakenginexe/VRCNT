@@ -49,6 +49,8 @@ pub struct RuntimeSwitchHandoff {
 pub struct RuntimeSwitchState {
     handoff: Mutex<Option<RuntimeSwitchHandoff>>,
     shutdown_authorized: std::sync::atomic::AtomicBool,
+    shutdown_requested: std::sync::atomic::AtomicBool,
+    shutdown_request_delivered: std::sync::atomic::AtomicBool,
 }
 
 impl RuntimeSwitchState {
@@ -67,10 +69,18 @@ impl RuntimeSwitchState {
         *current = Some(handoff);
         self.shutdown_authorized
             .store(false, std::sync::atomic::Ordering::SeqCst);
+        self.shutdown_requested
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+        self.shutdown_request_delivered
+            .store(false, std::sync::atomic::Ordering::SeqCst);
         Ok(())
     }
 
-    fn authorize_shutdown(&self, nonce: &str, token: &str) -> Result<(), String> {
+    fn verify_shutdown_acknowledgement(
+        &self,
+        nonce: &str,
+        token: &str,
+    ) -> Result<RuntimeSwitchHandoff, String> {
         let current = self
             .handoff
             .lock()
@@ -81,19 +91,73 @@ impl RuntimeSwitchState {
         if handoff.nonce != nonce || handoff.token != token {
             return Err("The runtime switch shutdown proof is invalid.".to_owned());
         }
+        if !self
+            .shutdown_requested
+            .load(std::sync::atomic::Ordering::SeqCst)
+        {
+            return Err("The runtime switch manager has not requested shutdown.".to_owned());
+        }
+        Ok(handoff.clone())
+    }
+
+    fn authorize_shutdown(&self) {
         self.shutdown_authorized
             .store(true, std::sync::atomic::Ordering::SeqCst);
-        Ok(())
     }
 
     pub fn is_shutdown_authorized(&self) -> bool {
         self.shutdown_authorized
             .load(std::sync::atomic::Ordering::SeqCst)
-            || self
-                .handoff
-                .lock()
-                .map(|handoff| handoff.is_some())
-                .unwrap_or(false)
+    }
+
+    fn deliver_shutdown_request(
+        &self,
+        status: &RuntimeSwitchStatusRecord,
+    ) -> Result<Option<RuntimeSwitchEvent>, String> {
+        let current = self
+            .handoff
+            .lock()
+            .map_err(|_| "Runtime switch state is unavailable.".to_owned())?;
+        let Some(handoff) = current.as_ref() else {
+            return Ok(None);
+        };
+        if status.status != "shutdown_requested"
+            || status.nonce != handoff.nonce
+            || status.target_variant != handoff.target_variant
+            || status.token_sha256 != hash(&handoff.token)
+            || status.proof_sha256 != handoff.proof
+            || !paths_equal(
+                Path::new(&status.current_app_path),
+                &handoff.current_app_path,
+            )
+        {
+            return Err("The runtime switch shutdown request is unauthenticated.".to_owned());
+        }
+        self.shutdown_requested
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        if self
+            .shutdown_request_delivered
+            .swap(true, std::sync::atomic::Ordering::SeqCst)
+        {
+            return Ok(None);
+        }
+        Ok(Some(RuntimeSwitchEvent {
+            nonce: handoff.nonce.clone(),
+            token: handoff.token.clone(),
+            target_variant: handoff.target_variant.clone(),
+        }))
+    }
+
+    fn clear(&self) {
+        if let Ok(mut handoff) = self.handoff.lock() {
+            *handoff = None;
+        }
+        self.shutdown_authorized
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+        self.shutdown_requested
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+        self.shutdown_request_delivered
+            .store(false, std::sync::atomic::Ordering::SeqCst);
     }
 }
 
@@ -317,21 +381,12 @@ pub fn launch_runtime_switch(
             Some("manager_spawn_failed"),
             Some("The setup manager could not be started."),
         );
+        switch_state.clear();
         return Err(
             "VRCNT could not launch the trusted setup manager. Run Setup recovery and try again."
                 .to_owned(),
         );
     }
-    app.emit(
-        RUNTIME_SWITCH_REQUESTED_EVENT,
-        RuntimeSwitchEvent {
-            nonce,
-            token,
-            target_variant: target.as_str().to_owned(),
-        },
-    )
-    .map_err(|_| "The runtime switch shutdown handoff could not be delivered.".to_owned())?;
-
     Ok(())
 }
 
@@ -342,7 +397,23 @@ pub fn complete_runtime_switch_shutdown(
     nonce: String,
     token: String,
 ) -> Result<(), String> {
-    switch_state.authorize_shutdown(&nonce, &token)?;
+    let handoff = switch_state.verify_shutdown_acknowledgement(&nonce, &token)?;
+    if let Err(error) = validate_shutdown_request_status(&handoff) {
+        switch_state.clear();
+        return Err(error);
+    }
+    write_switch_terminal(
+        &handoff.status_path,
+        "shutdown_acknowledged",
+        &handoff.target_variant,
+        &handoff.nonce,
+        &hash(&handoff.token),
+        &handoff.current_app_path,
+        &handoff.proof,
+        None,
+        None,
+    )?;
+    switch_state.authorize_shutdown();
     app.get_webview_window("main")
         .ok_or_else(|| "VRCNT main window is unavailable.".to_owned())?
         .close()
@@ -350,7 +421,10 @@ pub fn complete_runtime_switch_shutdown(
 }
 
 #[tauri::command]
-pub fn get_runtime_switch_status() -> Result<RuntimeSwitchStatusDto, String> {
+pub fn get_runtime_switch_status(
+    app: tauri::AppHandle,
+    switch_state: tauri::State<'_, RuntimeSwitchState>,
+) -> Result<RuntimeSwitchStatusDto, String> {
     let Some(data_root) = resolve_data_root() else {
         return Ok(idle_switch_status());
     };
@@ -361,7 +435,10 @@ pub fn get_runtime_switch_status() -> Result<RuntimeSwitchStatusDto, String> {
     };
     let status: RuntimeSwitchStatusRecord = match serde_json::from_slice(&contents) {
         Ok(status) => status,
-        Err(_) => return Ok(stale_switch_status("malformed_switch_status")),
+        Err(_) => {
+            switch_state.clear();
+            return Ok(stale_switch_status("malformed_switch_status"));
+        }
     };
     if status.schema != 1
         || RuntimeVariant::parse(&status.target_variant).is_err()
@@ -369,13 +446,44 @@ pub fn get_runtime_switch_status() -> Result<RuntimeSwitchStatusDto, String> {
         || !is_sha256(&status.token_sha256)
         || status.current_app_path.trim().is_empty()
     {
+        switch_state.clear();
         return Ok(stale_switch_status("invalid_switch_status"));
     }
     if !matches!(
         status.status.as_str(),
-        "pending" | "accepted" | "running" | "succeeded" | "failed" | "cancelled" | "stale"
+        "pending"
+            | "accepted"
+            | "running"
+            | "shutdown_requested"
+            | "shutdown_acknowledged"
+            | "succeeded"
+            | "failed"
+            | "cancelled"
+            | "stale"
     ) {
+        switch_state.clear();
         return Ok(stale_switch_status("unknown_switch_status"));
+    }
+    if status.status == "shutdown_requested" {
+        let event = match switch_state.deliver_shutdown_request(&status) {
+            Ok(event) => event,
+            Err(error) => {
+                switch_state.clear();
+                return Err(error);
+            }
+        };
+        if let Some(event) = event {
+            app.emit(RUNTIME_SWITCH_REQUESTED_EVENT, event)
+                .map_err(|_| {
+                    "The runtime switch shutdown handoff could not be delivered.".to_owned()
+                })?;
+        }
+    }
+    if matches!(
+        status.status.as_str(),
+        "succeeded" | "failed" | "cancelled" | "stale"
+    ) {
+        switch_state.clear();
     }
     Ok(RuntimeSwitchStatusDto {
         status: status.status,
@@ -539,6 +647,28 @@ fn switch_proof(token: &str, nonce: &str, target: &str, current_app: &Path) -> S
     ))
 }
 
+pub fn validate_shutdown_request_status(handoff: &RuntimeSwitchHandoff) -> Result<(), String> {
+    let contents = fs::read(&handoff.status_path)
+        .map_err(|_| "The runtime switch shutdown request is unavailable.".to_owned())?;
+    let status: RuntimeSwitchStatusRecord = serde_json::from_slice(&contents)
+        .map_err(|_| "The runtime switch shutdown request is malformed.".to_owned())?;
+    if status.status != "shutdown_requested"
+        || status.nonce != handoff.nonce
+        || status.target_variant != handoff.target_variant
+        || status.token_sha256 != hash(&handoff.token)
+        || status.proof_sha256 != handoff.proof
+        || !paths_equal(
+            Path::new(&status.current_app_path),
+            &handoff.current_app_path,
+        )
+    {
+        return Err(
+            "The runtime switch shutdown request expired or is unauthenticated.".to_owned(),
+        );
+    }
+    Ok(())
+}
+
 fn resolve_and_validate_stable_manager() -> Result<PathBuf, String> {
     let local_app_data = env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
@@ -614,7 +744,7 @@ fn validate_promoted_manager(manager: &Path, manager_directory: &Path) -> Result
 fn validate_manager_signature(
     manager: &Path,
     manager_directory: &Path,
-    encoded_signature: &str,
+    signature: &str,
 ) -> Result<(), String> {
     let minisign = manager_directory.join(MINISIGN_FILE_NAME);
     let minisign_bytes = fs::read(&minisign).map_err(|_| {
@@ -635,17 +765,10 @@ fn validate_manager_signature(
     let signature_path = check_directory.join("manager.minisig");
     let public_key_path = check_directory.join("manager.pub");
     let result = (|| {
-        let signature_bytes = BASE64
-            .decode(encoded_signature.trim().trim_start_matches('\u{feff}'))
-            .map_err(|_| {
-                "The setup manager signature is malformed. Run Setup recovery and try again."
-                    .to_owned()
-            })?;
         let public_key = BASE64
             .decode(MINISIGN_PUBLIC_KEY)
             .map_err(|_| "The embedded setup manager key is malformed.".to_owned())?;
-        fs::write(&signature_path, signature_bytes)
-            .map_err(|_| "The setup manager signature could not be staged.".to_owned())?;
+        stage_manager_signature_for_verification(&check_directory, signature)?;
         fs::write(&public_key_path, public_key)
             .map_err(|_| "The embedded setup manager key could not be staged.".to_owned())?;
         let status = Command::new(&minisign)
@@ -669,6 +792,16 @@ fn validate_manager_signature(
     })();
     let _ = fs::remove_dir_all(&check_directory);
     result
+}
+
+pub fn stage_manager_signature_for_verification(
+    check_directory: &Path,
+    signature: &str,
+) -> Result<PathBuf, String> {
+    let signature_path = check_directory.join("manager.minisig");
+    fs::write(&signature_path, signature.as_bytes())
+        .map_err(|_| "The setup manager signature could not be staged.".to_owned())?;
+    Ok(signature_path)
 }
 
 fn validate_runtime_state(

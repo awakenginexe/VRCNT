@@ -59,6 +59,39 @@ public sealed class RuntimeSwitchStatusTests : IDisposable
         Assert.Equal("Retry runtime recovery.", terminal.Message);
     }
 
+    [Fact]
+    public async Task Shutdown_request_requires_a_matching_one_shot_acknowledgement_before_quiesce()
+    {
+        var installPath = Path.Combine(_root, "VRCNT");
+        var appPath = Path.Combine(installPath, "VRCNT.exe");
+        var statusPath = WritePending("cuda", appPath, "nonce", "token");
+        var store = new RuntimeSwitchStatusStore(Path.Combine(_root, "VRCNTData"), statusPath);
+        var handoff = store.ValidatePending("cuda", installPath, appPath, "token");
+
+        store.WriteShutdownRequested("cuda", handoff);
+        Assert.Equal("shutdown_requested", store.Read().Status);
+        Assert.False(await store.WaitForShutdownAcknowledgementAsync(handoff, TimeSpan.Zero, default));
+
+        store.WriteShutdownAcknowledged("cuda", handoff);
+
+        Assert.True(await store.WaitForShutdownAcknowledgementAsync(handoff, TimeSpan.Zero, default));
+    }
+
+    [Fact]
+    public async Task Shutdown_acknowledgement_rejects_a_stale_or_terminal_handoff()
+    {
+        var installPath = Path.Combine(_root, "VRCNT");
+        var appPath = Path.Combine(installPath, "VRCNT.exe");
+        var statusPath = WritePending("cuda", appPath, "nonce", "token");
+        var store = new RuntimeSwitchStatusStore(Path.Combine(_root, "VRCNTData"), statusPath);
+        var handoff = store.ValidatePending("cuda", installPath, appPath, "token");
+
+        store.WriteShutdownRequested("cuda", handoff);
+        store.WriteTerminal("cancelled", "cuda", handoff, "cancelled", "Runtime switch cancelled.");
+
+        Assert.False(await store.WaitForShutdownAcknowledgementAsync(handoff, TimeSpan.Zero, default));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root)) Directory.Delete(_root, true);

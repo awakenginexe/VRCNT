@@ -10,6 +10,7 @@ import {
     getSwitchTarget,
     normalizeRuntimeState,
     confirmRuntimeSwitch,
+    reconcilePersistedRuntimeSwitch,
     requestRuntimeSwitch,
 } from "../runtimeManager.js";
 
@@ -115,6 +116,27 @@ test("terminal switch outcomes refresh runtime state and clear the pending trans
     assert.equal(outcome.status, "failed");
     assert.equal(outcome.runtime.variant, "cpu");
     assert.equal(refreshed, 1);
+});
+
+test("a relaunched VRCNT consumes the persisted rollback outcome before enabling another switch", async () => {
+    const result = await reconcilePersistedRuntimeSwitch({
+        getStatus: async () => ({
+            status: "failed",
+            targetVariant: "cuda",
+            nonce: "nonce",
+            errorCode: "activation_unhealthy",
+            message: "The CUDA runtime was rolled back.",
+        }),
+        refreshRuntime: async () => normalizeRuntimeState(activeCpu),
+    });
+
+    assert.equal(result.status.status, "failed");
+    assert.equal(result.runtime.variant, "cpu");
+    assert.deepEqual(result.switchState, {
+        isBusy: false,
+        pendingTarget: null,
+        controlsDisabled: false,
+    });
 });
 
 test("cancelled and stale switch outcomes are terminal and refresh the runtime", async () => {

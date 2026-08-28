@@ -2,7 +2,9 @@ use sha2::{Digest, Sha256};
 use std::fs;
 use tempfile::tempdir;
 use vrct_lib::runtime_manager::{
-    read_runtime_state_from_data_root, resolve_stable_manager_path, RuntimeVariant,
+    read_runtime_state_from_data_root, resolve_stable_manager_path,
+    stage_manager_signature_for_verification, validate_shutdown_request_status,
+    RuntimeSwitchHandoff, RuntimeVariant,
 };
 
 fn write_active_runtime(data_root: &std::path::Path, install_path: &std::path::Path) {
@@ -74,4 +76,45 @@ fn stable_manager_resolution_uses_only_the_local_appdata_lifecycle_path() {
             .join("VRCNTInstaller")
             .join("VRCNT.Setup.exe")
     );
+}
+
+#[test]
+fn manager_verification_stages_the_release_multiline_minisign_file_without_reencoding() {
+    let temporary = tempdir().unwrap();
+    let signature = "untrusted comment: signature from minisign secret key\nRWQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\ntrusted comment: timestamp: 1787932800\nRUTAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n";
+
+    let staged = stage_manager_signature_for_verification(temporary.path(), signature).unwrap();
+
+    assert_eq!(fs::read(staged).unwrap(), signature.as_bytes());
+}
+
+#[test]
+fn an_expired_or_terminal_status_cannot_authorize_runtime_shutdown() {
+    let temporary = tempdir().unwrap();
+    let status_path = temporary.path().join("runtime-switch-status.json");
+    let app_path = temporary.path().join("VRCNT.exe");
+    let handoff = RuntimeSwitchHandoff {
+        nonce: "nonce".to_owned(),
+        token: "token".to_owned(),
+        target_variant: "cuda".to_owned(),
+        proof: "proof".to_owned(),
+        status_path: status_path.clone(),
+        current_app_path: app_path.clone(),
+    };
+    fs::write(
+        &status_path,
+        serde_json::json!({
+            "schema": 1,
+            "status": "cancelled",
+            "targetVariant": "cuda",
+            "nonce": "nonce",
+            "tokenSha256": "not-a-valid-request",
+            "proofSha256": "proof",
+            "currentAppPath": app_path,
+        })
+        .to_string(),
+    )
+    .unwrap();
+
+    assert!(validate_shutdown_request_status(&handoff).is_err());
 }

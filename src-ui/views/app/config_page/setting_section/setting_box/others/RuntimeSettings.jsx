@@ -8,6 +8,7 @@ import {
     getRuntimeSwitchStatus,
     launchRuntimeSwitch,
     requestRuntimeSwitch,
+    reconcilePersistedRuntimeSwitch,
     waitForRuntimeSwitchOutcome,
 } from "@logics_common/runtimeManager.js";
 import styles from "./RuntimeSettings.module.scss";
@@ -28,8 +29,18 @@ export const RuntimeSettings = () => {
 
     useEffect(() => {
         let isCurrent = true;
-        getRuntimeState().then((state) => {
-            if (isCurrent) setRuntime(state);
+        reconcilePersistedRuntimeSwitch({
+            getStatus: getRuntimeSwitchStatus,
+            refreshRuntime: getRuntimeState,
+        }).then((result) => {
+            if (!isCurrent) return;
+            setRuntime(result.runtime);
+            setIsBusy(result.switchState.isBusy);
+            if (!result.isTerminal) return;
+            if (result.status.status === "succeeded") setNotice(t("config_page.others.runtime.switch_complete"));
+            else setError(t("config_page.others.runtime.switch_failed"));
+        }).catch(async () => {
+            if (isCurrent) setRuntime(await getRuntimeState());
         });
         return () => {
             isCurrent = false;

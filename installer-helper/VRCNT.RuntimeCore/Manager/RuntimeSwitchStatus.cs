@@ -71,6 +71,37 @@ public sealed class RuntimeSwitchStatusStore
 
     public void WriteAccepted(string targetVariant, RuntimeShutdownHandoff handoff) => Write("accepted", targetVariant, handoff, null, null);
     public void WriteRunning(string targetVariant, RuntimeShutdownHandoff handoff) => Write("running", targetVariant, handoff, null, null);
+    public void WriteShutdownRequested(string targetVariant, RuntimeShutdownHandoff handoff) => Write("shutdown_requested", targetVariant, handoff, null, null);
+    public void WriteShutdownAcknowledged(string targetVariant, RuntimeShutdownHandoff handoff) => Write("shutdown_acknowledged", targetVariant, handoff, null, null);
+
+    public async Task<bool> WaitForShutdownAcknowledgementAsync(RuntimeShutdownHandoff handoff, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        var deadline = DateTimeOffset.UtcNow + timeout;
+        do
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (IsShutdownAcknowledged(handoff)) return true;
+            if (DateTimeOffset.UtcNow >= deadline) return false;
+            await Task.Delay(TimeSpan.FromMilliseconds(50), cancellationToken);
+        } while (true);
+    }
+
+    public bool IsShutdownAcknowledged(RuntimeShutdownHandoff handoff)
+    {
+        try
+        {
+            var status = Read();
+            return status.Status == "shutdown_acknowledged"
+                && status.TargetVariant == VariantName(handoff.TargetVariant)
+                && SecureEquals(status.TokenSha256, Hash(handoff.Token))
+                && SecureEquals(status.ProofSha256, handoff.Proof)
+                && PathsEqual(status.CurrentAppPath, handoff.CurrentAppPath);
+        }
+        catch (InvalidDataException)
+        {
+            return false;
+        }
+    }
 
     public void WriteTerminal(string status, string targetVariant, RuntimeShutdownHandoff handoff, string? errorCode, string? message)
     {
@@ -95,6 +126,8 @@ public sealed class RuntimeSwitchStatusStore
         var record = new RuntimeSwitchStatus(Schema, status, targetVariant, handoff.Nonce, Hash(handoff.Token), handoff.Proof, handoff.CurrentAppPath, errorCode, message, DateTimeOffset.UtcNow);
         WriteRecord(record);
     }
+
+    private static string VariantName(RuntimeVariant variant) => variant == RuntimeVariant.Cuda ? "cuda" : "cpu";
 
     private void WriteRecord(RuntimeSwitchStatus record)
     {

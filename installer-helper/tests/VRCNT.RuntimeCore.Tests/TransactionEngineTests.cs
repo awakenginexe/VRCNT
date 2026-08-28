@@ -65,10 +65,25 @@ public sealed class TransactionEngineTests : IDisposable
     }
 
     [Fact]
-    public async Task ExecuteAsync_relaunches_after_a_switch_handoff_fails_to_quiesce()
+    public async Task ExecuteAsync_keeps_the_active_runtime_running_when_a_switch_handoff_cannot_quiesce()
     {
         var request = CreateRequest("switch-failure", "runtime") with { ShutdownHandoff = CreateSwitchHandoff(Path.Combine(_root, "switch-failure", "runtime")) };
         WriteActiveRuntime(request);
+        var processes = new TestProcessCoordinator(new(false, [123], true, "processes_running"));
+
+        var result = await CreateEngine(processes: processes).ExecuteAsync(request, null, default);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("processes_running", result.ErrorCode);
+        Assert.False(processes.RelaunchCalled);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_relaunches_the_old_runtime_when_a_process_lock_remains_after_authenticated_shutdown()
+    {
+        var request = CreateRequest("switch-acknowledged-lock", "runtime") with { ShutdownHandoff = CreateSwitchHandoff(Path.Combine(_root, "switch-acknowledged-lock", "runtime")) };
+        WriteActiveRuntime(request);
+        WriteAcknowledgedShutdown(request.ShutdownHandoff!);
         var processes = new TestProcessCoordinator(new(false, [123], true, "processes_running"));
 
         var result = await CreateEngine(processes: processes).ExecuteAsync(request, null, default);
@@ -510,6 +525,29 @@ public sealed class TransactionEngineTests : IDisposable
             RuntimeVariant.Cpu,
             Path.Combine(_root, "VRCNTData", "runtime-switch-status.json"),
             appPath);
+    }
+
+    private void WriteAcknowledgedShutdown(RuntimeShutdownHandoff handoff)
+    {
+        var dataRoot = Path.GetDirectoryName(handoff.StatusPath)!;
+        Directory.CreateDirectory(dataRoot);
+        var store = new RuntimeSwitchStatusStore(dataRoot, handoff.StatusPath);
+        File.WriteAllText(handoff.StatusPath, JsonSerializer.Serialize(new
+        {
+            Schema = 1,
+            Status = "pending",
+            TargetVariant = "cpu",
+            handoff.Nonce,
+            TokenSha256 = RuntimeSwitchStatusStore.Hash(handoff.Token),
+            ProofSha256 = handoff.Proof,
+            CurrentAppPath = handoff.CurrentAppPath,
+            ErrorCode = (string?)null,
+            Message = (string?)null,
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+        }));
+        var authenticated = store.ValidatePending("cpu", Path.GetDirectoryName(handoff.CurrentAppPath)!, handoff.CurrentAppPath, handoff.Token);
+        store.WriteShutdownRequested("cpu", authenticated);
+        store.WriteShutdownAcknowledged("cpu", authenticated);
     }
 
     private void WriteActiveRuntime(RuntimeReplacementRequest request)

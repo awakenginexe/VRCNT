@@ -45,6 +45,18 @@ public sealed class ManagerStateStore
         }
     }
 
+    public string? ReadSignature()
+    {
+        try
+        {
+            return File.Exists(SignaturePath) ? File.ReadAllText(SignaturePath) : null;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
     public void Write(ManagerState state)
     {
         Directory.CreateDirectory(ManagerDirectory);

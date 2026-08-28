@@ -449,6 +449,19 @@ public sealed class ManagerLifecycleTests : IDisposable
             Path.Combine(_root, "tampered-worker")));
     }
 
+    [Fact]
+    public void Manager_state_preserves_the_exact_multiline_minisign_signature_file()
+    {
+        var managerPath = WriteFile(Path.Combine("VRCNTInstaller", "VRCNT.Setup.exe"), "manager");
+        var signaturePath = WriteFile(Path.Combine("incoming", "VRCNT.Setup.exe.sig"), "untrusted comment: signature from minisign secret key\nRWQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\ntrusted comment: timestamp: 1787932800\nRUTAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n");
+        var store = CreateStateStore(managerPath);
+
+        store.WriteAuthenticated(new ManagerState(managerPath, Hash("manager"), "5.15.0", 1, 1, 1, 1, true, null, DateTimeOffset.UtcNow), signaturePath);
+
+        Assert.Equal(File.ReadAllText(signaturePath), store.ReadSignature());
+        Assert.Equal("5.15.0", store.Read()!.Version);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root)) Directory.Delete(_root, true);

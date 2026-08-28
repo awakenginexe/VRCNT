@@ -1,6 +1,7 @@
 using VRCNT.RuntimeCore.Archive;
 using VRCNT.RuntimeCore.Filesystem;
 using VRCNT.RuntimeCore.Hardware;
+using VRCNT.RuntimeCore.Manager;
 using VRCNT.RuntimeCore.Models;
 using VRCNT.RuntimeCore.Paths;
 using VRCNT.RuntimeCore.Process;
@@ -139,20 +140,21 @@ public sealed class RuntimeTransactionEngine(
             journalStore.WriteAtomic(paths.JournalPath, journal);
             Report(progress, TransactionPhase.Quiesce, "Requesting VRCNT shutdown.");
             var stop = request.ShutdownHandoff is not null && processCoordinator is IRuntimeSwitchProcessCoordinator switchCoordinator
-                ? await switchCoordinator.RequestGracefulStopAsync(request.ShutdownHandoff, CancellationToken.None)
-                : await processCoordinator.RequestGracefulStopAsync(CancellationToken.None);
+                ? await switchCoordinator.RequestGracefulStopAsync(request.ShutdownHandoff, cancellationToken)
+                : await processCoordinator.RequestGracefulStopAsync(cancellationToken);
             if (!stop.Stopped)
             {
+                var shutdownAcknowledged = ShutdownWasAcknowledged(request.ShutdownHandoff);
                 if (!request.ForceCloseConfirmed || processCoordinator is not IRuntimeProcessForceCloser forceCloser)
                 {
-                    await processCoordinator.RelaunchActiveRuntimeAsync(CancellationToken.None);
+                    if (shutdownAcknowledged) await processCoordinator.RelaunchActiveRuntimeAsync(CancellationToken.None);
                     DeleteTransaction(paths.TransactionRoot);
                     return Fail("processes_running", "VRCNT processes remain active and targeted force close was not confirmed.");
                 }
                 stop = await forceCloser.ForceCloseRemainingAsync(stop.RemainingProcessIds, CancellationToken.None);
                 if (!stop.Stopped)
                 {
-                    await processCoordinator.RelaunchActiveRuntimeAsync(CancellationToken.None);
+                    if (shutdownAcknowledged) await processCoordinator.RelaunchActiveRuntimeAsync(CancellationToken.None);
                     DeleteTransaction(paths.TransactionRoot);
                     return Fail("processes_running", "VRCNT processes remain active after targeted force close.");
                 }
@@ -223,13 +225,16 @@ public sealed class RuntimeTransactionEngine(
         }
         catch (OperationCanceledException) when (!quiesced)
         {
+            if (ShutdownWasAcknowledged(request.ShutdownHandoff))
+                await processCoordinator.RelaunchActiveRuntimeAsync(CancellationToken.None);
             if (paths is not null) DeleteTransaction(paths.TransactionRoot);
             return Fail("cancelled", "Cancellation was applied before runtime replacement.");
         }
         catch (Exception exception)
         {
             if (paths is null || journal is null) return Fail(Classify(exception), exception.Message);
-            var rollback = await RollbackAsync(paths, journal, request.InstallPath, processCoordinator, quiesced);
+            var shutdownAcknowledged = ShutdownWasAcknowledged(request.ShutdownHandoff);
+            var rollback = await RollbackAsync(paths, journal, request.InstallPath, processCoordinator, quiesced || shutdownAcknowledged);
             return new RuntimeOperationResult(false, rollback, !rollback, Classify(exception), exception.Message);
         }
     }
@@ -331,6 +336,16 @@ public sealed class RuntimeTransactionEngine(
     }
 
     private static bool PathsEqual(string left, string right) => string.Equals(Path.GetFullPath(left), Path.GetFullPath(right), StringComparison.OrdinalIgnoreCase);
+    private static bool ShutdownWasAcknowledged(RuntimeShutdownHandoff? handoff)
+    {
+        if (handoff is null) return false;
+        try
+        {
+            var dataRoot = Path.GetDirectoryName(handoff.StatusPath);
+            return dataRoot is not null && new RuntimeSwitchStatusStore(dataRoot, handoff.StatusPath).IsShutdownAcknowledged(handoff);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException) { return false; }
+    }
     private static RuntimeOperationResult Fail(string code, string message) => new(false, false, false, code, message);
     private static string Classify(Exception exception) => exception is InvalidDataException && exception.Message.Contains("volume", StringComparison.OrdinalIgnoreCase) ? "cross_volume"
         : exception is InvalidDataException && exception.Message.Contains("unsafe path", StringComparison.OrdinalIgnoreCase) ? "unsafe_archive"
