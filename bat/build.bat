@@ -1,2 +1,3 @@
-call .venv/Scripts/activate
-pyinstaller spec/backend.spec --distpath src-tauri/bin --clean --noconfirm --log-level ERROR
+@echo off
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build_backend.ps1 -Variant cpu -OutputPath src-tauri\bin %*
+exit /b %ERRORLEVEL%

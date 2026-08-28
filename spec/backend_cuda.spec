@@ -1,55 +1,21 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
+import os
+import sys
+from pathlib import Path
 
+spec_root = Path(SPECPATH)
+sys.path.insert(0, str(spec_root))
+from backend_common import create_backend_analysis
 
-a = Analysis(
-    ['..\\src-python\\mainloop.py'],
-    pathex=[],
-    binaries=[],
-    datas=[
-        ('./../src-python/models/overlay/fonts', 'fonts/'),
-        ('./../src-python/models/translation/translation_settings/prompt', 'translation_settings/prompt/'),
-        ('./../src-python/models/translation/translation_settings/languages', 'translation_settings/languages/'),
-        ('./../.venv_cuda/Lib/site-packages/zeroconf', 'zeroconf/'),
-        ('./../.venv_cuda/Lib/site-packages/openvr', 'openvr/'),
-        ('./../.venv_cuda/Lib/site-packages/faster_whisper', 'faster_whisper/'),
-        ('./../.venv_cuda/Lib/site-packages/hf_xet', 'hf_xet/'),
-        ('./../.venv_cuda/Lib/site-packages/sherpa_onnx', 'sherpa_onnx/'),
-        ('./../.venv_cuda/Lib/site-packages/vosk', 'vosk/'),
-        ('./../.venv_cuda/Lib/site-packages/onnx_asr', 'onnx_asr/'),
-        ('./../.venv_cuda/Lib/site-packages/onnxruntime', 'onnxruntime/'),
-        *collect_data_files('translators'),
-        *copy_metadata('sherpa-onnx'),
-        *copy_metadata('onnx-asr'),
-        *copy_metadata('translators'),
-        ],
-    hiddenimports=[
-        'torch',
-        'ctranslate2',
-        'translators',
-        'models.translation.translation_plamo',
-        'models.translation.translation_gemini',
-        'models.translation.translation_openai',
-        'models.translation.translation_deepseek',
-        'models.translation.translation_groq',
-        'models.translation.translation_openrouter',
-        'models.translation.translation_lmstudio',
-        'models.translation.translation_ollama',
-        'sherpa_onnx',
-        'vosk',
-        'onnx_asr',
-        'onnxruntime',
-        'onnxruntime.capi._pybind_state',
-        *collect_submodules('translators'),
-    ],
-    hookspath=[],
-    hooksconfig={},
-    runtime_hooks=[],
-    excludes=['pandas', 'matplotlib', 'PyQt5'],
-    module_collection_mode={'transformers.models': 'py'},
-    noarchive=False,
-    optimize=0,
+if os.environ.get("VRCNT_BACKEND_VARIANT") != "cuda":
+    raise RuntimeError("backend_cuda.spec requires VRCNT_BACKEND_VARIANT=cuda")
+a = create_backend_analysis(
+    Analysis,
+    "cuda",
+    spec_root.parent,
+    os.environ["VRCNT_BACKEND_VENV"],
+    ['torch', 'torch.cuda', 'torch.backends.cuda'],
 )
 pyz = PYZ(a.pure)
 
