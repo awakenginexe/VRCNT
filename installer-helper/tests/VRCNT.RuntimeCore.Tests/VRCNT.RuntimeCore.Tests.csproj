@@ -16,4 +16,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\VRCNT.RuntimeCore\VRCNT.RuntimeCore.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\VRCNT.Setup\CommandLine\SetupCommandLine.cs" Link="CommandLine\SetupCommandLine.cs" />
+  </ItemGroup>
 </Project>
