@@ -84,6 +84,44 @@ public sealed class ManifestValidationTests : IDisposable
     }
 
     [Theory]
+    [InlineData("cpu")]
+    [InlineData("cuda")]
+    public async Task LoadAndVerifyAsync_rejects_signed_schema_two_manifest_missing_a_required_variant(string missingVariant)
+    {
+        var manifest = CreateManifest();
+        var variants = new Dictionary<string, VariantPackage>(manifest.Variants);
+        variants.Remove(missingVariant);
+        var (manifestPath, signaturePath) = await WriteManifestAsync(manifest with { Variants = variants });
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => new ManifestLoader(new AcceptingSignatureVerifier())
+            .LoadAndVerifyAsync(manifestPath, signaturePath, "5.15.0", default));
+    }
+
+    [Theory]
+    [InlineData("bootstrapper name")]
+    [InlineData("bootstrapper size")]
+    [InlineData("bootstrapper hash")]
+    [InlineData("bootstrapper protocol")]
+    [InlineData("bootstrapper schema")]
+    [InlineData("bootstrapper runtime-state schema")]
+    [InlineData("bootstrapper activation protocol")]
+    [InlineData("archive format")]
+    [InlineData("zero compressed size")]
+    [InlineData("negative compressed size")]
+    [InlineData("zero installed size")]
+    [InlineData("negative installed size")]
+    [InlineData("compressed-size sum")]
+    [InlineData("null part")]
+    public async Task LoadAndVerifyAsync_rejects_invalid_signed_schema_two_metadata(string invalidField)
+    {
+        var manifest = CreateInvalidManifest(invalidField);
+        var (manifestPath, signaturePath) = await WriteManifestAsync(manifest);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => new ManifestLoader(new AcceptingSignatureVerifier())
+            .LoadAndVerifyAsync(manifestPath, signaturePath, "5.15.0", default));
+    }
+
+    [Theory]
     [InlineData("VRCNT.exe")]
     [InlineData("markers/VRCNT.runtime.json")]
     [InlineData("..\\VRCNT.runtime.json")]
@@ -130,6 +168,33 @@ public sealed class ManifestValidationTests : IDisposable
     }
 
     internal static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+
+    private static PackageManifest CreateInvalidManifest(string invalidField)
+    {
+        var manifest = CreateManifest();
+        var cpu = manifest.Variants["cpu"];
+        return invalidField switch
+        {
+            "bootstrapper name" => manifest with { Bootstrapper = manifest.Bootstrapper with { Name = "VRCNT_Setup.exe" } },
+            "bootstrapper size" => manifest with { Bootstrapper = manifest.Bootstrapper with { Size = 0 } },
+            "bootstrapper hash" => manifest with { Bootstrapper = manifest.Bootstrapper with { Sha256 = "not-a-hash" } },
+            "bootstrapper protocol" => manifest with { Bootstrapper = manifest.Bootstrapper with { ManagerProtocol = 0 } },
+            "bootstrapper schema" => manifest with { Bootstrapper = manifest.Bootstrapper with { ManifestSchema = 1 } },
+            "bootstrapper runtime-state schema" => manifest with { Bootstrapper = manifest.Bootstrapper with { RuntimeStateSchema = 0 } },
+            "bootstrapper activation protocol" => manifest with { Bootstrapper = manifest.Bootstrapper with { ActivationProtocol = 0 } },
+            "archive format" => WithCpu(manifest, cpu with { ArchiveFormat = "zip" }),
+            "zero compressed size" => WithCpu(manifest, cpu with { CompressedSize = 0 }),
+            "negative compressed size" => WithCpu(manifest, cpu with { CompressedSize = -1 }),
+            "zero installed size" => WithCpu(manifest, cpu with { InstalledSize = 0 }),
+            "negative installed size" => WithCpu(manifest, cpu with { InstalledSize = -1 }),
+            "compressed-size sum" => WithCpu(manifest, cpu with { CompressedSize = cpu.CompressedSize + 1 }),
+            "null part" => WithCpu(manifest, cpu with { Parts = new PackagePart[] { null! } }),
+            _ => throw new ArgumentOutOfRangeException(nameof(invalidField), invalidField, null),
+        };
+    }
+
+    private static PackageManifest WithCpu(PackageManifest manifest, VariantPackage cpu) =>
+        manifest with { Variants = new Dictionary<string, VariantPackage>(manifest.Variants) { ["cpu"] = cpu } };
 
     private sealed class AcceptingSignatureVerifier : IManifestSignatureVerifier
     {

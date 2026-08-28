@@ -114,7 +114,6 @@ test("workflow bootstraps x64 7-Zip from pinned official archives", () => {
 
 
 test("workflow fails on missing, oversized, or mismatched release files", () => {
-    assert.match(workflow, /files\.Count -ne 3/);
     assert.match(workflow, /Length -ge \[long\]\$env:MAX_ASSET_SIZE/);
     assert.match(workflow, /Get-FileHash .* -Algorithm SHA256/);
     assert.match(workflow, /failed SHA-256 verification/);

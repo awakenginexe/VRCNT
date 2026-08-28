@@ -88,6 +88,12 @@ if (string.Equals(executableName, "VRCNT", StringComparison.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--cuda-capability-probe", StringComparer.Ordinal))
+{
+    Console.Write("{\"supported\":true,\"conclusive\":true,\"failureCode\":null,\"detail\":null}");
+    return;
+}
+
 if (!args.Contains("--runtime-activation-pipe", StringComparer.Ordinal)) return;
 var pipe = Required(args, "--runtime-activation-pipe");
 var token = Required(args, "--runtime-activation-token");
@@ -139,7 +145,6 @@ await Task.Delay(1000);
 
   $cudaPayload = Join-Path $testRoot 'cuda-payload'
   Copy-Item $payload $cudaPayload -Recurse
-  Set-Content -LiteralPath "$cudaPayload/VRCNT-backend.exe" -Value 'test cuda backend' -Encoding utf8
   Set-Content -LiteralPath "$cudaPayload/VRCNT.runtime.json" -Value '{"product":"VRCNT","version":"4.2.2","variant":"Cuda","architecture":"x64","buildIdentity":"fixture-cuda"}' -Encoding utf8
   $cudaArchive = Join-Path $release 'VRCNT_4.2.2_CUDA.7z'
   Push-Location $cudaPayload
@@ -226,12 +231,25 @@ manifest = {
   }
 
   $localDestination = Join-Path $testRoot 'local-install'
-  $local = Invoke-Helper $release (Join-Path $testRoot 'local-cache') $localDestination 'http://127.0.0.1:1'
+  $local = Invoke-Helper $release (Join-Path $testRoot 'local-cache') $localDestination 'http://127.0.0.1:1' -Variant cpu
     if ($local.ExitCode -ne 0 -or -not (Test-Path "$localDestination/VRCNT.exe")) {
     throw "Local multipart installation failed:`n$($local.Output)"
   }
   if ($local.Output -notmatch 'Found all signed manifest-selected package files beside the installer') {
     throw 'Local installation did not select the adjacent package path.'
+  }
+
+  $cudaDestination = Join-Path $testRoot 'cuda-local-install'
+  $cuda = Invoke-Helper $release (Join-Path $testRoot 'cuda-local-cache') $cudaDestination 'http://127.0.0.1:1' -Variant cuda
+  if ($cuda.ExitCode -ne 0 -or -not (Test-Path "$cudaDestination/VRCNT.exe")) {
+    throw "CUDA local multipart installation failed:`n$($cuda.Output)"
+  }
+  if ($cuda.Output -notmatch 'Found all signed manifest-selected package files beside the installer') {
+    throw 'CUDA local installation did not select the adjacent package path.'
+  }
+  $cudaIdentity = Get-Content -LiteralPath "$cudaDestination/VRCNT.runtime.json" -Raw | ConvertFrom-Json
+  if ($cudaIdentity.variant -ne 'Cuda') {
+    throw "CUDA local installation did not activate the Cuda runtime identity: $($cudaIdentity.variant)"
   }
 
   $existingExecutable = [IO.File]::ReadAllText("$localDestination/VRCNT.exe")
@@ -301,7 +319,7 @@ manifest = {
     if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -Force }
   }
 
-  Write-Output 'Release helper integration scenarios passed: local, online, resume, signature/hash rejection, and portable extraction.'
+  Write-Output 'Release helper integration scenarios passed: CPU and CUDA local installs, online, resume, signature/hash rejection, and portable extraction.'
 } finally {
   if ($null -eq $previousLocalAppData) { Remove-Item Env:LOCALAPPDATA -ErrorAction SilentlyContinue } else { $env:LOCALAPPDATA = $previousLocalAppData }
   if (Test-Path $testRoot) {

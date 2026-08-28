@@ -40,7 +40,8 @@ public sealed class ManifestLoader(IManifestSignatureVerifier verifier) : IManif
             manifest.Bootstrapper.ManagerProtocol <= 0 || manifest.Bootstrapper.ManifestSchema != manifest.Schema ||
             manifest.Bootstrapper.RuntimeStateSchema <= 0 || manifest.Bootstrapper.ActivationProtocol <= 0)
             throw new InvalidDataException("Package manifest bootstrapper metadata is invalid.");
-        if (manifest.Variants is null || manifest.Variants.Count == 0) throw new InvalidDataException("Package manifest has no variants.");
+        if (manifest.Variants is null || manifest.Variants.Count != 2 || !manifest.Variants.ContainsKey("cpu") || !manifest.Variants.ContainsKey("cuda"))
+            throw new InvalidDataException("Package manifest variants must be exactly cpu and cuda.");
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (key, package) in manifest.Variants)
         {
@@ -52,8 +53,8 @@ public sealed class ManifestLoader(IManifestSignatureVerifier verifier) : IManif
                 throw new InvalidDataException($"Package manifest variant '{key}' is invalid.");
             foreach (var part in package.Parts)
             {
-                if (!IsSafeAssetName(part.Name) || !names.Add(part.Name) || part.Size <= 0 || part.Size >= MaxGitHubAssetBytes || !IsSha256(part.Sha256))
-                    throw new InvalidDataException($"Package part '{part.Name}' is invalid.");
+                if (part is null || !IsSafeAssetName(part.Name) || !names.Add(part.Name) || part.Size <= 0 || part.Size >= MaxGitHubAssetBytes || !IsSha256(part.Sha256))
+                    throw new InvalidDataException($"Package part '{part?.Name}' is invalid.");
             }
             if (package.CompressedSize != package.Parts.Sum(part => part.Size))
                 throw new InvalidDataException($"Package manifest variant '{key}' has an invalid compressed size.");
