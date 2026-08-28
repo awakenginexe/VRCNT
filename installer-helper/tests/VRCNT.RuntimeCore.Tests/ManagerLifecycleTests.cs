@@ -264,6 +264,7 @@ public sealed class ManagerLifecycleTests : IDisposable
         var options = SetupCommandLine.Parse([
             "/UPDATE", "/passive", "--switch", "--variant", "cuda", "--repair-manager",
             "--install-path", "C:\\VRCNT", "--current-app", "C:\\VRCNT\\VRCNT.exe",
+            "--switch-token", "handoff-token", "--switch-status", "C:\\VRCNTData\\runtime-switch-status.json",
         ]);
 
         Assert.True(options.IsUpdate);
@@ -273,6 +274,18 @@ public sealed class ManagerLifecycleTests : IDisposable
         Assert.Equal(RuntimeVariant.Cuda, options.Variant);
         Assert.Equal(Path.GetFullPath("C:\\VRCNT"), options.InstallPath);
         Assert.Equal(Path.GetFullPath("C:\\VRCNT\\VRCNT.exe"), options.CurrentAppPath);
+        Assert.Equal("handoff-token", options.SwitchToken);
+        Assert.Equal(Path.GetFullPath("C:\\VRCNTData\\runtime-switch-status.json"), options.SwitchStatusPath);
+    }
+
+    [Fact]
+    public async Task Command_dispatcher_rejects_a_switch_without_an_explicit_target()
+    {
+        var operations = new RecordingSetupOperations();
+        var options = new SetupCommandLineOptions(false, false, true, false, false, null, "C:\\VRCNT", null, [], null);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => new SetupCommandDispatcher(operations).DispatchAsync(options, default));
+        Assert.Empty(operations.Calls);
     }
 
     [Fact]

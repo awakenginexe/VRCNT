@@ -1,4 +1,5 @@
 using VRCNT.RuntimeCore.Models;
+using VRCNT.RuntimeCore.Hardware;
 using VRCNT.Setup.CommandLine;
 using VRCNT.Setup.Localization;
 using VRCNT.Setup.Views;
@@ -64,13 +65,31 @@ public sealed class InstallerViewModelTests
         var xamlPath = Path.Combine(AppContext.BaseDirectory, "Views", "MainWindow.xaml");
         var xaml = File.ReadAllText(xamlPath);
 
-        Assert.Contains("IsEnabled=\"{Binding CanSelectCuda}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("IsEnabled=\"{Binding CanSelectCudaRadio}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding EnableAdvancedCudaOverrideCommand}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding GpuDetectionState}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding AdvancedCudaWarning}\"", xaml, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(RuntimeVariant.Cpu, RuntimeVariant.Cuda)]
+    [InlineData(RuntimeVariant.Cuda, RuntimeVariant.Cpu)]
+    public async Task Switch_mode_keeps_the_confirmed_target_when_gpu_recommendation_disagrees(RuntimeVariant target, RuntimeVariant recommended)
+    {
+        var operations = new DeferredProgressOperations { CompleteImmediately = true };
+        var options = SetupCommandLine.Parse(["--switch", "--variant", target == RuntimeVariant.Cuda ? "cuda" : "cpu"]);
+        var viewModel = CreateViewModel(operations, options, new FixedGpuSelectionPolicy(recommended));
+
+        Assert.Equal(target, viewModel.SelectedVariant);
+        await viewModel.InstallAsync();
+
+        Assert.Equal(target, operations.ReceivedOptions!.Variant);
+    }
+
     private static InstallerViewModel CreateViewModel(DeferredProgressOperations operations, IApplicationLauncher? launcher = null, IGpuAdvisoryPolicy? gpuAdvisoryPolicy = null)
+        => CreateViewModel(operations, new SetupCommandLineOptions(false, false, false, false, false, RuntimeVariant.Cpu, "C:\\VRCNT", null, [], "en"), new FixedGpuSelectionPolicy(RuntimeVariant.Cpu), launcher, gpuAdvisoryPolicy);
+
+    private static InstallerViewModel CreateViewModel(DeferredProgressOperations operations, SetupCommandLineOptions options, IGpuSelectionPolicy gpuSelectionPolicy, IApplicationLauncher? launcher = null, IGpuAdvisoryPolicy? gpuAdvisoryPolicy = null)
     {
         var languages = new[] { new InstallerLanguage("en", "English"), new InstallerLanguage("th", "ไทย") };
         var translations = languages.ToDictionary(
@@ -84,7 +103,7 @@ public sealed class InstallerViewModelTests
                 ["install_size"] = "Install size", ["install_time"] = "Install time", ["options_title"] = "Options", ["options_body"] = "Options body", ["launch_vrcnt"] = "Launch VRCNT", ["install"] = "Install",
                 ["progress_title"] = "Installing", ["progress_body"] = "Please wait", ["error_title"] = "Error", ["error_body"] = "We could not install", ["retry"] = "Retry", ["complete_title"] = "Complete", ["complete_body"] = "Done", ["close"] = "Close",
             }, StringComparer.Ordinal);
-        return new InstallerViewModel(operations, new SetupCommandLineOptions(false, false, false, false, false, RuntimeVariant.Cpu, "C:\\VRCNT", null, [], "en"), InstallerLocalizer.FromCatalog(languages, translations), launcher, gpuAdvisoryPolicy);
+        return new InstallerViewModel(operations, options, InstallerLocalizer.FromCatalog(languages, translations), launcher, gpuAdvisoryPolicy, gpuSelectionPolicy: gpuSelectionPolicy);
     }
 
     private sealed class DeferredProgressOperations : ISetupCommandOperations
@@ -92,9 +111,11 @@ public sealed class InstallerViewModelTests
         private readonly TaskCompletionSource _completion = new();
         public TaskCompletionSource ProgressReported { get; } = new();
         public bool CompleteImmediately { get; init; }
+        public SetupCommandLineOptions? ReceivedOptions { get; private set; }
 
         public Task ExecuteRuntimeAsync(SetupCommandLineOptions options, IProgress<InstallProgress>? progress, CancellationToken cancellationToken)
         {
+            ReceivedOptions = options;
             progress?.Report(new InstallProgress(TransactionPhase.Acquire, 250, 1000, "runtime.7z"));
             ProgressReported.TrySetResult();
             return CompleteImmediately ? Task.CompletedTask : _completion.Task;
@@ -114,5 +135,18 @@ public sealed class InstallerViewModelTests
     private sealed class FixedGpuAdvisoryPolicy(GpuAdvisory advisory) : IGpuAdvisoryPolicy
     {
         public GpuAdvisory Assess() => advisory;
+    }
+
+    private sealed class FixedGpuSelectionPolicy(RuntimeVariant recommendedVariant) : IGpuSelectionPolicy
+    {
+        public GpuSelectionRecommendation Assess() => new(
+            recommendedVariant,
+            recommendedVariant == RuntimeVariant.Cuda,
+            recommendedVariant != RuntimeVariant.Cuda,
+            new GpuDetectionResult(
+                recommendedVariant == RuntimeVariant.Cuda ? GpuDetectionStatus.NvidiaDetected : GpuDetectionStatus.NoNvidiaHardware,
+                null,
+                null,
+                "fixture"));
     }
 }

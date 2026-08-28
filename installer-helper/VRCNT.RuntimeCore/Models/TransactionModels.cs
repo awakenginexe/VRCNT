@@ -23,6 +23,14 @@ public sealed record RuntimeOperationResult(
     string? ErrorCode,
     string? ErrorMessage);
 
+public sealed record RuntimeShutdownHandoff(
+    string Nonce,
+    string Token,
+    string Proof,
+    RuntimeVariant TargetVariant,
+    string StatusPath,
+    string CurrentAppPath);
+
 public sealed record InstallProgress(
     TransactionPhase Phase,
     long CompletedBytes,
@@ -41,7 +49,8 @@ public sealed record RuntimeInstallRequest(
     string InstallPath,
     string ReleaseBaseUrl,
     string CacheDirectory,
-    bool ForceCloseConfirmed);
+    bool ForceCloseConfirmed,
+    RuntimeShutdownHandoff? ShutdownHandoff = null);
 
 public interface IRuntimeTransactionEngine
 {

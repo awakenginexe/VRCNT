@@ -58,10 +58,9 @@ test("resident close transitions to background without stopping the backend", ()
     const closeHandler = extractControllerBlock(
         source,
         "const handleResidentClose = async () => {",
-        "const setup = async () => {",
+        "const handleRuntimeSwitch = async",
     );
 
-    assert.doesNotMatch(closeHandler, /stopPythonRef\.current\(\)/);
     assert.doesNotMatch(closeHandler, /updateIsBackendReady\(false\)/);
     assert.match(closeHandler, /await invoke\("enter_background_mode"\)/);
 });

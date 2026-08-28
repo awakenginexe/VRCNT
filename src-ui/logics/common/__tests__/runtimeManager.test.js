@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
+import * as runtimeManager from "../runtimeManager.js";
 import {
     createRuntimeSwitchState,
     getRuntimePresentation,
@@ -74,7 +75,7 @@ test("runtime switch launches only after an explicit confirmation", async () => 
         launch: async (variant) => launched.push(variant),
     });
 
-    assert.deepEqual(result, { started: true });
+    assert.deepEqual(result, { accepted: true, targetVariant: "cuda" });
     assert.deepEqual(launched, ["cuda"]);
 });
 
@@ -84,6 +85,78 @@ test("runtime controls remain disabled while a switch transaction is active", ()
         pendingTarget: "cuda",
         controlsDisabled: true,
     });
+});
+
+test("switch acknowledgement is required before the UI reports an active transaction", async () => {
+    const statuses = [
+        { status: "pending", targetVariant: "cuda", nonce: "n1" },
+        { status: "accepted", targetVariant: "cuda", nonce: "n1" },
+    ];
+    const result = await confirmRuntimeSwitch({
+        runtime: normalizeRuntimeState(activeCpu),
+        targetVariant: "cuda",
+        launch: async () => {},
+        getStatus: async () => statuses.shift(),
+        waitOptions: { intervalMs: 0, timeoutMs: 50 },
+    });
+
+    assert.deepEqual(result, { accepted: true, targetVariant: "cuda" });
+});
+
+test("terminal switch outcomes refresh runtime state and clear the pending transaction", async () => {
+    let refreshed = 0;
+    const outcome = await runtimeManager.waitForRuntimeSwitchOutcome({
+        getStatus: async () => ({ status: "failed", targetVariant: "cuda", errorCode: "preflight_failed" }),
+        refreshRuntime: async () => { refreshed += 1; return normalizeRuntimeState(activeCpu); },
+        timeoutMs: 50,
+        intervalMs: 0,
+    });
+
+    assert.equal(outcome.status, "failed");
+    assert.equal(outcome.runtime.variant, "cpu");
+    assert.equal(refreshed, 1);
+});
+
+test("cancelled and stale switch outcomes are terminal and refresh the runtime", async () => {
+    for (const terminal of [
+        { status: "cancelled", errorCode: "cancelled" },
+        { status: "stale", errorCode: "switch_timeout" },
+    ]) {
+        let refreshed = 0;
+        const outcome = await runtimeManager.waitForRuntimeSwitchOutcome({
+            getStatus: async () => terminal,
+            refreshRuntime: async () => { refreshed += 1; return normalizeRuntimeState(activeCpu); },
+            timeoutMs: 50,
+            intervalMs: 0,
+        });
+        assert.equal(outcome.status, terminal.status);
+        assert.equal(outcome.runtime.variant, "cpu");
+        assert.equal(refreshed, 1);
+    }
+});
+
+test("runtime switch bridge source includes authenticated manager status and resident handoff", () => {
+    const source = fs.readFileSync(path.join(repoRoot, "src-tauri", "src", "runtime_manager.rs"), "utf8");
+    assert.match(source, /manager-state\.json/);
+    assert.match(source, /VRCNT\.Setup\.exe\.sig/);
+    assert.match(source, /MINISIGN_SHA256/);
+    assert.match(source, /validate_manager_signature/);
+    assert.match(source, /proof_sha256/);
+    assert.match(source, /current_exe/);
+    assert.match(source, /switch-status/);
+    assert.match(source, /runtime-switch-requested/);
+    assert.match(source, /--switch/);
+    assert.match(source, /--variant/);
+    assert.match(source, /--current-app/);
+    assert.match(source, /--switch-token/);
+    assert.match(source, /is_shutdown_authorized/);
+});
+
+test("resident runtime switch handoff stops the backend before authenticated close", () => {
+    const source = fs.readFileSync(path.join(repoRoot, "src-ui", "views", "app", "_app_controllers", "StartPythonController.jsx"), "utf8");
+    assert.match(source, /RUNTIME_SWITCH_REQUESTED_EVENT/);
+    assert.match(source, /await stopPythonRef\.current\(\)/);
+    assert.match(source, /complete_runtime_switch_shutdown/);
 });
 
 test("all six locales provide matching runtime-switching copy", () => {

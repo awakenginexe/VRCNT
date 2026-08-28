@@ -29,6 +29,7 @@ public sealed class ManagerStateStore
     public string ManagerDirectory { get; }
     public string ManagerPath { get; }
     public string StatePath => Path.Combine(ManagerDirectory, "manager-state.json");
+    public string SignaturePath => ManagerPath + ".sig";
     public ManagerCapabilities Capabilities { get; }
 
     public ManagerState? Read()
@@ -52,6 +53,23 @@ public sealed class ManagerStateStore
         {
             File.WriteAllText(temporaryPath, JsonSerializer.Serialize(state, JsonOptions));
             File.Move(temporaryPath, StatePath, true);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+        }
+    }
+
+    public void WriteAuthenticated(ManagerState state, string signedManagerPath)
+    {
+        if (string.IsNullOrWhiteSpace(signedManagerPath) || !File.Exists(signedManagerPath))
+            throw new FileNotFoundException("The authenticated manager signature is missing.", signedManagerPath);
+        Write(state);
+        var temporaryPath = SignaturePath + $".{Guid.NewGuid():N}.tmp";
+        try
+        {
+            File.Copy(signedManagerPath, temporaryPath, true);
+            File.Move(temporaryPath, SignaturePath, true);
         }
         finally
         {

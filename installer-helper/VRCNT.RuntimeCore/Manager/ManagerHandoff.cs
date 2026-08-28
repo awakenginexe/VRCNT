@@ -325,7 +325,7 @@ public sealed class SetupManagerLifecycle : IManagerLifecycle
             var hash = expectedBootstrapper.Sha256;
             try
             {
-                _stateStore.Write(new ManagerState(
+                _stateStore.WriteAuthenticated(new ManagerState(
                     _managerPath,
                     hash,
                     expectedManifest.Version,
@@ -335,7 +335,7 @@ public sealed class SetupManagerLifecycle : IManagerLifecycle
                     expectedBootstrapper.ActivationProtocol,
                     true,
                     null,
-                    DateTimeOffset.UtcNow));
+                    DateTimeOffset.UtcNow), update.SignaturePath);
             }
             catch
             {

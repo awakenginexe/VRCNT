@@ -57,7 +57,9 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         _gpuAdvisoryPolicy = gpuAdvisoryPolicy ?? new InconclusiveGpuAdvisoryPolicy();
         _usesInjectedGpuAdvisoryPolicy = gpuAdvisoryPolicy is not null;
         _gpuSelection = (gpuSelectionPolicy ?? new GpuSelectionPolicy(new DxgiGpuDetector())).Assess();
-        _selectedVariant = _gpuSelection.RecommendedVariant;
+        _selectedVariant = options.IsSwitch
+            ? options.TargetVariant ?? throw new ArgumentException("A runtime switch requires an explicit target variant.", nameof(options))
+            : _gpuSelection.RecommendedVariant;
         _useReducedMotion = useReducedMotion;
         if (options.InstallerLanguage is not null) _localizer.SetLanguage(options.InstallerLanguage);
         _selectedLanguage = _localizer.Languages.Single(language => language.Id == _localizer.CurrentLanguage);
@@ -105,7 +107,21 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
             if (SetField(ref _selectedLanguage, value)) _localizer.SetLanguage(value.Id);
         }
     }
-    public RuntimeVariant SelectedVariant { get => _selectedVariant; set { if (value == RuntimeVariant.Cuda && !CanSelectCuda) return; if (SetField(ref _selectedVariant, value)) RefreshLocalizedProperties(); } }
+    public bool IsSwitch => _options.IsSwitch;
+    public RuntimeVariant TargetVariant => _options.TargetVariant ?? throw new InvalidOperationException("The switch target is unavailable.");
+    public bool IsRuntimeSelectionLocked => IsSwitch;
+    public bool CanChangeRuntimeSelection => !IsSwitch;
+    public bool CanSelectCudaRadio => !IsSwitch && CanSelectCuda;
+    public RuntimeVariant SelectedVariant
+    {
+        get => _selectedVariant;
+        set
+        {
+            if (IsSwitch && value != TargetVariant) return;
+            if (!IsSwitch && value == RuntimeVariant.Cuda && !CanSelectCuda) return;
+            if (SetField(ref _selectedVariant, value)) RefreshLocalizedProperties();
+        }
+    }
     public bool IsCpuSelected { get => SelectedVariant == RuntimeVariant.Cpu; set { if (value) SelectedVariant = RuntimeVariant.Cpu; } }
     public bool IsCudaSelected
     {
@@ -128,7 +144,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
             ((DelegateCommand)EnableAdvancedCudaOverrideCommand).RaiseCanExecuteChanged();
         }
     }
-    public bool CanSelectCuda => IsCudaNormallyAvailable || (RequiresAdvancedCudaOverride && AdvancedCudaOverrideEnabled);
+    public bool CanSelectCuda => IsSwitch ? TargetVariant == RuntimeVariant.Cuda : IsCudaNormallyAvailable || (RequiresAdvancedCudaOverride && AdvancedCudaOverrideEnabled);
     public bool LaunchAfterSetup { get => _launchAfterSetup; set => SetField(ref _launchAfterSetup, value); }
     public bool IsInstalling
     {
@@ -155,6 +171,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     public string LanguageBody => T("language_body");
     public string RuntimeTitle => T("runtime_title");
     public string RuntimeBody => T("runtime_body");
+    public string ConfirmedTargetText => IsSwitch ? SelectedRuntimeTitle : string.Empty;
     public string CpuTitle => T("cpu_title");
     public string CpuBody => T("cpu_body");
     public string CpuSize => T("cpu_size");
@@ -248,7 +265,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         CurrentPage = InstallerPage.Progress;
         try
         {
-            var request = _options with { Variant = SelectedVariant, InstallerLanguage = SelectedLanguage.Id };
+            var request = _options with { TargetVariant = IsSwitch ? TargetVariant : SelectedVariant, InstallerLanguage = SelectedLanguage.Id };
             await new SetupCommandDispatcher(_operations).DispatchAsync(request, CancellationToken.None, new InlineProgress<InstallProgress>(ReportProgress));
             ProgressValue = 100;
             CurrentPage = InstallerPage.Complete;
@@ -288,10 +305,10 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         foreach (var property in new[]
         {
             nameof(AppTitle), nameof(WelcomeTitle), nameof(WelcomeBody), nameof(ContinueText), nameof(BackText),
-            nameof(LanguageTitle), nameof(LanguageBody), nameof(RuntimeTitle), nameof(RuntimeBody), nameof(CpuTitle),
+            nameof(LanguageTitle), nameof(LanguageBody), nameof(RuntimeTitle), nameof(RuntimeBody), nameof(ConfirmedTargetText), nameof(CpuTitle),
             nameof(CpuBody), nameof(CpuSize), nameof(CpuTime), nameof(CudaTitle), nameof(CudaBody), nameof(CudaSize),
             nameof(CudaTime), nameof(CpuStatus), nameof(CudaStatus), nameof(CudaAdvisory), nameof(GpuDetectionState), nameof(AdvancedCudaWarning), nameof(EnableAdvancedCudaOverrideText), nameof(IsCudaNormallyAvailable), nameof(RequiresAdvancedCudaOverride), nameof(AdvancedCudaOverrideEnabled), nameof(CanSelectCuda), nameof(SelectedRuntimeTitle), nameof(SelectedRuntimeSize), nameof(SelectedRuntimeTime), nameof(CurrentPageTitle), nameof(InstallSizeLabel), nameof(InstallTimeLabel),
-            nameof(OptionsTitle), nameof(OptionsBody), nameof(LaunchVrcntText), nameof(InstallText), nameof(ProgressTitle),
+            nameof(OptionsTitle), nameof(OptionsBody), nameof(LaunchVrcntText), nameof(InstallText), nameof(ProgressTitle), nameof(CanChangeRuntimeSelection), nameof(CanSelectCudaRadio),
             nameof(ProgressBody), nameof(ErrorTitle), nameof(ErrorBody), nameof(RetryText), nameof(CompleteTitle),
             nameof(CompleteBody), nameof(CloseText),
         }) OnPropertyChanged(property);

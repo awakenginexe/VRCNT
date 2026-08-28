@@ -16,6 +16,8 @@ public sealed class SetupCommandDispatcher(ISetupCommandOperations operations)
     public async Task<int> DispatchAsync(SetupCommandLineOptions options, CancellationToken cancellationToken, IProgress<InstallProgress>? progress = null)
     {
         ArgumentNullException.ThrowIfNull(options);
+        if (options.IsSwitch && options.TargetVariant is null)
+            throw new ArgumentException("A runtime switch requires an explicit target variant.", nameof(options));
         if (options.IsRepairManager)
             await _operations.ExecuteRepairManagerAsync(options, cancellationToken);
         else

@@ -83,13 +83,63 @@ export const requestRuntimeSwitch = ({ runtime, targetVariant }) => {
     return { targetVariant, requiresConfirmation: true };
 };
 
-export const confirmRuntimeSwitch = async ({ runtime, targetVariant, launch }) => {
+const SWITCH_TERMINAL_STATES = new Set(["succeeded", "failed", "cancelled", "stale"]);
+
+const wait = (intervalMs) => new Promise((resolve) => setTimeout(resolve, intervalMs));
+
+export const normalizeRuntimeSwitchStatus = (status) => {
+    if (!status || !["idle", "pending", "accepted", "running", ...SWITCH_TERMINAL_STATES].includes(status.status)) {
+        return { status: "stale", errorCode: "invalid_switch_status", message: "Runtime switch recovery is required." };
+    }
+    return {
+        status: status.status,
+        targetVariant: RUNTIME_VARIANTS.has(status.targetVariant) ? status.targetVariant : null,
+        nonce: isNonEmptyString(status.nonce) ? status.nonce : null,
+        errorCode: status.errorCode ?? null,
+        message: status.message ?? null,
+        updatedAtUtc: status.updatedAtUtc ?? null,
+    };
+};
+
+export const waitForRuntimeSwitchAcceptance = async ({ getStatus, targetVariant, timeoutMs = 10000, intervalMs = 100 }) => {
+    if (typeof getStatus !== "function") return { accepted: true, targetVariant };
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() <= deadline) {
+        const status = normalizeRuntimeSwitchStatus(await getStatus());
+        if (status.targetVariant && status.targetVariant !== targetVariant) throw new Error("The runtime switch target was changed.");
+        if (status.status === "accepted" || status.status === "running") return { accepted: true, targetVariant };
+        if (SWITCH_TERMINAL_STATES.has(status.status)) throw new Error(status.message || status.errorCode || "Runtime switch was not accepted.");
+        await wait(intervalMs);
+    }
+    throw new Error("The setup manager did not acknowledge the runtime switch.");
+};
+
+export const confirmRuntimeSwitch = async ({ runtime, targetVariant, launch, getStatus, waitOptions }) => {
     const request = requestRuntimeSwitch({ runtime, targetVariant });
     if (typeof launch !== "function") {
         throw new Error("Runtime switch launch is unavailable.");
     }
     await launch(request.targetVariant);
-    return { started: true };
+    return waitForRuntimeSwitchAcceptance({
+        getStatus,
+        targetVariant: request.targetVariant,
+        ...waitOptions,
+    });
+};
+
+export const waitForRuntimeSwitchOutcome = async ({ getStatus, refreshRuntime, timeoutMs = 10 * 60 * 1000, intervalMs = 250 }) => {
+    if (typeof getStatus !== "function") throw new Error("Runtime switch status is unavailable.");
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() <= deadline) {
+        const status = normalizeRuntimeSwitchStatus(await getStatus());
+        if (SWITCH_TERMINAL_STATES.has(status.status)) {
+            const runtime = typeof refreshRuntime === "function" ? await refreshRuntime() : null;
+            return { ...status, runtime };
+        }
+        await wait(intervalMs);
+    }
+    const runtime = typeof refreshRuntime === "function" ? await refreshRuntime() : null;
+    return { status: "stale", errorCode: "switch_timeout", message: "Runtime switch status became stale.", runtime };
 };
 
 export const createRuntimeSwitchState = ({ isBusy = false, pendingTarget = null } = {}) => ({
@@ -123,9 +173,19 @@ export const createRuntimeManagerAdapter = ({
         const invoke = await loadTauriInvoke();
         await invoke("launch_runtime_switch", { variant });
     },
+    getRuntimeSwitchStatus: async () => {
+        if (!isTauri()) return { status: "idle" };
+        try {
+            const invoke = await loadTauriInvoke();
+            return normalizeRuntimeSwitchStatus(await invoke("get_runtime_switch_status"));
+        } catch {
+            return { status: "stale", errorCode: "switch_status_unavailable" };
+        }
+    },
 });
 
 const runtimeManagerAdapter = createRuntimeManagerAdapter();
 
 export const getRuntimeState = () => runtimeManagerAdapter.getRuntimeState();
 export const launchRuntimeSwitch = (variant) => runtimeManagerAdapter.launchRuntimeSwitch(variant);
+export const getRuntimeSwitchStatus = () => runtimeManagerAdapter.getRuntimeSwitchStatus();

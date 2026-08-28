@@ -9,11 +9,17 @@ public sealed record SetupCommandLineOptions(
     bool IsSwitch,
     bool IsRepairManager,
     bool IsManagerRepairWorker,
-    RuntimeVariant? Variant,
+    RuntimeVariant? TargetVariant,
     string? InstallPath,
     string? CurrentAppPath,
     IReadOnlyList<string> CurrentAppArguments,
-    string? InstallerLanguage);
+    string? InstallerLanguage,
+    string? SwitchToken = null,
+    string? SwitchStatusPath = null)
+{
+    // Compatibility alias for callers that still use the generic install name.
+    public RuntimeVariant? Variant => TargetVariant;
+}
 
 public static class SetupCommandLine
 {
@@ -33,6 +39,8 @@ public static class SetupCommandLine
         string? installPath = null;
         string? currentAppPath = null;
         string? installerLanguage = null;
+        string? switchToken = null;
+        string? switchStatusPath = null;
         var currentAppArguments = new List<string>();
 
         for (var index = 0; index < args.Count; index++)
@@ -69,6 +77,16 @@ public static class SetupCommandLine
                 currentAppArguments.Add(NextValue(args, ref index, "--current-app-arg"));
                 continue;
             }
+            if (argument.Equals("--switch-token", StringComparison.OrdinalIgnoreCase))
+            {
+                switchToken = NextValue(args, ref index, "--switch-token");
+                continue;
+            }
+            if (argument.Equals("--switch-status", StringComparison.OrdinalIgnoreCase))
+            {
+                switchStatusPath = Path.GetFullPath(NextValue(args, ref index, "--switch-status"));
+                continue;
+            }
             if (argument.Equals("--installer-language", StringComparison.OrdinalIgnoreCase))
             {
                 installerLanguage = NextValue(args, ref index, "--installer-language");
@@ -81,8 +99,9 @@ public static class SetupCommandLine
 
         if (isSwitch && variant is null) throw new ArgumentException("--switch requires --variant cpu|cuda.", nameof(args));
         if (variant is not null && !isSwitch) throw new ArgumentException("--variant is only valid with --switch.", nameof(args));
+        if (!isSwitch && (switchToken is not null || switchStatusPath is not null)) throw new ArgumentException("Switch handoff arguments are only valid with --switch.", nameof(args));
         if (isManagerRepairWorker && !isRepairManager) throw new ArgumentException("--manager-repair-worker requires --repair-manager.", nameof(args));
-        return new SetupCommandLineOptions(isUpdate, isPassive, isSwitch, isRepairManager, isManagerRepairWorker, variant, installPath, currentAppPath, currentAppArguments, installerLanguage);
+        return new SetupCommandLineOptions(isUpdate, isPassive, isSwitch, isRepairManager, isManagerRepairWorker, variant, installPath, currentAppPath, currentAppArguments, installerLanguage, switchToken, switchStatusPath);
     }
 
     public static bool ShouldShowUi(SetupCommandLineOptions options) => !options.IsPassive;

@@ -23,10 +23,13 @@ test("resident lifecycle keeps the native and frontend event names aligned", asy
 
 test("resident startup defers the backend until activation and close preserves it before hiding", () => {
     const source = readSource("src-ui/views/app/_app_controllers/StartPythonController.jsx");
+    const closeStart = source.indexOf("const handleResidentClose = async () => {");
+    const switchStart = source.indexOf("const handleRuntimeSwitch = async");
+    const residentClose = source.slice(closeStart, switchStart);
 
     assert.match(source, /invoke\("is_background_startup"\)/);
     assert.match(source, /invoke\("consume_resident_activation"\)/);
-    assert.doesNotMatch(source, /await stopPythonRef\.current\(\)/);
+    assert.doesNotMatch(residentClose, /await stopPythonRef\.current\(\)/);
     assert.match(source, /await invoke\("enter_background_mode"\)/);
     assert.match(source, /spawnBackendWithTimeout/);
 });

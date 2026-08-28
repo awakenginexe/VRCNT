@@ -68,17 +68,66 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
         var paths = _resolveUserDataPaths(installPath);
         var configPath = Path.Combine(paths.DataRoot, "config.json");
         var initializeLanguage = ShouldInitializeLanguage(options);
-        var result = await _runtimeEngine.ExecuteAsync(new RuntimeInstallRequest(
-            options.Variant ?? RuntimeVariant.Cpu,
-            ManagerCapabilities.Current.Version,
-            installPath,
-            RuntimeReleaseEndpoint,
-            string.Empty,
-            false),
-            progress,
-            cancellationToken);
-        if (!result.Succeeded) throw new InvalidOperationException(result.ErrorMessage ?? result.ErrorCode ?? "Runtime installation failed.");
-        if (initializeLanguage && !File.Exists(configPath)) WriteInitialLanguageIfAbsent(configPath, options.InstallerLanguage!);
+        var targetVariant = options.IsSwitch
+            ? options.TargetVariant ?? throw new InvalidDataException("A runtime switch requires an explicit target variant.")
+            : options.TargetVariant ?? RuntimeVariant.Cpu;
+        RuntimeSwitchStatusStore? statusStore = null;
+        RuntimeShutdownHandoff? shutdownHandoff = null;
+        if (options.IsSwitch)
+        {
+            if (options.SwitchToken is null || options.SwitchStatusPath is null || options.CurrentAppPath is null)
+                throw new InvalidDataException("The runtime switch handoff is incomplete.");
+            statusStore = new RuntimeSwitchStatusStore(paths.DataRoot, options.SwitchStatusPath);
+            try
+            {
+                shutdownHandoff = statusStore.ValidatePending(
+                    targetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu",
+                    installPath,
+                    options.CurrentAppPath,
+                    options.SwitchToken);
+                statusStore.WriteAccepted(targetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu", shutdownHandoff);
+            }
+            catch (Exception exception)
+            {
+                try { statusStore.WriteStale("handoff_rejected", exception.Message); } catch { }
+                throw;
+            }
+        }
+
+        var terminalStatusWritten = false;
+        try
+        {
+            if (statusStore is not null) statusStore.WriteRunning(targetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu", shutdownHandoff!);
+            var result = await _runtimeEngine.ExecuteAsync(new RuntimeInstallRequest(
+                targetVariant,
+                ManagerCapabilities.Current.Version,
+                installPath,
+                RuntimeReleaseEndpoint,
+                string.Empty,
+                false,
+                shutdownHandoff),
+                progress,
+                cancellationToken);
+            if (!result.Succeeded)
+            {
+                statusStore?.WriteTerminal("failed", targetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu", shutdownHandoff!, result.ErrorCode, result.ErrorMessage);
+                terminalStatusWritten = true;
+                throw new InvalidOperationException(result.ErrorMessage ?? result.ErrorCode ?? "Runtime installation failed.");
+            }
+            statusStore?.WriteTerminal("succeeded", targetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu", shutdownHandoff!, null, null);
+            terminalStatusWritten = statusStore is not null;
+            if (initializeLanguage && !File.Exists(configPath)) WriteInitialLanguageIfAbsent(configPath, options.InstallerLanguage!);
+        }
+        catch (OperationCanceledException)
+        {
+            if (statusStore is not null) statusStore.WriteTerminal("cancelled", targetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu", shutdownHandoff!, "cancelled", "Runtime switch cancelled.");
+            throw;
+        }
+        catch (Exception exception)
+        {
+            if (!terminalStatusWritten && statusStore is not null && shutdownHandoff is not null) statusStore.WriteTerminal("failed", targetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu", shutdownHandoff, "transaction_failed", exception.Message);
+            throw;
+        }
     }
 
     public async Task ExecuteRepairManagerAsync(SetupCommandLineOptions options, CancellationToken cancellationToken)

@@ -1,4 +1,7 @@
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
+using VRCNT.RuntimeCore.Manager;
 using VRCNT.RuntimeCore.Models;
 
 namespace VRCNT.RuntimeCore.Process;
@@ -14,6 +17,11 @@ public interface IRuntimeProcessCoordinator
     Task RelaunchActiveRuntimeAsync(CancellationToken cancellationToken);
 }
 
+public interface IRuntimeSwitchProcessCoordinator
+{
+    Task<ProcessStopResult> RequestGracefulStopAsync(RuntimeShutdownHandoff handoff, CancellationToken cancellationToken);
+}
+
 public interface IRuntimeProcessForceCloser
 {
     Task<ProcessStopResult> ForceCloseRemainingAsync(IReadOnlyList<int> processIds, CancellationToken cancellationToken);
@@ -24,7 +32,7 @@ public interface IRuntimeProcessInstallPathObserver
     void SetActiveInstallPath(string installPath);
 }
 
-public sealed class RuntimeProcessCoordinator(TimeSpan? gracefulShutdownTimeout = null) : IRuntimeProcessCoordinator, IRuntimeProcessForceCloser, IRuntimeProcessInstallPathObserver
+public sealed class RuntimeProcessCoordinator(TimeSpan? gracefulShutdownTimeout = null) : IRuntimeProcessCoordinator, IRuntimeSwitchProcessCoordinator, IRuntimeProcessForceCloser, IRuntimeProcessInstallPathObserver
 {
     private static readonly HashSet<string> KnownProcessNames = new(StringComparer.OrdinalIgnoreCase) { "VRCNT", "VRCNT-backend", "VRCNT-backend.exe", "VRCNT-resident", "VRCNT.Resident" };
     private readonly TimeSpan _gracefulShutdownTimeout = gracefulShutdownTimeout ?? TimeSpan.FromSeconds(10);
@@ -43,6 +51,23 @@ public sealed class RuntimeProcessCoordinator(TimeSpan? gracefulShutdownTimeout 
             await Task.Delay(100, cancellationToken);
         var remaining = FindKnownProcesses();
         return new ProcessStopResult(remaining.Count == 0, remaining.Select(process => process.Id).ToArray(), remaining.Count > 0, remaining.Count > 0 ? "processes_running" : null);
+    }
+
+    public Task<ProcessStopResult> RequestGracefulStopAsync(RuntimeShutdownHandoff handoff, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(handoff.Nonce) || string.IsNullOrWhiteSpace(handoff.Token) ||
+            !Path.IsPathRooted(handoff.StatusPath) || !Path.IsPathRooted(handoff.CurrentAppPath) ||
+            !string.Equals(Path.GetFileName(handoff.StatusPath), "runtime-switch-status.json", StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(Path.GetFileName(handoff.CurrentAppPath), "VRCNT.exe", StringComparison.OrdinalIgnoreCase) ||
+            !CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(handoff.Proof),
+                Encoding.UTF8.GetBytes(RuntimeSwitchStatusStore.Proof(
+                    handoff.Token,
+                    handoff.Nonce,
+                    handoff.TargetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu",
+                    handoff.CurrentAppPath))))
+            throw new InvalidDataException("The runtime shutdown handoff is not authenticated.");
+        return RequestGracefulStopAsync(cancellationToken);
     }
 
     public Task<bool> AreKnownProcessesStoppedAsync(CancellationToken cancellationToken) => Task.FromResult(FindKnownProcesses().Count == 0);

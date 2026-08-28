@@ -51,13 +51,69 @@ public sealed class InstallerOperationTests : IDisposable
     [InlineData(false, true)]
     public async Task Execute_runtime_skips_initial_language_for_non_fresh_operations_when_the_canonical_config_is_absent(bool isUpdate, bool isSwitch)
     {
+        var installPath = Path.Combine(_root, "VRCNT");
         var dataRoot = Path.Combine(_root, "VRCNTData");
         var operations = CreateOperations(new RecordingRuntimeEngine(), dataRoot);
-        var options = new SetupCommandLineOptions(isUpdate, false, isSwitch, false, false, RuntimeVariant.Cpu, Path.Combine(_root, "VRCNT"), null, [], "th");
+        SetupCommandLineOptions options;
+        if (isSwitch)
+        {
+            var currentAppPath = Path.Combine(installPath, "VRCNT.exe");
+            var token = "switch-token";
+            Directory.CreateDirectory(dataRoot);
+            File.WriteAllText(Path.Combine(dataRoot, "runtime-switch-status.json"), JsonSerializer.Serialize(new
+            {
+                Schema = 1,
+                Status = "pending",
+                TargetVariant = "cuda",
+                Nonce = "switch-nonce",
+                TokenSha256 = RuntimeSwitchStatusStore.Hash(token),
+                ProofSha256 = RuntimeSwitchStatusStore.Proof(token, "switch-nonce", "cuda", currentAppPath),
+                CurrentAppPath = currentAppPath,
+                ErrorCode = (string?)null,
+                Message = (string?)null,
+                UpdatedAtUtc = DateTimeOffset.UtcNow,
+            }));
+            options = new SetupCommandLineOptions(isUpdate, false, true, false, false, RuntimeVariant.Cuda, installPath, currentAppPath, [], "th", token, Path.Combine(dataRoot, "runtime-switch-status.json"));
+        }
+        else
+        {
+            options = new SetupCommandLineOptions(isUpdate, false, false, false, false, RuntimeVariant.Cpu, installPath, null, [], "th");
+        }
 
         await operations.ExecuteRuntimeAsync(options, null, default);
 
         Assert.False(File.Exists(Path.Combine(dataRoot, "config.json")));
+    }
+
+    [Fact]
+    public async Task Execute_runtime_rejects_a_tampered_switch_handoff_and_marks_it_stale_without_running_the_engine()
+    {
+        var installPath = Path.Combine(_root, "VRCNT");
+        var dataRoot = Path.Combine(_root, "VRCNTData");
+        var currentAppPath = Path.Combine(installPath, "VRCNT.exe");
+        var statusPath = Path.Combine(dataRoot, "runtime-switch-status.json");
+        Directory.CreateDirectory(dataRoot);
+        File.WriteAllText(statusPath, JsonSerializer.Serialize(new
+        {
+            Schema = 1,
+            Status = "pending",
+            TargetVariant = "cuda",
+            Nonce = "switch-nonce",
+            TokenSha256 = RuntimeSwitchStatusStore.Hash("real-token"),
+            ProofSha256 = RuntimeSwitchStatusStore.Proof("real-token", "switch-nonce", "cuda", currentAppPath),
+            CurrentAppPath = currentAppPath,
+            ErrorCode = (string?)null,
+            Message = (string?)null,
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+        }));
+        var engine = new RecordingRuntimeEngine();
+        var operations = CreateOperations(engine, dataRoot);
+        var options = new SetupCommandLineOptions(false, false, true, false, false, RuntimeVariant.Cuda, installPath, currentAppPath, [], null, "wrong-token", statusPath);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => operations.ExecuteRuntimeAsync(options, null, default));
+
+        Assert.False(engine.WasCalled);
+        Assert.Equal("stale", new RuntimeSwitchStatusStore(dataRoot, statusPath).Read().Status);
     }
 
     [Theory]
@@ -92,8 +148,11 @@ public sealed class InstallerOperationTests : IDisposable
 
     private sealed class RecordingRuntimeEngine : IRuntimeTransactionEngine
     {
+        public bool WasCalled { get; private set; }
+
         public Task<RuntimeOperationResult> ExecuteAsync(RuntimeInstallRequest request, IProgress<InstallProgress>? progress, CancellationToken cancellationToken)
         {
+            WasCalled = true;
             progress?.Report(new InstallProgress(TransactionPhase.Acquire, 250, 1000, "runtime.7z"));
             return Task.FromResult(new RuntimeOperationResult(true, false, false, null, null));
         }

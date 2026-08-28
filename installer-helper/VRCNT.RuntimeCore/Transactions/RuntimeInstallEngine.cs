@@ -79,7 +79,8 @@ public sealed class RuntimeInstallEngine : IRuntimeTransactionEngine
             package.InstalledSize,
             package.Identity,
             new ActivationRequest($"vrcnt-activation-{Convert.ToHexString(RandomNumberGenerator.GetBytes(16))}", Convert.ToHexString(RandomNumberGenerator.GetBytes(32)), Convert.ToHexString(RandomNumberGenerator.GetBytes(32))),
-            request.ForceCloseConfirmed);
+            request.ForceCloseConfirmed,
+            request.ShutdownHandoff);
         return await engine.ExecuteAsync(replacement, progress, cancellationToken);
     }
 

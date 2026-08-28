@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using VRCNT.RuntimeCore.Archive;
 using VRCNT.RuntimeCore.Filesystem;
+using VRCNT.RuntimeCore.Manager;
 using VRCNT.RuntimeCore.Models;
 using VRCNT.RuntimeCore.Process;
 using VRCNT.RuntimeCore.Storage;
@@ -30,6 +31,51 @@ public sealed class TransactionEngineTests : IDisposable
         Assert.Equal("new-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
         Assert.NotEmpty(probe.Paths);
         Assert.All(probe.Paths, path => Assert.StartsWith(Path.GetDirectoryName(request.InstallPath)!, Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_uses_the_authenticated_switch_shutdown_handoff_before_replacement()
+    {
+        var processes = new TestProcessCoordinator(new(true, [], false, null));
+        var currentAppPath = Path.Combine(_root, "VRCNT", "VRCNT.exe");
+        var request = CreateRequest("switch-handoff", "runtime") with
+        {
+            ShutdownHandoff = new RuntimeShutdownHandoff("nonce", "token", RuntimeSwitchStatusStore.Proof("token", "nonce", "cuda", currentAppPath), RuntimeVariant.Cuda, Path.Combine(_root, "VRCNTData", "runtime-switch-status.json"), currentAppPath),
+        };
+
+        var result = await CreateEngine(processes: processes).ExecuteAsync(request, null, default);
+
+        Assert.True(result.Succeeded);
+        Assert.NotNull(processes.SwitchHandoff);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_relaunches_the_active_runtime_after_a_switch_handoff_cancellation()
+    {
+        var request = CreateRequest("switch-cancel", "runtime") with { ShutdownHandoff = CreateSwitchHandoff(Path.Combine(_root, "switch-cancel", "runtime")) };
+        WriteActiveRuntime(request);
+        using var cancellation = new CancellationTokenSource();
+        var processes = new TestProcessCoordinator(new(true, [], false, null), onStop: cancellation.Cancel);
+
+        var result = await CreateEngine(processes: processes).ExecuteAsync(request, null, cancellation.Token);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("cancelled", result.ErrorCode);
+        Assert.True(processes.RelaunchCalled);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_relaunches_after_a_switch_handoff_fails_to_quiesce()
+    {
+        var request = CreateRequest("switch-failure", "runtime") with { ShutdownHandoff = CreateSwitchHandoff(Path.Combine(_root, "switch-failure", "runtime")) };
+        WriteActiveRuntime(request);
+        var processes = new TestProcessCoordinator(new(false, [123], true, "processes_running"));
+
+        var result = await CreateEngine(processes: processes).ExecuteAsync(request, null, default);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("processes_running", result.ErrorCode);
+        Assert.True(processes.RelaunchCalled);
     }
 
     [Fact]
@@ -454,6 +500,18 @@ public sealed class TransactionEngineTests : IDisposable
         return new RuntimeReplacementRequest(installPath, cacheDirectory, [archive], 512, CreateIdentity(), new ActivationRequest("pipe", "token", "nonce"), false);
     }
 
+    private RuntimeShutdownHandoff CreateSwitchHandoff(string installPath)
+    {
+        var appPath = Path.Combine(installPath, "VRCNT.exe");
+        return new RuntimeShutdownHandoff(
+            "nonce",
+            "token",
+            RuntimeSwitchStatusStore.Proof("token", "nonce", "cpu", appPath),
+            RuntimeVariant.Cpu,
+            Path.Combine(_root, "VRCNTData", "runtime-switch-status.json"),
+            appPath);
+    }
+
     private void WriteActiveRuntime(RuntimeReplacementRequest request)
     {
         Directory.CreateDirectory(request.InstallPath);
@@ -534,12 +592,14 @@ public sealed class TransactionEngineTests : IDisposable
         public void WriteActiveRuntime(string installPath, RuntimeIdentity identity) => throw new InvalidOperationException("The invalid runtime cannot commit.");
     }
 
-    private sealed class TestProcessCoordinator(ProcessStopResult stopResult, Action? onStop = null, bool? knownProcessesStopped = null) : IRuntimeProcessCoordinator, IRuntimeProcessForceCloser
+    private sealed class TestProcessCoordinator(ProcessStopResult stopResult, Action? onStop = null, bool? knownProcessesStopped = null) : IRuntimeProcessCoordinator, IRuntimeSwitchProcessCoordinator, IRuntimeProcessForceCloser
     {
         public bool RelaunchCalled { get; private set; }
         public bool LaunchCalled { get; private set; }
         public bool ForceCloseCalled { get; private set; }
+        public RuntimeShutdownHandoff? SwitchHandoff { get; private set; }
         public Task<ProcessStopResult> RequestGracefulStopAsync(CancellationToken cancellationToken) { onStop?.Invoke(); return Task.FromResult(stopResult); }
+        public Task<ProcessStopResult> RequestGracefulStopAsync(RuntimeShutdownHandoff handoff, CancellationToken cancellationToken) { SwitchHandoff = handoff; onStop?.Invoke(); return Task.FromResult(stopResult); }
         public Task<bool> AreKnownProcessesStoppedAsync(CancellationToken cancellationToken) => Task.FromResult(knownProcessesStopped ?? stopResult.Stopped);
         public Task<ProcessStopResult> ForceCloseRemainingAsync(IReadOnlyList<int> processIds, CancellationToken cancellationToken) { ForceCloseCalled = true; return Task.FromResult(new ProcessStopResult(true, [], false, null)); }
         public Task LaunchForActivationAsync(string installPath, RuntimeIdentity expectedIdentity, ActivationRequest request, CancellationToken cancellationToken) { LaunchCalled = true; return Task.CompletedTask; }

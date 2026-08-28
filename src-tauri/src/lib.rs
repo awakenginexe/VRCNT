@@ -164,6 +164,12 @@ fn configure_close_behavior(app: &tauri::App) -> Result<(), Box<dyn std::error::
 
     main_window.on_window_event(move |event| {
         if let WindowEvent::CloseRequested { api, .. } = event {
+            if app_handle
+                .try_state::<runtime_manager::RuntimeSwitchState>()
+                .is_some_and(|state| state.is_shutdown_authorized())
+            {
+                return;
+            }
             let start_with_vrchat = app_handle.autolaunch().is_enabled().unwrap_or(false);
             if start_with_vrchat {
                 api.prevent_close();
@@ -246,6 +252,7 @@ pub fn run() {
             Some(vec![BACKGROUND_STARTUP_ARGUMENT]),
         ))
         .manage(ResidentRuntimeState::new())
+        .manage(runtime_manager::RuntimeSwitchState::new())
         .manage(runtime_activation)
         .setup(move |app| -> Result<(), Box<dyn std::error::Error>> {
             configure_close_behavior(app)?;
@@ -273,6 +280,8 @@ pub fn run() {
             signal_runtime_activation_ready,
             runtime_manager::get_runtime_state,
             runtime_manager::launch_runtime_switch,
+            runtime_manager::complete_runtime_switch_shutdown,
+            runtime_manager::get_runtime_switch_status,
             font_packs::download_optional_font_pack,
             font_packs::cancel_optional_font_pack,
             font_packs::resolve_managed_font_assets,

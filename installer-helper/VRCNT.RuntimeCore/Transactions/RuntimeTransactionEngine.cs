@@ -17,7 +17,8 @@ public sealed record RuntimeReplacementRequest(
     long InstalledSize,
     RuntimeIdentity ExpectedIdentity,
     ActivationRequest Activation,
-    bool ForceCloseConfirmed);
+    bool ForceCloseConfirmed,
+    RuntimeShutdownHandoff? ShutdownHandoff = null);
 
 public interface IRuntimeArchiveAcquirer
 {
@@ -137,17 +138,21 @@ public sealed class RuntimeTransactionEngine(
             journal = journal with { Phase = TransactionPhase.Quiesce };
             journalStore.WriteAtomic(paths.JournalPath, journal);
             Report(progress, TransactionPhase.Quiesce, "Requesting VRCNT shutdown.");
-            var stop = await processCoordinator.RequestGracefulStopAsync(CancellationToken.None);
+            var stop = request.ShutdownHandoff is not null && processCoordinator is IRuntimeSwitchProcessCoordinator switchCoordinator
+                ? await switchCoordinator.RequestGracefulStopAsync(request.ShutdownHandoff, CancellationToken.None)
+                : await processCoordinator.RequestGracefulStopAsync(CancellationToken.None);
             if (!stop.Stopped)
             {
                 if (!request.ForceCloseConfirmed || processCoordinator is not IRuntimeProcessForceCloser forceCloser)
                 {
+                    await processCoordinator.RelaunchActiveRuntimeAsync(CancellationToken.None);
                     DeleteTransaction(paths.TransactionRoot);
                     return Fail("processes_running", "VRCNT processes remain active and targeted force close was not confirmed.");
                 }
                 stop = await forceCloser.ForceCloseRemainingAsync(stop.RemainingProcessIds, CancellationToken.None);
                 if (!stop.Stopped)
                 {
+                    await processCoordinator.RelaunchActiveRuntimeAsync(CancellationToken.None);
                     DeleteTransaction(paths.TransactionRoot);
                     return Fail("processes_running", "VRCNT processes remain active after targeted force close.");
                 }
