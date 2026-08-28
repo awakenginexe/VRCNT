@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -15,7 +16,7 @@ REQUIRED_INSTALLER_KEYS = frozenset(
         "language_title", "language_body", "runtime_title", "runtime_body",
         "cpu_title", "cpu_body", "cpu_size", "cpu_time", "cuda_title",
         "cuda_body", "cuda_size", "cuda_time", "recommended", "compatible",
-        "not_detected", "install_size", "install_time", "options_title",
+        "cuda_requires_nvidia", "cuda_advisory_inconclusive", "install_size", "install_time", "options_title",
         "options_body", "launch_vrcnt", "install", "progress_title",
         "progress_body", "error_title", "error_body", "retry", "complete_title",
         "complete_body", "close",
@@ -88,14 +89,54 @@ def build_catalog(locales_dir: Path) -> dict[str, Any]:
     return {"version": 1, "languages": catalog_languages, "translations": translations}
 
 
+def _language_ids_from_source(path: Path, expression: str, consumer: str) -> list[str]:
+    source = path.read_text(encoding="utf-8")
+    match = re.search(expression, source, re.DOTALL)
+    if match is None:
+        raise ValueError(f"could not find the {consumer} language list in {path}")
+    return re.findall(r'"([^"\\]+)"', match.group(1))
+
+
+def _ui_language_ids(path: Path) -> list[str]:
+    source = path.read_text(encoding="utf-8")
+    match = re.search(r"selectable_ui_languages:\s*\[(.*?)\]", source, re.DOTALL)
+    if match is None:
+        raise ValueError(f"could not find the UI language list in {path}")
+    return re.findall(r'\bid:\s*"([^"\\]+)"', match.group(1))
+
+
+def validate_language_consumers(catalog: dict[str, Any], setup_command_line: Path, python_config: Path, ui_configs: Path) -> None:
+    expected = [language["id"] for language in catalog["languages"]]
+    consumers = {
+        "setup command line": _language_ids_from_source(
+            setup_command_line,
+            r"SupportedInstallerLanguages\s*=\s*new\([^)]*\)\s*\{(.*?)\};",
+            "setup command line",
+        ),
+        "Python runtime config": _language_ids_from_source(
+            python_config,
+            r"_SELECTABLE_UI_LANGUAGE_LIST\s*=\s*\[(.*?)\]",
+            "Python runtime config",
+        ),
+        "web runtime config": _ui_language_ids(ui_configs),
+    }
+    for consumer, actual in consumers.items():
+        if actual != expected:
+            raise ValueError(f"{consumer} languages differ from locales/languages.json: expected {expected}, found {actual}")
+
+
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser()
     parser.add_argument("--locales-dir", type=Path, default=root / "locales")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--setup-command-line", type=Path, default=root / "installer-helper" / "VRCNT.Setup" / "CommandLine" / "SetupCommandLine.cs")
+    parser.add_argument("--python-config", type=Path, default=root / "src-python" / "config.py")
+    parser.add_argument("--ui-configs", type=Path, default=root / "src-ui" / "logics" / "ui_configs.js")
     args = parser.parse_args()
     try:
         catalog = build_catalog(args.locales_dir)
+        validate_language_consumers(catalog, args.setup_command_line, args.python_config, args.ui_configs)
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(catalog, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     except (OSError, ValueError, json.JSONDecodeError) as error:

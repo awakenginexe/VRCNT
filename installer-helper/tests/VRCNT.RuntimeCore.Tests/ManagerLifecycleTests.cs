@@ -518,7 +518,7 @@ public sealed class ManagerLifecycleTests : IDisposable
         public List<string> Calls { get; } = [];
         public SetupCommandLineOptions? ReceivedOptions { get; private set; }
 
-        public Task ExecuteRuntimeAsync(SetupCommandLineOptions options, CancellationToken cancellationToken)
+        public Task ExecuteRuntimeAsync(SetupCommandLineOptions options, IProgress<InstallProgress>? progress, CancellationToken cancellationToken)
         {
             Calls.Add("runtime");
             ReceivedOptions = options;

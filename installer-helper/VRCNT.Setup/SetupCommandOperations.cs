@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.IO;
+using System.Text.Json;
 using VRCNT.RuntimeCore.Manager;
 using VRCNT.RuntimeCore.Models;
+using VRCNT.RuntimeCore.Paths;
 using VRCNT.RuntimeCore.Transactions;
 using VRCNT.Setup.CommandLine;
 
@@ -16,19 +18,22 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
     private readonly Uri _managerLatestJsonUri;
     private readonly string _managerDirectory;
     private readonly string _managerPath;
+    private readonly Func<string, UserDataPaths> _resolveUserDataPaths;
 
     public SetupCommandOperations(
         IRuntimeTransactionEngine runtimeEngine,
         IManagerLifecycle managerLifecycle,
         Uri managerLatestJsonUri,
         string? managerDirectory = null,
-        string? managerPath = null)
+        string? managerPath = null,
+        Func<string, UserDataPaths>? resolveUserDataPaths = null)
     {
         _runtimeEngine = runtimeEngine ?? throw new ArgumentNullException(nameof(runtimeEngine));
         _managerLifecycle = managerLifecycle ?? throw new ArgumentNullException(nameof(managerLifecycle));
         _managerLatestJsonUri = managerLatestJsonUri ?? throw new ArgumentNullException(nameof(managerLatestJsonUri));
         _managerDirectory = Path.GetFullPath(managerDirectory ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VRCNTInstaller"));
         _managerPath = Path.GetFullPath(managerPath ?? Path.Combine(_managerDirectory, "VRCNT.Setup.exe"));
+        _resolveUserDataPaths = resolveUserDataPaths ?? new UserDataPathResolver().Resolve;
     }
 
     public static SetupCommandOperations CreateProduction(ManagerCapabilities capabilities)
@@ -57,9 +62,12 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
             managerPath);
     }
 
-    public async Task ExecuteRuntimeAsync(SetupCommandLineOptions options, CancellationToken cancellationToken)
+    public async Task ExecuteRuntimeAsync(SetupCommandLineOptions options, IProgress<InstallProgress>? progress, CancellationToken cancellationToken)
     {
         var installPath = options.InstallPath ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VRCNT");
+        var paths = _resolveUserDataPaths(installPath);
+        var configPath = Path.Combine(paths.DataRoot, "config.json");
+        var initializeLanguage = ShouldInitializeLanguage(options, configPath);
         var result = await _runtimeEngine.ExecuteAsync(new RuntimeInstallRequest(
             options.Variant ?? RuntimeVariant.Cpu,
             ManagerCapabilities.Current.Version,
@@ -67,9 +75,10 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
             RuntimeReleaseEndpoint,
             string.Empty,
             false),
-            null,
+            progress,
             cancellationToken);
         if (!result.Succeeded) throw new InvalidOperationException(result.ErrorMessage ?? result.ErrorCode ?? "Runtime installation failed.");
+        if (initializeLanguage) WriteInitialLanguage(configPath, options.InstallerLanguage!);
     }
 
     public async Task ExecuteRepairManagerAsync(SetupCommandLineOptions options, CancellationToken cancellationToken)
@@ -130,5 +139,17 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
         foreach (var argument in options.CurrentAppArguments) start.ArgumentList.Add(argument);
         _ = Process.Start(start) ?? throw new InvalidOperationException("Unable to hand off to the current VRCNT application.");
         return Task.CompletedTask;
+    }
+
+    private static bool ShouldInitializeLanguage(SetupCommandLineOptions options, string configPath) =>
+        !options.IsUpdate && !options.IsSwitch && !string.IsNullOrWhiteSpace(options.InstallerLanguage) && !File.Exists(configPath);
+
+    private static void WriteInitialLanguage(string configPath, string languageId)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
+        File.WriteAllText(configPath, JsonSerializer.Serialize(new Dictionary<string, string>
+        {
+            ["UI_LANGUAGE"] = languageId,
+        }));
     }
 }

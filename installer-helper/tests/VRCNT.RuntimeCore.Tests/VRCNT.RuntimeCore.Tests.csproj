@@ -19,6 +19,11 @@
   <ItemGroup>
     <Compile Include="..\..\VRCNT.Setup\CommandLine\SetupCommandLine.cs" Link="CommandLine\SetupCommandLine.cs" />
     <Compile Include="..\..\VRCNT.Setup\CommandLine\SetupCommandDispatcher.cs" Link="CommandLine\SetupCommandDispatcher.cs" />
+    <Compile Include="..\..\VRCNT.Setup\SetupCommandOperations.cs" Link="Setup\SetupCommandOperations.cs" />
     <Compile Include="..\..\VRCNT.Setup\SetupToolLayout.cs" Link="Setup\SetupToolLayout.cs" />
+    <Compile Include="..\..\VRCNT.Setup\Localization\InstallerLocalizer.cs" Link="Localization\InstallerLocalizer.cs" />
+    <Compile Include="..\..\VRCNT.Setup\Views\InstallerViewModel.cs" Link="Views\InstallerViewModel.cs" />
+    <Compile Include="..\..\VRCNT.Setup\Views\InstallerGpuAdvisory.cs" Link="Views\InstallerGpuAdvisory.cs" />
+    <Compile Include="..\..\VRCNT.Setup\Views\IApplicationLauncher.cs" Link="Views\IApplicationLauncher.cs" />
   </ItemGroup>
 </Project>

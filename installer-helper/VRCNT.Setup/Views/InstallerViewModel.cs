@@ -1,9 +1,6 @@
 using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
-using System.Text.Json;
-using System.Windows;
 using System.Windows.Input;
 using VRCNT.RuntimeCore.Models;
 using VRCNT.Setup.CommandLine;
@@ -27,17 +24,33 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     private readonly ISetupCommandOperations _operations;
     private readonly SetupCommandLineOptions _options;
     private readonly InstallerLocalizer _localizer;
+    private readonly IApplicationLauncher _applicationLauncher;
+    private readonly IGpuAdvisoryPolicy _gpuAdvisoryPolicy;
+    private readonly bool _useReducedMotion;
+    private readonly DelegateCommand _launchCommand;
     private InstallerPage _currentPage = InstallerPage.Welcome;
     private InstallerLanguage _selectedLanguage;
     private RuntimeVariant _selectedVariant = RuntimeVariant.Cpu;
     private bool _launchAfterSetup = true;
     private bool _isInstalling;
+    private double _progressValue;
+    private string _progressDetail = string.Empty;
+    private string _errorDetail = string.Empty;
 
-    public InstallerViewModel(ISetupCommandOperations operations, SetupCommandLineOptions options, InstallerLocalizer localizer)
+    public InstallerViewModel(
+        ISetupCommandOperations operations,
+        SetupCommandLineOptions options,
+        InstallerLocalizer localizer,
+        IApplicationLauncher? applicationLauncher = null,
+        IGpuAdvisoryPolicy? gpuAdvisoryPolicy = null,
+        bool useReducedMotion = false)
     {
         _operations = operations ?? throw new ArgumentNullException(nameof(operations));
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _localizer = localizer ?? throw new ArgumentNullException(nameof(localizer));
+        _applicationLauncher = applicationLauncher ?? new ApplicationLauncher();
+        _gpuAdvisoryPolicy = gpuAdvisoryPolicy ?? new InconclusiveGpuAdvisoryPolicy();
+        _useReducedMotion = useReducedMotion;
         if (options.InstallerLanguage is not null) _localizer.SetLanguage(options.InstallerLanguage);
         _selectedLanguage = _localizer.Languages.Single(language => language.Id == _localizer.CurrentLanguage);
         _localizer.LanguageChanged += (_, _) => RefreshLocalizedProperties();
@@ -45,7 +58,8 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         BackCommand = new DelegateCommand(Back);
         InstallCommand = new AsyncDelegateCommand(InstallAsync, () => !IsInstalling);
         RetryCommand = new DelegateCommand(() => CurrentPage = InstallerPage.Options);
-        LaunchCommand = new DelegateCommand(LaunchVrcnt, () => CurrentPage == InstallerPage.Complete);
+        _launchCommand = new DelegateCommand(() => LaunchVrcnt(force: true), () => CurrentPage == InstallerPage.Complete);
+        LaunchCommand = _launchCommand;
         CloseCommand = new DelegateCommand(() => CloseRequested?.Invoke(this, EventArgs.Empty));
     }
 
@@ -65,7 +79,12 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         get => _currentPage;
         private set
         {
-            if (SetField(ref _currentPage, value)) OnPropertyChanged(nameof(ProgressValue));
+            if (SetField(ref _currentPage, value))
+            {
+                OnPropertyChanged(nameof(CurrentPageTitle));
+                OnPropertyChanged(nameof(ProgressValue));
+                _launchCommand.RaiseCanExecuteChanged();
+            }
         }
     }
     public InstallerLanguage SelectedLanguage
@@ -87,13 +106,14 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         {
             if (!SetField(ref _isInstalling, value)) return;
             ((AsyncDelegateCommand)InstallCommand).RaiseCanExecuteChanged();
-            OnPropertyChanged(nameof(ProgressValue));
             OnPropertyChanged(nameof(IsProgressIndeterminate));
         }
     }
-    public bool UseReducedMotion => !SystemParameters.ClientAreaAnimation;
-    public bool IsProgressIndeterminate => IsInstalling && !UseReducedMotion;
-    public double ProgressValue => CurrentPage == InstallerPage.Complete ? 100 : IsInstalling ? 35 : 0;
+    public bool UseReducedMotion => _useReducedMotion;
+    public bool IsProgressIndeterminate => IsInstalling && _progressValue == 0 && !UseReducedMotion;
+    public double ProgressValue { get => _progressValue; private set => SetField(ref _progressValue, value); }
+    public string ProgressDetail { get => _progressDetail; private set => SetField(ref _progressDetail, value); }
+    public string ErrorDetail { get => _errorDetail; private set => SetField(ref _errorDetail, value); }
 
     public string AppTitle => T("app_name");
     public string WelcomeTitle => T("welcome_title");
@@ -112,8 +132,32 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     public string CudaBody => T("cuda_body");
     public string CudaSize => T("cuda_size");
     public string CudaTime => T("cuda_time");
-    public string CpuStatus => SelectedVariant == RuntimeVariant.Cpu ? T("recommended") : T("compatible");
-    public string CudaStatus => SelectedVariant == RuntimeVariant.Cuda ? T("recommended") : T("compatible");
+    public string CurrentPageTitle => CurrentPage switch
+    {
+        InstallerPage.Welcome => WelcomeTitle,
+        InstallerPage.Language => LanguageTitle,
+        InstallerPage.Runtime => RuntimeTitle,
+        InstallerPage.Options => OptionsTitle,
+        InstallerPage.Progress => ProgressTitle,
+        InstallerPage.Error => ErrorTitle,
+        InstallerPage.Complete => CompleteTitle,
+        _ => AppTitle,
+    };
+    public string SelectedRuntimeTitle => SelectedVariant == RuntimeVariant.Cpu ? CpuTitle : CudaTitle;
+    public string SelectedRuntimeSize => SelectedVariant == RuntimeVariant.Cpu ? CpuSize : CudaSize;
+    public string SelectedRuntimeTime => SelectedVariant == RuntimeVariant.Cpu ? CpuTime : CudaTime;
+    public string CpuStatus => T("recommended");
+    public string CudaStatus => _gpuAdvisoryPolicy.Assess().Compatibility switch
+    {
+        GpuCompatibility.Recommended => T("recommended"),
+        GpuCompatibility.Compatible => T("compatible"),
+        _ => T("cuda_requires_nvidia"),
+    };
+    public string CudaAdvisory => _gpuAdvisoryPolicy.Assess().Compatibility switch
+    {
+        GpuCompatibility.Recommended or GpuCompatibility.Compatible => string.Empty,
+        _ => T("cuda_advisory_inconclusive"),
+    };
     public string InstallSizeLabel => T("install_size");
     public string InstallTimeLabel => T("install_time");
     public string OptionsTitle => T("options_title");
@@ -151,29 +195,24 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         };
     }
 
-    private async Task InstallAsync()
+    public async Task InstallAsync()
     {
-        var installPath = _options.InstallPath ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VRCNT");
-        var configPath = Path.Combine(installPath, "config.json");
-        var initializeLanguage = !_options.IsUpdate && !_options.IsSwitch && !File.Exists(configPath);
+        ProgressValue = 0;
+        ProgressDetail = string.Empty;
+        ErrorDetail = string.Empty;
         IsInstalling = true;
         CurrentPage = InstallerPage.Progress;
         try
         {
             var request = _options with { Variant = SelectedVariant, InstallerLanguage = SelectedLanguage.Id };
-            await new SetupCommandDispatcher(_operations).DispatchAsync(request, CancellationToken.None);
-            if (initializeLanguage && !File.Exists(configPath))
-            {
-                Directory.CreateDirectory(installPath);
-                await File.WriteAllTextAsync(configPath, JsonSerializer.Serialize(new Dictionary<string, string>
-                {
-                    ["UI_LANGUAGE"] = SelectedLanguage.Id,
-                }));
-            }
+            await new SetupCommandDispatcher(_operations).DispatchAsync(request, CancellationToken.None, new InlineProgress<InstallProgress>(ReportProgress));
+            ProgressValue = 100;
             CurrentPage = InstallerPage.Complete;
+            if (LaunchAfterSetup) LaunchVrcnt(force: false);
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            ErrorDetail = exception.Message;
             CurrentPage = InstallerPage.Error;
         }
         finally
@@ -182,12 +221,20 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         }
     }
 
-    private void LaunchVrcnt()
+    private void LaunchVrcnt(bool force)
     {
-        if (!LaunchAfterSetup) return;
+        if (!force && !LaunchAfterSetup) return;
         var installPath = _options.InstallPath ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VRCNT");
         var executable = Path.Combine(installPath, "VRCNT.exe");
-        if (File.Exists(executable)) Process.Start(new ProcessStartInfo(executable) { UseShellExecute = true });
+        _applicationLauncher.Launch(executable);
+    }
+
+    private void ReportProgress(InstallProgress progress)
+    {
+        ProgressDetail = progress.Message;
+        if (progress.TotalBytes > 0)
+            ProgressValue = Math.Clamp(progress.CompletedBytes * 100d / progress.TotalBytes, 0, 100);
+        OnPropertyChanged(nameof(IsProgressIndeterminate));
     }
 
     private string T(string key) => _localizer[key];
@@ -199,7 +246,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
             nameof(AppTitle), nameof(WelcomeTitle), nameof(WelcomeBody), nameof(ContinueText), nameof(BackText),
             nameof(LanguageTitle), nameof(LanguageBody), nameof(RuntimeTitle), nameof(RuntimeBody), nameof(CpuTitle),
             nameof(CpuBody), nameof(CpuSize), nameof(CpuTime), nameof(CudaTitle), nameof(CudaBody), nameof(CudaSize),
-            nameof(CudaTime), nameof(CpuStatus), nameof(CudaStatus), nameof(InstallSizeLabel), nameof(InstallTimeLabel),
+            nameof(CudaTime), nameof(CpuStatus), nameof(CudaStatus), nameof(CudaAdvisory), nameof(SelectedRuntimeTitle), nameof(SelectedRuntimeSize), nameof(SelectedRuntimeTime), nameof(CurrentPageTitle), nameof(InstallSizeLabel), nameof(InstallTimeLabel),
             nameof(OptionsTitle), nameof(OptionsBody), nameof(LaunchVrcntText), nameof(InstallText), nameof(ProgressTitle),
             nameof(ProgressBody), nameof(ErrorTitle), nameof(ErrorBody), nameof(RetryText), nameof(CompleteTitle),
             nameof(CompleteBody), nameof(CloseText),
@@ -218,13 +265,10 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
 
     private sealed class DelegateCommand(Action execute, Func<bool>? canExecute = null) : ICommand
     {
-        public event EventHandler? CanExecuteChanged
-        {
-            add => CommandManager.RequerySuggested += value;
-            remove => CommandManager.RequerySuggested -= value;
-        }
+        public event EventHandler? CanExecuteChanged;
         public bool CanExecute(object? parameter) => canExecute?.Invoke() ?? true;
         public void Execute(object? parameter) => execute();
+        public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private sealed class AsyncDelegateCommand(Func<Task> execute, Func<bool> canExecute) : ICommand
@@ -233,5 +277,10 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         public bool CanExecute(object? parameter) => canExecute();
         public async void Execute(object? parameter) => await execute();
         public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private sealed class InlineProgress<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value) => report(value);
     }
 }

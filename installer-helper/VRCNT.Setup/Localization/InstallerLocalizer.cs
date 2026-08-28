@@ -47,8 +47,15 @@ public sealed class InstallerLocalizer
                 language => (IReadOnlyDictionary<string, string>)language.Value.EnumerateObject()
                     .ToDictionary(item => item.Name, item => item.Value.GetString()!),
                 StringComparer.Ordinal);
-        if (languages.Length == 0 || languages.Any(language => !translations.ContainsKey(language.Id)))
-            throw new InvalidOperationException("The embedded installer locale catalog is incomplete.");
+        return FromCatalog(languages, translations);
+    }
+
+    public static InstallerLocalizer FromCatalog(
+        IReadOnlyList<InstallerLanguage> languages,
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> translations)
+    {
+        if (languages.Count == 0 || languages.Any(language => string.IsNullOrWhiteSpace(language.Id) || !translations.ContainsKey(language.Id)))
+            throw new InvalidOperationException("The installer locale catalog is incomplete.");
         return new InstallerLocalizer(languages, translations, languages[0].Id);
     }
 

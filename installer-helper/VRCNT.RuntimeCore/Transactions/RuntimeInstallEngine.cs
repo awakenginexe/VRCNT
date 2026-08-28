@@ -59,8 +59,10 @@ public sealed class RuntimeInstallEngine : IRuntimeTransactionEngine
         var paths = new UserDataPathResolver();
         var destination = paths.ValidateCustomInstallPath(request.InstallPath);
         var legacyDetector = new LegacyInstallationDetector(paths);
+        var archiveProgress = new Progress<VRCNT.RuntimeCore.Packages.TransferProgress>(transfer =>
+            progress?.Report(new InstallProgress(TransactionPhase.Acquire, transfer.TotalBytes, transfer.TotalBytesExpected, transfer.Name)));
         var engine = new RuntimeTransactionEngine(
-            new ManifestArchiveAcquirer(verified.Manifest, request.TargetVariant, releaseBase, cacheDirectory, _httpClient),
+            new ManifestArchiveAcquirer(verified.Manifest, request.TargetVariant, releaseBase, cacheDirectory, _httpClient, archiveProgress),
             new SevenZipExtractor(_sevenZipPath),
             new RuntimePathValidator(new VolumeIdentityProbe()),
             new RequiredSpaceCalculator(new AvailableSpaceProbe()),
@@ -98,9 +100,10 @@ public sealed class RuntimeInstallEngine : IRuntimeTransactionEngine
         RuntimeVariant variant,
         Uri releaseBase,
         string cacheDirectory,
-        HttpClient httpClient) : IRuntimeArchiveAcquirer
+        HttpClient httpClient,
+        IProgress<VRCNT.RuntimeCore.Packages.TransferProgress>? progress) : IRuntimeArchiveAcquirer
     {
         public Task<IReadOnlyList<string>> AcquireAsync(RuntimeReplacementRequest request, CancellationToken cancellationToken) =>
-            new VariantPackageAcquirer(httpClient).AcquireAsync(manifest, variant, releaseBase, cacheDirectory, null, cancellationToken);
+            new VariantPackageAcquirer(httpClient).AcquireAsync(manifest, variant, releaseBase, cacheDirectory, progress, cancellationToken);
     }
 }

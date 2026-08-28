@@ -34,7 +34,8 @@ EXPECTED_INSTALLER_KEYS = {
     "cuda_time",
     "recommended",
     "compatible",
-    "not_detected",
+    "cuda_requires_nvidia",
+    "cuda_advisory_inconclusive",
     "install_size",
     "install_time",
     "options_title",
@@ -52,7 +53,8 @@ EXPECTED_INSTALLER_KEYS = {
 }
 
 
-def _generate(output_path: Path, locales_path: Path = ROOT / "locales") -> subprocess.CompletedProcess[str]:
+def _generate(output_path: Path, locales_path: Path = ROOT / "locales", **consumer_paths: Path) -> subprocess.CompletedProcess[str]:
+    consumer_arguments = [argument for name, path in consumer_paths.items() for argument in (f"--{name.replace('_', '-')}", str(path))]
     return subprocess.run(
         [
             sys.executable,
@@ -61,6 +63,7 @@ def _generate(output_path: Path, locales_path: Path = ROOT / "locales") -> subpr
             str(locales_path),
             "--output",
             str(output_path),
+            *consumer_arguments,
         ],
         cwd=ROOT,
         capture_output=True,
@@ -104,3 +107,16 @@ def test_generator_rejects_a_locale_without_a_complete_installer_namespace(tmp_p
 
     assert result.returncode != 0
     assert "installer" in result.stderr.lower()
+
+
+def test_generator_rejects_language_consumer_drift(tmp_path):
+    drifted_python_config = tmp_path / "config.py"
+    drifted_python_config.write_text(
+        (ROOT / "src-python" / "config.py").read_text(encoding="utf-8").replace('"zh-Hans"]', '"fr"]', 1),
+        encoding="utf-8",
+    )
+
+    result = _generate(tmp_path / "InstallerLocales.json", python_config=drifted_python_config)
+
+    assert result.returncode != 0
+    assert "differ" in result.stderr.lower()

@@ -1,0 +1,106 @@
+using VRCNT.RuntimeCore.Models;
+using VRCNT.Setup.CommandLine;
+using VRCNT.Setup.Localization;
+using VRCNT.Setup.Views;
+using Xunit;
+
+namespace VRCNT.RuntimeCore.Tests;
+
+public sealed class InstallerViewModelTests
+{
+    [Fact]
+    public async Task Install_binds_actual_transaction_progress_and_error_detail()
+    {
+        var operations = new DeferredProgressOperations();
+        var viewModel = CreateViewModel(operations);
+
+        var install = viewModel.InstallAsync();
+        await operations.ProgressReported.Task;
+
+        Assert.Equal(25, viewModel.ProgressValue);
+        Assert.Equal("runtime.7z", viewModel.ProgressDetail);
+
+        operations.Fail(new InvalidOperationException("Signed release metadata could not be verified."));
+        await install;
+
+        Assert.Equal(InstallerPage.Error, viewModel.CurrentPage);
+        Assert.Equal("Signed release metadata could not be verified.", viewModel.ErrorDetail);
+    }
+
+    [Fact]
+    public async Task Automatic_launch_respects_the_checkbox_but_completion_launch_always_runs()
+    {
+        var launcher = new RecordingLauncher();
+        var viewModel = CreateViewModel(new DeferredProgressOperations { CompleteImmediately = true }, launcher);
+        viewModel.LaunchAfterSetup = false;
+
+        await viewModel.InstallAsync();
+        Assert.Equal(0, launcher.Count);
+
+        viewModel.LaunchCommand.Execute(null);
+        Assert.Equal(1, launcher.Count);
+
+        var automaticLauncher = new RecordingLauncher();
+        var automaticViewModel = CreateViewModel(new DeferredProgressOperations { CompleteImmediately = true }, automaticLauncher);
+
+        await automaticViewModel.InstallAsync();
+
+        Assert.Equal(1, automaticLauncher.Count);
+    }
+
+    [Fact]
+    public void Inconclusive_gpu_advice_keeps_cpu_recommended_and_cuda_requires_an_nvidia_gpu()
+    {
+        var viewModel = CreateViewModel(new DeferredProgressOperations(), gpuAdvisoryPolicy: new FixedGpuAdvisoryPolicy(GpuAdvisory.Inconclusive));
+
+        Assert.Equal("Recommended", viewModel.CpuStatus);
+        Assert.Equal("Requires a compatible NVIDIA GPU", viewModel.CudaStatus);
+        Assert.Equal("Hardware compatibility will be checked before download.", viewModel.CudaAdvisory);
+    }
+
+    private static InstallerViewModel CreateViewModel(DeferredProgressOperations operations, IApplicationLauncher? launcher = null, IGpuAdvisoryPolicy? gpuAdvisoryPolicy = null)
+    {
+        var languages = new[] { new InstallerLanguage("en", "English"), new InstallerLanguage("th", "ไทย") };
+        var translations = languages.ToDictionary(
+            language => language.Id,
+            _ => (IReadOnlyDictionary<string, string>)new Dictionary<string, string>
+            {
+                ["app_name"] = "VRCNT", ["welcome_title"] = "Welcome", ["welcome_body"] = "Body", ["continue"] = "Continue", ["back"] = "Back",
+                ["language_title"] = "Language", ["language_body"] = "Language body", ["runtime_title"] = "Runtime", ["runtime_body"] = "Runtime body",
+                ["cpu_title"] = "CPU", ["cpu_body"] = "CPU body", ["cpu_size"] = "1 GB", ["cpu_time"] = "5 min", ["cuda_title"] = "CUDA", ["cuda_body"] = "CUDA body", ["cuda_size"] = "2 GB", ["cuda_time"] = "10 min",
+                ["recommended"] = "Recommended", ["compatible"] = "Compatible", ["cuda_requires_nvidia"] = "Requires a compatible NVIDIA GPU", ["cuda_advisory_inconclusive"] = "Hardware compatibility will be checked before download.",
+                ["install_size"] = "Install size", ["install_time"] = "Install time", ["options_title"] = "Options", ["options_body"] = "Options body", ["launch_vrcnt"] = "Launch VRCNT", ["install"] = "Install",
+                ["progress_title"] = "Installing", ["progress_body"] = "Please wait", ["error_title"] = "Error", ["error_body"] = "We could not install", ["retry"] = "Retry", ["complete_title"] = "Complete", ["complete_body"] = "Done", ["close"] = "Close",
+            }, StringComparer.Ordinal);
+        return new InstallerViewModel(operations, new SetupCommandLineOptions(false, false, false, false, false, RuntimeVariant.Cpu, "C:\\VRCNT", null, [], "en"), InstallerLocalizer.FromCatalog(languages, translations), launcher, gpuAdvisoryPolicy);
+    }
+
+    private sealed class DeferredProgressOperations : ISetupCommandOperations
+    {
+        private readonly TaskCompletionSource _completion = new();
+        public TaskCompletionSource ProgressReported { get; } = new();
+        public bool CompleteImmediately { get; init; }
+
+        public Task ExecuteRuntimeAsync(SetupCommandLineOptions options, IProgress<InstallProgress>? progress, CancellationToken cancellationToken)
+        {
+            progress?.Report(new InstallProgress(TransactionPhase.Acquire, 250, 1000, "runtime.7z"));
+            ProgressReported.TrySetResult();
+            return CompleteImmediately ? Task.CompletedTask : _completion.Task;
+        }
+
+        public Task ExecuteRepairManagerAsync(SetupCommandLineOptions options, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task HandoffToCurrentAppAsync(SetupCommandLineOptions options, CancellationToken cancellationToken) => Task.CompletedTask;
+        public void Fail(Exception exception) => _completion.TrySetException(exception);
+    }
+
+    private sealed class RecordingLauncher : IApplicationLauncher
+    {
+        public int Count { get; private set; }
+        public void Launch(string executablePath) => Count++;
+    }
+
+    private sealed class FixedGpuAdvisoryPolicy(GpuAdvisory advisory) : IGpuAdvisoryPolicy
+    {
+        public GpuAdvisory Assess() => advisory;
+    }
+}
