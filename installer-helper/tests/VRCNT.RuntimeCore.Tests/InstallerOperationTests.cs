@@ -46,16 +46,35 @@ public sealed class InstallerOperationTests : IDisposable
         Assert.Equal("{\"UI_LANGUAGE\":\"ja\",\"FONT_FAMILY\":\"VRCNT Noto\"}", File.ReadAllText(Path.Combine(dataRoot, "config.json")));
     }
 
-    [Fact]
-    public async Task Execute_runtime_skips_initial_language_for_a_reinstall_when_the_canonical_config_is_absent()
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task Execute_runtime_skips_initial_language_for_non_fresh_operations_when_the_canonical_config_is_absent(bool isUpdate, bool isSwitch)
     {
         var dataRoot = Path.Combine(_root, "VRCNTData");
         var operations = CreateOperations(new RecordingRuntimeEngine(), dataRoot);
-        var options = new SetupCommandLineOptions(true, false, false, false, false, RuntimeVariant.Cpu, Path.Combine(_root, "VRCNT"), null, [], "th");
+        var options = new SetupCommandLineOptions(isUpdate, false, isSwitch, false, false, RuntimeVariant.Cpu, Path.Combine(_root, "VRCNT"), null, [], "th");
 
         await operations.ExecuteRuntimeAsync(options, null, default);
 
         Assert.False(File.Exists(Path.Combine(dataRoot, "config.json")));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Execute_runtime_preserves_a_legacy_config_migrated_during_preflight(bool passive)
+    {
+        var installPath = Path.Combine(_root, "VRCNT");
+        var dataRoot = Path.Combine(_root, "VRCNTData");
+        Directory.CreateDirectory(installPath);
+        File.WriteAllText(Path.Combine(installPath, "config.json"), "{\"UI_LANGUAGE\":\"ja\",\"FONT_FAMILY\":\"VRCNT Noto\"}");
+        var operations = CreateOperations(new MigratingRuntimeEngine(dataRoot), dataRoot);
+        var options = new SetupCommandLineOptions(false, passive, false, false, false, RuntimeVariant.Cpu, installPath, null, [], "th");
+
+        await operations.ExecuteRuntimeAsync(options, null, default);
+
+        Assert.Equal("{\"UI_LANGUAGE\":\"ja\",\"FONT_FAMILY\":\"VRCNT Noto\"}", File.ReadAllText(Path.Combine(dataRoot, "config.json")));
     }
 
     public void Dispose()
@@ -63,7 +82,7 @@ public sealed class InstallerOperationTests : IDisposable
         if (Directory.Exists(_root)) Directory.Delete(_root, true);
     }
 
-    private SetupCommandOperations CreateOperations(RecordingRuntimeEngine engine, string dataRoot) => new(
+    private SetupCommandOperations CreateOperations(IRuntimeTransactionEngine engine, string dataRoot) => new(
         engine,
         new NoopManagerLifecycle(),
         new Uri("https://example.invalid/latest.json"),
@@ -76,6 +95,16 @@ public sealed class InstallerOperationTests : IDisposable
         public Task<RuntimeOperationResult> ExecuteAsync(RuntimeInstallRequest request, IProgress<InstallProgress>? progress, CancellationToken cancellationToken)
         {
             progress?.Report(new InstallProgress(TransactionPhase.Acquire, 250, 1000, "runtime.7z"));
+            return Task.FromResult(new RuntimeOperationResult(true, false, false, null, null));
+        }
+    }
+
+    private sealed class MigratingRuntimeEngine(string dataRoot) : IRuntimeTransactionEngine
+    {
+        public Task<RuntimeOperationResult> ExecuteAsync(RuntimeInstallRequest request, IProgress<InstallProgress>? progress, CancellationToken cancellationToken)
+        {
+            Directory.CreateDirectory(dataRoot);
+            File.Copy(Path.Combine(request.InstallPath, "config.json"), Path.Combine(dataRoot, "config.json"));
             return Task.FromResult(new RuntimeOperationResult(true, false, false, null, null));
         }
     }

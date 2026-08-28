@@ -7,7 +7,7 @@
     <Grid Margin="{DynamicResource InstallerPageMargin}">
         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
         <DockPanel Margin="0,0,0,28">
-            <TextBlock Text="{Binding AppTitle}" FontWeight="SemiBold" FontSize="17" DockPanel.Dock="Left" />
+            <TextBlock Text="{Binding AppTitle}" FontWeight="SemiBold" FontSize="{DynamicResource InstallerHeaderFontSize}" DockPanel.Dock="Left" />
             <TextBlock Text="{Binding CurrentPageTitle}" Foreground="{DynamicResource InstallerTextMutedBrush}" HorizontalAlignment="Right" />
         </DockPanel>
 

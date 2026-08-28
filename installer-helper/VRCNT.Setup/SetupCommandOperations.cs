@@ -67,7 +67,7 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
         var installPath = options.InstallPath ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VRCNT");
         var paths = _resolveUserDataPaths(installPath);
         var configPath = Path.Combine(paths.DataRoot, "config.json");
-        var initializeLanguage = ShouldInitializeLanguage(options, configPath);
+        var initializeLanguage = ShouldInitializeLanguage(options);
         var result = await _runtimeEngine.ExecuteAsync(new RuntimeInstallRequest(
             options.Variant ?? RuntimeVariant.Cpu,
             ManagerCapabilities.Current.Version,
@@ -78,7 +78,7 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
             progress,
             cancellationToken);
         if (!result.Succeeded) throw new InvalidOperationException(result.ErrorMessage ?? result.ErrorCode ?? "Runtime installation failed.");
-        if (initializeLanguage) WriteInitialLanguage(configPath, options.InstallerLanguage!);
+        if (initializeLanguage && !File.Exists(configPath)) WriteInitialLanguageIfAbsent(configPath, options.InstallerLanguage!);
     }
 
     public async Task ExecuteRepairManagerAsync(SetupCommandLineOptions options, CancellationToken cancellationToken)
@@ -141,15 +141,23 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
         return Task.CompletedTask;
     }
 
-    private static bool ShouldInitializeLanguage(SetupCommandLineOptions options, string configPath) =>
-        !options.IsUpdate && !options.IsSwitch && !string.IsNullOrWhiteSpace(options.InstallerLanguage) && !File.Exists(configPath);
+    private static bool ShouldInitializeLanguage(SetupCommandLineOptions options) =>
+        !options.IsUpdate && !options.IsSwitch && !string.IsNullOrWhiteSpace(options.InstallerLanguage);
 
-    private static void WriteInitialLanguage(string configPath, string languageId)
+    private static void WriteInitialLanguageIfAbsent(string configPath, string languageId)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
-        File.WriteAllText(configPath, JsonSerializer.Serialize(new Dictionary<string, string>
+        try
         {
-            ["UI_LANGUAGE"] = languageId,
-        }));
+            using var stream = new FileStream(configPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            JsonSerializer.Serialize(stream, new Dictionary<string, string>
+            {
+                ["UI_LANGUAGE"] = languageId,
+            });
+        }
+        catch (IOException) when (File.Exists(configPath))
+        {
+            // The runtime transaction may have migrated existing user settings during preflight.
+        }
     }
 }

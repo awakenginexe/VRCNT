@@ -15,6 +15,7 @@
         <SolidColorBrush x:Key="InstallerSuccessBrush" Color="#107C41" />
         <sys:Double x:Key="InstallerBodyFontSize" xmlns:sys="clr-namespace:System;assembly=mscorlib">14</sys:Double>
         <sys:Double x:Key="InstallerHeadingFontSize" xmlns:sys="clr-namespace:System;assembly=mscorlib">28</sys:Double>
+        <sys:Double x:Key="InstallerHeaderFontSize" xmlns:sys="clr-namespace:System;assembly=mscorlib">17</sys:Double>
         <sys:Double x:Key="InstallerCardTitleFontSize" xmlns:sys="clr-namespace:System;assembly=mscorlib">19</sys:Double>
         <sys:Double x:Key="InstallerControlMinHeight" xmlns:sys="clr-namespace:System;assembly=mscorlib">40</sys:Double>
         <sys:Double x:Key="InstallerProgressHeight" xmlns:sys="clr-namespace:System;assembly=mscorlib">8</sys:Double>

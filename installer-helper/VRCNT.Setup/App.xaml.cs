@@ -47,6 +47,8 @@ public partial class App : Application
     {
         Resources["InstallerBodyFontSize"] = Math.Max(14d, SystemFonts.MessageFontSize);
         Resources["InstallerHeadingFontSize"] = Math.Max(28d, SystemFonts.MessageFontSize * 2d);
+        Resources["InstallerHeaderFontSize"] = Math.Max(17d, SystemFonts.MessageFontSize * 17d / 14d);
+        Resources["InstallerCardTitleFontSize"] = Math.Max(19d, SystemFonts.MessageFontSize * 19d / 14d);
         if (SystemParameters.HighContrast)
         {
             Resources["InstallerCanvasBrush"] = SystemColors.WindowBrush;
