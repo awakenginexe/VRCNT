@@ -10,6 +10,7 @@ import {
     getSwitchTarget,
     normalizeRuntimeState,
     confirmRuntimeSwitch,
+    consumePersistedRuntimeSwitch,
     reconcilePersistedRuntimeSwitch,
     requestRuntimeSwitch,
 } from "../runtimeManager.js";
@@ -137,6 +138,31 @@ test("a relaunched VRCNT consumes the persisted rollback outcome before enabling
         pendingTarget: null,
         controlsDisabled: false,
     });
+});
+
+test("startup recovery consumes the native receipt once and clears switch controls before a retry", async () => {
+    let calls = 0;
+    const result = await consumePersistedRuntimeSwitch({
+        consumeReceipt: async () => {
+            calls += 1;
+            return calls === 1
+                ? { status: "failed", targetVariant: "cuda", nonce: "nonce", errorCode: "activation_unhealthy" }
+                : null;
+        },
+        refreshRuntime: async () => normalizeRuntimeState(activeCpu),
+    });
+
+    assert.equal(result.status.status, "failed");
+    assert.equal(result.runtime.variant, "cpu");
+    assert.deepEqual(result.switchState, {
+        isBusy: false,
+        pendingTarget: null,
+        controlsDisabled: false,
+    });
+    assert.equal((await consumePersistedRuntimeSwitch({
+        consumeReceipt: async () => null,
+        refreshRuntime: async () => normalizeRuntimeState(activeCpu),
+    })).status.status, "idle");
 });
 
 test("cancelled and stale switch outcomes are terminal and refresh the runtime", async () => {

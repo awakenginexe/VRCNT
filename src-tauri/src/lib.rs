@@ -282,6 +282,7 @@ pub fn run() {
             runtime_manager::launch_runtime_switch,
             runtime_manager::complete_runtime_switch_shutdown,
             runtime_manager::get_runtime_switch_status,
+            runtime_manager::consume_runtime_switch_receipt,
             font_packs::download_optional_font_pack,
             font_packs::cancel_optional_font_pack,
             font_packs::resolve_managed_font_assets,

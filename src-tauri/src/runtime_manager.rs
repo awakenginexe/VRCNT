@@ -1,4 +1,5 @@
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::env;
@@ -76,6 +77,42 @@ impl RuntimeSwitchState {
         Ok(())
     }
 
+    fn recover_abandoned_pre_quiesce_handoff(&self) -> Result<bool, String> {
+        let handoff = self
+            .handoff
+            .lock()
+            .map_err(|_| "Runtime switch state is unavailable.".to_owned())?
+            .clone();
+        let Some(handoff) = handoff else {
+            return Ok(false);
+        };
+        let recovered =
+            recover_abandoned_runtime_switch(&handoff, SystemTime::now(), is_process_alive)?;
+        if recovered {
+            self.clear();
+            return Ok(true);
+        }
+        let terminal_matches_handoff = read_runtime_switch_status(&handoff.status_path)
+            .map(|status| {
+                matches!(
+                    status.status.as_str(),
+                    "succeeded" | "failed" | "cancelled" | "stale"
+                ) && status.nonce == handoff.nonce
+                    && status.token_sha256 == hash(&handoff.token)
+                    && status.proof_sha256 == handoff.proof
+                    && paths_equal(
+                        Path::new(&status.current_app_path),
+                        &handoff.current_app_path,
+                    )
+            })
+            .unwrap_or(false);
+        if terminal_matches_handoff {
+            self.clear();
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
     fn verify_shutdown_acknowledgement(
         &self,
         nonce: &str,
@@ -146,6 +183,24 @@ impl RuntimeSwitchState {
             token: handoff.token.clone(),
             target_variant: handoff.target_variant.clone(),
         }))
+    }
+
+    fn owns_status(&self, status: &RuntimeSwitchStatusRecord) -> Result<bool, String> {
+        let handoff = self
+            .handoff
+            .lock()
+            .map_err(|_| "Runtime switch state is unavailable.".to_owned())?;
+        let Some(handoff) = handoff.as_ref() else {
+            return Ok(false);
+        };
+        Ok(status.nonce == handoff.nonce
+            && status.target_variant == handoff.target_variant
+            && status.token_sha256 == hash(&handoff.token)
+            && status.proof_sha256 == handoff.proof
+            && paths_equal(
+                Path::new(&status.current_app_path),
+                &handoff.current_app_path,
+            ))
     }
 
     fn clear(&self) {
@@ -264,7 +319,7 @@ pub struct RuntimeSwitchStatusDto {
     pub updated_at_utc: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RuntimeSwitchStatusRecord {
     schema: u32,
@@ -277,6 +332,24 @@ struct RuntimeSwitchStatusRecord {
     error_code: Option<String>,
     message: Option<String>,
     updated_at_utc: String,
+    #[serde(default)]
+    manager_process_id: Option<u32>,
+    #[serde(default)]
+    handoff_expires_at_utc: Option<String>,
+    #[serde(default)]
+    receipt_mac: Option<String>,
+    #[serde(default)]
+    receipt_expires_at_unix_ms: Option<i64>,
+    #[serde(default)]
+    consumed_at_utc: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProtectedReceiptSecret {
+    schema: u32,
+    nonce: String,
+    protected_secret: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -307,6 +380,7 @@ pub fn launch_runtime_switch(
     switch_state: tauri::State<'_, RuntimeSwitchState>,
     variant: String,
 ) -> Result<(), String> {
+    switch_state.recover_abandoned_pre_quiesce_handoff()?;
     let target = RuntimeVariant::parse(&variant)?;
     let Some(data_root) = resolve_data_root() else {
         return Err("Runtime recovery is required before switching.".to_owned());
@@ -326,12 +400,15 @@ pub fn launch_runtime_switch(
         .parent()
         .ok_or_else(|| "The stable setup manager path is invalid.".to_owned())?;
 
+    ensure_runtime_switch_slot_available(&data_root, SystemTime::now())?;
+
     let current_app = fs::canonicalize(install_path.join("VRCNT.exe"))
         .map_err(|_| "The active VRCNT executable is unavailable.".to_owned())?;
     let nonce = new_secret("runtime-switch-nonce");
     let token = new_secret("runtime-switch-token");
     let proof = switch_proof(&token, &nonce, target.as_str(), &current_app);
     let status_path = data_root.join(RUNTIME_SWITCH_STATUS_FILE_NAME);
+    persist_runtime_switch_receipt_secret(&data_root, &nonce, &token)?;
     write_switch_status(
         &status_path,
         &RuntimeSwitchStatusRecordForWrite {
@@ -346,14 +423,15 @@ pub fn launch_runtime_switch(
             message: None,
         },
     )?;
-    switch_state.begin(RuntimeSwitchHandoff {
+    let handoff = RuntimeSwitchHandoff {
         nonce: nonce.clone(),
         token: token.clone(),
         target_variant: target.as_str().to_owned(),
         proof,
         status_path: status_path.clone(),
         current_app_path: current_app.clone(),
-    })?;
+    };
+    switch_state.begin(handoff.clone())?;
 
     let mut command = Command::new(&manager_path);
     command
@@ -369,24 +447,34 @@ pub fn launch_runtime_switch(
         .arg(&token)
         .arg("--switch-status")
         .arg(&status_path);
-    if command.spawn().is_err() {
-        let _ = write_switch_terminal(
-            &status_path,
-            "failed",
-            target.as_str(),
-            &nonce,
-            &hash(&token),
-            &current_app,
-            &switch_proof(&token, &nonce, target.as_str(), &current_app),
-            Some("manager_spawn_failed"),
-            Some("The setup manager could not be started."),
-        );
-        switch_state.clear();
-        return Err(
+    let child = match command.spawn() {
+        Ok(child) => child,
+        Err(_) => {
+            let _ = write_switch_terminal(
+                &status_path,
+                "failed",
+                target.as_str(),
+                &nonce,
+                &hash(&token),
+                &current_app,
+                &switch_proof(&token, &nonce, target.as_str(), &current_app),
+                Some("manager_spawn_failed"),
+                Some("The setup manager could not be started."),
+            );
+            switch_state.clear();
+            let _ = remove_runtime_switch_receipt_secret(&data_root, &nonce);
+            return Err(
             "VRCNT could not launch the trusted setup manager. Run Setup recovery and try again."
                 .to_owned(),
         );
-    }
+        }
+    };
+    write_handoff_liveness(
+        &status_path,
+        &handoff,
+        child.id(),
+        SystemTime::now() + Duration::from_secs(15 * 60),
+    )?;
     Ok(())
 }
 
@@ -440,6 +528,9 @@ pub fn get_runtime_switch_status(
             return Ok(stale_switch_status("malformed_switch_status"));
         }
     };
+    if switch_state.recover_abandoned_pre_quiesce_handoff()? {
+        return Ok(stale_switch_status("manager_unavailable"));
+    }
     if status.schema != 1
         || RuntimeVariant::parse(&status.target_variant).is_err()
         || status.nonce.trim().is_empty()
@@ -448,6 +539,9 @@ pub fn get_runtime_switch_status(
     {
         switch_state.clear();
         return Ok(stale_switch_status("invalid_switch_status"));
+    }
+    if status.consumed_at_utc.is_some() {
+        return Ok(idle_switch_status());
     }
     if !matches!(
         status.status.as_str(),
@@ -483,6 +577,9 @@ pub fn get_runtime_switch_status(
         status.status.as_str(),
         "succeeded" | "failed" | "cancelled" | "stale"
     ) {
+        if !switch_state.owns_status(&status)? {
+            return Ok(stale_switch_status("terminal_receipt_requires_consumption"));
+        }
         switch_state.clear();
     }
     Ok(RuntimeSwitchStatusDto {
@@ -493,6 +590,24 @@ pub fn get_runtime_switch_status(
         message: status.message,
         updated_at_utc: Some(status.updated_at_utc),
     })
+}
+
+#[tauri::command]
+pub fn consume_runtime_switch_receipt() -> Result<Option<RuntimeSwitchStatusDto>, String> {
+    let Some(data_root) = resolve_data_root() else {
+        return Ok(None);
+    };
+    let state = read_runtime_state_from_data_root(&data_root)?;
+    if state.status != "active" {
+        return Err(
+            "Runtime recovery is required before the switch result can be consumed.".to_owned(),
+        );
+    }
+    let install_path = PathBuf::from(state.install_path);
+    validate_current_app_path(&install_path)?;
+    let current_app = fs::canonicalize(install_path.join("VRCNT.exe"))
+        .map_err(|_| "The installed VRCNT executable is unavailable.".to_owned())?;
+    consume_runtime_switch_receipt_at(&data_root, &current_app, SystemTime::now())
 }
 
 fn idle_switch_status() -> RuntimeSwitchStatusDto {
@@ -606,6 +721,492 @@ fn write_switch_terminal(
     )
 }
 
+pub fn recover_abandoned_runtime_switch<F>(
+    handoff: &RuntimeSwitchHandoff,
+    now: SystemTime,
+    manager_is_alive: F,
+) -> Result<bool, String>
+where
+    F: Fn(u32) -> bool,
+{
+    let record = read_runtime_switch_status(&handoff.status_path)?;
+    if !matches!(record.status.as_str(), "pending" | "accepted" | "running")
+        || record.nonce != handoff.nonce
+        || record.target_variant != handoff.target_variant
+        || record.token_sha256 != hash(&handoff.token)
+        || record.proof_sha256 != handoff.proof
+        || !paths_equal(
+            Path::new(&record.current_app_path),
+            &handoff.current_app_path,
+        )
+    {
+        return Ok(false);
+    }
+    let expired = record
+        .handoff_expires_at_utc
+        .as_deref()
+        .and_then(parse_unix_millis)
+        .map(|expires| system_time_millis(now) > expires)
+        .unwrap_or(true);
+    let dead_manager = record
+        .manager_process_id
+        .map(|process_id| !manager_is_alive(process_id))
+        .unwrap_or(true);
+    if !expired && !dead_manager {
+        return Ok(false);
+    }
+
+    let mut stale = read_runtime_switch_status(&handoff.status_path)?;
+    if stale.nonce != handoff.nonce
+        || stale.token_sha256 != hash(&handoff.token)
+        || stale.proof_sha256 != handoff.proof
+        || !matches!(stale.status.as_str(), "pending" | "accepted" | "running")
+    {
+        return Ok(false);
+    }
+    stale.status = "stale".to_owned();
+    stale.error_code = Some(
+        if expired {
+            "handoff_expired"
+        } else {
+            "manager_unavailable"
+        }
+        .to_owned(),
+    );
+    stale.message = Some("The runtime switch manager did not reach shutdown. The active runtime remains open and you can retry.".to_owned());
+    stale.updated_at_utc = format_time(now);
+    stale.manager_process_id = None;
+    stale.handoff_expires_at_utc = None;
+    write_runtime_switch_status_record(&handoff.status_path, &stale)?;
+    Ok(true)
+}
+
+fn ensure_runtime_switch_slot_available(data_root: &Path, now: SystemTime) -> Result<(), String> {
+    let status_path = data_root.join(RUNTIME_SWITCH_STATUS_FILE_NAME);
+    if !status_path.exists() {
+        return Ok(());
+    }
+    let status = read_runtime_switch_status(&status_path)?;
+    if matches!(status.status.as_str(), "succeeded" | "failed" | "cancelled")
+        && status.consumed_at_utc.is_none()
+        && status.receipt_mac.is_some()
+    {
+        return Err(
+            "The previous runtime switch result must be recovered before starting another switch."
+                .to_owned(),
+        );
+    }
+    if !matches!(status.status.as_str(), "pending" | "accepted" | "running") {
+        return Ok(());
+    }
+    let expired = status
+        .handoff_expires_at_utc
+        .as_deref()
+        .and_then(parse_unix_millis)
+        .map(|expires| system_time_millis(now) > expires)
+        .unwrap_or(true);
+    let manager_dead = status
+        .manager_process_id
+        .map(|process_id| !is_process_alive(process_id))
+        .unwrap_or(true);
+    if !expired && !manager_dead {
+        return Err("A runtime switch manager is already in progress.".to_owned());
+    }
+    let mut stale = read_runtime_switch_status(&status_path)?;
+    if stale.nonce != status.nonce
+        || stale.token_sha256 != status.token_sha256
+        || stale.proof_sha256 != status.proof_sha256
+        || !matches!(stale.status.as_str(), "pending" | "accepted" | "running")
+    {
+        return Err(
+            "The runtime switch status changed while recovery was starting. Try again.".to_owned(),
+        );
+    }
+    stale.status = "stale".to_owned();
+    stale.error_code = Some(
+        if expired {
+            "handoff_expired"
+        } else {
+            "manager_unavailable"
+        }
+        .to_owned(),
+    );
+    stale.message = Some("The runtime switch manager did not reach shutdown. The active runtime remains open and you can retry.".to_owned());
+    stale.updated_at_utc = format_time(now);
+    stale.manager_process_id = None;
+    stale.handoff_expires_at_utc = None;
+    write_runtime_switch_status_record(&status_path, &stale)
+}
+
+fn write_handoff_liveness(
+    status_path: &Path,
+    handoff: &RuntimeSwitchHandoff,
+    manager_process_id: u32,
+    expires_at: SystemTime,
+) -> Result<(), String> {
+    let mut status = read_runtime_switch_status(status_path)?;
+    if status.nonce != handoff.nonce
+        || status.token_sha256 != hash(&handoff.token)
+        || status.proof_sha256 != handoff.proof
+        || !paths_equal(
+            Path::new(&status.current_app_path),
+            &handoff.current_app_path,
+        )
+    {
+        return Err(
+            "The runtime switch handoff changed before the manager could be tracked.".to_owned(),
+        );
+    }
+    if !matches!(status.status.as_str(), "pending" | "accepted" | "running") {
+        return Ok(());
+    }
+    status.manager_process_id = Some(manager_process_id);
+    status.handoff_expires_at_utc = Some(format_time(expires_at));
+    status.updated_at_utc = format_time(SystemTime::now());
+    write_runtime_switch_status_record(status_path, &status)
+}
+
+pub fn persist_runtime_switch_receipt_secret(
+    data_root: &Path,
+    nonce: &str,
+    secret: &str,
+) -> Result<(), String> {
+    if nonce.trim().is_empty() || secret.trim().is_empty() {
+        return Err("The runtime switch receipt secret is invalid.".to_owned());
+    }
+    let secret_path = runtime_switch_receipt_secret_path(data_root, nonce)?;
+    let record = ProtectedReceiptSecret {
+        schema: 1,
+        nonce: nonce.to_owned(),
+        protected_secret: BASE64.encode(protect_current_user_secret(secret.as_bytes())?),
+    };
+    write_atomic_json(&secret_path, &record, "runtime-switch-receipt")
+}
+
+fn remove_runtime_switch_receipt_secret(data_root: &Path, nonce: &str) -> Result<(), String> {
+    let path = runtime_switch_receipt_secret_path(data_root, nonce)?;
+    if path.exists() {
+        fs::remove_file(path)
+            .map_err(|_| "The runtime switch receipt secret could not be cleared.".to_owned())?;
+    }
+    Ok(())
+}
+
+pub fn consume_runtime_switch_receipt_at(
+    data_root: &Path,
+    current_app_path: &Path,
+    now: SystemTime,
+) -> Result<Option<RuntimeSwitchStatusDto>, String> {
+    let status_path = data_root.join(RUNTIME_SWITCH_STATUS_FILE_NAME);
+    if !status_path.exists() {
+        return Ok(None);
+    }
+    let mut status = read_runtime_switch_status(&status_path)?;
+    if status.consumed_at_utc.is_some() {
+        return Ok(None);
+    }
+    if status.schema != 1
+        || !matches!(
+            status.status.as_str(),
+            "succeeded" | "failed" | "cancelled" | "stale"
+        )
+        || RuntimeVariant::parse(&status.target_variant).is_err()
+        || status.nonce.trim().is_empty()
+        || !is_sha256(&status.token_sha256)
+        || !is_sha256(&status.proof_sha256)
+    {
+        return Err("The runtime switch receipt is malformed.".to_owned());
+    }
+    let issued_at = parse_unix_millis(&status.updated_at_utc)
+        .ok_or_else(|| "The runtime switch receipt timestamp is malformed.".to_owned())?;
+    let now_ms = system_time_millis(now);
+    if issued_at > now_ms + 300_000 {
+        return Err("The runtime switch receipt timestamp is invalid.".to_owned());
+    }
+    let recorded_app = fs::canonicalize(&status.current_app_path)
+        .map_err(|_| "The runtime switch receipt application path is unavailable.".to_owned())?;
+    let current_app = fs::canonicalize(current_app_path)
+        .map_err(|_| "The current VRCNT application path is unavailable.".to_owned())?;
+    if !paths_equal(&recorded_app, &current_app) {
+        return Err("The runtime switch receipt is for a different installation.".to_owned());
+    }
+    let secret_path = runtime_switch_receipt_secret_path(data_root, &status.nonce)?;
+    let secret: ProtectedReceiptSecret = serde_json::from_slice(
+        &fs::read(&secret_path)
+            .map_err(|_| "The runtime switch receipt secret is unavailable.".to_owned())?,
+    )
+    .map_err(|_| "The runtime switch receipt secret is malformed.".to_owned())?;
+    if secret.schema != 1 || secret.nonce != status.nonce {
+        return Err("The runtime switch receipt secret does not match the transaction.".to_owned());
+    }
+    let secret_bytes = protect_current_user_secret_decode(
+        &BASE64
+            .decode(secret.protected_secret)
+            .map_err(|_| "The runtime switch receipt secret is malformed.".to_owned())?,
+    )?;
+    let secret = String::from_utf8(secret_bytes)
+        .map_err(|_| "The runtime switch receipt secret is invalid.".to_owned())?;
+    let expires_at = status
+        .receipt_expires_at_unix_ms
+        .ok_or_else(|| "The runtime switch receipt expiry is missing.".to_owned())?;
+    if expires_at <= now_ms
+        || expires_at > issued_at + 24 * 60 * 60 * 1000
+        || !secure_equals(
+            status.receipt_mac.as_deref(),
+            &runtime_switch_receipt_mac_record(&status, &secret)?,
+        )
+    {
+        return Err("The runtime switch receipt is expired or unauthenticated.".to_owned());
+    }
+    let claim_path = runtime_switch_receipt_claim_path(data_root, &status.nonce)?;
+    match fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&claim_path)
+    {
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(None),
+        Err(_) => return Err("The runtime switch receipt could not be claimed.".to_owned()),
+    }
+    let latest = read_runtime_switch_status(&status_path)?;
+    if latest.consumed_at_utc.is_some()
+        || latest.nonce != status.nonce
+        || latest.receipt_mac != status.receipt_mac
+    {
+        let _ = fs::remove_file(&claim_path);
+        return Ok(None);
+    }
+    status.consumed_at_utc = Some(format_time(now));
+    if let Err(error) = write_runtime_switch_status_record(&status_path, &status) {
+        let _ = fs::remove_file(&claim_path);
+        return Err(error);
+    }
+    if let Err(error) = remove_runtime_switch_receipt_secret(data_root, &status.nonce) {
+        return Err(error);
+    }
+    Ok(Some(RuntimeSwitchStatusDto {
+        status: status.status,
+        target_variant: Some(status.target_variant),
+        nonce: Some(status.nonce),
+        error_code: status.error_code,
+        message: status.message,
+        updated_at_utc: Some(status.updated_at_utc),
+    }))
+}
+
+pub fn runtime_switch_receipt_mac(
+    record: &serde_json::Value,
+    secret: &str,
+) -> Result<String, String> {
+    let record: RuntimeSwitchStatusRecord = serde_json::from_value(record.clone())
+        .map_err(|_| "The runtime switch receipt is malformed.".to_owned())?;
+    runtime_switch_receipt_mac_record(&record, secret)
+}
+
+fn runtime_switch_receipt_mac_record(
+    record: &RuntimeSwitchStatusRecord,
+    secret: &str,
+) -> Result<String, String> {
+    let expiry = record
+        .receipt_expires_at_unix_ms
+        .ok_or_else(|| "The runtime switch receipt expiry is missing.".to_owned())?;
+    let updated = parse_unix_millis(&record.updated_at_utc)
+        .ok_or_else(|| "The runtime switch receipt timestamp is malformed.".to_owned())?;
+    let current_app = fs::canonicalize(&record.current_app_path)
+        .map_err(|_| "The runtime switch receipt application path is unavailable.".to_owned())?;
+    let payload = format!(
+        "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
+        record.schema,
+        record.status,
+        record.target_variant,
+        record.nonce,
+        record.token_sha256,
+        record.proof_sha256,
+        current_app.display(),
+        record.error_code.as_deref().unwrap_or_default(),
+        record.message.as_deref().unwrap_or_default(),
+        updated,
+        expiry,
+    );
+    let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
+        .map_err(|_| "The runtime switch receipt secret is invalid.".to_owned())?;
+    mac.update(payload.as_bytes());
+    Ok(format!("{:x}", mac.finalize().into_bytes()))
+}
+
+fn read_runtime_switch_status(path: &Path) -> Result<RuntimeSwitchStatusRecord, String> {
+    serde_json::from_slice(
+        &fs::read(path).map_err(|_| "The runtime switch status is unavailable.".to_owned())?,
+    )
+    .map_err(|_| "The runtime switch status is malformed.".to_owned())
+}
+
+fn write_runtime_switch_status_record(
+    path: &Path,
+    status: &RuntimeSwitchStatusRecord,
+) -> Result<(), String> {
+    write_atomic_json(path, status, "runtime-switch-status")
+}
+
+fn write_atomic_json<T: Serialize>(path: &Path, value: &T, label: &str) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("The {label} path is invalid."))?;
+    fs::create_dir_all(parent).map_err(|_| format!("The {label} directory is unavailable."))?;
+    let temporary = parent.join(format!(".{label}.{}.tmp", new_secret(label)));
+    fs::write(
+        &temporary,
+        serde_json::to_vec_pretty(value)
+            .map_err(|_| format!("The {label} could not be serialized."))?,
+    )
+    .map_err(|_| format!("The {label} could not be written."))?;
+    fs::rename(&temporary, path).map_err(|_| {
+        let _ = fs::remove_file(&temporary);
+        format!("The {label} could not be committed.")
+    })
+}
+
+fn runtime_switch_receipt_secret_path(data_root: &Path, nonce: &str) -> Result<PathBuf, String> {
+    if nonce.is_empty()
+        || !nonce
+            .bytes()
+            .all(|value| value.is_ascii_alphanumeric() || value == b'-')
+    {
+        return Err("The runtime switch receipt nonce is invalid.".to_owned());
+    }
+    Ok(data_root.join(format!("runtime-switch-receipt-{nonce}.json")))
+}
+
+fn runtime_switch_receipt_claim_path(data_root: &Path, nonce: &str) -> Result<PathBuf, String> {
+    if nonce.is_empty()
+        || !nonce
+            .bytes()
+            .all(|value| value.is_ascii_alphanumeric() || value == b'-')
+    {
+        return Err("The runtime switch receipt nonce is invalid.".to_owned());
+    }
+    Ok(data_root.join(format!("runtime-switch-receipt-{nonce}.claim")))
+}
+
+fn system_time_millis(time: SystemTime) -> i64 {
+    time.duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as i64
+}
+
+fn is_process_alive(process_id: u32) -> bool {
+    use sysinfo::{Pid, ProcessesToUpdate, System};
+
+    let mut system = System::new();
+    system.refresh_processes(ProcessesToUpdate::Some(&[Pid::from_u32(process_id)]), true);
+    system.process(Pid::from_u32(process_id)).is_some()
+}
+
+#[cfg(windows)]
+#[repr(C)]
+struct DataBlob {
+    cb_data: u32,
+    pb_data: *mut u8,
+}
+
+#[cfg(windows)]
+#[link(name = "crypt32")]
+extern "system" {
+    fn CryptProtectData(
+        input: *mut DataBlob,
+        description: *const u16,
+        optional_entropy: *mut DataBlob,
+        reserved: *mut std::ffi::c_void,
+        prompt_struct: *mut std::ffi::c_void,
+        flags: u32,
+        output: *mut DataBlob,
+    ) -> i32;
+    fn CryptUnprotectData(
+        input: *mut DataBlob,
+        description: *mut *mut u16,
+        optional_entropy: *mut DataBlob,
+        reserved: *mut std::ffi::c_void,
+        prompt_struct: *mut std::ffi::c_void,
+        flags: u32,
+        output: *mut DataBlob,
+    ) -> i32;
+}
+
+#[cfg(windows)]
+#[link(name = "kernel32")]
+extern "system" {
+    fn LocalFree(memory: *mut std::ffi::c_void) -> *mut std::ffi::c_void;
+}
+
+#[cfg(windows)]
+fn protect_current_user_secret(value: &[u8]) -> Result<Vec<u8>, String> {
+    unsafe {
+        let mut input = DataBlob {
+            cb_data: value.len() as u32,
+            pb_data: value.as_ptr() as *mut u8,
+        };
+        let mut output = DataBlob {
+            cb_data: 0,
+            pb_data: std::ptr::null_mut(),
+        };
+        if CryptProtectData(
+            &mut input,
+            std::ptr::null(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            1,
+            &mut output,
+        ) == 0
+        {
+            return Err("The runtime switch receipt secret could not be protected.".to_owned());
+        }
+        let protected =
+            std::slice::from_raw_parts(output.pb_data, output.cb_data as usize).to_vec();
+        let _ = LocalFree(output.pb_data as *mut std::ffi::c_void);
+        Ok(protected)
+    }
+}
+
+#[cfg(windows)]
+fn protect_current_user_secret_decode(value: &[u8]) -> Result<Vec<u8>, String> {
+    unsafe {
+        let mut input = DataBlob {
+            cb_data: value.len() as u32,
+            pb_data: value.as_ptr() as *mut u8,
+        };
+        let mut output = DataBlob {
+            cb_data: 0,
+            pb_data: std::ptr::null_mut(),
+        };
+        if CryptUnprotectData(
+            &mut input,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            1,
+            &mut output,
+        ) == 0
+        {
+            return Err("The runtime switch receipt secret could not be opened.".to_owned());
+        }
+        let secret = std::slice::from_raw_parts(output.pb_data, output.cb_data as usize).to_vec();
+        let _ = LocalFree(output.pb_data as *mut std::ffi::c_void);
+        Ok(secret)
+    }
+}
+
+#[cfg(not(windows))]
+fn protect_current_user_secret(_: &[u8]) -> Result<Vec<u8>, String> {
+    Err("Runtime switch receipts require Windows data protection.".to_owned())
+}
+
+#[cfg(not(windows))]
+fn protect_current_user_secret_decode(_: &[u8]) -> Result<Vec<u8>, String> {
+    Err("Runtime switch receipts require Windows data protection.".to_owned())
+}
+
 fn format_time(time: SystemTime) -> String {
     let duration = time
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -640,6 +1241,20 @@ fn hash(value: &str) -> String {
     format!("{:x}", Sha256::digest(value.as_bytes()))
 }
 
+fn secure_equals(actual: Option<&str>, expected: &str) -> bool {
+    let Some(actual) = actual else {
+        return false;
+    };
+    if actual.len() != expected.len() {
+        return false;
+    }
+    let mut difference = 0u8;
+    for (left, right) in actual.bytes().zip(expected.bytes()) {
+        difference |= left ^ right;
+    }
+    difference == 0
+}
+
 fn switch_proof(token: &str, nonce: &str, target: &str, current_app: &Path) -> String {
     hash(&format!(
         "{token}\n{nonce}\n{target}\n{}",
@@ -652,7 +1267,13 @@ pub fn validate_shutdown_request_status(handoff: &RuntimeSwitchHandoff) -> Resul
         .map_err(|_| "The runtime switch shutdown request is unavailable.".to_owned())?;
     let status: RuntimeSwitchStatusRecord = serde_json::from_slice(&contents)
         .map_err(|_| "The runtime switch shutdown request is malformed.".to_owned())?;
-    if status.status != "shutdown_requested"
+    let expires_at = status
+        .handoff_expires_at_utc
+        .as_deref()
+        .and_then(parse_unix_millis)
+        .ok_or_else(|| "The runtime switch shutdown request expiry is invalid.".to_owned())?;
+    if system_time_millis(SystemTime::now()) > expires_at
+        || status.status != "shutdown_requested"
         || status.nonce != handoff.nonce
         || status.target_variant != handoff.target_variant
         || status.token_sha256 != hash(&handoff.token)
@@ -925,16 +1546,29 @@ fn hash_bytes(value: &[u8]) -> String {
 }
 
 fn is_recent(value: &str) -> bool {
-    let Some((date, time)) = value.split_once('T') else {
+    let Some(timestamp) = parse_unix_millis(value) else {
         return false;
+    };
+    let now = system_time_millis(SystemTime::now());
+    timestamp <= now + 300_000 && now.saturating_sub(timestamp) <= 90 * 86_400_000
+}
+
+fn parse_unix_millis(value: &str) -> Option<i64> {
+    let Some((date, time)) = value.split_once('T') else {
+        return None;
     };
     let date_parts = date
         .split('-')
         .filter_map(|part| part.parse::<i64>().ok())
         .collect::<Vec<_>>();
-    let time_core = time.split(['.', '+', '-']).next().unwrap_or_default();
-    let time_parts = time_core
+    let time_core = time
         .trim_end_matches('Z')
+        .split('+')
+        .next()?
+        .split('-')
+        .next()?;
+    let (time_main, fractional) = time_core.split_once('.').unwrap_or((time_core, ""));
+    let time_parts = time_main
         .split(':')
         .filter_map(|part| part.parse::<i64>().ok())
         .collect::<Vec<_>>();
@@ -948,15 +1582,15 @@ fn is_recent(value: &str) -> bool {
         || time_parts[1] > 59
         || time_parts[2] > 60
     {
-        return false;
+        return None;
     }
     let days = days_from_civil(date_parts[0], date_parts[1] as u32, date_parts[2] as u32);
-    let timestamp = days * 86_400 + time_parts[0] * 3_600 + time_parts[1] * 60 + time_parts[2];
-    let now = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64;
-    timestamp <= now + 300 && now.saturating_sub(timestamp) <= 90 * 86_400
+    let milliseconds = fractional.chars().take(3).collect::<String>();
+    let milliseconds = format!("{milliseconds:0<3}").parse::<i64>().ok()?;
+    Some(
+        (days * 86_400 + time_parts[0] * 3_600 + time_parts[1] * 60 + time_parts[2]) * 1_000
+            + milliseconds,
+    )
 }
 
 fn days_from_civil(year: i64, month: u32, day: u32) -> i64 {

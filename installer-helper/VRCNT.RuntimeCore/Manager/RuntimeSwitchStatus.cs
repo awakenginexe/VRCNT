@@ -14,7 +14,12 @@ public sealed record RuntimeSwitchStatus(
     string CurrentAppPath,
     string? ErrorCode,
     string? Message,
-    DateTimeOffset UpdatedAtUtc);
+    DateTimeOffset UpdatedAtUtc,
+    int? ManagerProcessId = null,
+    DateTimeOffset? HandoffExpiresAtUtc = null,
+    string? ReceiptMac = null,
+    long? ReceiptExpiresAtUnixMs = null,
+    DateTimeOffset? ConsumedAtUtc = null);
 
 public sealed class RuntimeSwitchStatusStore
 {
@@ -103,10 +108,32 @@ public sealed class RuntimeSwitchStatusStore
         }
     }
 
-    public void WriteTerminal(string status, string targetVariant, RuntimeShutdownHandoff handoff, string? errorCode, string? message)
+    public void WriteTerminal(string status, string targetVariant, RuntimeShutdownHandoff handoff, string? errorCode, string? message) =>
+        WriteTerminal(status, targetVariant, handoff, errorCode, message, handoff.Token);
+
+    public void WriteTerminal(string status, string targetVariant, RuntimeShutdownHandoff handoff, string? errorCode, string? message, string receiptSecret, DateTimeOffset? receiptExpiresAtUtc = null)
     {
         if (status is not ("succeeded" or "failed" or "cancelled" or "stale")) throw new ArgumentException("Invalid terminal switch status.", nameof(status));
-        Write(status, targetVariant, handoff, errorCode, message);
+        if (string.IsNullOrWhiteSpace(receiptSecret)) throw new InvalidDataException("The runtime switch receipt secret is missing.");
+        var current = Read();
+        var now = DateTimeOffset.UtcNow;
+        var expiresAtUtc = receiptExpiresAtUtc ?? now.AddHours(24);
+        var record = new RuntimeSwitchStatus(
+            Schema,
+            status,
+            targetVariant,
+            handoff.Nonce,
+            Hash(handoff.Token),
+            handoff.Proof,
+            handoff.CurrentAppPath,
+            errorCode,
+            message,
+            now,
+            current.ManagerProcessId,
+            current.HandoffExpiresAtUtc,
+            null,
+            expiresAtUtc.ToUnixTimeMilliseconds());
+        WriteRecord(record with { ReceiptMac = TerminalReceiptMac(record, receiptSecret) });
     }
 
     public void WriteStale(string errorCode, string message)
@@ -123,7 +150,20 @@ public sealed class RuntimeSwitchStatusStore
 
     private void Write(string status, string targetVariant, RuntimeShutdownHandoff handoff, string? errorCode, string? message)
     {
-        var record = new RuntimeSwitchStatus(Schema, status, targetVariant, handoff.Nonce, Hash(handoff.Token), handoff.Proof, handoff.CurrentAppPath, errorCode, message, DateTimeOffset.UtcNow);
+        var current = Read();
+        var record = new RuntimeSwitchStatus(
+            Schema,
+            status,
+            targetVariant,
+            handoff.Nonce,
+            Hash(handoff.Token),
+            handoff.Proof,
+            handoff.CurrentAppPath,
+            errorCode,
+            message,
+            DateTimeOffset.UtcNow,
+            Environment.ProcessId,
+            DateTimeOffset.UtcNow.AddMinutes(15));
         WriteRecord(record);
     }
 
@@ -148,6 +188,41 @@ public sealed class RuntimeSwitchStatusStore
 
     public static string Proof(string token, string nonce, string targetVariant, string currentAppPath) =>
         Hash($"{token}\n{nonce}\n{targetVariant}\n{Path.GetFullPath(currentAppPath)}");
+
+    public static bool VerifyTerminalReceipt(RuntimeSwitchStatus status, string receiptSecret, string currentAppPath, DateTimeOffset now)
+    {
+        if (status.Status is not ("succeeded" or "failed" or "cancelled" or "stale") ||
+            string.IsNullOrWhiteSpace(receiptSecret) ||
+            string.IsNullOrWhiteSpace(status.ReceiptMac) ||
+            status.ReceiptExpiresAtUnixMs is null ||
+            status.ConsumedAtUtc is not null ||
+            !PathsEqual(status.CurrentAppPath, currentAppPath) ||
+            status.ReceiptExpiresAtUnixMs <= now.ToUnixTimeMilliseconds() ||
+            status.ReceiptExpiresAtUnixMs > status.UpdatedAtUtc.AddHours(24).ToUnixTimeMilliseconds() ||
+            status.UpdatedAtUtc > now.AddMinutes(5))
+            return false;
+        return SecureEquals(status.ReceiptMac, TerminalReceiptMac(status with { ReceiptMac = null }, receiptSecret));
+    }
+
+    public static string TerminalReceiptMac(RuntimeSwitchStatus status, string receiptSecret)
+    {
+        if (status.ReceiptExpiresAtUnixMs is null) throw new InvalidDataException("The runtime switch receipt expiry is missing.");
+        var payload = string.Join("\n", new[]
+        {
+            status.Schema.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            status.Status,
+            status.TargetVariant,
+            status.Nonce,
+            status.TokenSha256,
+            status.ProofSha256,
+            Path.GetFullPath(status.CurrentAppPath),
+            status.ErrorCode ?? string.Empty,
+            status.Message ?? string.Empty,
+            status.UpdatedAtUtc.ToUnixTimeMilliseconds().ToString(System.Globalization.CultureInfo.InvariantCulture),
+            status.ReceiptExpiresAtUnixMs.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        });
+        return Convert.ToHexString(HMACSHA256.HashData(System.Text.Encoding.UTF8.GetBytes(receiptSecret), System.Text.Encoding.UTF8.GetBytes(payload))).ToLowerInvariant();
+    }
 
     private static bool SecureEquals(string? left, string right) =>
         left is not null && left.Length == right.Length && CryptographicOperations.FixedTimeEquals(System.Text.Encoding.UTF8.GetBytes(left), System.Text.Encoding.UTF8.GetBytes(right));

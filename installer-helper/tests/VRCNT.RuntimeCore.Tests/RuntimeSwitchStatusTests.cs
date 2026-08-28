@@ -60,6 +60,39 @@ public sealed class RuntimeSwitchStatusTests : IDisposable
     }
 
     [Fact]
+    public void Terminal_receipt_is_bound_to_the_switch_secret_and_current_installation()
+    {
+        var installPath = Path.Combine(_root, "VRCNT");
+        var appPath = Path.Combine(installPath, "VRCNT.exe");
+        var statusPath = WritePending("cuda", appPath, "nonce", "token");
+        var store = new RuntimeSwitchStatusStore(Path.Combine(_root, "VRCNTData"), statusPath);
+        var handoff = store.ValidatePending("cuda", installPath, appPath, "token");
+
+        store.WriteTerminal("failed", "cuda", handoff, "activation_unhealthy", "The CUDA runtime was rolled back.", "receipt-secret");
+        var terminal = store.Read();
+
+        Assert.True(RuntimeSwitchStatusStore.VerifyTerminalReceipt(terminal, "receipt-secret", appPath, DateTimeOffset.UtcNow));
+        Assert.False(RuntimeSwitchStatusStore.VerifyTerminalReceipt(terminal, "forged-secret", appPath, DateTimeOffset.UtcNow));
+        Assert.False(RuntimeSwitchStatusStore.VerifyTerminalReceipt(terminal, "receipt-secret", Path.Combine(_root, "other", "VRCNT.exe"), DateTimeOffset.UtcNow));
+    }
+
+    [Fact]
+    public void Terminal_receipt_rejects_expiry_and_replay_markers()
+    {
+        var installPath = Path.Combine(_root, "VRCNT");
+        var appPath = Path.Combine(installPath, "VRCNT.exe");
+        var statusPath = WritePending("cuda", appPath, "nonce", "token");
+        var store = new RuntimeSwitchStatusStore(Path.Combine(_root, "VRCNTData"), statusPath);
+        var handoff = store.ValidatePending("cuda", installPath, appPath, "token");
+
+        store.WriteTerminal("failed", "cuda", handoff, "activation_unhealthy", "The CUDA runtime was rolled back.", "receipt-secret", DateTimeOffset.UtcNow - TimeSpan.FromMinutes(1));
+        var expired = store.Read();
+
+        Assert.False(RuntimeSwitchStatusStore.VerifyTerminalReceipt(expired, "receipt-secret", appPath, DateTimeOffset.UtcNow));
+        Assert.Null(expired.ConsumedAtUtc);
+    }
+
+    [Fact]
     public async Task Shutdown_request_requires_a_matching_one_shot_acknowledgement_before_quiesce()
     {
         var installPath = Path.Combine(_root, "VRCNT");

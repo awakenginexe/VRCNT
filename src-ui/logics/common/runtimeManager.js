@@ -117,6 +117,20 @@ export const reconcilePersistedRuntimeSwitch = async ({ getStatus, refreshRuntim
     };
 };
 
+export const consumePersistedRuntimeSwitch = async ({ consumeReceipt, refreshRuntime }) => {
+    const receipt = typeof consumeReceipt === "function" ? await consumeReceipt() : null;
+    const status = receipt
+        ? normalizeRuntimeSwitchStatus(receipt)
+        : { status: "idle", targetVariant: null, nonce: null, errorCode: null, message: null, updatedAtUtc: null };
+    const runtime = await refreshRuntime();
+    return {
+        status,
+        runtime,
+        switchState: createRuntimeSwitchState({ isBusy: false, pendingTarget: null }),
+        isTerminal: SWITCH_TERMINAL_STATES.has(status.status),
+    };
+};
+
 export const waitForRuntimeSwitchAcceptance = async ({ getStatus, targetVariant, timeoutMs = 10000, intervalMs = 100 }) => {
     if (typeof getStatus !== "function") return { accepted: true, targetVariant };
     const deadline = Date.now() + timeoutMs;
@@ -198,6 +212,11 @@ export const createRuntimeManagerAdapter = ({
             return { status: "stale", errorCode: "switch_status_unavailable" };
         }
     },
+    consumeRuntimeSwitchReceipt: async () => {
+        if (!isTauri()) return null;
+        const invoke = await loadTauriInvoke();
+        return invoke("consume_runtime_switch_receipt");
+    },
 });
 
 const runtimeManagerAdapter = createRuntimeManagerAdapter();
@@ -205,3 +224,4 @@ const runtimeManagerAdapter = createRuntimeManagerAdapter();
 export const getRuntimeState = () => runtimeManagerAdapter.getRuntimeState();
 export const launchRuntimeSwitch = (variant) => runtimeManagerAdapter.launchRuntimeSwitch(variant);
 export const getRuntimeSwitchStatus = () => runtimeManagerAdapter.getRuntimeSwitchStatus();
+export const consumeRuntimeSwitchReceipt = () => runtimeManagerAdapter.consumeRuntimeSwitchReceipt();
