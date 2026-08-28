@@ -9,7 +9,7 @@
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Remove="VRCNT.RuntimeCore\**\*.cs;tests\**\*.cs" />
+    <Compile Remove="VRCNT.RuntimeCore\**\*.cs;VRCNT.Setup\**\*.cs;tests\**\*.cs" />
     <ProjectReference Include="VRCNT.RuntimeCore\VRCNT.RuntimeCore.csproj" />
   </ItemGroup>
 </Project>

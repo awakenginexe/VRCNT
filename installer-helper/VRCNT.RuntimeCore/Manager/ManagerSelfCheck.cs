@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Reflection;
 using System.Security.Cryptography;
 using VRCNT.RuntimeCore.Manifest;
 using VRCNT.RuntimeCore.Models;
@@ -25,6 +27,28 @@ public sealed class MinisignSetupSignatureVerifier(string minisignPath) : ISetup
 
 public sealed class ManagerSelfCheck(ManagerCapabilities capabilities, ISetupSignatureVerifier? signatureVerifier = null)
 {
+    public Task<ManagerSelfCheckResult> CheckEmbeddedAsync(string managerPath, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!File.Exists(managerPath)) return Task.FromResult(Failure("manager_missing"));
+        try
+        {
+            var expectedVersion = Version.Parse(capabilities.Version);
+            var fileVersion = FileVersionInfo.GetVersionInfo(managerPath).FileVersion;
+            var actualVersion = Version.TryParse(fileVersion, out var parsedFileVersion)
+                ? parsedFileVersion
+                : AssemblyName.GetAssemblyName(managerPath).Version;
+            return Task.FromResult(actualVersion is not null && actualVersion.Major == expectedVersion.Major &&
+                actualVersion.Minor == expectedVersion.Minor && actualVersion.Build == expectedVersion.Build
+                ? new ManagerSelfCheckResult(true, true, null)
+                : Failure("manager_embedded_version_mismatch"));
+        }
+        catch (Exception exception) when (exception is BadImageFormatException or FileLoadException or IOException or UnauthorizedAccessException)
+        {
+            return Task.FromResult(Failure("manager_embedded_metadata_invalid"));
+        }
+    }
+
     public async Task<ManagerSelfCheckResult> CheckAsync(
         string managerPath,
         PackageManifest manifest,

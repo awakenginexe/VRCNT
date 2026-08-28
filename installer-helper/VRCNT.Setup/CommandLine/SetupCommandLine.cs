@@ -8,6 +8,7 @@ public sealed record SetupCommandLineOptions(
     bool IsPassive,
     bool IsSwitch,
     bool IsRepairManager,
+    bool IsManagerRepairWorker,
     RuntimeVariant? Variant,
     string? InstallPath,
     string? CurrentAppPath,
@@ -21,6 +22,7 @@ public static class SetupCommandLine
         var isPassive = false;
         var isSwitch = false;
         var isRepairManager = false;
+        var isManagerRepairWorker = false;
         RuntimeVariant? variant = null;
         string? installPath = null;
         string? currentAppPath = null;
@@ -33,6 +35,7 @@ public static class SetupCommandLine
             if (argument.Equals("/passive", StringComparison.OrdinalIgnoreCase)) { isPassive = true; continue; }
             if (argument.Equals("--switch", StringComparison.OrdinalIgnoreCase)) { isSwitch = true; continue; }
             if (argument.Equals("--repair-manager", StringComparison.OrdinalIgnoreCase)) { isRepairManager = true; continue; }
+            if (argument.Equals("--manager-repair-worker", StringComparison.OrdinalIgnoreCase)) { isManagerRepairWorker = true; continue; }
             if (argument.Equals("--variant", StringComparison.OrdinalIgnoreCase))
             {
                 var rawVariant = NextValue(args, ref index, "--variant");
@@ -64,8 +67,11 @@ public static class SetupCommandLine
 
         if (isSwitch && variant is null) throw new ArgumentException("--switch requires --variant cpu|cuda.", nameof(args));
         if (variant is not null && !isSwitch) throw new ArgumentException("--variant is only valid with --switch.", nameof(args));
-        return new SetupCommandLineOptions(isUpdate, isPassive, isSwitch, isRepairManager, variant, installPath, currentAppPath, currentAppArguments);
+        if (isManagerRepairWorker && !isRepairManager) throw new ArgumentException("--manager-repair-worker requires --repair-manager.", nameof(args));
+        return new SetupCommandLineOptions(isUpdate, isPassive, isSwitch, isRepairManager, isManagerRepairWorker, variant, installPath, currentAppPath, currentAppArguments);
     }
+
+    public static bool ShouldShowUi(SetupCommandLineOptions options) => !options.IsPassive;
 
     private static string NextValue(IReadOnlyList<string> args, ref int index, string option)
     {

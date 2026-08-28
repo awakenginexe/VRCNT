@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
 using VRCNT.RuntimeCore.Manifest;
@@ -23,6 +24,8 @@ public sealed record VerifiedManagerUpdate(
     BootstrapperMetadata? Bootstrapper = null,
     PackageManifest? Manifest = null);
 
+public sealed record ManagerArtifactExpectation(long Size, string Sha256);
+
 public interface IManagerRepairSource
 {
     Task<VerifiedManagerUpdate> AcquireAsync(Uri latestJsonUri, CancellationToken cancellationToken);
@@ -36,25 +39,52 @@ public sealed class ManagerHandoff
 
     public ManagerHandoff(
         string stableManagerPath,
-        Func<string, CancellationToken, Task<ManagerSelfCheckResult>>? newManagerSelfCheck = null,
-        Func<CancellationToken, Task>? exitOldManager = null)
+        Func<string, CancellationToken, Task<ManagerSelfCheckResult>> candidateSelfCheck,
+        Func<string, CancellationToken, Task<ManagerSelfCheckResult>> newManagerSelfCheck,
+        Func<CancellationToken, Task> exitOldManager)
     {
         _stableManagerPath = Path.GetFullPath(stableManagerPath);
-        _newManagerSelfCheck = newManagerSelfCheck ?? ((_, _) => Task.FromResult(new ManagerSelfCheckResult(true, true, null)));
-        _exitOldManager = exitOldManager ?? (_ => Task.CompletedTask);
+        _candidateSelfCheck = candidateSelfCheck ?? throw new ArgumentNullException(nameof(candidateSelfCheck));
+        _newManagerSelfCheck = newManagerSelfCheck ?? throw new ArgumentNullException(nameof(newManagerSelfCheck));
+        _exitOldManager = exitOldManager ?? throw new ArgumentNullException(nameof(exitOldManager));
     }
 
+    private readonly Func<string, CancellationToken, Task<ManagerSelfCheckResult>> _candidateSelfCheck;
+
     public async Task PromoteAsync(string verifiedSetupPath, CancellationToken cancellationToken)
+        => await PromoteAsync(verifiedSetupPath, _candidateSelfCheck, _newManagerSelfCheck, cancellationToken);
+
+    public async Task PromoteAsync(
+        string verifiedSetupPath,
+        Func<string, CancellationToken, Task<ManagerSelfCheckResult>> candidateSelfCheck,
+        Func<string, CancellationToken, Task<ManagerSelfCheckResult>> promotedSelfCheck,
+        CancellationToken cancellationToken)
+        => await PromoteAsync(verifiedSetupPath, candidateSelfCheck, promotedSelfCheck, null, cancellationToken);
+
+    public async Task PromoteAsync(
+        string verifiedSetupPath,
+        Func<string, CancellationToken, Task<ManagerSelfCheckResult>> candidateSelfCheck,
+        Func<string, CancellationToken, Task<ManagerSelfCheckResult>> promotedSelfCheck,
+        ManagerArtifactExpectation? expectedArtifact,
+        CancellationToken cancellationToken)
     {
         var candidatePath = Path.GetFullPath(verifiedSetupPath);
         EnsureSameVolume(candidatePath, _stableManagerPath);
+        EnsureStagedBelowManagerDirectory(candidatePath, _stableManagerPath);
         if (!File.Exists(candidatePath)) throw new ManagerHandoffException("Verified setup candidate is missing.", "candidate_missing");
         if (string.Equals(candidatePath, _stableManagerPath, StringComparison.OrdinalIgnoreCase))
             throw new ManagerHandoffException("The manager cannot replace itself from its active image.", "candidate_is_active_manager");
 
+        await EnsureSelfCheckAsync(candidatePath, candidateSelfCheck, cancellationToken);
+        var expected = expectedArtifact ?? await CaptureArtifactAsync(candidatePath, cancellationToken);
+
         var backupPath = _stableManagerPath + ".last-known-good";
         var hadPrevious = File.Exists(_stableManagerPath);
         await _exitOldManager(cancellationToken);
+        // The old process may have held the candidate path open or another process may have
+        // changed it while shutdown was in progress. Re-verify immediately before promotion.
+        await EnsureSelfCheckAsync(candidatePath, candidateSelfCheck, cancellationToken);
+        await VerifyArtifactAsync(candidatePath, expected, cancellationToken);
         var promoted = false;
         try
         {
@@ -65,17 +95,16 @@ public sealed class ManagerHandoff
                 File.Move(candidatePath, _stableManagerPath);
             promoted = true;
 
-            var selfCheck = await _newManagerSelfCheck(_stableManagerPath, cancellationToken);
-            if (!selfCheck.IsIntact || !selfCheck.IsCompatible)
-            {
-                Rollback(_stableManagerPath, backupPath, hadPrevious);
-                promoted = false;
-                throw new ManagerHandoffException("The promoted manager failed its self-check.", selfCheck.FailureCode ?? "manager_self_check_failed");
-            }
-            if (File.Exists(backupPath)) File.Delete(backupPath);
+            await EnsureSelfCheckAsync(_stableManagerPath, promotedSelfCheck, cancellationToken);
+            TryDeleteBackup(backupPath);
         }
         catch (ManagerHandoffException)
         {
+            if (promoted)
+            {
+                Rollback(_stableManagerPath, backupPath, hadPrevious);
+                promoted = false;
+            }
             throw;
         }
         catch (OperationCanceledException) when (promoted)
@@ -104,12 +133,67 @@ public sealed class ManagerHandoff
         if (hadPrevious && File.Exists(backupPath)) File.Move(backupPath, stablePath, true);
     }
 
+    private static async Task<ManagerArtifactExpectation> CaptureArtifactAsync(string path, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+            var size = stream.Length;
+            var hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken)).ToLowerInvariant();
+            if (stream.Length != size) throw new IOException("The manager candidate changed while it was being hashed.");
+            return new ManagerArtifactExpectation(size, hash);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            throw new ManagerHandoffException("The manager candidate could not be fingerprinted.", "candidate_changed", exception);
+        }
+    }
+
+    private static async Task VerifyArtifactAsync(string path, ManagerArtifactExpectation expected, CancellationToken cancellationToken)
+    {
+        var actual = await CaptureArtifactAsync(path, cancellationToken);
+        if (actual.Size != expected.Size || !string.Equals(actual.Sha256, expected.Sha256, StringComparison.OrdinalIgnoreCase))
+            throw new ManagerHandoffException("The manager candidate changed before promotion.", "candidate_changed");
+    }
+
+    private static void TryDeleteBackup(string backupPath)
+    {
+        try
+        {
+            if (File.Exists(backupPath)) File.Delete(backupPath);
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
     private static void EnsureSameVolume(string candidatePath, string stablePath)
     {
         var candidateRoot = Path.GetPathRoot(candidatePath);
         var stableRoot = Path.GetPathRoot(stablePath);
         if (string.IsNullOrWhiteSpace(candidateRoot) || !string.Equals(candidateRoot, stableRoot, StringComparison.OrdinalIgnoreCase))
             throw new ManagerHandoffException("Manager handoff must stay on one volume.", "different_volume");
+    }
+
+    private static void EnsureStagedBelowManagerDirectory(string candidatePath, string stablePath)
+    {
+        var managerDirectory = Path.GetDirectoryName(stablePath)!;
+        var relative = Path.GetRelativePath(managerDirectory, candidatePath);
+        if (relative == "." || relative.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relative))
+            throw new ManagerHandoffException("Manager candidates must be staged below the stable manager directory.", "candidate_outside_manager_directory");
+    }
+
+    private static async Task EnsureSelfCheckAsync(
+        string path,
+        Func<string, CancellationToken, Task<ManagerSelfCheckResult>> selfCheck,
+        CancellationToken cancellationToken)
+    {
+        var result = await selfCheck(path, cancellationToken);
+        if (!result.IsIntact || !result.IsCompatible)
+            throw new ManagerHandoffException("The manager candidate failed its self-check.", result.FailureCode ?? "manager_self_check_failed");
     }
 }
 
@@ -119,10 +203,56 @@ public sealed class ManagerHandoffException(string message, string failureCode, 
     public string FailureCode { get; } = failureCode;
 }
 
+/// <summary>Waits for any other stable manager image to exit; it never treats the current stable image as stopped.</summary>
+public sealed class ProcessManagerExitCoordinator(string stableManagerPath)
+{
+    private readonly string _stableManagerPath = Path.GetFullPath(stableManagerPath);
+
+    public async Task ExitAndWaitAsync(CancellationToken cancellationToken)
+    {
+        var currentPath = TryGetCurrentProcessPath() ?? throw new ManagerHandoffException(
+            "The current manager process path could not be determined before replacement.",
+            "current_process_path_unavailable");
+        if (PathsEqual(currentPath, _stableManagerPath))
+            throw new ManagerHandoffException("The stable manager must be handed off by an out-of-process launcher before replacement.", "out_of_process_handoff_required");
+
+        var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(30);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsStableManagerRunning()) return;
+            await Task.Delay(100, cancellationToken);
+        }
+        throw new ManagerHandoffException("The previous stable manager did not exit before replacement.", "manager_exit_timeout");
+    }
+
+    private bool IsStableManagerRunning()
+    {
+        foreach (var process in System.Diagnostics.Process.GetProcesses())
+        {
+            try
+            {
+                if (process.Id != Environment.ProcessId && process.MainModule?.FileName is { } path && PathsEqual(path, _stableManagerPath)) return true;
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException) { }
+            finally { process.Dispose(); }
+        }
+        return false;
+    }
+
+    private static string? TryGetCurrentProcessPath()
+    {
+        try { return System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName; }
+        catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException) { return null; }
+    }
+
+    private static bool PathsEqual(string left, string right) => string.Equals(Path.GetFullPath(left), Path.GetFullPath(right), StringComparison.OrdinalIgnoreCase);
+}
+
 public sealed class SetupManagerLifecycle : IManagerLifecycle
 {
     private readonly string _managerPath;
-    private readonly PackageManifest _manifest;
+    private readonly PackageManifest? _manifest;
     private readonly ManagerSelfCheck _selfCheck;
     private readonly ManagerStateStore _stateStore;
     private readonly IManagerRepairSource _repairSource;
@@ -130,7 +260,7 @@ public sealed class SetupManagerLifecycle : IManagerLifecycle
 
     public SetupManagerLifecycle(
         string managerPath,
-        PackageManifest manifest,
+        PackageManifest? manifest,
         ManagerSelfCheck selfCheck,
         ManagerStateStore stateStore,
         IManagerRepairSource repairSource,
@@ -146,8 +276,11 @@ public sealed class SetupManagerLifecycle : IManagerLifecycle
 
     public async Task<ManagerSelfCheckResult> CheckAsync(CancellationToken cancellationToken)
     {
-        if (_stateStore.Read() is null) return new ManagerSelfCheckResult(false, false, "manager_state_missing");
-        return await _selfCheck.CheckAsync(_managerPath, _manifest, null, cancellationToken);
+        // manager-state.json is diagnostic telemetry only. Integrity and compatibility are
+        // established from the manager image and signed bootstrapper metadata.
+        return _manifest is null
+            ? new ManagerSelfCheckResult(false, false, "manager_metadata_unavailable")
+            : await _selfCheck.CheckAsync(_managerPath, _manifest, null, cancellationToken);
     }
 
     public async Task<ManagerRepairResult> RepairAsync(Uri latestJsonUri, CancellationToken cancellationToken)
@@ -155,25 +288,40 @@ public sealed class SetupManagerLifecycle : IManagerLifecycle
         try
         {
             var update = await _repairSource.AcquireAsync(latestJsonUri, cancellationToken);
-            var expectedManifest = update.Manifest ?? _manifest;
+            var expectedManifest = update.Manifest ?? _manifest ?? throw new InvalidDataException("Signed manager metadata is required for repair.");
             var expectedBootstrapper = update.Bootstrapper ?? expectedManifest.Bootstrapper;
             var candidateCheck = await _selfCheck.CheckAsync(update.SetupPath, expectedBootstrapper, update.SignaturePath, cancellationToken);
             if (!candidateCheck.IsIntact || !candidateCheck.IsCompatible)
                 return new ManagerRepairResult(false, null, candidateCheck.FailureCode);
 
-            await _handoff.PromoteAsync(update.SetupPath, cancellationToken);
-            var hash = await HashAsync(_managerPath, cancellationToken);
-            _stateStore.Write(new ManagerState(
-                _managerPath,
-                hash,
-                expectedManifest.Version,
-                expectedBootstrapper.ManagerProtocol,
-                expectedBootstrapper.ManifestSchema,
-                expectedBootstrapper.RuntimeStateSchema,
-                expectedBootstrapper.ActivationProtocol,
-                true,
-                null,
-                DateTimeOffset.UtcNow));
+            await _handoff.PromoteAsync(
+                update.SetupPath,
+                (path, _) => _selfCheck.CheckAsync(path, expectedBootstrapper, update.SignaturePath, cancellationToken),
+                (path, _) => _selfCheck.CheckAsync(path, expectedBootstrapper, update.SignaturePath, cancellationToken),
+                new ManagerArtifactExpectation(expectedBootstrapper.Size, expectedBootstrapper.Sha256),
+                cancellationToken);
+            // The promoted image was just verified against this signed hash. Reuse it for
+            // diagnostics so a post-promotion read failure cannot turn success into failure.
+            var hash = expectedBootstrapper.Sha256;
+            try
+            {
+                _stateStore.Write(new ManagerState(
+                    _managerPath,
+                    hash,
+                    expectedManifest.Version,
+                    expectedBootstrapper.ManagerProtocol,
+                    expectedBootstrapper.ManifestSchema,
+                    expectedBootstrapper.RuntimeStateSchema,
+                    expectedBootstrapper.ActivationProtocol,
+                    true,
+                    null,
+                    DateTimeOffset.UtcNow));
+            }
+            catch
+            {
+                // Promotion and its post-promotion self-check already succeeded. A diagnostic
+                // sidecar failure must not report repair failure or remove the verified manager.
+            }
             return new ManagerRepairResult(true, _managerPath, null);
         }
         catch (ManagerHandoffException exception)
@@ -193,11 +341,6 @@ public sealed class SetupManagerLifecycle : IManagerLifecycle
     public Task PromoteAsync(string verifiedSetupPath, CancellationToken cancellationToken) =>
         _handoff.PromoteAsync(verifiedSetupPath, cancellationToken);
 
-    private static async Task<string> HashAsync(string path, CancellationToken cancellationToken)
-    {
-        await using var stream = File.OpenRead(path);
-        return Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken)).ToLowerInvariant();
-    }
 }
 
 public sealed class HttpManagerRepairSource : IManagerRepairSource
@@ -206,29 +349,36 @@ public sealed class HttpManagerRepairSource : IManagerRepairSource
     private readonly IManifestLoader _manifestLoader;
     private readonly ISetupSignatureVerifier _setupSignatureVerifier;
     private readonly HttpClient _httpClient;
+    private readonly Uri _releaseEndpoint;
+    private readonly string _managerDirectory;
 
     public HttpManagerRepairSource(
         ManagerCapabilities capabilities,
         IManifestLoader manifestLoader,
         ISetupSignatureVerifier setupSignatureVerifier,
+        Uri releaseEndpoint,
+        string managerDirectory,
         HttpClient? httpClient = null)
     {
         _capabilities = capabilities;
         _manifestLoader = manifestLoader;
         _setupSignatureVerifier = setupSignatureVerifier;
+        _releaseEndpoint = ValidateReleaseEndpoint(releaseEndpoint);
+        _managerDirectory = Path.GetFullPath(managerDirectory);
         _httpClient = httpClient ?? new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
     }
 
     public async Task<VerifiedManagerUpdate> AcquireAsync(Uri latestJsonUri, CancellationToken cancellationToken)
     {
-        EnsureRemoteUri(latestJsonUri);
-        var root = Path.Combine(Path.GetTempPath(), "VRCNTInstaller", $"repair-{Guid.NewGuid():N}");
+        EnsureReleaseUri(latestJsonUri);
+        var root = Path.Combine(_managerDirectory, "repair", $"repair-{Guid.NewGuid():N}");
         Directory.CreateDirectory(root);
         var latest = await ReadJsonAsync(latestJsonUri, cancellationToken);
         var version = latest.RootElement.GetProperty("version").GetString();
         if (!string.Equals(version, _capabilities.Version, StringComparison.Ordinal)) throw new InvalidDataException("Latest manager metadata version is incompatible.");
         var platform = latest.RootElement.GetProperty("platforms").GetProperty("windows-x86_64");
         var setupUri = new Uri(platform.GetProperty("url").GetString() ?? throw new InvalidDataException("Latest manager metadata has no setup URL."));
+        EnsureReleaseUri(setupUri);
         var signature = platform.GetProperty("signature").GetString();
         if (string.IsNullOrWhiteSpace(signature)) throw new CryptographicException("Latest manager metadata has no setup signature.");
 
@@ -258,11 +408,6 @@ public sealed class HttpManagerRepairSource : IManagerRepairSource
 
     private async Task DownloadAsync(Uri uri, string path, CancellationToken cancellationToken)
     {
-        if (uri.IsFile)
-        {
-            File.Copy(uri.LocalPath, path, true);
-            return;
-        }
         using var response = await _httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
         await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -272,15 +417,23 @@ public sealed class HttpManagerRepairSource : IManagerRepairSource
 
     private async Task<JsonDocument> ReadJsonAsync(Uri uri, CancellationToken cancellationToken)
     {
-        if (uri.IsFile) return JsonDocument.Parse(await File.ReadAllTextAsync(uri.LocalPath, cancellationToken));
         using var response = await _httpClient.GetAsync(uri, cancellationToken);
         response.EnsureSuccessStatusCode();
         return JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
     }
 
-    private static void EnsureRemoteUri(Uri uri)
+    private Uri ValidateReleaseEndpoint(Uri uri)
     {
-        if (!uri.IsAbsoluteUri || (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeFile))
-            throw new InvalidDataException("Manager repair requires an absolute HTTP(S) or local metadata URI.");
+        if (!uri.IsAbsoluteUri || uri.Scheme != Uri.UriSchemeHttps)
+            throw new InvalidDataException("Manager repair requires a configured HTTPS release endpoint.");
+        return uri;
+    }
+
+    private void EnsureReleaseUri(Uri uri)
+    {
+        if (!uri.IsAbsoluteUri || uri.Scheme != Uri.UriSchemeHttps ||
+            !string.Equals(uri.Host, _releaseEndpoint.Host, StringComparison.OrdinalIgnoreCase) ||
+            !uri.AbsolutePath.StartsWith(_releaseEndpoint.AbsolutePath, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Manager repair metadata and assets must come from the configured HTTPS release endpoint.");
     }
 }

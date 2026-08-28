@@ -12,6 +12,9 @@
     <PublishTrimmed>false</PublishTrimmed>
     <AssemblyName>VRCNT.Setup</AssemblyName>
     <RootNamespace>VRCNT.Setup</RootNamespace>
+    <Version>5.15.0</Version>
+    <AssemblyVersion>5.15.0.0</AssemblyVersion>
+    <FileVersion>5.15.0.0</FileVersion>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\VRCNT.RuntimeCore\VRCNT.RuntimeCore.csproj" />

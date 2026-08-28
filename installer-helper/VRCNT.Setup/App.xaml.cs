@@ -9,21 +9,35 @@ public partial class App : Application
 {
     public static ManagerCapabilities Capabilities { get; } = ManagerCapabilities.Current;
 
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
         try
         {
             var options = SetupCommandLine.Parse(e.Args);
-            MainWindow = CreateShell(options);
-            MainWindow.Show();
+            if (SetupCommandLine.ShouldShowUi(options))
+            {
+                MainWindow = CreateShell(options);
+                MainWindow.Show();
+            }
+
+            var operations = SetupCommandOperations.CreateProduction(Capabilities);
+            var exitCode = await new SetupCommandDispatcher(operations).DispatchAsync(options, CancellationToken.None);
+            Shutdown(exitCode);
         }
         catch (ArgumentException exception)
         {
-            MessageBox.Show(exception.Message, "VRCNT Setup", MessageBoxButton.OK, MessageBoxImage.Error);
+            if (!TryIsPassive(e.Args)) MessageBox.Show(exception.Message, "VRCNT Setup", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(2);
         }
+        catch (Exception exception)
+        {
+            if (!TryIsPassive(e.Args)) MessageBox.Show(exception.Message, "VRCNT Setup", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(1);
+        }
     }
+
+    private static bool TryIsPassive(IReadOnlyList<string> args) => args.Any(argument => argument.Equals("/passive", StringComparison.OrdinalIgnoreCase));
 
     private static Window CreateShell(SetupCommandLineOptions options)
     {
