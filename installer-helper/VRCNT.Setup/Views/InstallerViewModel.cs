@@ -60,7 +60,14 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     public ICommand CloseCommand { get; }
 
     public IReadOnlyList<InstallerLanguage> Languages => _localizer.Languages;
-    public InstallerPage CurrentPage { get => _currentPage; private set => SetField(ref _currentPage, value); }
+    public InstallerPage CurrentPage
+    {
+        get => _currentPage;
+        private set
+        {
+            if (SetField(ref _currentPage, value)) OnPropertyChanged(nameof(ProgressValue));
+        }
+    }
     public InstallerLanguage SelectedLanguage
     {
         get => _selectedLanguage;
@@ -73,8 +80,19 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     public bool IsCpuSelected { get => SelectedVariant == RuntimeVariant.Cpu; set { if (value) SelectedVariant = RuntimeVariant.Cpu; } }
     public bool IsCudaSelected { get => SelectedVariant == RuntimeVariant.Cuda; set { if (value) SelectedVariant = RuntimeVariant.Cuda; } }
     public bool LaunchAfterSetup { get => _launchAfterSetup; set => SetField(ref _launchAfterSetup, value); }
-    public bool IsInstalling { get => _isInstalling; private set { if (SetField(ref _isInstalling, value)) ((AsyncDelegateCommand)InstallCommand).RaiseCanExecuteChanged(); } }
+    public bool IsInstalling
+    {
+        get => _isInstalling;
+        private set
+        {
+            if (!SetField(ref _isInstalling, value)) return;
+            ((AsyncDelegateCommand)InstallCommand).RaiseCanExecuteChanged();
+            OnPropertyChanged(nameof(ProgressValue));
+            OnPropertyChanged(nameof(IsProgressIndeterminate));
+        }
+    }
     public bool UseReducedMotion => !SystemParameters.ClientAreaAnimation;
+    public bool IsProgressIndeterminate => IsInstalling && !UseReducedMotion;
     public double ProgressValue => CurrentPage == InstallerPage.Complete ? 100 : IsInstalling ? 35 : 0;
 
     public string AppTitle => T("app_name");
