@@ -68,12 +68,12 @@ public sealed class RuntimeSwitchStatusTests : IDisposable
         var store = new RuntimeSwitchStatusStore(Path.Combine(_root, "VRCNTData"), statusPath);
         var handoff = store.ValidatePending("cuda", installPath, appPath, "token");
 
-        store.WriteTerminal("failed", "cuda", handoff, "activation_unhealthy", "The CUDA runtime was rolled back.", "receipt-secret");
+        store.WriteTerminal("failed", "cuda", handoff, "activation_unhealthy", "The CUDA runtime was rolled back.", ReceiptBindingTestHelper.DefaultSecret);
         var terminal = store.Read();
 
-        Assert.True(RuntimeSwitchStatusStore.VerifyTerminalReceipt(terminal, "receipt-secret", appPath, DateTimeOffset.UtcNow));
+        Assert.True(RuntimeSwitchStatusStore.VerifyTerminalReceipt(terminal, ReceiptBindingTestHelper.DefaultSecret, appPath, DateTimeOffset.UtcNow));
         Assert.False(RuntimeSwitchStatusStore.VerifyTerminalReceipt(terminal, "forged-secret", appPath, DateTimeOffset.UtcNow));
-        Assert.False(RuntimeSwitchStatusStore.VerifyTerminalReceipt(terminal, "receipt-secret", Path.Combine(_root, "other", "VRCNT.exe"), DateTimeOffset.UtcNow));
+        Assert.False(RuntimeSwitchStatusStore.VerifyTerminalReceipt(terminal, ReceiptBindingTestHelper.DefaultSecret, Path.Combine(_root, "other", "VRCNT.exe"), DateTimeOffset.UtcNow));
     }
 
     [Fact]
@@ -85,11 +85,74 @@ public sealed class RuntimeSwitchStatusTests : IDisposable
         var store = new RuntimeSwitchStatusStore(Path.Combine(_root, "VRCNTData"), statusPath);
         var handoff = store.ValidatePending("cuda", installPath, appPath, "token");
 
-        store.WriteTerminal("failed", "cuda", handoff, "activation_unhealthy", "The CUDA runtime was rolled back.", "receipt-secret", DateTimeOffset.UtcNow - TimeSpan.FromMinutes(1));
+        store.WriteTerminal("failed", "cuda", handoff, "activation_unhealthy", "The CUDA runtime was rolled back.", ReceiptBindingTestHelper.DefaultSecret, DateTimeOffset.UtcNow - TimeSpan.FromMinutes(1));
         var expired = store.Read();
 
-        Assert.False(RuntimeSwitchStatusStore.VerifyTerminalReceipt(expired, "receipt-secret", appPath, DateTimeOffset.UtcNow));
+        Assert.False(RuntimeSwitchStatusStore.VerifyTerminalReceipt(expired, ReceiptBindingTestHelper.DefaultSecret, appPath, DateTimeOffset.UtcNow));
         Assert.Null(expired.ConsumedAtUtc);
+    }
+
+    [Fact]
+    public void A_revoked_manager_cannot_overwrite_a_newer_runtime_switch_request()
+    {
+        var installPath = Path.Combine(_root, "VRCNT");
+        var appPath = Path.Combine(installPath, "VRCNT.exe");
+        var statusPath = WritePending("cuda", appPath, "old-nonce", "old-token");
+        var oldStore = new RuntimeSwitchStatusStore(Path.Combine(_root, "VRCNTData"), statusPath);
+        var oldHandoff = oldStore.ValidatePending("cuda", installPath, appPath, "old-token");
+        oldStore.WriteAccepted("cuda", oldHandoff);
+
+        File.WriteAllText(statusPath, JsonSerializer.Serialize(new
+        {
+            Schema = 1,
+            Status = "pending",
+            TargetVariant = "cuda",
+            Nonce = "new-nonce",
+            TokenSha256 = RuntimeSwitchStatusStore.Hash("new-token"),
+            ProofSha256 = RuntimeSwitchStatusStore.Proof("new-token", "new-nonce", "cuda", appPath),
+            CurrentAppPath = appPath,
+            InstallPath = installPath,
+            ErrorCode = (string?)null,
+            Message = (string?)null,
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+            LeaseGeneration = 2,
+        }));
+
+        Assert.Throws<InvalidDataException>(() => oldStore.WriteShutdownRequested("cuda", oldHandoff));
+        Assert.Equal("new-nonce", oldStore.Read().Nonce);
+        Assert.Equal("pending", oldStore.Read().Status);
+    }
+
+    [Fact]
+    public void The_command_line_handoff_token_cannot_authenticate_a_terminal_receipt()
+    {
+        var installPath = Path.Combine(_root, "VRCNT");
+        var appPath = Path.Combine(installPath, "VRCNT.exe");
+        var statusPath = WritePending("cuda", appPath, "nonce", "switch-token");
+        var store = new RuntimeSwitchStatusStore(Path.Combine(_root, "VRCNTData"), statusPath);
+        var handoff = store.ValidatePending("cuda", installPath, appPath, "switch-token");
+
+        store.WriteTerminal("failed", "cuda", handoff, "preflight_rejected", "Retry runtime recovery.");
+
+        Assert.False(RuntimeSwitchStatusStore.VerifyTerminalReceipt(store.Read(), "switch-token", appPath, DateTimeOffset.UtcNow));
+    }
+
+    [Fact]
+    public void Terminal_receipt_uses_the_dpapi_protected_transaction_credential_and_binding()
+    {
+        var installPath = Path.Combine(_root, "VRCNT");
+        var appPath = Path.Combine(installPath, "VRCNT.exe");
+        var dataRoot = Path.Combine(_root, "VRCNTData");
+        var statusPath = WritePending("cuda", appPath, "nonce", "token");
+        ReceiptBindingTestHelper.Write(dataRoot, "nonce", "cuda", installPath, appPath, "token", 1, ReceiptBindingTestHelper.DefaultSecret);
+        var store = new RuntimeSwitchStatusStore(dataRoot, statusPath);
+        var handoff = store.ValidatePending("cuda", installPath, appPath, "token");
+
+        store.WriteTerminal("failed", "cuda", handoff, "preflight_rejected", "Retry runtime recovery.");
+        var terminal = store.Read();
+
+        Assert.True(RuntimeSwitchStatusStore.VerifyTerminalReceipt(terminal, ReceiptBindingTestHelper.DefaultSecret, appPath, DateTimeOffset.UtcNow));
+        Assert.False(RuntimeSwitchStatusStore.VerifyTerminalReceipt(terminal, "token", appPath, DateTimeOffset.UtcNow));
     }
 
     [Fact]
@@ -144,10 +207,14 @@ public sealed class RuntimeSwitchStatusTests : IDisposable
             TokenSha256 = RuntimeSwitchStatusStore.Hash(token),
             ProofSha256 = RuntimeSwitchStatusStore.Proof(token, nonce, target, appPath),
             CurrentAppPath = appPath,
+            InstallPath = Path.GetDirectoryName(appPath),
             ErrorCode = (string?)null,
             Message = (string?)null,
             UpdatedAtUtc = DateTimeOffset.UtcNow,
+            LeaseGeneration = 1,
         }));
+        ReceiptBindingTestHelper.Write(Path.Combine(_root, "VRCNTData"), nonce, target, Path.GetDirectoryName(appPath)!, appPath, token, 1, ReceiptBindingTestHelper.DefaultSecret);
         return statusPath;
     }
+
 }

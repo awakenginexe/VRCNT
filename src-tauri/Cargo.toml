@@ -31,6 +31,7 @@ fs2 = "=0.4.3"
 reqwest = { version = "=0.12.15", features = ["blocking"] }
 sha2 = "=0.10.9"
 hmac = "=0.12.1"
+getrandom = "=0.4.3"
 tauri-plugin-process = "2"
 sysinfo = "=0.39.6"
 

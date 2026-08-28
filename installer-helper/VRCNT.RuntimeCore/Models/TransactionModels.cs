@@ -29,7 +29,12 @@ public sealed record RuntimeShutdownHandoff(
     string Proof,
     RuntimeVariant TargetVariant,
     string StatusPath,
-    string CurrentAppPath);
+    string CurrentAppPath,
+    long LeaseGeneration = 0,
+    string? InstallPath = null)
+{
+    public string ResolvedInstallPath => Path.GetFullPath(InstallPath ?? Path.GetDirectoryName(CurrentAppPath) ?? throw new InvalidDataException("The runtime switch install path is invalid."));
+}
 
 public sealed record InstallProgress(
     TransactionPhase Phase,

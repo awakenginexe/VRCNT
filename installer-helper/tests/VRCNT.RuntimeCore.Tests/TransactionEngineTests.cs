@@ -541,6 +541,8 @@ public sealed class TransactionEngineTests : IDisposable
             TokenSha256 = RuntimeSwitchStatusStore.Hash(handoff.Token),
             ProofSha256 = handoff.Proof,
             CurrentAppPath = handoff.CurrentAppPath,
+            InstallPath = Path.GetDirectoryName(handoff.CurrentAppPath),
+            LeaseGeneration = handoff.LeaseGeneration,
             ErrorCode = (string?)null,
             Message = (string?)null,
             UpdatedAtUtc = DateTimeOffset.UtcNow,

@@ -69,10 +69,13 @@ public sealed class InstallerOperationTests : IDisposable
                 TokenSha256 = RuntimeSwitchStatusStore.Hash(token),
                 ProofSha256 = RuntimeSwitchStatusStore.Proof(token, "switch-nonce", "cuda", currentAppPath),
                 CurrentAppPath = currentAppPath,
+                InstallPath = installPath,
                 ErrorCode = (string?)null,
                 Message = (string?)null,
                 UpdatedAtUtc = DateTimeOffset.UtcNow,
+                LeaseGeneration = 1,
             }));
+            ReceiptBindingTestHelper.Write(dataRoot, "switch-nonce", "cuda", installPath, currentAppPath, token, 1, ReceiptBindingTestHelper.DefaultSecret);
             options = new SetupCommandLineOptions(isUpdate, false, true, false, false, RuntimeVariant.Cuda, installPath, currentAppPath, [], "th", token, Path.Combine(dataRoot, "runtime-switch-status.json"));
         }
         else
@@ -86,7 +89,7 @@ public sealed class InstallerOperationTests : IDisposable
     }
 
     [Fact]
-    public async Task Execute_runtime_rejects_a_tampered_switch_handoff_and_marks_it_stale_without_running_the_engine()
+    public async Task Execute_runtime_rejects_a_tampered_switch_handoff_without_running_the_engine_or_revoking_a_new_request()
     {
         var installPath = Path.Combine(_root, "VRCNT");
         var dataRoot = Path.Combine(_root, "VRCNTData");
@@ -102,9 +105,11 @@ public sealed class InstallerOperationTests : IDisposable
             TokenSha256 = RuntimeSwitchStatusStore.Hash("real-token"),
             ProofSha256 = RuntimeSwitchStatusStore.Proof("real-token", "switch-nonce", "cuda", currentAppPath),
             CurrentAppPath = currentAppPath,
+            InstallPath = installPath,
             ErrorCode = (string?)null,
             Message = (string?)null,
             UpdatedAtUtc = DateTimeOffset.UtcNow,
+            LeaseGeneration = 1,
         }));
         var engine = new RecordingRuntimeEngine();
         var operations = CreateOperations(engine, dataRoot);
@@ -113,7 +118,27 @@ public sealed class InstallerOperationTests : IDisposable
         await Assert.ThrowsAsync<InvalidDataException>(() => operations.ExecuteRuntimeAsync(options, null, default));
 
         Assert.False(engine.WasCalled);
-        Assert.Equal("stale", new RuntimeSwitchStatusStore(dataRoot, statusPath).Read().Status);
+        Assert.Equal("pending", new RuntimeSwitchStatusStore(dataRoot, statusPath).Read().Status);
+    }
+
+    [Fact]
+    public async Task A_pre_quiesce_switch_failure_is_consumed_by_the_live_owner_before_retry()
+    {
+        var installPath = Path.Combine(_root, "VRCNT");
+        var dataRoot = Path.Combine(_root, "VRCNTData");
+        var currentAppPath = Path.Combine(installPath, "VRCNT.exe");
+        var statusPath = WritePendingSwitch(dataRoot, currentAppPath, "switch-nonce", "switch-token");
+        var engine = new FailThenSucceedRuntimeEngine();
+        var operations = CreateOperations(engine, dataRoot);
+        var options = new SetupCommandLineOptions(false, false, true, false, false, RuntimeVariant.Cuda, installPath, currentAppPath, [], null, "switch-token", statusPath);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => operations.ExecuteRuntimeAsync(options, null, default));
+        Assert.False(File.Exists(statusPath));
+        statusPath = WritePendingSwitch(dataRoot, currentAppPath, "retry-nonce", "retry-token");
+        options = options with { SwitchToken = "retry-token", SwitchStatusPath = statusPath };
+        await operations.ExecuteRuntimeAsync(options, null, default);
+
+        Assert.Equal(2, engine.AttemptCount);
     }
 
     [Theory]
@@ -146,6 +171,29 @@ public sealed class InstallerOperationTests : IDisposable
         Path.Combine(_root, "manager", "VRCNT.Setup.exe"),
         _ => new UserDataPaths(dataRoot, Path.Combine(_root, "VRCNT-NextData"), Path.Combine(_root, "VRCNT")));
 
+    private static string WritePendingSwitch(string dataRoot, string currentAppPath, string nonce, string token)
+    {
+        Directory.CreateDirectory(dataRoot);
+        var statusPath = Path.Combine(dataRoot, "runtime-switch-status.json");
+        File.WriteAllText(statusPath, JsonSerializer.Serialize(new
+        {
+            Schema = 1,
+            Status = "pending",
+            TargetVariant = "cuda",
+            Nonce = nonce,
+            TokenSha256 = RuntimeSwitchStatusStore.Hash(token),
+            ProofSha256 = RuntimeSwitchStatusStore.Proof(token, nonce, "cuda", currentAppPath),
+            CurrentAppPath = currentAppPath,
+            InstallPath = Path.GetDirectoryName(currentAppPath),
+            ErrorCode = (string?)null,
+            Message = (string?)null,
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+            LeaseGeneration = 1,
+        }));
+        ReceiptBindingTestHelper.Write(dataRoot, nonce, "cuda", Path.GetDirectoryName(currentAppPath)!, currentAppPath, token, 1, ReceiptBindingTestHelper.DefaultSecret);
+        return statusPath;
+    }
+
     private sealed class RecordingRuntimeEngine : IRuntimeTransactionEngine
     {
         public bool WasCalled { get; private set; }
@@ -165,6 +213,19 @@ public sealed class InstallerOperationTests : IDisposable
             Directory.CreateDirectory(dataRoot);
             File.Copy(Path.Combine(request.InstallPath, "config.json"), Path.Combine(dataRoot, "config.json"));
             return Task.FromResult(new RuntimeOperationResult(true, false, false, null, null));
+        }
+    }
+
+    private sealed class FailThenSucceedRuntimeEngine : IRuntimeTransactionEngine
+    {
+        public int AttemptCount { get; private set; }
+
+        public Task<RuntimeOperationResult> ExecuteAsync(RuntimeInstallRequest request, IProgress<InstallProgress>? progress, CancellationToken cancellationToken)
+        {
+            AttemptCount++;
+            return Task.FromResult(AttemptCount == 1
+                ? new RuntimeOperationResult(false, false, false, "preflight_rejected", "Retry runtime recovery.")
+                : new RuntimeOperationResult(true, false, false, null, null));
         }
     }
 

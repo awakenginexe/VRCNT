@@ -5340,6 +5340,7 @@ dependencies = [
  "base64 0.22.1",
  "font-kit",
  "fs2",
+ "getrandom 0.4.3",
  "hmac",
  "reqwest 0.12.15",
  "serde",

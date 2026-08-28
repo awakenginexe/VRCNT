@@ -78,23 +78,16 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
             if (options.SwitchToken is null || options.SwitchStatusPath is null || options.CurrentAppPath is null)
                 throw new InvalidDataException("The runtime switch handoff is incomplete.");
             statusStore = new RuntimeSwitchStatusStore(paths.DataRoot, options.SwitchStatusPath);
-            try
-            {
-                shutdownHandoff = statusStore.ValidatePending(
-                    targetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu",
-                    installPath,
-                    options.CurrentAppPath,
-                    options.SwitchToken);
-                statusStore.WriteAccepted(targetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu", shutdownHandoff);
-            }
-            catch (Exception exception)
-            {
-                try { statusStore.WriteStale("handoff_rejected", exception.Message); } catch { }
-                throw;
-            }
+            shutdownHandoff = statusStore.ValidatePending(
+                targetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu",
+                installPath,
+                options.CurrentAppPath,
+                options.SwitchToken);
+            statusStore.WriteAccepted(targetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu", shutdownHandoff);
         }
 
         var terminalStatusWritten = false;
+        var retryableOutcomeCleared = false;
         try
         {
             if (statusStore is not null) statusStore.WriteRunning(targetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu", shutdownHandoff!);
@@ -110,8 +103,16 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
                 cancellationToken);
             if (!result.Succeeded)
             {
-                statusStore?.WriteTerminal("failed", targetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu", shutdownHandoff!, result.ErrorCode, result.ErrorMessage);
-                terminalStatusWritten = true;
+                if (statusStore is not null && shutdownHandoff is not null && !statusStore.IsShutdownAcknowledged(shutdownHandoff))
+                {
+                    statusStore.ClearForRetry(shutdownHandoff);
+                    retryableOutcomeCleared = true;
+                }
+                else if (statusStore is not null)
+                {
+                    statusStore.WriteTerminal("failed", targetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu", shutdownHandoff!, result.ErrorCode, result.ErrorMessage);
+                    terminalStatusWritten = true;
+                }
                 throw new InvalidOperationException(result.ErrorMessage ?? result.ErrorCode ?? "Runtime installation failed.");
             }
             statusStore?.WriteTerminal("succeeded", targetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu", shutdownHandoff!, null, null);
@@ -120,12 +121,19 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
         }
         catch (OperationCanceledException)
         {
-            if (statusStore is not null) statusStore.WriteTerminal("cancelled", targetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu", shutdownHandoff!, "cancelled", "Runtime switch cancelled.");
+            if (statusStore is not null && shutdownHandoff is not null && !statusStore.IsShutdownAcknowledged(shutdownHandoff))
+                statusStore.ClearForRetry(shutdownHandoff);
+            else if (statusStore is not null)
+                statusStore.WriteTerminal("cancelled", targetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu", shutdownHandoff!, "cancelled", "Runtime switch cancelled.");
             throw;
         }
         catch (Exception exception)
         {
-            if (!terminalStatusWritten && statusStore is not null && shutdownHandoff is not null) statusStore.WriteTerminal("failed", targetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu", shutdownHandoff, "transaction_failed", exception.Message);
+            if (!terminalStatusWritten && !retryableOutcomeCleared && statusStore is not null && shutdownHandoff is not null)
+            {
+                if (!statusStore.IsShutdownAcknowledged(shutdownHandoff)) statusStore.ClearForRetry(shutdownHandoff);
+                else statusStore.WriteTerminal("failed", targetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu", shutdownHandoff, "transaction_failed", exception.Message);
+            }
             throw;
         }
     }
