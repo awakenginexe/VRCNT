@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
+using VRCNT.RuntimeCore.Hardware;
 using VRCNT.RuntimeCore.Models;
 using VRCNT.Setup.CommandLine;
 using VRCNT.Setup.Localization;
@@ -26,6 +27,8 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     private readonly InstallerLocalizer _localizer;
     private readonly IApplicationLauncher _applicationLauncher;
     private readonly IGpuAdvisoryPolicy _gpuAdvisoryPolicy;
+    private readonly bool _usesInjectedGpuAdvisoryPolicy;
+    private readonly GpuSelectionRecommendation _gpuSelection;
     private readonly bool _useReducedMotion;
     private readonly DelegateCommand _launchCommand;
     private InstallerPage _currentPage = InstallerPage.Welcome;
@@ -33,6 +36,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     private RuntimeVariant _selectedVariant = RuntimeVariant.Cpu;
     private bool _launchAfterSetup = true;
     private bool _isInstalling;
+    private bool _advancedCudaOverrideEnabled;
     private double _progressValue;
     private string _progressDetail = string.Empty;
     private string _errorDetail = string.Empty;
@@ -43,13 +47,17 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         InstallerLocalizer localizer,
         IApplicationLauncher? applicationLauncher = null,
         IGpuAdvisoryPolicy? gpuAdvisoryPolicy = null,
-        bool useReducedMotion = false)
+        bool useReducedMotion = false,
+        IGpuSelectionPolicy? gpuSelectionPolicy = null)
     {
         _operations = operations ?? throw new ArgumentNullException(nameof(operations));
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _localizer = localizer ?? throw new ArgumentNullException(nameof(localizer));
         _applicationLauncher = applicationLauncher ?? new ApplicationLauncher();
         _gpuAdvisoryPolicy = gpuAdvisoryPolicy ?? new InconclusiveGpuAdvisoryPolicy();
+        _usesInjectedGpuAdvisoryPolicy = gpuAdvisoryPolicy is not null;
+        _gpuSelection = (gpuSelectionPolicy ?? new GpuSelectionPolicy(new DxgiGpuDetector())).Assess();
+        _selectedVariant = _gpuSelection.RecommendedVariant;
         _useReducedMotion = useReducedMotion;
         if (options.InstallerLanguage is not null) _localizer.SetLanguage(options.InstallerLanguage);
         _selectedLanguage = _localizer.Languages.Single(language => language.Id == _localizer.CurrentLanguage);
@@ -61,6 +69,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         _launchCommand = new DelegateCommand(() => LaunchVrcnt(force: true), () => CurrentPage == InstallerPage.Complete);
         LaunchCommand = _launchCommand;
         CloseCommand = new DelegateCommand(() => CloseRequested?.Invoke(this, EventArgs.Empty));
+        EnableAdvancedCudaOverrideCommand = new DelegateCommand(EnableAdvancedCudaOverride, () => RequiresAdvancedCudaOverride && !AdvancedCudaOverrideEnabled);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -72,6 +81,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     public ICommand RetryCommand { get; }
     public ICommand LaunchCommand { get; }
     public ICommand CloseCommand { get; }
+    public ICommand EnableAdvancedCudaOverrideCommand { get; }
 
     public IReadOnlyList<InstallerLanguage> Languages => _localizer.Languages;
     public InstallerPage CurrentPage
@@ -95,9 +105,31 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
             if (SetField(ref _selectedLanguage, value)) _localizer.SetLanguage(value.Id);
         }
     }
-    public RuntimeVariant SelectedVariant { get => _selectedVariant; set { if (SetField(ref _selectedVariant, value)) RefreshLocalizedProperties(); } }
+    public RuntimeVariant SelectedVariant { get => _selectedVariant; set { if (value == RuntimeVariant.Cuda && !CanSelectCuda) return; if (SetField(ref _selectedVariant, value)) RefreshLocalizedProperties(); } }
     public bool IsCpuSelected { get => SelectedVariant == RuntimeVariant.Cpu; set { if (value) SelectedVariant = RuntimeVariant.Cpu; } }
-    public bool IsCudaSelected { get => SelectedVariant == RuntimeVariant.Cuda; set { if (value) SelectedVariant = RuntimeVariant.Cuda; } }
+    public bool IsCudaSelected
+    {
+        get => SelectedVariant == RuntimeVariant.Cuda;
+        set
+        {
+            if (!value) return;
+            if (RequiresAdvancedCudaOverride && !AdvancedCudaOverrideEnabled) EnableAdvancedCudaOverride();
+            if (CanSelectCuda) SelectedVariant = RuntimeVariant.Cuda;
+        }
+    }
+    public bool IsCudaNormallyAvailable => _gpuSelection.IsCudaNormallyAvailable;
+    public bool RequiresAdvancedCudaOverride => _gpuSelection.RequiresAdvancedCudaOverride;
+    public bool AdvancedCudaOverrideEnabled
+    {
+        get => _advancedCudaOverrideEnabled;
+        private set
+        {
+            if (!SetField(ref _advancedCudaOverrideEnabled, value)) return;
+            OnPropertyChanged(nameof(CanSelectCuda));
+            ((DelegateCommand)EnableAdvancedCudaOverrideCommand).RaiseCanExecuteChanged();
+        }
+    }
+    public bool CanSelectCuda => IsCudaNormallyAvailable || (RequiresAdvancedCudaOverride && AdvancedCudaOverrideEnabled);
     public bool LaunchAfterSetup { get => _launchAfterSetup; set => SetField(ref _launchAfterSetup, value); }
     public bool IsInstalling
     {
@@ -147,13 +179,13 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     public string SelectedRuntimeSize => SelectedVariant == RuntimeVariant.Cpu ? CpuSize : CudaSize;
     public string SelectedRuntimeTime => SelectedVariant == RuntimeVariant.Cpu ? CpuTime : CudaTime;
     public string CpuStatus => T("recommended");
-    public string CudaStatus => _gpuAdvisoryPolicy.Assess().Compatibility switch
+    public string CudaStatus => !_usesInjectedGpuAdvisoryPolicy && _gpuSelection.Detection.Status == GpuDetectionStatus.NvidiaDetected ? T("recommended") : _gpuAdvisoryPolicy.Assess().Compatibility switch
     {
         GpuCompatibility.Recommended => T("recommended"),
         GpuCompatibility.Compatible => T("compatible"),
         _ => T("cuda_requires_nvidia"),
     };
-    public string CudaAdvisory => _gpuAdvisoryPolicy.Assess().Compatibility switch
+    public string CudaAdvisory => !_usesInjectedGpuAdvisoryPolicy && _gpuSelection.Detection.Status == GpuDetectionStatus.NvidiaDetected ? string.Empty : _gpuAdvisoryPolicy.Assess().Compatibility switch
     {
         GpuCompatibility.Recommended or GpuCompatibility.Compatible => string.Empty,
         _ => T("cuda_advisory_inconclusive"),
@@ -182,6 +214,11 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
             InstallerPage.Runtime => InstallerPage.Options,
             _ => CurrentPage,
         };
+    }
+
+    private void EnableAdvancedCudaOverride()
+    {
+        if (RequiresAdvancedCudaOverride) AdvancedCudaOverrideEnabled = true;
     }
 
     private void Back()
@@ -246,7 +283,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
             nameof(AppTitle), nameof(WelcomeTitle), nameof(WelcomeBody), nameof(ContinueText), nameof(BackText),
             nameof(LanguageTitle), nameof(LanguageBody), nameof(RuntimeTitle), nameof(RuntimeBody), nameof(CpuTitle),
             nameof(CpuBody), nameof(CpuSize), nameof(CpuTime), nameof(CudaTitle), nameof(CudaBody), nameof(CudaSize),
-            nameof(CudaTime), nameof(CpuStatus), nameof(CudaStatus), nameof(CudaAdvisory), nameof(SelectedRuntimeTitle), nameof(SelectedRuntimeSize), nameof(SelectedRuntimeTime), nameof(CurrentPageTitle), nameof(InstallSizeLabel), nameof(InstallTimeLabel),
+            nameof(CudaTime), nameof(CpuStatus), nameof(CudaStatus), nameof(CudaAdvisory), nameof(IsCudaNormallyAvailable), nameof(RequiresAdvancedCudaOverride), nameof(AdvancedCudaOverrideEnabled), nameof(CanSelectCuda), nameof(SelectedRuntimeTitle), nameof(SelectedRuntimeSize), nameof(SelectedRuntimeTime), nameof(CurrentPageTitle), nameof(InstallSizeLabel), nameof(InstallTimeLabel),
             nameof(OptionsTitle), nameof(OptionsBody), nameof(LaunchVrcntText), nameof(InstallText), nameof(ProgressTitle),
             nameof(ProgressBody), nameof(ErrorTitle), nameof(ErrorBody), nameof(RetryText), nameof(CompleteTitle),
             nameof(CompleteBody), nameof(CloseText),

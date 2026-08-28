@@ -1,5 +1,6 @@
 using VRCNT.RuntimeCore.Archive;
 using VRCNT.RuntimeCore.Filesystem;
+using VRCNT.RuntimeCore.Hardware;
 using VRCNT.RuntimeCore.Models;
 using VRCNT.RuntimeCore.Paths;
 using VRCNT.RuntimeCore.Process;
@@ -80,7 +81,8 @@ public sealed class RuntimeTransactionEngine(
     IRuntimeDirectoryMover directoryMover,
     IRuntimeStateTransition runtimeStateTransition,
     Action? onCommit = null,
-    Action? onPreflightValidated = null)
+    Action? onPreflightValidated = null,
+    ICudaCapabilityProbe? cudaCapabilityProbe = null)
 {
     public async Task<RuntimeOperationResult> ExecuteAsync(RuntimeReplacementRequest request, IProgress<InstallProgress>? progress, CancellationToken cancellationToken)
     {
@@ -121,6 +123,15 @@ public sealed class RuntimeTransactionEngine(
             await archiveExtractor.ExtractAsync(archiveParts, paths.StagingPath, cancellationToken);
             ValidateStagedPayload(paths.StagingPath, request.ExpectedIdentity);
             if (request.ExpectedIdentity.Variant == RuntimeVariant.Cpu) CpuPayloadValidator.ValidateStagedPayload(paths.StagingPath);
+            if (request.ExpectedIdentity.Variant == RuntimeVariant.Cuda)
+            {
+                var capability = await (cudaCapabilityProbe ?? new CudaCapabilityProbe()).ProbeAsync(paths.StagingPath, cancellationToken);
+                if (!capability.Supported || !capability.Conclusive)
+                {
+                    DeleteTransaction(paths.TransactionRoot);
+                    return Fail(capability.FailureCode ?? "cuda_probe_inconclusive", capability.Detail ?? "The staged CUDA backend could not confirm local capability.");
+                }
+            }
             cancellationToken.ThrowIfCancellationRequested();
 
             journal = journal with { Phase = TransactionPhase.Quiesce };
