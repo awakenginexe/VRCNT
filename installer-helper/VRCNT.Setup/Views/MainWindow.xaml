@@ -33,10 +33,16 @@
                     <RadioButton Grid.Column="0" GroupName="Runtime" Style="{StaticResource RuntimeCardStyle}" IsChecked="{Binding IsCpuSelected}" AutomationProperties.Name="{Binding CpuTitle}">
                         <StackPanel><TextBlock Text="{Binding CpuStatus}" Foreground="{DynamicResource InstallerSuccessBrush}" FontWeight="SemiBold" /><TextBlock Text="{Binding CpuTitle}" FontSize="{DynamicResource InstallerCardTitleFontSize}" FontWeight="SemiBold" Margin="0,8,0,0" /><TextBlock Text="{Binding CpuBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" TextWrapping="Wrap" Margin="0,6,0,14" /><TextBlock Text="{Binding CpuSize}" /><TextBlock Text="{Binding CpuTime}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,4,0,0" /></StackPanel>
                     </RadioButton>
-                    <RadioButton Grid.Column="1" GroupName="Runtime" Style="{StaticResource RuntimeCardStyle}" IsChecked="{Binding IsCudaSelected}" Margin="12,0,0,12" AutomationProperties.Name="{Binding CudaTitle}">
+                    <RadioButton Grid.Column="1" GroupName="Runtime" Style="{StaticResource RuntimeCardStyle}" IsChecked="{Binding IsCudaSelected}" IsEnabled="{Binding CanSelectCuda}" Margin="12,0,0,12" AutomationProperties.Name="{Binding CudaTitle}">
                         <StackPanel><TextBlock Text="{Binding CudaStatus}" Foreground="{DynamicResource InstallerTextMutedBrush}" FontWeight="SemiBold" /><TextBlock Text="{Binding CudaTitle}" FontSize="{DynamicResource InstallerCardTitleFontSize}" FontWeight="SemiBold" Margin="0,8,0,0" /><TextBlock Text="{Binding CudaBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" TextWrapping="Wrap" Margin="0,6,0,10" /><TextBlock Text="{Binding CudaAdvisory}" Foreground="{DynamicResource InstallerTextMutedBrush}" TextWrapping="Wrap" Margin="0,0,0,10" /><TextBlock Text="{Binding CudaSize}" /><TextBlock Text="{Binding CudaTime}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,4,0,0" /></StackPanel>
                     </RadioButton>
                 </Grid>
+                <TextBlock Text="{Binding GpuDetectionState}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,0,0,8" TextWrapping="Wrap" />
+                <StackPanel>
+                    <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding RequiresAdvancedCudaOverride}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+                    <TextBlock Text="{Binding AdvancedCudaWarning}" Foreground="{DynamicResource InstallerErrorBrush}" TextWrapping="Wrap" Margin="0,0,0,8" />
+                    <Button Content="{Binding EnableAdvancedCudaOverrideText}" Command="{Binding EnableAdvancedCudaOverrideCommand}" Style="{StaticResource SecondaryButtonStyle}" HorizontalAlignment="Left" />
+                </StackPanel>
             </StackPanel>
 
             <StackPanel x:Name="Options" VerticalAlignment="Center">

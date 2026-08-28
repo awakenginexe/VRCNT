@@ -25,6 +25,7 @@ a = Analysis(
         *copy_metadata('translators'),
         ],
     hiddenimports=[
+        'torch',
         'ctranslate2',
         'translators',
         'models.translation.translation_plamo',

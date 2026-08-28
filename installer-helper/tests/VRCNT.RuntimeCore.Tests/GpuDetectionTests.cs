@@ -65,6 +65,59 @@ public sealed class GpuDetectionTests : IDisposable
     }
 
     [Fact]
+    public void Detect_does_not_let_path_nvidia_smi_override_confirmed_physical_non_nvidia_hardware()
+    {
+        var result = new DxgiGpuDetector(
+            new FixedAdapterEnumerator([new GpuAdapterInfo("AMD Radeon RX 7900 XTX", "PCI\\VEN_1002", false)]),
+            new WmiGpuDetector(new FixedAdapterEnumerator([])),
+            new NvidiaSmiProbe(new FixedNvidiaSmiRunner(new NvidiaSmiProbeResult(true, true, "Forged NVIDIA", "0000:01:00.0", "nvidia-smi reported NVIDIA")))).Detect();
+
+        Assert.Equal(GpuDetectionStatus.NoNvidiaHardware, result.Status);
+        Assert.DoesNotContain("Forged NVIDIA", result.Evidence, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Detect_does_not_accept_path_nvidia_smi_without_enumerated_nvidia_evidence()
+    {
+        var result = new DxgiGpuDetector(
+            new FixedAdapterEnumerator([new GpuAdapterInfo("Microsoft Remote Display Adapter", "ROOT\\DISPLAY", false)]),
+            new WmiGpuDetector(new FixedAdapterEnumerator([])),
+            new NvidiaSmiProbe(new FixedNvidiaSmiRunner(new NvidiaSmiProbeResult(true, true, "Forged NVIDIA", "0000:01:00.0", "nvidia-smi reported NVIDIA")))).Detect();
+
+        Assert.Equal(GpuDetectionStatus.Inconclusive, result.Status);
+    }
+
+    [Theory]
+    [InlineData("Microsoft Remote Display Adapter")]
+    [InlineData("Microsoft Basic Render Driver")]
+    [InlineData("VMware SVGA 3D")]
+    [InlineData("VirtualBox Graphics Adapter")]
+    [InlineData("Generic Virtual Display Adapter")]
+    public void Detect_treats_remote_virtual_and_software_adapters_as_inconclusive_without_physical_hardware(string displayName)
+    {
+        var result = new DxgiGpuDetector(
+            new FixedAdapterEnumerator([new GpuAdapterInfo(displayName, "ROOT\\DISPLAY", false)]),
+            new WmiGpuDetector(new FixedAdapterEnumerator([])),
+            new NvidiaSmiProbe(new FixedNvidiaSmiRunner(NvidiaSmiProbeResult.Unavailable))).Detect();
+
+        Assert.Equal(GpuDetectionStatus.Inconclusive, result.Status);
+    }
+
+    [Fact]
+    public void Detect_preserves_physical_non_nvidia_absence_when_remote_adapters_are_also_present()
+    {
+        var result = new DxgiGpuDetector(
+            new FixedAdapterEnumerator([
+                new GpuAdapterInfo("Microsoft Remote Display Adapter", "ROOT\\DISPLAY", false),
+                new GpuAdapterInfo("AMD Radeon RX 7900 XTX", "PCI\\VEN_1002", false),
+            ]),
+            new WmiGpuDetector(new FixedAdapterEnumerator([])),
+            new NvidiaSmiProbe(new FixedNvidiaSmiRunner(NvidiaSmiProbeResult.Unavailable))).Detect();
+
+        Assert.Equal(GpuDetectionStatus.NoNvidiaHardware, result.Status);
+    }
+
+    [Fact]
     public void Detect_keeps_remote_or_failed_enumeration_inconclusive()
     {
         var result = new DxgiGpuDetector(new ThrowingAdapterEnumerator(), new WmiGpuDetector(new ThrowingAdapterEnumerator()), new NvidiaSmiProbe(new FixedNvidiaSmiRunner(NvidiaSmiProbeResult.Unavailable))).Detect();
@@ -130,6 +183,13 @@ public sealed class GpuDetectionTests : IDisposable
 
         viewModel.IsCudaSelected = true;
 
+        Assert.False(viewModel.AdvancedCudaOverrideEnabled);
+        Assert.False(viewModel.CanSelectCuda);
+        Assert.Equal(RuntimeVariant.Cpu, viewModel.SelectedVariant);
+
+        viewModel.EnableAdvancedCudaOverrideCommand.Execute(null);
+        viewModel.IsCudaSelected = true;
+
         Assert.True(viewModel.AdvancedCudaOverrideEnabled);
         Assert.True(viewModel.CanSelectCuda);
         Assert.Equal(RuntimeVariant.Cuda, viewModel.SelectedVariant);
@@ -142,12 +202,121 @@ public sealed class GpuDetectionTests : IDisposable
         var staged = Path.Combine(_root, "probe");
         Directory.CreateDirectory(staged);
         File.WriteAllText(Path.Combine(staged, "VRCNT-backend.exe"), "backend");
-        var probe = new CudaCapabilityProbe(new FixedBackendRunner(new BackendProcessResult(0, "{\"supported\":true,\"conclusive\":true}", string.Empty)));
+        var probe = new CudaCapabilityProbe(new FixedBackendRunner(new BackendProcessResult(0, "{\"supported\":true,\"conclusive\":true,\"failureCode\":null,\"detail\":null}", string.Empty)));
 
         var result = await probe.ProbeAsync(staged, CancellationToken.None);
 
         Assert.True(result.Supported);
         Assert.True(result.Conclusive);
+    }
+
+    [Fact]
+    public async Task Capability_probe_returns_the_backend_unsupported_result_without_running_normal_initialization()
+    {
+        var staged = Path.Combine(_root, "unsupported-probe");
+        Directory.CreateDirectory(staged);
+        File.WriteAllText(Path.Combine(staged, "VRCNT-backend.exe"), "backend");
+        var probe = new CudaCapabilityProbe(new FixedBackendRunner(new BackendProcessResult(0, "{\"supported\":false,\"conclusive\":true,\"failureCode\":\"cuda_unavailable\",\"detail\":\"No compatible local CUDA device is available.\"}", string.Empty)));
+
+        var result = await probe.ProbeAsync(staged, CancellationToken.None);
+
+        Assert.False(result.Supported);
+        Assert.True(result.Conclusive);
+        Assert.Equal("cuda_unavailable", result.FailureCode);
+    }
+
+    [Theory]
+    [InlineData("not json")]
+    [InlineData("{\"supported\":true,\"conclusive\":\"true\"}")]
+    [InlineData("{\"supported\":true}")]
+    public async Task Capability_probe_rejects_malformed_backend_output(string output)
+    {
+        var staged = Path.Combine(_root, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(staged);
+        File.WriteAllText(Path.Combine(staged, "VRCNT-backend.exe"), "backend");
+        var probe = new CudaCapabilityProbe(new FixedBackendRunner(new BackendProcessResult(0, output, string.Empty)));
+
+        var result = await probe.ProbeAsync(staged, CancellationToken.None);
+
+        Assert.False(result.Supported);
+        Assert.False(result.Conclusive);
+        Assert.Equal("cuda_probe_malformed_response", result.FailureCode);
+    }
+
+    [Fact]
+    public async Task Capability_probe_classifies_a_nonzero_backend_exit_without_exposing_stderr()
+    {
+        var staged = Path.Combine(_root, "failed-probe");
+        Directory.CreateDirectory(staged);
+        File.WriteAllText(Path.Combine(staged, "VRCNT-backend.exe"), "backend");
+        var probe = new CudaCapabilityProbe(new FixedBackendRunner(new BackendProcessResult(9, string.Empty, "untrusted process output")));
+
+        var result = await probe.ProbeAsync(staged, CancellationToken.None);
+
+        Assert.False(result.Supported);
+        Assert.True(result.Conclusive);
+        Assert.Equal("cuda_probe_failed", result.FailureCode);
+        Assert.DoesNotContain("untrusted", result.Detail, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Capability_probe_classifies_timeout_and_propagates_caller_cancellation()
+    {
+        var staged = Path.Combine(_root, "timeout-probe");
+        Directory.CreateDirectory(staged);
+        File.WriteAllText(Path.Combine(staged, "VRCNT-backend.exe"), "backend");
+
+        var timeout = await new CudaCapabilityProbe(new ThrowingBackendRunner(new TimeoutException())).ProbeAsync(staged, CancellationToken.None);
+
+        Assert.Equal("cuda_probe_timeout", timeout.FailureCode);
+        Assert.False(timeout.Conclusive);
+
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => new CudaCapabilityProbe(new ThrowingBackendRunner(new OperationCanceledException(cancellation.Token))).ProbeAsync(staged, cancellation.Token));
+    }
+
+    [Fact]
+    public async Task Staged_backend_runner_cancels_and_waits_for_a_real_process_before_returning()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        var runnerType = typeof(CudaCapabilityProbe).Assembly.GetType("VRCNT.RuntimeCore.Hardware.StagedBackendProcessRunner");
+        Assert.NotNull(runnerType);
+        var runner = Assert.IsAssignableFrom<IBackendProcessRunner>(Activator.CreateInstance(runnerType!, [TimeSpan.FromSeconds(30)]));
+        var powershell = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe");
+        Directory.CreateDirectory(_root);
+        using var cancellation = new CancellationTokenSource();
+
+        var running = runner.RunAsync(powershell, ["-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 30"], _root, cancellation.Token);
+        await Task.Delay(150);
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
+    }
+
+    [Fact]
+    public async Task Transaction_cleans_staging_when_the_cuda_probe_is_cancelled_before_quiesce()
+    {
+        var request = CreateCudaRequest();
+        var processes = new RecordingProcessCoordinator();
+        var engine = new RuntimeTransactionEngine(
+            new FixedArchiveAcquirer(),
+            new StagedCudaExtractor(request.ExpectedIdentity),
+            new RuntimePathValidator(new FixedVolumeProbe()),
+            new RequiredSpaceCalculator(new FixedSpaceProbe()),
+            processes,
+            new FixedHealthMonitor(),
+            new TransactionJournalStore(),
+            new RuntimeDirectoryMover(),
+            new FixedStateTransition(),
+            cudaCapabilityProbe: new CancellingCapabilityProbe());
+
+        var result = await engine.ExecuteAsync(request, null, CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("cancelled", result.ErrorCode);
+        Assert.False(processes.StopRequested);
+        Assert.Empty(Directory.EnumerateDirectories(_root, ".vrcnt-transaction-*", SearchOption.TopDirectoryOnly));
     }
 
     [Fact]
@@ -189,7 +358,7 @@ public sealed class GpuDetectionTests : IDisposable
             {
                 ["app_name"] = "VRCNT", ["welcome_title"] = "Welcome", ["welcome_body"] = "", ["continue"] = "Continue", ["back"] = "Back",
                 ["language_title"] = "Language", ["language_body"] = "", ["runtime_title"] = "Runtime", ["runtime_body"] = "", ["cpu_title"] = "CPU", ["cpu_body"] = "", ["cpu_size"] = "", ["cpu_time"] = "", ["cuda_title"] = "CUDA", ["cuda_body"] = "", ["cuda_size"] = "", ["cuda_time"] = "",
-                ["recommended"] = "Recommended", ["compatible"] = "Compatible", ["cuda_requires_nvidia"] = "Requires NVIDIA", ["cuda_advisory_inconclusive"] = "Advanced CUDA may fail unless the staged backend validates local CUDA support.",
+                ["recommended"] = "Recommended", ["compatible"] = "Compatible", ["cuda_requires_nvidia"] = "Requires NVIDIA", ["cuda_advisory_inconclusive"] = "Advanced CUDA may fail unless the staged backend validates local CUDA support.", ["gpu_detection_nvidia"] = "NVIDIA GPU detected.", ["gpu_detection_no_nvidia"] = "No NVIDIA GPU detected.", ["gpu_detection_inconclusive"] = "GPU detection is inconclusive.", ["cuda_advanced_warning"] = "CUDA is not verified before download.", ["cuda_advanced_override"] = "I understand and enable CUDA",
                 ["install_size"] = "", ["install_time"] = "", ["options_title"] = "", ["options_body"] = "", ["launch_vrcnt"] = "", ["install"] = "", ["progress_title"] = "", ["progress_body"] = "", ["error_title"] = "", ["error_body"] = "", ["retry"] = "", ["complete_title"] = "", ["complete_body"] = "", ["close"] = "",
             }
         }),
@@ -231,9 +400,19 @@ public sealed class GpuDetectionTests : IDisposable
         public Task<BackendProcessResult> RunAsync(string executablePath, IReadOnlyList<string> arguments, string workingDirectory, CancellationToken cancellationToken) => Task.FromResult(result);
     }
 
+    private sealed class ThrowingBackendRunner(Exception exception) : IBackendProcessRunner
+    {
+        public Task<BackendProcessResult> RunAsync(string executablePath, IReadOnlyList<string> arguments, string workingDirectory, CancellationToken cancellationToken) => Task.FromException<BackendProcessResult>(exception);
+    }
+
     private sealed class FixedCapabilityProbe(CapabilityProbeResult result) : ICudaCapabilityProbe
     {
         public Task<CapabilityProbeResult> ProbeAsync(string stagedInstallPath, CancellationToken cancellationToken) => Task.FromResult(result);
+    }
+
+    private sealed class CancellingCapabilityProbe : ICudaCapabilityProbe
+    {
+        public Task<CapabilityProbeResult> ProbeAsync(string stagedInstallPath, CancellationToken cancellationToken) => Task.FromCanceled<CapabilityProbeResult>(new CancellationToken(true));
     }
 
     private sealed class NoOpOperations : ISetupCommandOperations

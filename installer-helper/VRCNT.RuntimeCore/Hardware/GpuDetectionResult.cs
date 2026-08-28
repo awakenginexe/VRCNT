@@ -13,7 +13,8 @@ public sealed record GpuDetectionResult(
     GpuDetectionStatus Status,
     string? DisplayName,
     string? AdapterId,
-    string Evidence);
+    string Evidence,
+    bool EnumeratedNvidiaEvidence = false);
 
 public sealed record GpuAdapterInfo(string DisplayName, string? AdapterId, bool IsSoftwareAdapter);
 

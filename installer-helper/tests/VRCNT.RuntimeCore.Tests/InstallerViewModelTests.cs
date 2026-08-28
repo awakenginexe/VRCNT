@@ -49,13 +49,25 @@ public sealed class InstallerViewModelTests
     }
 
     [Fact]
-    public void Inconclusive_gpu_advice_keeps_cpu_recommended_and_cuda_requires_an_nvidia_gpu()
+    public void Inconclusive_gpu_advice_keeps_cpu_recommended_and_reports_staged_post_download_validation()
     {
         var viewModel = CreateViewModel(new DeferredProgressOperations(), gpuAdvisoryPolicy: new FixedGpuAdvisoryPolicy(GpuAdvisory.Inconclusive));
 
         Assert.Equal("Recommended", viewModel.CpuStatus);
         Assert.Equal("Requires a compatible NVIDIA GPU", viewModel.CudaStatus);
-        Assert.Equal("Hardware compatibility will be checked before download.", viewModel.CudaAdvisory);
+        Assert.Equal("CUDA is checked locally after download and before VRCNT is replaced.", viewModel.CudaAdvisory);
+    }
+
+    [Fact]
+    public void Runtime_page_binds_cuda_availability_detection_and_the_deliberate_advanced_override_control()
+    {
+        var xamlPath = Path.Combine(AppContext.BaseDirectory, "Views", "MainWindow.xaml");
+        var xaml = File.ReadAllText(xamlPath);
+
+        Assert.Contains("IsEnabled=\"{Binding CanSelectCuda}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding EnableAdvancedCudaOverrideCommand}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding GpuDetectionState}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding AdvancedCudaWarning}\"", xaml, StringComparison.Ordinal);
     }
 
     private static InstallerViewModel CreateViewModel(DeferredProgressOperations operations, IApplicationLauncher? launcher = null, IGpuAdvisoryPolicy? gpuAdvisoryPolicy = null)
@@ -68,7 +80,7 @@ public sealed class InstallerViewModelTests
                 ["app_name"] = "VRCNT", ["welcome_title"] = "Welcome", ["welcome_body"] = "Body", ["continue"] = "Continue", ["back"] = "Back",
                 ["language_title"] = "Language", ["language_body"] = "Language body", ["runtime_title"] = "Runtime", ["runtime_body"] = "Runtime body",
                 ["cpu_title"] = "CPU", ["cpu_body"] = "CPU body", ["cpu_size"] = "1 GB", ["cpu_time"] = "5 min", ["cuda_title"] = "CUDA", ["cuda_body"] = "CUDA body", ["cuda_size"] = "2 GB", ["cuda_time"] = "10 min",
-                ["recommended"] = "Recommended", ["compatible"] = "Compatible", ["cuda_requires_nvidia"] = "Requires a compatible NVIDIA GPU", ["cuda_advisory_inconclusive"] = "Hardware compatibility will be checked before download.",
+                ["recommended"] = "Recommended", ["compatible"] = "Compatible", ["cuda_requires_nvidia"] = "Requires a compatible NVIDIA GPU", ["cuda_advisory_inconclusive"] = "CUDA is checked locally after download and before VRCNT is replaced.", ["gpu_detection_nvidia"] = "NVIDIA GPU detected.", ["gpu_detection_no_nvidia"] = "No NVIDIA GPU detected.", ["gpu_detection_inconclusive"] = "GPU detection is inconclusive.", ["cuda_advanced_warning"] = "CUDA is not verified before download.", ["cuda_advanced_override"] = "I understand and enable CUDA",
                 ["install_size"] = "Install size", ["install_time"] = "Install time", ["options_title"] = "Options", ["options_body"] = "Options body", ["launch_vrcnt"] = "Launch VRCNT", ["install"] = "Install",
                 ["progress_title"] = "Installing", ["progress_body"] = "Please wait", ["error_title"] = "Error", ["error_body"] = "We could not install", ["retry"] = "Retry", ["complete_title"] = "Complete", ["complete_body"] = "Done", ["close"] = "Close",
             }, StringComparer.Ordinal);

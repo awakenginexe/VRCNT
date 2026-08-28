@@ -113,7 +113,6 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         set
         {
             if (!value) return;
-            if (RequiresAdvancedCudaOverride && !AdvancedCudaOverrideEnabled) EnableAdvancedCudaOverride();
             if (CanSelectCuda) SelectedVariant = RuntimeVariant.Cuda;
         }
     }
@@ -190,6 +189,14 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         GpuCompatibility.Recommended or GpuCompatibility.Compatible => string.Empty,
         _ => T("cuda_advisory_inconclusive"),
     };
+    public string GpuDetectionState => _gpuSelection.Detection.Status switch
+    {
+        GpuDetectionStatus.NvidiaDetected => T("gpu_detection_nvidia"),
+        GpuDetectionStatus.NoNvidiaHardware => T("gpu_detection_no_nvidia"),
+        _ => T("gpu_detection_inconclusive"),
+    };
+    public string AdvancedCudaWarning => RequiresAdvancedCudaOverride ? T("cuda_advanced_warning") : string.Empty;
+    public string EnableAdvancedCudaOverrideText => T("cuda_advanced_override");
     public string InstallSizeLabel => T("install_size");
     public string InstallTimeLabel => T("install_time");
     public string OptionsTitle => T("options_title");
@@ -283,7 +290,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
             nameof(AppTitle), nameof(WelcomeTitle), nameof(WelcomeBody), nameof(ContinueText), nameof(BackText),
             nameof(LanguageTitle), nameof(LanguageBody), nameof(RuntimeTitle), nameof(RuntimeBody), nameof(CpuTitle),
             nameof(CpuBody), nameof(CpuSize), nameof(CpuTime), nameof(CudaTitle), nameof(CudaBody), nameof(CudaSize),
-            nameof(CudaTime), nameof(CpuStatus), nameof(CudaStatus), nameof(CudaAdvisory), nameof(IsCudaNormallyAvailable), nameof(RequiresAdvancedCudaOverride), nameof(AdvancedCudaOverrideEnabled), nameof(CanSelectCuda), nameof(SelectedRuntimeTitle), nameof(SelectedRuntimeSize), nameof(SelectedRuntimeTime), nameof(CurrentPageTitle), nameof(InstallSizeLabel), nameof(InstallTimeLabel),
+            nameof(CudaTime), nameof(CpuStatus), nameof(CudaStatus), nameof(CudaAdvisory), nameof(GpuDetectionState), nameof(AdvancedCudaWarning), nameof(EnableAdvancedCudaOverrideText), nameof(IsCudaNormallyAvailable), nameof(RequiresAdvancedCudaOverride), nameof(AdvancedCudaOverrideEnabled), nameof(CanSelectCuda), nameof(SelectedRuntimeTitle), nameof(SelectedRuntimeSize), nameof(SelectedRuntimeTime), nameof(CurrentPageTitle), nameof(InstallSizeLabel), nameof(InstallTimeLabel),
             nameof(OptionsTitle), nameof(OptionsBody), nameof(LaunchVrcntText), nameof(InstallText), nameof(ProgressTitle),
             nameof(ProgressBody), nameof(ErrorTitle), nameof(ErrorBody), nameof(RetryText), nameof(CompleteTitle),
             nameof(CompleteBody), nameof(CloseText),

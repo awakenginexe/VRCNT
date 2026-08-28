@@ -5,6 +5,11 @@ from typing import Any, Tuple
 from threading import Thread, Event, Lock
 from queue import Queue, Empty
 import logging
+from cuda_capability_probe import run_cuda_capability_probe  # noqa: E402
+
+if "--cuda-capability-probe" in sys.argv:
+    raise SystemExit(run_cuda_capability_probe(offline="--offline" in sys.argv))
+
 from controller import Controller, parseRuntimeActivationLaunchArgs  # noqa: E402
 from utils import printLog, printResponse, errorLogging, encodeBase64 # noqa: E402
 

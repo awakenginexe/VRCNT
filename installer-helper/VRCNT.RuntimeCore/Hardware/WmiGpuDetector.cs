@@ -30,7 +30,7 @@ internal sealed class WindowsWmiAdapterEnumerator : IGpuAdapterEnumerator
         if (process.ExitCode != 0) throw new InvalidOperationException("WMI adapter enumeration failed.");
         return process.StandardOutput.ReadToEnd().Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)
             .Select(line => line.Split('|', 2))
-            .Select(parts => new GpuAdapterInfo(parts[0].Trim(), parts.Length == 2 ? parts[1].Trim() : null, parts[0].Contains("Microsoft Basic Render", StringComparison.OrdinalIgnoreCase)))
+            .Select(parts => new GpuAdapterInfo(parts[0].Trim(), parts.Length == 2 ? parts[1].Trim() : null, DxgiGpuDetector.IsRemoteVirtualOrSoftware(parts[0])))
             .ToArray();
     }
 }

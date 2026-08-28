@@ -22,7 +22,7 @@ public sealed class DxgiGpuDetector : IGpuDetector
             ? Combine(primary, _wmiFallback.Detect())
             : primary;
         var corroboration = _nvidiaSmi.Probe();
-        if (corroboration.NvidiaDetected)
+        if (result.Status == GpuDetectionStatus.Inconclusive && result.EnumeratedNvidiaEvidence && corroboration.NvidiaDetected)
             return new GpuDetectionResult(GpuDetectionStatus.NvidiaDetected, corroboration.DisplayName ?? result.DisplayName, corroboration.AdapterId ?? result.AdapterId, $"{result.Evidence}; {corroboration.Evidence}");
         return result with { Evidence = $"{result.Evidence}; {corroboration.Evidence}" };
     }
@@ -31,13 +31,15 @@ public sealed class DxgiGpuDetector : IGpuDetector
     {
         try
         {
-            var physicalAdapters = enumerator.Enumerate().Where(adapter => !adapter.IsSoftwareAdapter).ToArray();
+            var adapters = enumerator.Enumerate();
+            var enumeratedNvidiaEvidence = adapters.Any(IsNvidia);
+            var physicalAdapters = adapters.Where(IsPhysicalAdapter).ToArray();
             var nvidia = physicalAdapters.FirstOrDefault(IsNvidia);
             if (nvidia is not null)
-                return new GpuDetectionResult(GpuDetectionStatus.NvidiaDetected, nvidia.DisplayName, nvidia.AdapterId, $"{source}: NVIDIA adapter detected.");
+                return new GpuDetectionResult(GpuDetectionStatus.NvidiaDetected, nvidia.DisplayName, nvidia.AdapterId, $"{source}: NVIDIA adapter detected.", true);
             if (physicalAdapters.Length > 0)
-                return new GpuDetectionResult(GpuDetectionStatus.NoNvidiaHardware, physicalAdapters[0].DisplayName, physicalAdapters[0].AdapterId, $"{source}: physical adapters enumerated without NVIDIA hardware.");
-            return new GpuDetectionResult(GpuDetectionStatus.Inconclusive, null, null, $"{source}: no physical adapter could be enumerated.");
+                return new GpuDetectionResult(GpuDetectionStatus.NoNvidiaHardware, physicalAdapters[0].DisplayName, physicalAdapters[0].AdapterId, $"{source}: physical adapters enumerated without NVIDIA hardware.", enumeratedNvidiaEvidence);
+            return new GpuDetectionResult(GpuDetectionStatus.Inconclusive, null, null, $"{source}: no physical adapter could be enumerated.", enumeratedNvidiaEvidence);
         }
         catch (Exception exception)
         {
@@ -45,12 +47,34 @@ public sealed class DxgiGpuDetector : IGpuDetector
         }
     }
 
-    private static GpuDetectionResult Combine(GpuDetectionResult primary, GpuDetectionResult fallback) => fallback.Status == GpuDetectionStatus.Inconclusive
-        ? primary with { Evidence = $"{primary.Evidence}; {fallback.Evidence}" }
-        : fallback with { Evidence = $"{primary.Evidence}; {fallback.Evidence}" };
+    private static GpuDetectionResult Combine(GpuDetectionResult primary, GpuDetectionResult fallback)
+    {
+        var selected = fallback.Status == GpuDetectionStatus.Inconclusive ? primary : fallback;
+        return selected with
+        {
+            Evidence = $"{primary.Evidence}; {fallback.Evidence}",
+            EnumeratedNvidiaEvidence = primary.EnumeratedNvidiaEvidence || fallback.EnumeratedNvidiaEvidence,
+        };
+    }
 
     internal static bool IsNvidia(GpuAdapterInfo adapter) => adapter.DisplayName.Contains("NVIDIA", StringComparison.OrdinalIgnoreCase)
         || adapter.AdapterId?.Contains("VEN_10DE", StringComparison.OrdinalIgnoreCase) == true;
+
+    internal static bool IsPhysicalAdapter(GpuAdapterInfo adapter) => !adapter.IsSoftwareAdapter && !IsRemoteVirtualOrSoftware(adapter.DisplayName);
+
+    internal static bool IsRemoteVirtualOrSoftware(string displayName)
+    {
+        var normalized = displayName.Trim();
+        return normalized.Contains("basic render", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("remote display", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("remote adapter", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("virtualbox", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("vmware", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("virtual", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("software", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("virtual display", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("software adapter", StringComparison.OrdinalIgnoreCase);
+    }
 }
 
 internal sealed class WindowsDxgiAdapterEnumerator : IGpuAdapterEnumerator
