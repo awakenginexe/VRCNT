@@ -3,6 +3,7 @@ export { Appearance, MessageLogUiScalingContainer } from "./appearance/Appearanc
 export { Translation } from "./translation/Translation";
 export { Transcription } from "./transcription/Transcription";
 export { Others, VrcMicMuteSyncContainer } from "./others/Others";
+export { RuntimeSettings } from "./others/RuntimeSettings";
 export { AdvancedSettings } from "./advanced_settings/AdvancedSettings";
 export { Vr } from "./vr/Vr";
 export { Hotkeys } from "./hotkeys/Hotkeys";

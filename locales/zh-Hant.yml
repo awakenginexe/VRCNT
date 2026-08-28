@@ -1156,6 +1156,22 @@ config_page:
         quick_wake_up:
             label: "快速喚醒"
             desc: "下次啟動 VRCNT 時，恢復 Translation、Speaking 和 Listening 狀態。"
+        runtime:
+            label: "執行階段"
+            desc: "選擇由 VRCNT Setup 安裝的純 CPU 或 NVIDIA CUDA 執行階段。"
+            loading: "正在檢查已安裝的執行階段…"
+            current: "目前執行階段：{{variant}}"
+            cpu: "CPU"
+            cuda: "NVIDIA CUDA"
+            switch_to: "切換至 {{variant}}"
+            restart_notice: "切換期間 VRCNT 將會關閉，並在 Setup 驗證新執行階段後重新啟動。"
+            recovery: "VRCNT 無法驗證已安裝的執行階段。請先執行 VRCNT Setup 復原，再進行切換。"
+            switch_failed: "VRCNT 無法啟動受信任的 Setup 管理程式。請重試或執行 Setup 復原。"
+            switch_started: "VRCNT Setup 已開始切換執行階段。在 Setup 要求關閉前，請保持 VRCNT 開啟。"
+            confirmation_title: "要切換 VRCNT 執行階段嗎？"
+            confirmation_detail: "Setup 會在關閉 VRCNT 前下載並驗證 {{variant}} 執行階段。"
+            cancel: "取消"
+            confirm: "開始切換"
         start_with_vrchat:
             label: "隨 VRChat 啟動"
             desc: "VRChat 啟動時自動啟動 VRCNT。"

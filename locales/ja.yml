@@ -1156,6 +1156,22 @@ config_page:
         quick_wake_up:
             label: "クイック起動"
             desc: "次回 VRCNT を起動したときに、Translation、Speaking、Listening の状態を復元します。"
+        runtime:
+            label: "ランタイム"
+            desc: "VRCNT Setup でインストールする CPU 専用または NVIDIA CUDA ランタイムを選択します。"
+            loading: "インストール済みランタイムを確認しています…"
+            current: "現在のランタイム: {{variant}}"
+            cpu: "CPU"
+            cuda: "NVIDIA CUDA"
+            switch_to: "{{variant}} に切り替える"
+            restart_notice: "Setup が新しいランタイムを検証した後、切り替え中に VRCNT は終了して再起動します。"
+            recovery: "インストール済みランタイムを検証できませんでした。切り替える前に VRCNT Setup の回復を実行してください。"
+            switch_failed: "信頼された Setup マネージャーを開始できませんでした。もう一度試すか、Setup の回復を実行してください。"
+            switch_started: "VRCNT Setup がランタイムの切り替えを開始しました。Setup が終了を要求するまで VRCNT を開いたままにしてください。"
+            confirmation_title: "VRCNT ランタイムを切り替えますか？"
+            confirmation_detail: "VRCNT を終了する前に、Setup が {{variant}} ランタイムをダウンロードして検証します。"
+            cancel: "キャンセル"
+            confirm: "切り替えを開始"
         start_with_vrchat:
             label: "VRChat と同時に起動"
             desc: "VRChat の起動時に VRCNT を自動的に起動します。"

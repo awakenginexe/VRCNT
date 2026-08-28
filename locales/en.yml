@@ -1156,6 +1156,22 @@ config_page:
         quick_wake_up:
             label: "Quick Wake Up"
             desc: "Restore Translation, Speaking, and Listening states the next time VRCNT launches."
+        runtime:
+            label: "Runtime"
+            desc: "Choose the CPU-only or NVIDIA CUDA runtime installed by VRCNT Setup."
+            loading: "Checking the installed runtime…"
+            current: "Current runtime: {{variant}}"
+            cpu: "CPU"
+            cuda: "NVIDIA CUDA"
+            switch_to: "Switch to {{variant}}"
+            restart_notice: "VRCNT will close during the switch and restart after Setup verifies the new runtime."
+            recovery: "VRCNT could not verify the installed runtime. Run VRCNT Setup recovery before switching."
+            switch_failed: "VRCNT could not start the trusted setup manager. Please try again or run Setup recovery."
+            switch_started: "VRCNT Setup has started the runtime switch. Keep VRCNT open until Setup requests shutdown."
+            confirmation_title: "Switch VRCNT runtime?"
+            confirmation_detail: "Setup will download and verify the {{variant}} runtime before VRCNT is closed."
+            cancel: "Cancel"
+            confirm: "Start switch"
         start_with_vrchat:
             label: "Start with VRChat"
             desc: "Launch VRCNT automatically when VRChat starts."

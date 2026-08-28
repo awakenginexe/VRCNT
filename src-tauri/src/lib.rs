@@ -14,6 +14,7 @@ use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
 
 pub mod font_packs;
 pub mod runtime_activation;
+pub mod runtime_manager;
 
 const BACKGROUND_STARTUP_ARGUMENT: &str = "--vrcnt-background";
 const VRCHAT_PROCESS_NAME: &str = "VRChat.exe";
@@ -270,6 +271,8 @@ pub fn run() {
             consume_resident_activation,
             get_runtime_activation_context,
             signal_runtime_activation_ready,
+            runtime_manager::get_runtime_state,
+            runtime_manager::launch_runtime_switch,
             font_packs::download_optional_font_pack,
             font_packs::cancel_optional_font_pack,
             font_packs::resolve_managed_font_assets,

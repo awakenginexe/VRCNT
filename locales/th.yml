@@ -1157,6 +1157,22 @@ config_page:
         quick_wake_up:
             label: "ปลุกอย่างรวดเร็ว"
             desc: "คืนค่าสถานะ Translation, Speaking และ Listening เมื่อเปิด VRCNT ในครั้งถัดไป"
+        runtime:
+            label: "รันไทม์"
+            desc: "เลือกรันไทม์ CPU เท่านั้นหรือ NVIDIA CUDA ที่ติดตั้งโดย VRCNT Setup"
+            loading: "กำลังตรวจสอบรันไทม์ที่ติดตั้ง…"
+            current: "รันไทม์ปัจจุบัน: {{variant}}"
+            cpu: "CPU"
+            cuda: "NVIDIA CUDA"
+            switch_to: "เปลี่ยนเป็น {{variant}}"
+            restart_notice: "VRCNT จะปิดระหว่างการเปลี่ยนและเริ่มใหม่หลังจาก Setup ตรวจสอบรันไทม์ใหม่แล้ว"
+            recovery: "VRCNT ไม่สามารถตรวจสอบรันไทม์ที่ติดตั้งได้ โปรดเรียกใช้การกู้คืนจาก VRCNT Setup ก่อนเปลี่ยน"
+            switch_failed: "VRCNT ไม่สามารถเริ่มตัวจัดการ Setup ที่เชื่อถือได้ โปรดลองอีกครั้งหรือเรียกใช้การกู้คืนจาก Setup"
+            switch_started: "VRCNT Setup เริ่มการเปลี่ยนรันไทม์แล้ว โปรดเปิด VRCNT ไว้จนกว่า Setup จะขอให้ปิด"
+            confirmation_title: "เปลี่ยนรันไทม์ของ VRCNT หรือไม่?"
+            confirmation_detail: "Setup จะดาวน์โหลดและตรวจสอบรันไทม์ {{variant}} ก่อนปิด VRCNT"
+            cancel: "ยกเลิก"
+            confirm: "เริ่มการเปลี่ยน"
         start_with_vrchat:
             label: "เริ่มพร้อม VRChat"
             desc: "เปิด VRCNT โดยอัตโนมัติเมื่อ VRChat เริ่มทำงาน"
