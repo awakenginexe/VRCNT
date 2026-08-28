@@ -32,15 +32,20 @@ public sealed class ManifestLoader(IManifestSignatureVerifier verifier) : IManif
 
     private static void Validate(PackageManifest manifest, string expectedVersion)
     {
-        if (manifest.Schema != 1 || !string.Equals(manifest.Product, "VRCNT", StringComparison.Ordinal) ||
+        if (manifest.Schema != 2 || !string.Equals(manifest.Product, "VRCNT", StringComparison.Ordinal) ||
             !string.Equals(manifest.Version, expectedVersion, StringComparison.Ordinal) || !string.Equals(manifest.Architecture, "x64", StringComparison.Ordinal))
             throw new InvalidDataException("Package manifest identity does not match this installer.");
+        if (manifest.Bootstrapper is null || !string.Equals(manifest.Bootstrapper.Name, $"VRCNT_{expectedVersion}_Setup.exe", StringComparison.Ordinal) ||
+            !IsSafeAssetName(manifest.Bootstrapper.Name) || manifest.Bootstrapper.Size <= 0 || !IsSha256(manifest.Bootstrapper.Sha256) ||
+            manifest.Bootstrapper.ManagerProtocol <= 0 || manifest.Bootstrapper.ManifestSchema != manifest.Schema ||
+            manifest.Bootstrapper.RuntimeStateSchema <= 0 || manifest.Bootstrapper.ActivationProtocol <= 0)
+            throw new InvalidDataException("Package manifest bootstrapper metadata is invalid.");
         if (manifest.Variants is null || manifest.Variants.Count == 0) throw new InvalidDataException("Package manifest has no variants.");
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (key, package) in manifest.Variants)
         {
-            if (!TryVariant(key, out var variant) || package is null || package.Parts is null || package.Parts.Count == 0 ||
-                package.Identity is null || !string.Equals(package.MarkerPath, "VRCNT.runtime.json", StringComparison.Ordinal) ||
+            if (!TryVariant(key, out var variant) || package is null || !string.Equals(package.ArchiveFormat, "7z", StringComparison.Ordinal) || package.Parts is null || package.Parts.Count == 0 ||
+                package.CompressedSize <= 0 || package.InstalledSize <= 0 || package.Identity is null || !string.Equals(package.MarkerPath, "VRCNT.runtime.json", StringComparison.Ordinal) ||
                 string.IsNullOrWhiteSpace(package.Identity.BuildIdentity) || !IsSha256(package.Identity.MarkerSha256) || package.RequiresNvidia != (variant == RuntimeVariant.Cuda) ||
                 package.Identity.Variant != variant || !string.Equals(package.Identity.Product, manifest.Product, StringComparison.Ordinal) ||
                 !string.Equals(package.Identity.Version, manifest.Version, StringComparison.Ordinal) || !string.Equals(package.Identity.Architecture, manifest.Architecture, StringComparison.Ordinal))
@@ -50,6 +55,8 @@ public sealed class ManifestLoader(IManifestSignatureVerifier verifier) : IManif
                 if (!IsSafeAssetName(part.Name) || !names.Add(part.Name) || part.Size <= 0 || part.Size >= MaxGitHubAssetBytes || !IsSha256(part.Sha256))
                     throw new InvalidDataException($"Package part '{part.Name}' is invalid.");
             }
+            if (package.CompressedSize != package.Parts.Sum(part => part.Size))
+                throw new InvalidDataException($"Package manifest variant '{key}' has an invalid compressed size.");
         }
     }
 

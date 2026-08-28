@@ -12,6 +12,21 @@ public sealed class ManifestValidationTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
 
     [Fact]
+    public async Task LoadAndVerifyAsync_accepts_and_validates_signed_schema_two_manifest()
+    {
+        var manifest = CreateManifest(cpuParts: 1, cudaParts: 3) with { Schema = 2 };
+        var (manifestPath, signaturePath) = await WriteManifestAsync(manifest);
+
+        var verified = await new ManifestLoader(new AcceptingSignatureVerifier())
+            .LoadAndVerifyAsync(manifestPath, signaturePath, "5.15.0", default);
+
+        Assert.Equal(2, verified.Manifest.Schema);
+        Assert.Equal("VRCNT_5.15.0_Setup.exe", verified.Manifest.Bootstrapper.Name);
+        Assert.Single(verified.Manifest.Variants["cpu"].Parts);
+        Assert.Equal(3, verified.Manifest.Variants["cuda"].Parts.Count);
+    }
+
+    [Fact]
     public async Task LoadAndVerifyAsync_accepts_cpu_manifest_with_one_part()
     {
         var (manifestPath, signaturePath) = await WriteManifestAsync(CreateManifest(cpuParts: 1, cudaParts: 3));
@@ -109,8 +124,8 @@ public sealed class ManifestValidationTests : IDisposable
             variant == RuntimeVariant.Cuda, "VRCNT.runtime.json",
             new RuntimeIdentity("VRCNT", "5.15.0", variant, "x64", $"{prefix}-build", Hash(prefix)));
         }
-        return new PackageManifest(1, "VRCNT", "5.15.0", "x64",
-            new BootstrapperMetadata("VRCNT-setup.exe", 4, Hash("bootstrapper"), 1, 1, 1, 1),
+        return new PackageManifest(2, "VRCNT", "5.15.0", "x64",
+            new BootstrapperMetadata("VRCNT_5.15.0_Setup.exe", 4, Hash("bootstrapper"), 1, 2, 1, 1),
             new Dictionary<string, VariantPackage> { ["cpu"] = Variant("cpu", RuntimeVariant.Cpu, cpuParts), ["cuda"] = Variant("cuda", RuntimeVariant.Cuda, cudaParts) });
     }
 

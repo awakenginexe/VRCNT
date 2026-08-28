@@ -11,6 +11,8 @@ const read = (relativePath) => fs.readFileSync(path.join(repoRoot, relativePath)
 const workflow = read(".github/workflows/release.yml");
 const nsis = read("src-tauri/nsis/template.nsi");
 const helper = read("installer-helper/Program.cs");
+const manifestLoader = read("installer-helper/VRCNT.RuntimeCore/Manifest/ManifestLoader.cs");
+const minisignVerifier = read("installer-helper/VRCNT.RuntimeCore/Security/MinisignVerifier.cs");
 const tauriConfig = JSON.parse(read("src-tauri/tauri.conf.json"));
 const releaseConfig = JSON.parse(read("release.config.json"));
 
@@ -18,7 +20,9 @@ const releaseConfig = JSON.parse(read("release.config.json"));
 test("release distribution uses GitHub Releases without Hugging Face pipeline dependencies", () => {
     assert.equal(releaseConfig.githubOwner, "awakenginexe");
     assert.equal(releaseConfig.githubRepo, "VRCNT");
-    assert.equal(releaseConfig.packagePartCount, 3);
+    assert.equal(Object.hasOwn(releaseConfig, "packagePartCount"), false);
+    assert.equal(releaseConfig.packageNamePattern, "VRCNT_${version}_${variant}.7z");
+    assert.equal(releaseConfig.installerNamePattern, "VRCNT_${version}_Setup.exe");
     assert.ok(releaseConfig.maxAssetSizeBytes < 2 * 1024 ** 3);
     assert.doesNotMatch(workflow, /huggingface|HF_TOKEN|hf_hub_download|hf-xet/i);
     assert.doesNotMatch(nsis, /huggingface|Invoke-WebRequest|Expand-Archive/i);
@@ -60,27 +64,26 @@ test("updater endpoint moved to GitHub while the existing public key remains unc
         tauriConfig.plugins.updater.pubkey,
         "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY4NTYzNUI0QUI2RTI4RkMKUldUOEtHNnJ0RFZXYUt4L1cwOVhIL1NtZXJGQkxzZkVVYXMrWGJZQlZ5NFNPdldRMk9RdUkrVCsK",
     );
-    assert.match(helper, new RegExp(tauriConfig.plugins.updater.pubkey));
+    assert.match(minisignVerifier, new RegExp(tauriConfig.plugins.updater.pubkey));
     assert.equal(tauriConfig.bundle.createUpdaterArtifacts, true);
 });
 
 
-test("thin installer authenticates metadata before hashes and uses bundled 7za", () => {
+test("release helper uses the shared signed manifest loader before selecting variable parts", () => {
     assert.match(nsis, /VRCNT\.ReleaseHelper\.exe/);
     assert.match(nsis, /7za\.exe/);
     assert.match(nsis, /minisign\.exe/);
     assert.match(nsis, /\$EXEDIR/);
     assert.match(nsis, /VRCNTInstallerCache/);
-    assert.match(helper, /VerifyManifestSignature\(options, manifestPath, signaturePath\)/);
+    assert.match(helper, /new ManifestLoader\(new MinisignVerifier\(options\.MinisignPath\)\)\.LoadAndVerifyAsync/);
     assert.ok(
-        helper.indexOf("VerifyManifestSignature(options, manifestPath, signaturePath)") <
-        helper.indexOf("VerifyFileAsync(path, part)"),
-        "the manifest signature must be verified before package hashes",
+        helper.indexOf("LoadAndVerifyAsync") < helper.indexOf("verified.Manifest.Variants"),
+        "the manifest signature must be verified before selecting a package",
     );
-    assert.match(helper, /Task\.WhenAll\(tasks\)/);
-    assert.match(helper, /RangeHeaderValue/);
-    assert.match(helper, /\[download\].*total/s);
-    assert.match(helper, /SHA-256 mismatch/);
+    assert.match(helper, /package\.Parts\.All\(part => File\.Exists/);
+    assert.match(helper, /new RuntimeTransactionEngine\(/);
+    assert.doesNotMatch(helper, /ExtractToDirectory|Directory\.Delete\(options\.Destination/);
+    assert.match(manifestLoader, /manifest\.Schema != 2/);
 });
 
 
@@ -168,23 +171,29 @@ test("every PowerShell release workflow block parses successfully", () => {
 });
 
 
-test("multipart splitter creates exactly three recombinable parts and a complete manifest", () => {
+test("variant multipart splitter creates variable parts and a schema-two combined manifest", () => {
     const tempDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "vrcnt-release-test-"));
     try {
         const script = [
             "import json, pathlib, sys",
             `sys.path.insert(0, ${JSON.stringify(path.join(repoRoot, "utils"))})`,
-            "from release import split_exactly, write_manifest",
+            "from release import split_to_asset_limit, write_combined_manifest",
             `root = pathlib.Path(${JSON.stringify(tempDirectory)})`,
-            "archive = root / 'VRCNT_4.2.2.7z'",
-            "original = bytes(range(251)) * 4096",
-            "archive.write_bytes(original)",
-            "parts = split_exactly(archive, 3, 2_000_000_000)",
-            "assert len(parts) == 3",
-            "assert b''.join(part.read_bytes() for part in parts) == original",
-            "manifest = write_manifest('4.2.2', parts, root / 'package-manifest.json')",
-            "assert [part['name'] for part in manifest['files']] == ['VRCNT_4.2.2.7z.001', 'VRCNT_4.2.2.7z.002', 'VRCNT_4.2.2.7z.003']",
-            "assert all(len(part['sha256']) == 64 for part in manifest['files'])",
+            "def metadata(directory, variant, parts):",
+            "  entries = [{'name': part.name, 'size': part.stat().st_size, 'sha256': __import__('hashlib').sha256(part.read_bytes()).hexdigest()} for part in parts]",
+            "  (directory / 'package-metadata.json').write_text(json.dumps({'variant': variant, 'archiveFormat': '7z', 'compressedSize': sum(item['size'] for item in entries), 'installedSize': 42, 'parts': entries, 'requiresNvidia': variant == 'cuda', 'markerPath': 'VRCNT.runtime.json', 'identity': {'product': 'VRCNT', 'version': '4.2.2', 'variant': variant.title(), 'architecture': 'x64', 'buildIdentity': variant + '-fixture', 'markerSha256': 'a' * 64}}))",
+            "cpu = root / 'cpu'; cuda = root / 'cuda'; cpu.mkdir(); cuda.mkdir()",
+            "cpu_archive = cpu / 'VRCNT_4.2.2_CPU.7z'; cuda_archive = cuda / 'VRCNT_4.2.2_CUDA.7z'",
+            "cpu_archive.write_bytes(b'cpu'); cuda_archive.write_bytes(b'cuda-payload')",
+            "cpu_parts = split_to_asset_limit(cpu_archive, 4); cuda_parts = split_to_asset_limit(cuda_archive, 5)",
+            "assert len(cpu_parts) == 1; assert len(cuda_parts) == 3",
+            "metadata(cpu, 'cpu', cpu_parts); metadata(cuda, 'cuda', cuda_parts)",
+            "setup = root / 'VRCNT_4.2.2_Setup.exe'; setup.write_bytes(b'setup')",
+            "manifest = write_combined_manifest('4.2.2', cpu, cuda, setup, root / 'package-manifest.json')",
+            "assert manifest['schema'] == 2",
+            "assert manifest['bootstrapper']['name'] == 'VRCNT_4.2.2_Setup.exe'",
+            "assert len(manifest['variants']['cpu']['parts']) == 1",
+            "assert len(manifest['variants']['cuda']['parts']) == 3",
         ].join("\n");
         const result = spawnSync("python", ["-c", script], { encoding: "utf8" });
         assert.equal(result.status, 0, result.stderr);

@@ -13,7 +13,6 @@ class ReleaseConfig:
     github_owner: str
     github_repo: str
     package_name_pattern: str
-    package_part_count: int
     max_asset_size_bytes: int
     package_manifest_asset_name: str
     hashes_asset_name: str
@@ -25,13 +24,12 @@ class ReleaseConfig:
         return cls(
             github_owner=PLACEHOLDER_OWNER,
             github_repo=PLACEHOLDER_REPO,
-            package_name_pattern="VRCNT_${version}.7z",
-            package_part_count=3,
+            package_name_pattern="VRCNT_${version}_${variant}.7z",
             max_asset_size_bytes=2_000_000_000,
             package_manifest_asset_name="package-manifest.json",
             hashes_asset_name="SHA256SUMS.txt",
             latest_json_asset_name="latest.json",
-            installer_name_pattern="VRCNT_${version}_x64-setup.exe",
+            installer_name_pattern="VRCNT_${version}_Setup.exe",
         )
 
     @property
@@ -41,8 +39,14 @@ class ReleaseConfig:
             PLACEHOLDER_REPO,
         )
 
-    def package_name(self, version):
-        return Template(self.package_name_pattern).safe_substitute(version=str(version).lstrip("v"))
+    def package_name(self, version, variant):
+        normalized_variant = str(variant).strip().lower()
+        if normalized_variant not in {"cpu", "cuda"}:
+            raise ValueError(f"Unsupported runtime package variant: {variant}")
+        return Template(self.package_name_pattern).safe_substitute(
+            version=str(version).lstrip("v"),
+            variant=normalized_variant.upper(),
+        )
 
     def installer_name(self, version):
         return Template(self.installer_name_pattern).safe_substitute(version=str(version).lstrip("v"))
@@ -82,7 +86,6 @@ def load_release_config(root=None):
         github_owner=str(data.get("githubOwner", fallback.github_owner)).strip(),
         github_repo=str(data.get("githubRepo", fallback.github_repo)).strip(),
         package_name_pattern=str(data.get("packageNamePattern", fallback.package_name_pattern)).strip(),
-        package_part_count=int(data.get("packagePartCount", fallback.package_part_count)),
         max_asset_size_bytes=int(data.get("maxAssetSizeBytes", fallback.max_asset_size_bytes)),
         package_manifest_asset_name=str(
             data.get("packageManifestAssetName", fallback.package_manifest_asset_name)
