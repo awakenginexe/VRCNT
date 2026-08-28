@@ -12,10 +12,16 @@ public sealed record SetupCommandLineOptions(
     RuntimeVariant? Variant,
     string? InstallPath,
     string? CurrentAppPath,
-    IReadOnlyList<string> CurrentAppArguments);
+    IReadOnlyList<string> CurrentAppArguments,
+    string? InstallerLanguage);
 
 public static class SetupCommandLine
 {
+    private static readonly HashSet<string> SupportedInstallerLanguages = new(StringComparer.Ordinal)
+    {
+        "en", "ja", "ko", "th", "zh-Hant", "zh-Hans",
+    };
+
     public static SetupCommandLineOptions Parse(IReadOnlyList<string> args)
     {
         var isUpdate = false;
@@ -26,6 +32,7 @@ public static class SetupCommandLine
         RuntimeVariant? variant = null;
         string? installPath = null;
         string? currentAppPath = null;
+        string? installerLanguage = null;
         var currentAppArguments = new List<string>();
 
         for (var index = 0; index < args.Count; index++)
@@ -62,13 +69,20 @@ public static class SetupCommandLine
                 currentAppArguments.Add(NextValue(args, ref index, "--current-app-arg"));
                 continue;
             }
+            if (argument.Equals("--installer-language", StringComparison.OrdinalIgnoreCase))
+            {
+                installerLanguage = NextValue(args, ref index, "--installer-language");
+                if (!SupportedInstallerLanguages.Contains(installerLanguage))
+                    throw new ArgumentException("--installer-language must be a supported VRCNT language.", nameof(args));
+                continue;
+            }
             throw new ArgumentException($"Unknown setup manager argument '{argument}'.", nameof(args));
         }
 
         if (isSwitch && variant is null) throw new ArgumentException("--switch requires --variant cpu|cuda.", nameof(args));
         if (variant is not null && !isSwitch) throw new ArgumentException("--variant is only valid with --switch.", nameof(args));
         if (isManagerRepairWorker && !isRepairManager) throw new ArgumentException("--manager-repair-worker requires --repair-manager.", nameof(args));
-        return new SetupCommandLineOptions(isUpdate, isPassive, isSwitch, isRepairManager, isManagerRepairWorker, variant, installPath, currentAppPath, currentAppArguments);
+        return new SetupCommandLineOptions(isUpdate, isPassive, isSwitch, isRepairManager, isManagerRepairWorker, variant, installPath, currentAppPath, currentAppArguments, installerLanguage);
     }
 
     public static bool ShouldShowUi(SetupCommandLineOptions options) => !options.IsPassive;

@@ -16,10 +16,17 @@
     <AssemblyVersion>5.15.0.0</AssemblyVersion>
     <FileVersion>5.15.0.0</FileVersion>
     <SetupToolSourceDirectory Condition="'$(SetupToolSourceDirectory)' == ''">$(MSBuildProjectDirectory)\..\..\src-tauri\nsis\bin</SetupToolSourceDirectory>
+    <InstallerLocalesOutput>$(BaseIntermediateOutputPath)Generated\InstallerLocales.json</InstallerLocalesOutput>
+    <InstallerLocalesGenerator>$(MSBuildProjectDirectory)\..\..\scripts\generate_installer_locales.py</InstallerLocalesGenerator>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\VRCNT.RuntimeCore\VRCNT.RuntimeCore.csproj" />
+    <EmbeddedResource Include="$(InstallerLocalesOutput)" LogicalName="VRCNT.Setup.InstallerLocales.json" />
   </ItemGroup>
+  <Target Name="GenerateInstallerLocales" BeforeTargets="PrepareResources">
+    <MakeDir Directories="$(BaseIntermediateOutputPath)Generated" />
+    <Exec Command="python &quot;$(InstallerLocalesGenerator)&quot; --output &quot;$(InstallerLocalesOutput)&quot;" />
+  </Target>
   <ItemGroup>
     <AuthenticatedSetupTool Include="$(SetupToolSourceDirectory)\minisign.exe" />
     <AuthenticatedSetupTool Include="$(SetupToolSourceDirectory)\7za.exe" />
