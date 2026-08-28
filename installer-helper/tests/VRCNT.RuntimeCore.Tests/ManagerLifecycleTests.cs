@@ -394,6 +394,21 @@ public sealed class ManagerLifecycleTests : IDisposable
     }
 
     [Fact]
+    public async Task Repair_rejects_forged_matching_metadata_when_signature_path_is_null()
+    {
+        var managerPath = WriteFile(Path.Combine("VRCNTInstaller", "VRCNT.Setup.exe"), "old-manager");
+        var candidatePath = WriteFile(Path.Combine("VRCNTInstaller", "repair", "VRCNT.Setup.exe"), "new-manager");
+        var source = new FixedUpdateSource(new VerifiedManagerUpdate(candidatePath, null!));
+        var lifecycle = CreateLifecycle(managerPath, CreateManifest(managerBytes: "new-manager"), CreateStateStore(managerPath), source);
+
+        var result = await lifecycle.RepairAsync(new Uri("https://example.test/latest.json"), default);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("manager_signature_missing", result.FailureCode);
+        Assert.Equal("old-manager", await File.ReadAllTextAsync(managerPath));
+    }
+
+    [Fact]
     public void Published_layout_requires_and_copies_both_authenticated_tool_inputs_for_a_worker()
     {
         var source = Path.Combine(_root, "published");
@@ -401,11 +416,24 @@ public sealed class ManagerLifecycleTests : IDisposable
         WriteFile(Path.Combine("published", "minisign.exe"), "verified-minisign");
         WriteFile(Path.Combine("published", "7za.exe"), "verified-7za");
 
-        var layout = SetupToolLayout.Require(source);
-        SetupToolLayout.CopyToWorker(layout, worker);
+        var layout = SetupToolLayout.CreateTestFixture(source);
+        SetupToolLayout.CopyToWorkerForTest(layout, worker);
 
         Assert.Equal("verified-minisign", File.ReadAllText(Path.Combine(worker, "minisign.exe")));
         Assert.Equal("verified-7za", File.ReadAllText(Path.Combine(worker, "7za.exe")));
+    }
+
+    [Fact]
+    public void Production_tool_layout_rejects_a_tampered_source_before_copy()
+    {
+        var source = Path.Combine(_root, "tampered-published");
+        WriteFile(Path.Combine("tampered-published", "minisign.exe"), "tampered-minisign");
+        WriteFile(Path.Combine("tampered-published", "7za.exe"), "tampered-7za");
+
+        Assert.Throws<CryptographicException>(() => SetupToolLayout.Require(source));
+        Assert.Throws<CryptographicException>(() => SetupToolLayout.CopyToWorker(
+            new SetupToolLayout(Path.Combine(source, "minisign.exe"), Path.Combine(source, "7za.exe")),
+            Path.Combine(_root, "tampered-worker")));
     }
 
     public void Dispose()
@@ -461,8 +489,8 @@ public sealed class ManagerLifecycleTests : IDisposable
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
 
     private static Task PromoteCandidateAsync(ManagerHandoff handoff, string candidatePath) => handoff.PromoteAsync(
-        candidatePath,
-        new ManagerArtifactExpectation(
+        new VerifiedManagerArtifact(
+            candidatePath,
             new BootstrapperMetadata("VRCNT.Setup.exe", Encoding.UTF8.GetByteCount("new-manager"), Hash("new-manager"), 1, 1, 1, 1),
             candidatePath + ".sig",
             new ManagerSelfCheck(ManagerCapabilities.Current, new FixedSignatureVerifier(true))),
@@ -472,6 +500,11 @@ public sealed class ManagerLifecycleTests : IDisposable
     {
         public Task<VerifiedManagerUpdate> AcquireAsync(Uri latestJsonUri, CancellationToken cancellationToken) =>
             Task.FromResult(new VerifiedManagerUpdate(candidatePath, candidatePath + ".sig"));
+    }
+
+    private sealed class FixedUpdateSource(VerifiedManagerUpdate update) : IManagerRepairSource
+    {
+        public Task<VerifiedManagerUpdate> AcquireAsync(Uri latestJsonUri, CancellationToken cancellationToken) => Task.FromResult(update);
     }
 
     private sealed class FixedSignatureVerifier(bool succeeds) : ISetupSignatureVerifier

@@ -24,13 +24,22 @@ public sealed record VerifiedManagerUpdate(
     BootstrapperMetadata? Bootstrapper = null,
     PackageManifest? Manifest = null);
 
-public sealed record ManagerArtifactExpectation(
+internal sealed record ManagerArtifactExpectation(
     BootstrapperMetadata Bootstrapper,
     string SignaturePath,
     ManagerSelfCheck SelfCheck)
 {
     public long Size => Bootstrapper.Size;
     public string Sha256 => Bootstrapper.Sha256;
+}
+
+internal sealed record VerifiedManagerArtifact(
+    string SetupPath,
+    BootstrapperMetadata Bootstrapper,
+    string SignaturePath,
+    ManagerSelfCheck SelfCheck)
+{
+    public ManagerArtifactExpectation Expectation => new(Bootstrapper, SignaturePath, SelfCheck);
 }
 
 public interface IManagerRepairSource
@@ -58,20 +67,22 @@ public sealed class ManagerHandoff
 
     private readonly Func<string, CancellationToken, Task<ManagerSelfCheckResult>> _candidateSelfCheck;
 
-    public async Task PromoteAsync(
-        string verifiedSetupPath,
-        ManagerArtifactExpectation expectedArtifact,
+    internal async Task PromoteAsync(
+        VerifiedManagerArtifact artifact,
         CancellationToken cancellationToken)
-        => await PromoteAsync(verifiedSetupPath, expectedArtifact, _candidateSelfCheck, _newManagerSelfCheck, cancellationToken);
+        => await PromoteAsync(artifact, _candidateSelfCheck, _newManagerSelfCheck, cancellationToken);
 
-    public async Task PromoteAsync(
-        string verifiedSetupPath,
-        ManagerArtifactExpectation expectedArtifact,
+    internal async Task PromoteAsync(
+        VerifiedManagerArtifact artifact,
         Func<string, CancellationToken, Task<ManagerSelfCheckResult>> candidateSelfCheck,
         Func<string, CancellationToken, Task<ManagerSelfCheckResult>> promotedSelfCheck,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(expectedArtifact);
+        ArgumentNullException.ThrowIfNull(artifact);
+        if (string.IsNullOrWhiteSpace(artifact.SignaturePath))
+            throw new ManagerHandoffException("A verified manager artifact must include its setup signature.", "manager_signature_missing");
+        var expectedArtifact = artifact.Expectation;
+        var verifiedSetupPath = artifact.SetupPath;
         var candidatePath = Path.GetFullPath(verifiedSetupPath);
         EnsureSameVolume(candidatePath, _stableManagerPath);
         EnsureStagedBelowManagerDirectory(candidatePath, _stableManagerPath);
@@ -296,6 +307,8 @@ public sealed class SetupManagerLifecycle : IManagerLifecycle
         try
         {
             var update = await _repairSource.AcquireAsync(latestJsonUri, cancellationToken);
+            if (string.IsNullOrWhiteSpace(update.SignaturePath))
+                return new ManagerRepairResult(false, null, "manager_signature_missing");
             var expectedManifest = update.Manifest ?? _manifest ?? throw new InvalidDataException("Signed manager metadata is required for repair.");
             var expectedBootstrapper = update.Bootstrapper ?? expectedManifest.Bootstrapper;
             var candidateCheck = await _selfCheck.CheckAsync(update.SetupPath, expectedBootstrapper, update.SignaturePath, cancellationToken);
@@ -303,8 +316,7 @@ public sealed class SetupManagerLifecycle : IManagerLifecycle
                 return new ManagerRepairResult(false, null, candidateCheck.FailureCode);
 
             await _handoff.PromoteAsync(
-                update.SetupPath,
-                new ManagerArtifactExpectation(expectedBootstrapper, update.SignaturePath, _selfCheck),
+                new VerifiedManagerArtifact(update.SetupPath, expectedBootstrapper, update.SignaturePath, _selfCheck),
                 (path, _) => _selfCheck.CheckAsync(path, expectedBootstrapper, update.SignaturePath, cancellationToken),
                 (path, _) => _selfCheck.CheckAsync(path, expectedBootstrapper, update.SignaturePath, cancellationToken),
                 cancellationToken);
@@ -350,16 +362,6 @@ public sealed class SetupManagerLifecycle : IManagerLifecycle
         Task.FromException(new ManagerHandoffException(
             "Promotion requires signed bootstrapper metadata and its setup signature.",
             "signed_metadata_required"));
-
-    public Task PromoteAsync(
-        string verifiedSetupPath,
-        BootstrapperMetadata expectedBootstrapper,
-        string signaturePath,
-        CancellationToken cancellationToken) =>
-        _handoff.PromoteAsync(
-            verifiedSetupPath,
-            new ManagerArtifactExpectation(expectedBootstrapper, signaturePath, _selfCheck),
-            cancellationToken);
 
 }
 
