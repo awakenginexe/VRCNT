@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime};
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 
 const DATA_ROOT_NAME: &str = "VRCNTData";
 const MANAGER_DIRECTORY_NAME: &str = "VRCNTInstaller";
@@ -83,6 +83,16 @@ impl RuntimeSwitchState {
     }
 
     fn recover_abandoned_pre_quiesce_handoff(&self) -> Result<bool, String> {
+        self.recover_abandoned_pre_quiesce_handoff_with_after_recovery(|| {})
+    }
+
+    fn recover_abandoned_pre_quiesce_handoff_with_after_recovery<F>(
+        &self,
+        after_recovery: F,
+    ) -> Result<bool, String>
+    where
+        F: FnOnce(),
+    {
         let handoff = self
             .handoff
             .lock()
@@ -97,29 +107,20 @@ impl RuntimeSwitchState {
         let recovered =
             recover_abandoned_runtime_switch(&handoff, SystemTime::now(), is_process_alive)?;
         if recovered {
-            self.clear();
+            after_recovery();
+            let _ = self.clear_if_matches(&handoff)?;
             return Ok(true);
         }
-        let terminal_matches_handoff = read_runtime_switch_status(&handoff.status_path)
-            .map(|status| {
+        let terminal = read_runtime_switch_status(&handoff.status_path)
+            .ok()
+            .filter(|status| {
                 matches!(
                     status.status.as_str(),
                     "succeeded" | "failed" | "cancelled" | "stale"
-                ) && status.nonce == handoff.nonce
-                    && status.target_variant == handoff.target_variant
-                    && status.lease_generation == handoff.lease_generation
-                    && status.token_sha256 == hash(&handoff.token)
-                    && status.proof_sha256 == handoff.proof
-                    && paths_equal(
-                        Path::new(&status.current_app_path),
-                        &handoff.current_app_path,
-                    )
-                    && paths_equal(Path::new(&status.install_path), &handoff.install_path)
-            })
-            .unwrap_or(false);
-        if terminal_matches_handoff {
-            self.clear();
-            return Ok(true);
+                ) && handoff_matches_record(&handoff, status)
+            });
+        if let Some(terminal) = terminal {
+            return self.clear_if_owns_status(&terminal);
         }
         Ok(false)
     }
@@ -233,36 +234,48 @@ impl RuntimeSwitchState {
         }))
     }
 
-    fn owns_status(&self, status: &RuntimeSwitchStatusRecord) -> Result<bool, String> {
-        let handoff = self
+    fn clear_if_matches(&self, expected: &RuntimeSwitchHandoff) -> Result<bool, String> {
+        let mut current = self
             .handoff
             .lock()
             .map_err(|_| "Runtime switch state is unavailable.".to_owned())?;
-        let Some(handoff) = handoff.as_ref() else {
+        if current
+            .as_ref()
+            .map(|active| handoffs_match(active, expected))
+            != Some(true)
+        {
             return Ok(false);
-        };
-        Ok(status.nonce == handoff.nonce
-            && status.target_variant == handoff.target_variant
-            && status.lease_generation == handoff.lease_generation
-            && status.token_sha256 == hash(&handoff.token)
-            && status.proof_sha256 == handoff.proof
-            && paths_equal(
-                Path::new(&status.current_app_path),
-                &handoff.current_app_path,
-            )
-            && paths_equal(Path::new(&status.install_path), &handoff.install_path))
-    }
-
-    fn clear(&self) {
-        if let Ok(mut handoff) = self.handoff.lock() {
-            *handoff = None;
         }
+        *current = None;
         self.shutdown_authorized
             .store(false, std::sync::atomic::Ordering::SeqCst);
         self.shutdown_requested
             .store(false, std::sync::atomic::Ordering::SeqCst);
         self.shutdown_request_delivered
             .store(false, std::sync::atomic::Ordering::SeqCst);
+        Ok(true)
+    }
+
+    fn clear_if_owns_status(&self, status: &RuntimeSwitchStatusRecord) -> Result<bool, String> {
+        let mut current = self
+            .handoff
+            .lock()
+            .map_err(|_| "Runtime switch state is unavailable.".to_owned())?;
+        if current
+            .as_ref()
+            .map(|handoff| handoff_matches_record(handoff, status))
+            != Some(true)
+        {
+            return Ok(false);
+        }
+        *current = None;
+        self.shutdown_authorized
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+        self.shutdown_requested
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+        self.shutdown_request_delivered
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+        Ok(true)
     }
 }
 
@@ -523,7 +536,7 @@ pub fn launch_runtime_switch(
         Ok(child) => child,
         Err(_) => {
             let _ = clear_runtime_switch_request(&handoff);
-            switch_state.clear();
+            let _ = switch_state.clear_if_matches(&handoff);
             return Err(
             "VRCNT could not launch the trusted setup manager. Run Setup recovery and try again."
                 .to_owned(),
@@ -548,7 +561,7 @@ pub fn complete_runtime_switch_shutdown(
 ) -> Result<(), String> {
     let handoff = switch_state.verify_shutdown_acknowledgement(&nonce, &token)?;
     if let Err(error) = validate_shutdown_request_status(&handoff) {
-        switch_state.clear();
+        let _ = switch_state.clear_if_matches(&handoff);
         return Err(error);
     }
     write_handoff_status(&handoff, "shutdown_acknowledged", None, None)?;
@@ -580,10 +593,7 @@ pub fn get_runtime_switch_status(
     };
     let status: RuntimeSwitchStatusRecord = match serde_json::from_slice(&contents) {
         Ok(status) => status,
-        Err(_) => {
-            switch_state.clear();
-            return Ok(stale_switch_status("malformed_switch_status"));
-        }
+        Err(_) => return Ok(stale_switch_status("malformed_switch_status")),
     };
     if switch_state.recover_abandoned_pre_quiesce_handoff()? {
         return Ok(stale_switch_status("manager_unavailable"));
@@ -594,7 +604,6 @@ pub fn get_runtime_switch_status(
         || !is_sha256(&status.token_sha256)
         || status.current_app_path.trim().is_empty()
     {
-        switch_state.clear();
         return Ok(stale_switch_status("invalid_switch_status"));
     }
     if status.consumed_at_utc.is_some() {
@@ -612,16 +621,12 @@ pub fn get_runtime_switch_status(
             | "cancelled"
             | "stale"
     ) {
-        switch_state.clear();
         return Ok(stale_switch_status("unknown_switch_status"));
     }
     if status.status == "shutdown_requested" {
         let event = match switch_state.deliver_shutdown_request(&status) {
             Ok(event) => event,
-            Err(error) => {
-                switch_state.clear();
-                return Err(error);
-            }
+            Err(error) => return Err(error),
         };
         if let Some(event) = event {
             app.emit(RUNTIME_SWITCH_REQUESTED_EVENT, event)
@@ -634,10 +639,9 @@ pub fn get_runtime_switch_status(
         status.status.as_str(),
         "succeeded" | "failed" | "cancelled" | "stale"
     ) {
-        if !switch_state.owns_status(&status)? {
+        if !switch_state.clear_if_owns_status(&status)? {
             return Ok(stale_switch_status("terminal_receipt_requires_consumption"));
         }
-        switch_state.clear();
     }
     Ok(RuntimeSwitchStatusDto {
         status: status.status,
@@ -1032,7 +1036,7 @@ fn begin_runtime_switch(
             token,
             target_variant: target.to_owned(),
             proof,
-            status_path,
+            status_path: status_path.clone(),
             current_app_path: current_app_path.to_path_buf(),
             install_path: install_path.to_path_buf(),
             lease_generation,
@@ -2040,19 +2044,23 @@ fn recovery_state() -> RuntimeStateDto {
 #[cfg(test)]
 mod retry_clear_tests {
     use super::*;
+    use std::sync::{Arc, Barrier};
+    use std::thread;
     use tempfile::tempdir;
 
     fn handoff(root: &Path, nonce: &str, token: &str, generation: u64) -> RuntimeSwitchHandoff {
         let app = root.join("VRCNT.exe");
         fs::write(&app, b"runtime remains alive").unwrap();
+        let install_path = fs::canonicalize(root).unwrap();
+        let current_app_path = fs::canonicalize(&app).unwrap();
         RuntimeSwitchHandoff {
             nonce: nonce.to_owned(),
             token: token.to_owned(),
             target_variant: "cuda".to_owned(),
-            proof: switch_proof(token, nonce, "cuda", &app),
-            status_path: root.join(RUNTIME_SWITCH_STATUS_FILE_NAME),
-            current_app_path: app,
-            install_path: root.to_owned(),
+            proof: switch_proof(token, nonce, "cuda", &current_app_path),
+            status_path: install_path.join(RUNTIME_SWITCH_STATUS_FILE_NAME),
+            current_app_path,
+            install_path,
             lease_generation: generation,
         }
     }
@@ -2070,6 +2078,32 @@ mod retry_clear_tests {
             lease_generation: handoff.lease_generation,
         };
         write_runtime_switch_retry_clear_unlocked(handoff, &record).unwrap();
+    }
+
+    fn status(handoff: &RuntimeSwitchHandoff, value: &str) -> RuntimeSwitchStatusRecord {
+        RuntimeSwitchStatusRecord {
+            schema: 1,
+            status: value.to_owned(),
+            target_variant: handoff.target_variant.clone(),
+            nonce: handoff.nonce.clone(),
+            token_sha256: hash(&handoff.token),
+            proof_sha256: handoff.proof.clone(),
+            current_app_path: handoff.current_app_path.display().to_string(),
+            install_path: handoff.install_path.display().to_string(),
+            error_code: None,
+            message: None,
+            updated_at_utc: format_time(SystemTime::now()),
+            manager_process_id: None,
+            handoff_expires_at_utc: None,
+            receipt_mac: None,
+            receipt_expires_at_unix_ms: None,
+            consumed_at_utc: None,
+            lease_generation: handoff.lease_generation,
+        }
+    }
+
+    fn write_status(handoff: &RuntimeSwitchHandoff, value: &str) {
+        write_runtime_switch_status_record(&handoff.status_path, &status(handoff, value)).unwrap();
     }
 
     #[test]
@@ -2120,27 +2154,178 @@ mod retry_clear_tests {
         let state = RuntimeSwitchState::new();
         state.begin(newer.clone()).unwrap();
         write_retry_clear(&old);
-        fs::write(
-            &newer.status_path,
-            serde_json::json!({
-                "schema": 1,
-                "status": "pending",
-                "targetVariant": "cuda",
-                "nonce": "new-nonce",
-                "tokenSha256": hash("new-token"),
-                "proofSha256": newer.proof,
-                "currentAppPath": newer.current_app_path,
-                "installPath": newer.install_path,
-                "updatedAtUtc": format_time(SystemTime::now()),
-                "leaseGeneration": 4
-            })
-            .to_string(),
-        )
-        .unwrap();
+        let mut active = status(&newer, "pending");
+        active.handoff_expires_at_utc = Some(format_time(
+            SystemTime::now() + Duration::from_secs(15 * 60),
+        ));
+        write_runtime_switch_status_record(&newer.status_path, &active).unwrap();
 
         assert!(!state.recover_abandoned_pre_quiesce_handoff().unwrap());
         assert!(state
             .begin(handoff(temporary.path(), "later-nonce", "later-token", 5))
             .is_err());
+    }
+
+    #[test]
+    fn terminal_cleanup_uses_canonical_path_identity() {
+        let temporary = tempdir().unwrap();
+        let active = handoff(temporary.path(), "canonical-nonce", "canonical-token", 6);
+        let state = RuntimeSwitchState::new();
+        state.begin(active.clone()).unwrap();
+        let mut terminal = status(&active, "failed");
+        let alias_segment = active.install_path.join("path-alias");
+        fs::create_dir(&alias_segment).unwrap();
+        terminal.current_app_path = active
+            .install_path
+            .join("path-alias")
+            .join("..")
+            .join("VRCNT.exe")
+            .display()
+            .to_string();
+        terminal.install_path = active
+            .install_path
+            .join("path-alias")
+            .join("..")
+            .display()
+            .to_string();
+
+        assert!(state.clear_if_owns_status(&terminal).unwrap());
+        assert!(state
+            .begin(handoff(temporary.path(), "next", "next-token", 7))
+            .is_ok());
+    }
+
+    #[test]
+    fn terminal_cleanup_rejects_each_incomplete_handoff_identity() {
+        let temporary = tempdir().unwrap();
+        let active = handoff(temporary.path(), "owned-nonce", "owned-token", 9);
+        let other_root = tempdir().unwrap();
+        let other_app = other_root.path().join("VRCNT.exe");
+        fs::write(&other_app, b"different runtime").unwrap();
+        let different_app = fs::canonicalize(&other_app).unwrap().display().to_string();
+        let different_install = fs::canonicalize(other_root.path())
+            .unwrap()
+            .display()
+            .to_string();
+
+        let mut cases: Vec<(&str, RuntimeSwitchStatusRecord)> = Vec::new();
+        let mut wrong_nonce = status(&active, "failed");
+        wrong_nonce.nonce = "different-nonce".to_owned();
+        cases.push(("nonce", wrong_nonce));
+        let mut wrong_generation = status(&active, "failed");
+        wrong_generation.lease_generation += 1;
+        cases.push(("generation", wrong_generation));
+        let mut wrong_token = status(&active, "failed");
+        wrong_token.token_sha256 = hash("different-token");
+        cases.push(("token", wrong_token));
+        let mut wrong_proof = status(&active, "failed");
+        wrong_proof.proof_sha256 = hash("different-proof");
+        cases.push(("proof", wrong_proof));
+        let mut wrong_app = status(&active, "failed");
+        wrong_app.current_app_path = different_app;
+        cases.push(("application path", wrong_app));
+        let mut wrong_install = status(&active, "failed");
+        wrong_install.install_path = different_install;
+        cases.push(("install path", wrong_install));
+
+        for (label, unowned) in cases {
+            let state = RuntimeSwitchState::new();
+            state.begin(active.clone()).unwrap();
+            assert!(!state.clear_if_owns_status(&unowned).unwrap(), "{label}");
+            let shutdown = status(&active, "shutdown_requested");
+            assert_eq!(
+                state
+                    .deliver_shutdown_request(&shutdown)
+                    .unwrap()
+                    .unwrap()
+                    .nonce,
+                active.nonce,
+                "{label}"
+            );
+        }
+    }
+
+    #[test]
+    fn stale_recovery_cannot_clear_a_newer_handoff_after_its_lease_is_marked_stale() {
+        let temporary = tempdir().unwrap();
+        let old = handoff(temporary.path(), "old-nonce", "old-token", 3);
+        let newer = handoff(temporary.path(), "new-nonce", "new-token", 4);
+        let mut old_status = status(&old, "running");
+        old_status.manager_process_id = Some(424242);
+        old_status.handoff_expires_at_utc = Some("2020-01-01T00:01:00.000Z".to_owned());
+        write_runtime_switch_status_record(&old.status_path, &old_status).unwrap();
+        let state = Arc::new(RuntimeSwitchState::new());
+        state.begin(old.clone()).unwrap();
+        let after_stale_commit = Arc::new(Barrier::new(2));
+        let resume_recovery = Arc::new(Barrier::new(2));
+        let recovery_state = Arc::clone(&state);
+        let recovery_after_stale_commit = Arc::clone(&after_stale_commit);
+        let recovery_resume = Arc::clone(&resume_recovery);
+
+        let recovery = thread::spawn(move || {
+            recovery_state.recover_abandoned_pre_quiesce_handoff_with_after_recovery(|| {
+                recovery_after_stale_commit.wait();
+                recovery_resume.wait();
+            })
+        });
+
+        after_stale_commit.wait();
+        let stale = read_runtime_switch_status(&old.status_path).unwrap();
+        assert_eq!(stale.status, "stale");
+        assert!(state.clear_if_owns_status(&stale).unwrap());
+        state.begin(newer.clone()).unwrap();
+        write_status(&newer, "shutdown_requested");
+        resume_recovery.wait();
+
+        assert!(recovery.join().unwrap().unwrap());
+        let shutdown = read_runtime_switch_status(&newer.status_path).unwrap();
+        assert_eq!(
+            state
+                .deliver_shutdown_request(&shutdown)
+                .unwrap()
+                .unwrap()
+                .nonce,
+            newer.nonce
+        );
+    }
+
+    #[test]
+    fn terminal_cleanup_cannot_clear_a_newer_handoff_after_observing_an_old_receipt() {
+        let temporary = tempdir().unwrap();
+        let old = handoff(temporary.path(), "terminal-old", "old-token", 7);
+        let newer = handoff(temporary.path(), "terminal-new", "new-token", 8);
+        let state = Arc::new(RuntimeSwitchState::new());
+        state.begin(old.clone()).unwrap();
+        let terminal = status(&old, "failed");
+        write_runtime_switch_status_record(&old.status_path, &terminal).unwrap();
+        let observed_terminal = terminal.clone();
+        let observed = Arc::new(Barrier::new(2));
+        let resume_cleanup = Arc::new(Barrier::new(2));
+        let cleanup_state = Arc::clone(&state);
+        let cleanup_observed = Arc::clone(&observed);
+        let cleanup_resume = Arc::clone(&resume_cleanup);
+
+        let cleanup = thread::spawn(move || {
+            cleanup_observed.wait();
+            cleanup_resume.wait();
+            cleanup_state.clear_if_owns_status(&observed_terminal)
+        });
+
+        observed.wait();
+        assert!(state.clear_if_owns_status(&terminal).unwrap());
+        state.begin(newer.clone()).unwrap();
+        write_status(&newer, "shutdown_requested");
+        resume_cleanup.wait();
+
+        assert!(!cleanup.join().unwrap().unwrap());
+        let shutdown = read_runtime_switch_status(&newer.status_path).unwrap();
+        assert_eq!(
+            state
+                .deliver_shutdown_request(&shutdown)
+                .unwrap()
+                .unwrap()
+                .nonce,
+            newer.nonce
+        );
     }
 }
