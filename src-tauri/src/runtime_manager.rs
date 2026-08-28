@@ -18,6 +18,7 @@ const MANAGER_FILE_NAME: &str = "VRCNT.Setup.exe";
 const RUNTIME_STATE_FILE_NAME: &str = "runtime.json";
 const RUNTIME_MARKER_FILE_NAME: &str = "VRCNT.runtime.json";
 const RUNTIME_SWITCH_STATUS_FILE_NAME: &str = "runtime-switch-status.json";
+const RUNTIME_SWITCH_RETRY_CLEAR_FILE_NAME: &str = "runtime-switch-retry-clear.json";
 const MANAGER_STATE_FILE_NAME: &str = "manager-state.json";
 const MANAGER_SIGNATURE_FILE_NAME: &str = "VRCNT.Setup.exe.sig";
 const MINISIGN_FILE_NAME: &str = "minisign.exe";
@@ -90,6 +91,9 @@ impl RuntimeSwitchState {
         let Some(handoff) = handoff else {
             return Ok(false);
         };
+        if self.consume_matching_retry_clear(&handoff)? {
+            return Ok(true);
+        }
         let recovered =
             recover_abandoned_runtime_switch(&handoff, SystemTime::now(), is_process_alive)?;
         if recovered {
@@ -118,6 +122,41 @@ impl RuntimeSwitchState {
             return Ok(true);
         }
         Ok(false)
+    }
+
+    fn consume_matching_retry_clear(&self, handoff: &RuntimeSwitchHandoff) -> Result<bool, String> {
+        with_runtime_switch_lock(&handoff.status_path, || {
+            if handoff.status_path.exists() {
+                return Ok(false);
+            }
+            let retry_clear_path = runtime_switch_retry_clear_path(&handoff.status_path)?;
+            let clear = match read_runtime_switch_retry_clear_unlocked(&retry_clear_path) {
+                Ok(clear) => clear,
+                Err(_) => return Ok(false),
+            };
+            if !handoff_matches_retry_clear(handoff, &clear) {
+                return Ok(false);
+            }
+            let mut current = self
+                .handoff
+                .lock()
+                .map_err(|_| "Runtime switch state is unavailable.".to_owned())?;
+            if current
+                .as_ref()
+                .map(|active| handoffs_match(active, handoff))
+                != Some(true)
+            {
+                return Ok(false);
+            }
+            *current = None;
+            self.shutdown_authorized
+                .store(false, std::sync::atomic::Ordering::SeqCst);
+            self.shutdown_requested
+                .store(false, std::sync::atomic::Ordering::SeqCst);
+            self.shutdown_request_delivered
+                .store(false, std::sync::atomic::Ordering::SeqCst);
+            Ok(true)
+        })
     }
 
     fn verify_shutdown_acknowledgement(
@@ -358,6 +397,19 @@ struct RuntimeSwitchStatusRecord {
     lease_generation: u64,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RuntimeSwitchRetryClearRecord {
+    schema: u32,
+    nonce: String,
+    target_variant: String,
+    token_sha256: String,
+    proof_sha256: String,
+    current_app_path: String,
+    install_path: String,
+    lease_generation: u64,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ProtectedReceiptBindingRecord {
@@ -381,6 +433,19 @@ struct RuntimeSwitchStatusRecordForWrite<'a> {
     message: Option<&'a str>,
     manager_process_id: Option<u32>,
     handoff_expires_at_utc: Option<String>,
+    lease_generation: u64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RuntimeSwitchRetryClearRecordForWrite<'a> {
+    schema: u32,
+    nonce: &'a str,
+    target_variant: &'a str,
+    token_sha256: &'a str,
+    proof_sha256: &'a str,
+    current_app_path: &'a Path,
+    install_path: &'a Path,
     lease_generation: u64,
 }
 
@@ -505,7 +570,13 @@ pub fn get_runtime_switch_status(
     let status_path = data_root.join(RUNTIME_SWITCH_STATUS_FILE_NAME);
     let contents = match fs::read(&status_path) {
         Ok(contents) => contents,
-        Err(_) => return Ok(idle_switch_status()),
+        Err(_) => {
+            let _ = switch_state.recover_abandoned_pre_quiesce_handoff()?;
+            match fs::read(&status_path) {
+                Ok(contents) => contents,
+                Err(_) => return Ok(idle_switch_status()),
+            }
+        }
     };
     let status: RuntimeSwitchStatusRecord = match serde_json::from_slice(&contents) {
         Ok(status) => status,
@@ -911,7 +982,14 @@ fn begin_runtime_switch(
             }
             stale_or_terminal_generation(&status_path)?
         } else {
-            0
+            let retry_clear_path = runtime_switch_retry_clear_path(&status_path)?;
+            let generation = read_runtime_switch_retry_clear_unlocked(&retry_clear_path)
+                .ok()
+                .filter(|clear| clear.schema == 1)
+                .map(|clear| clear.lease_generation)
+                .unwrap_or(0);
+            let _ = fs::remove_file(retry_clear_path);
+            generation
         };
         let lease_generation = previous_generation.saturating_add(1);
         let nonce = new_secret("runtime-switch-nonce");
@@ -1008,6 +1086,41 @@ fn handoff_matches_record(
             &handoff.current_app_path,
         )
         && paths_equal(Path::new(&status.install_path), &handoff.install_path)
+}
+
+fn handoffs_match(left: &RuntimeSwitchHandoff, right: &RuntimeSwitchHandoff) -> bool {
+    left.nonce == right.nonce
+        && left.target_variant == right.target_variant
+        && left.lease_generation == right.lease_generation
+        && left.token == right.token
+        && left.proof == right.proof
+        && paths_equal(&left.status_path, &right.status_path)
+        && paths_equal(&left.current_app_path, &right.current_app_path)
+        && paths_equal(&left.install_path, &right.install_path)
+}
+
+fn handoff_matches_retry_clear(
+    handoff: &RuntimeSwitchHandoff,
+    clear: &RuntimeSwitchRetryClearRecord,
+) -> bool {
+    clear.schema == 1
+        && clear.nonce == handoff.nonce
+        && clear.target_variant == handoff.target_variant
+        && clear.lease_generation == handoff.lease_generation
+        && clear.token_sha256 == hash(&handoff.token)
+        && clear.proof_sha256 == handoff.proof
+        && handoff.proof
+            == switch_proof(
+                &handoff.token,
+                &handoff.nonce,
+                &handoff.target_variant,
+                &handoff.current_app_path,
+            )
+        && paths_equal(
+            Path::new(&clear.current_app_path),
+            &handoff.current_app_path,
+        )
+        && paths_equal(Path::new(&clear.install_path), &handoff.install_path)
 }
 
 fn stale_or_terminal_generation(status_path: &Path) -> Result<u64, String> {
@@ -1271,6 +1384,44 @@ fn read_runtime_switch_status(path: &Path) -> Result<RuntimeSwitchStatusRecord, 
         &fs::read(path).map_err(|_| "The runtime switch status is unavailable.".to_owned())?,
     )
     .map_err(|_| "The runtime switch status is malformed.".to_owned())
+}
+
+fn runtime_switch_retry_clear_path(status_path: &Path) -> Result<PathBuf, String> {
+    let data_root = status_path
+        .parent()
+        .ok_or_else(|| "The runtime switch status path is invalid.".to_owned())?;
+    Ok(data_root.join(RUNTIME_SWITCH_RETRY_CLEAR_FILE_NAME))
+}
+
+fn read_runtime_switch_retry_clear_unlocked(
+    path: &Path,
+) -> Result<RuntimeSwitchRetryClearRecord, String> {
+    serde_json::from_slice(
+        &fs::read(path).map_err(|_| "The runtime switch retry clear is unavailable.".to_owned())?,
+    )
+    .map_err(|_| "The runtime switch retry clear is malformed.".to_owned())
+}
+
+fn write_runtime_switch_retry_clear_unlocked(
+    handoff: &RuntimeSwitchHandoff,
+    clear: &RuntimeSwitchRetryClearRecordForWrite<'_>,
+) -> Result<(), String> {
+    if clear.schema != 1
+        || clear.nonce != handoff.nonce
+        || clear.target_variant != handoff.target_variant
+        || clear.token_sha256 != hash(&handoff.token)
+        || clear.proof_sha256 != handoff.proof
+        || clear.lease_generation != handoff.lease_generation
+        || !paths_equal(clear.current_app_path, &handoff.current_app_path)
+        || !paths_equal(clear.install_path, &handoff.install_path)
+    {
+        return Err("The runtime switch retry clear does not match the lease.".to_owned());
+    }
+    write_atomic_json(
+        &runtime_switch_retry_clear_path(&handoff.status_path)?,
+        clear,
+        "runtime-switch-retry-clear",
+    )
 }
 
 fn write_runtime_switch_status_record(
@@ -1883,5 +2034,113 @@ fn recovery_state() -> RuntimeStateDto {
         architecture: String::new(),
         install_path: String::new(),
         updated_at_utc: String::new(),
+    }
+}
+
+#[cfg(test)]
+mod retry_clear_tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    fn handoff(root: &Path, nonce: &str, token: &str, generation: u64) -> RuntimeSwitchHandoff {
+        let app = root.join("VRCNT.exe");
+        fs::write(&app, b"runtime remains alive").unwrap();
+        RuntimeSwitchHandoff {
+            nonce: nonce.to_owned(),
+            token: token.to_owned(),
+            target_variant: "cuda".to_owned(),
+            proof: switch_proof(token, nonce, "cuda", &app),
+            status_path: root.join(RUNTIME_SWITCH_STATUS_FILE_NAME),
+            current_app_path: app,
+            install_path: root.to_owned(),
+            lease_generation: generation,
+        }
+    }
+
+    fn write_retry_clear(handoff: &RuntimeSwitchHandoff) {
+        let token_sha256 = hash(&handoff.token);
+        let record = RuntimeSwitchRetryClearRecordForWrite {
+            schema: 1,
+            nonce: &handoff.nonce,
+            target_variant: &handoff.target_variant,
+            token_sha256: &token_sha256,
+            proof_sha256: &handoff.proof,
+            current_app_path: &handoff.current_app_path,
+            install_path: &handoff.install_path,
+            lease_generation: handoff.lease_generation,
+        };
+        write_runtime_switch_retry_clear_unlocked(handoff, &record).unwrap();
+    }
+
+    #[test]
+    fn failed_pre_quiesce_retry_clear_releases_the_matching_live_handoff() {
+        let temporary = tempdir().unwrap();
+        let initial = handoff(temporary.path(), "failed-nonce", "failed-token", 7);
+        let state = RuntimeSwitchState::new();
+        state.begin(initial.clone()).unwrap();
+        write_retry_clear(&initial);
+
+        assert!(state.recover_abandoned_pre_quiesce_handoff().unwrap());
+        let next = begin_runtime_switch(
+            temporary.path(),
+            "cuda",
+            temporary.path(),
+            &initial.current_app_path,
+        )
+        .unwrap();
+        assert_eq!(next.lease_generation, 8);
+        assert!(state.begin(next).is_ok());
+    }
+
+    #[test]
+    fn cancelled_pre_quiesce_retry_clear_releases_the_matching_live_handoff() {
+        let temporary = tempdir().unwrap();
+        let initial = handoff(temporary.path(), "cancel-nonce", "cancel-token", 11);
+        let state = RuntimeSwitchState::new();
+        state.begin(initial.clone()).unwrap();
+        write_retry_clear(&initial);
+
+        assert!(state.recover_abandoned_pre_quiesce_handoff().unwrap());
+        let next = begin_runtime_switch(
+            temporary.path(),
+            "cuda",
+            temporary.path(),
+            &initial.current_app_path,
+        )
+        .unwrap();
+        assert_eq!(next.lease_generation, 12);
+        assert!(state.begin(next).is_ok());
+    }
+
+    #[test]
+    fn retry_clear_cannot_release_a_newer_live_handoff_or_replace_its_status() {
+        let temporary = tempdir().unwrap();
+        let old = handoff(temporary.path(), "old-nonce", "old-token", 3);
+        let newer = handoff(temporary.path(), "new-nonce", "new-token", 4);
+        let state = RuntimeSwitchState::new();
+        state.begin(newer.clone()).unwrap();
+        write_retry_clear(&old);
+        fs::write(
+            &newer.status_path,
+            serde_json::json!({
+                "schema": 1,
+                "status": "pending",
+                "targetVariant": "cuda",
+                "nonce": "new-nonce",
+                "tokenSha256": hash("new-token"),
+                "proofSha256": newer.proof,
+                "currentAppPath": newer.current_app_path,
+                "installPath": newer.install_path,
+                "updatedAtUtc": format_time(SystemTime::now()),
+                "leaseGeneration": 4
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        assert!(!state.recover_abandoned_pre_quiesce_handoff().unwrap());
+        assert!(state
+            .begin(handoff(temporary.path(), "later-nonce", "later-token", 5))
+            .is_err());
     }
 }

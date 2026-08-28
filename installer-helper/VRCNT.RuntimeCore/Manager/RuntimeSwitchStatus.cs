@@ -37,10 +37,21 @@ public sealed record RuntimeSwitchReceiptBinding(
     string ReceiptSecret,
     long ReceiptExpiresAtUnixMs);
 
+public sealed record RuntimeSwitchRetryClear(
+    int Schema,
+    string Nonce,
+    string TargetVariant,
+    string TokenSha256,
+    string ProofSha256,
+    string CurrentAppPath,
+    string InstallPath,
+    long LeaseGeneration);
+
 public sealed class RuntimeSwitchStatusStore
 {
     private const int Schema = 1;
     private const string FileName = "runtime-switch-status.json";
+    private const string RetryClearFileName = "runtime-switch-retry-clear.json";
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true };
     private readonly string _dataRoot;
     private readonly string _statusPath;
@@ -183,9 +194,34 @@ public sealed class RuntimeSwitchStatusStore
             EnsureActiveLeaseOwner(current, VariantName(handoff.TargetVariant), handoff);
             if (current.Status is "shutdown_acknowledged" or "succeeded")
                 throw new InvalidDataException("The runtime switch has already stopped the application and cannot be cleared for retry.");
+            WriteRetryClearUnsafe(handoff);
             File.Delete(_statusPath);
             var bindingPath = ReceiptBindingPath(handoff.Nonce);
             if (File.Exists(bindingPath)) File.Delete(bindingPath);
+        });
+    }
+
+    public bool HasMatchingRetryClear(string nonce, string token, string targetVariant, string installPath, string currentAppPath, long leaseGeneration)
+    {
+        return WithLock(() =>
+        {
+            if (File.Exists(_statusPath)) return false;
+            RuntimeSwitchRetryClear clear;
+            try
+            {
+                clear = JsonSerializer.Deserialize<RuntimeSwitchRetryClear>(File.ReadAllText(RetryClearPath), JsonOptions)
+                    ?? throw new InvalidDataException("The runtime switch retry clear is empty.");
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException or InvalidDataException)
+            {
+                return false;
+            }
+            return clear.Schema == Schema && clear.LeaseGeneration == leaseGeneration &&
+                string.Equals(clear.Nonce, nonce, StringComparison.Ordinal) &&
+                string.Equals(clear.TargetVariant, targetVariant, StringComparison.Ordinal) &&
+                SecureEquals(clear.TokenSha256, Hash(token)) &&
+                SecureEquals(clear.ProofSha256, Proof(token, nonce, targetVariant, currentAppPath)) &&
+                PathsEqual(clear.CurrentAppPath, currentAppPath) && PathsEqual(clear.InstallPath, installPath);
         });
     }
 
@@ -213,6 +249,26 @@ public sealed class RuntimeSwitchStatusStore
         {
             File.WriteAllText(temporaryPath, JsonSerializer.Serialize(record, JsonOptions));
             File.Move(temporaryPath, _statusPath, true);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+        }
+    }
+
+    private string RetryClearPath => Path.Combine(_dataRoot, RetryClearFileName);
+
+    private void WriteRetryClearUnsafe(RuntimeShutdownHandoff handoff)
+    {
+        var clear = new RuntimeSwitchRetryClear(
+            Schema, handoff.Nonce, VariantName(handoff.TargetVariant), Hash(handoff.Token), handoff.Proof,
+            handoff.CurrentAppPath, handoff.ResolvedInstallPath, handoff.LeaseGeneration);
+        Directory.CreateDirectory(_dataRoot);
+        var temporaryPath = Path.Combine(_dataRoot, $"{RetryClearFileName}.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            File.WriteAllText(temporaryPath, JsonSerializer.Serialize(clear, JsonOptions));
+            File.Move(temporaryPath, RetryClearPath, true);
         }
         finally
         {

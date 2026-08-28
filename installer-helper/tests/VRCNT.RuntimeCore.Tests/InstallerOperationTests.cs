@@ -134,11 +134,30 @@ public sealed class InstallerOperationTests : IDisposable
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => operations.ExecuteRuntimeAsync(options, null, default));
         Assert.False(File.Exists(statusPath));
+        Assert.True(new RuntimeSwitchStatusStore(dataRoot, statusPath).HasMatchingRetryClear("switch-nonce", "switch-token", "cuda", installPath, currentAppPath, 1));
         statusPath = WritePendingSwitch(dataRoot, currentAppPath, "retry-nonce", "retry-token");
+        Assert.False(new RuntimeSwitchStatusStore(dataRoot, statusPath).HasMatchingRetryClear("switch-nonce", "switch-token", "cuda", installPath, currentAppPath, 1));
         options = options with { SwitchToken = "retry-token", SwitchStatusPath = statusPath };
         await operations.ExecuteRuntimeAsync(options, null, default);
 
         Assert.Equal(2, engine.AttemptCount);
+    }
+
+    [Fact]
+    public async Task A_cancelled_pre_quiesce_switch_publishes_a_matching_retry_clear_before_removing_its_handoff()
+    {
+        var installPath = Path.Combine(_root, "VRCNT");
+        var dataRoot = Path.Combine(_root, "VRCNTData");
+        var currentAppPath = Path.Combine(installPath, "VRCNT.exe");
+        var statusPath = WritePendingSwitch(dataRoot, currentAppPath, "cancel-nonce", "cancel-token");
+        var operations = CreateOperations(new CancellingRuntimeEngine(), dataRoot);
+        var options = new SetupCommandLineOptions(false, false, true, false, false, RuntimeVariant.Cuda, installPath, currentAppPath, [], null, "cancel-token", statusPath);
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() => operations.ExecuteRuntimeAsync(options, null, default));
+
+        var store = new RuntimeSwitchStatusStore(dataRoot, statusPath);
+        Assert.False(File.Exists(statusPath));
+        Assert.True(store.HasMatchingRetryClear("cancel-nonce", "cancel-token", "cuda", installPath, currentAppPath, 1));
     }
 
     [Theory]
@@ -227,6 +246,12 @@ public sealed class InstallerOperationTests : IDisposable
                 ? new RuntimeOperationResult(false, false, false, "preflight_rejected", "Retry runtime recovery.")
                 : new RuntimeOperationResult(true, false, false, null, null));
         }
+    }
+
+    private sealed class CancellingRuntimeEngine : IRuntimeTransactionEngine
+    {
+        public Task<RuntimeOperationResult> ExecuteAsync(RuntimeInstallRequest request, IProgress<InstallProgress>? progress, CancellationToken cancellationToken)
+            => throw new OperationCanceledException(cancellationToken);
     }
 
     private sealed class CollectingProgress(List<InstallProgress> values) : IProgress<InstallProgress>

@@ -13,6 +13,7 @@ import {
     consumePersistedRuntimeSwitch,
     reconcilePersistedRuntimeSwitch,
     requestRuntimeSwitch,
+    createRuntimeManagerAdapter,
 } from "../runtimeManager.js";
 
 const repoRoot = path.resolve(import.meta.dirname, "../../../..");
@@ -117,6 +118,39 @@ test("terminal switch outcomes refresh runtime state and clear the pending trans
     assert.equal(outcome.status, "failed");
     assert.equal(outcome.runtime.variant, "cpu");
     assert.equal(refreshed, 1);
+});
+
+test("an in-process pre-quiesce retry clear returns idle and permits a second native launch", async () => {
+    let launches = 0;
+    const statuses = [{ status: "idle" }, { status: "accepted", targetVariant: "cuda", nonce: "retry" }];
+    const adapter = createRuntimeManagerAdapter({
+        isTauri: () => true,
+        loadTauriInvoke: async () => async (command, args) => {
+            if (command === "launch_runtime_switch") {
+                launches += 1;
+                assert.equal(args.variant, "cuda");
+                return;
+            }
+            if (command === "get_runtime_switch_status") return statuses.shift() ?? { status: "idle" };
+            throw new Error(`unexpected native command: ${command}`);
+        },
+    });
+
+    const cleared = await reconcilePersistedRuntimeSwitch({
+        getStatus: adapter.getRuntimeSwitchStatus,
+        refreshRuntime: async () => normalizeRuntimeState(activeCpu),
+    });
+    assert.equal(cleared.status.status, "idle");
+    assert.equal(cleared.switchState.controlsDisabled, false);
+
+    await confirmRuntimeSwitch({
+        runtime: normalizeRuntimeState(activeCpu),
+        targetVariant: "cuda",
+        launch: adapter.launchRuntimeSwitch,
+        getStatus: adapter.getRuntimeSwitchStatus,
+        waitOptions: { intervalMs: 0, timeoutMs: 50 },
+    });
+    assert.equal(launches, 1);
 });
 
 test("a relaunched VRCNT consumes the persisted rollback outcome before enabling another switch", async () => {
