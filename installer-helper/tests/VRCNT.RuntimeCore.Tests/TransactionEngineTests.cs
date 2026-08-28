@@ -391,7 +391,7 @@ public sealed class TransactionEngineTests : IDisposable
     [InlineData("stale")]
     [InlineData("forged")]
     [InlineData("duplicate")]
-    public async Task ExecuteAsync_rejects_forged_stale_or_duplicate_actual_pipe_proofs(string proofMode)
+    public async Task ExecuteAsync_rejects_forged_stale_or_valid_then_valid_duplicate_actual_pipe_proofs(string proofMode)
     {
         var request = CreateRequest("real-listener", proofMode) with
         {
@@ -400,7 +400,7 @@ public sealed class TransactionEngineTests : IDisposable
         WriteActiveRuntime(request);
         var valid = ProofFor(request);
         var proofs = proofMode == "duplicate"
-            ? new[] { valid with { Token = "stale-token" }, valid }
+            ? new[] { valid, valid }
             : new[] { proofMode == "stale" ? valid with { Nonce = "stale-nonce" } : valid };
         var processes = new ImmediateProofProcessCoordinator(proofs);
         var monitor = new NamedPipeRuntimeActivationHealthMonitor(
@@ -561,8 +561,8 @@ public sealed class TransactionEngineTests : IDisposable
             using var client = new NamedPipeClientStream(".", activation.PipeName, PipeDirection.Out, PipeOptions.Asynchronous);
             await client.ConnectAsync(0, cancellationToken);
             await using var writer = new StreamWriter(client) { AutoFlush = true };
-            foreach (var proof in proofs)
-                await writer.WriteLineAsync(JsonSerializer.Serialize(proof));
+            await writer.WriteAsync(string.Concat(proofs.Select(proof => JsonSerializer.Serialize(proof) + "\n")));
+            await writer.FlushAsync(cancellationToken);
         }
         public Task RelaunchActiveRuntimeAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }

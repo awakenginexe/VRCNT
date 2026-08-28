@@ -25,6 +25,7 @@ public sealed record RuntimeActivationProof(
 /// </summary>
 public sealed class NamedPipeRuntimeActivationHealthMonitor : IRuntimeActivationHealthMonitor
 {
+    private const int MaxActivationPayloadBytes = 4096;
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
     private readonly TimeSpan _timeout;
     private readonly Func<uint, string?> _clientExecutablePathResolver;
@@ -52,9 +53,7 @@ public sealed class NamedPipeRuntimeActivationHealthMonitor : IRuntimeActivation
             if (!GetNamedPipeClientProcessId(server.SafePipeHandle, out var clientProcessId))
                 return Fail("activation_invalid_proof");
 
-            using var reader = new StreamReader(server, Encoding.UTF8, false, 4096, leaveOpen: true);
-            var line = await reader.ReadLineAsync(deadline.Token);
-            var proof = string.IsNullOrWhiteSpace(line) ? null : JsonSerializer.Deserialize<RuntimeActivationProof>(line, Json);
+            var proof = await ReadSingleProofAsync(server, deadline.Token);
             return IsValid(proof, clientProcessId, installPath, expectedIdentity, request)
                 ? new RuntimeActivationHealthResult(true, false, null)
                 : Fail("activation_invalid_proof");
@@ -71,6 +70,31 @@ public sealed class NamedPipeRuntimeActivationHealthMonitor : IRuntimeActivation
         {
             return Fail("activation_invalid_proof");
         }
+    }
+
+    private static async Task<RuntimeActivationProof?> ReadSingleProofAsync(Stream stream, CancellationToken cancellationToken)
+    {
+        var buffer = new byte[1024];
+        using var payload = new MemoryStream();
+        while (true)
+        {
+            var read = await stream.ReadAsync(buffer.AsMemory(), cancellationToken);
+            if (read == 0) break;
+            if (payload.Length + read > MaxActivationPayloadBytes) return null;
+            payload.Write(buffer, 0, read);
+        }
+
+        var text = new UTF8Encoding(false, true).GetString(payload.GetBuffer(), 0, checked((int)payload.Length));
+        var newline = text.IndexOf('\n');
+        if (newline >= 0)
+        {
+            // The one protocol frame may end with LF or CRLF; every later byte is rejected.
+            if (newline != text.Length - 1) return null;
+            text = text[..newline];
+            if (text.EndsWith('\r')) text = text[..^1];
+        }
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        return JsonSerializer.Deserialize<RuntimeActivationProof>(text, Json);
     }
 
     private bool IsValid(RuntimeActivationProof? proof, uint clientProcessId, string installPath, RuntimeIdentity expectedIdentity, ActivationRequest request) =>
