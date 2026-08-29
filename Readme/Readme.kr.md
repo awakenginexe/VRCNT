@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-5.14.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-5.15.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>
@@ -139,7 +139,7 @@ VRCNT는 오픈소스 프로젝트인 [VRCT](https://github.com/misyaguziya/VRCT
 - 클라우드 서비스를 사용할 수 없을 때 로컬 CTranslate2 자동 대체(Fallback).
 - 건너뛰었거나 실패한 개별 문장에 대한 수동 재시도(Manual Retry).
 - VR 오버레이, 데스크톱 오버레이, 클립보드, OSC 및 VRChat 챗박스로 출력 지원.
-- CPU 처리로 전환 가능한 단일 CUDA 지원 Windows 빌드.
+- 하나의 설치 프로그램에서 선택할 수 있는 CPU 전용 및 NVIDIA CUDA Windows 런타임.
 - 매트 블랙과 바이올렛 컬러로 구성된 집중력 높은 데스크톱 인터페이스.
 
 ## 하드웨어 및 성능
@@ -150,7 +150,8 @@ VRCNT에는 로컬 AI 런타임 종속성이 포함되어 있어 애플리케이
 
 - 음성 모델은 설치 후 추가 다운로드가 필요할 수 있습니다.
 - 대형 모델일수록 더 많은 RAM 또는 VRAM이 필요하므로 사용자의 PC 사양에 맞는 모델을 선택하세요.
-- CPU 전용 모드가 지원되지만, 대형 음성 모델을 사용할 경우 지연 시간이 길어질 수 있습니다.
+- CPU 전용 설치는 CUDA 전용 런타임을 포함하지 않아 다운로드 및 디스크 사용량이 더 적습니다.
+- 현재 런타임은 **Settings → Others → Runtime**에서 변경할 수 있으며, 사용자 데이터는 보존됩니다.
 - 클라우드 엔진을 사용하면 저사양 PC의 부담을 줄일 수 있지만 인터넷 연결이 필요합니다.
 
 ## 빌드 (Build)
@@ -161,20 +162,23 @@ VRCNT에는 로컬 AI 런타임 종속성이 포함되어 있어 애플리케이
 npm ci
 ```
 
-CUDA 사이드카 및 Windows 앱 빌드:
+공유 셸과 두 런타임 빌드:
 
 ```powershell
-npm run build-cuda
+npm run setup-python
+npm run build-runtime-shell
+npm run build-backend:cpu
+npm run build-backend:cuda
+npm run stage-runtime:cpu
+npm run stage-runtime:cuda
 ```
 
-생성된 실행 파일 및 설치 프로그램은 `src-tauri/target/release` 경로에 생성됩니다.
+스테이징된 페이로드는 `build/release/cpu` 및 `build/release/cuda`에 생성됩니다. 공개 릴리스는 소형 WPF 부트스트래퍼 `VRCNT_5.15.0_Setup.exe`와 두 페이로드를 사용합니다.
 
 공식 빌드는 [GitHub Releases](https://github.com/awakenginexe/VRCNT/releases)에 게시됩니다.
-설치 프로그램은 서명된 3개의 분할 패키지 파일을 다운로드하거나,
-`VRCNT_<version>.7z.001`부터 `.003`까지 `package-manifest.json` 및 `package-manifest.json.sig`와 함께 동일한 디렉터리에 두고 직접 사용할 수 있습니다.
-VRCNT를 포터블로 실행하려면 3개 부분을 같은 폴더에 유지하고 7-Zip으로 `.7z.001`을 압축 해제한 후, 해제된 디렉터리에서 `VRCNT.exe`를 실행하세요.
+설치 프로그램은 호환되는 NVIDIA 하드웨어를 감지하면 CUDA를 권장하지만 CPU를 직접 선택할 수 있습니다. 서명된 매니페스트가 CPU 또는 CUDA의 정확한 파트 수를 결정하므로 두 변형의 파트 수는 같을 필요가 없습니다. 포터블 실행 시 선택한 파트와 서명된 매니페스트를 함께 두고 `.7z.001`을 7-Zip으로 압축 해제한 후 `VRCNT.exe`를 실행하세요.
 
-다운로드한 모델 및 설정은 `%LOCALAPPDATA%\VRCNTData`에 저장됩니다. VRCNT 4.1.0은 새 디렉터리가 아직 존재하지 않는 경우 기존 `VRCNT-NextData` 디렉터리를 자동으로 마이그레이션합니다.
+다운로드한 모델 및 설정은 `%LOCALAPPDATA%\VRCNTData`에 저장됩니다. 안정적인 설치 관리자는 `%LOCALAPPDATA%\VRCNTInstaller\VRCNT.Setup.exe`에 있으며 설치, 업데이트 및 런타임 전환 중 사용자 데이터를 보존합니다.
 
 ## 프로젝트 계보
 

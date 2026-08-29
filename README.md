@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-5.14.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-5.15.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>
@@ -142,47 +142,68 @@ that improve any language are very welcome.
 - Optional local CTranslate2 fallback when cloud services are unavailable.
 - Manual retry for an individual skipped or failed sentence.
 - VR overlay, desktop overlay, clipboard, OSC, and VRChat chatbox output.
-- One CUDA-enabled Windows build that can also use CPU processing.
+- Separate CPU-only and NVIDIA CUDA Windows runtimes distributed from one installer.
 - A focused matte-black and violet desktop interface.
 
 ## Hardware and performance
 
-VRCNT works on CPU-only systems, but an NVIDIA GPU provides the best real-time performance.
+VRCNT offers a smaller CPU-only runtime and a separate NVIDIA CUDA runtime. An
+NVIDIA GPU provides the best real-time performance, but CPU remains available
+on every supported Windows system.
 
 VRCNT includes local AI runtime dependencies, which is why the application package is large. They let you use local speech and translation features without depending on a cloud service for every conversation.
 
 - Speech models may require additional downloads after installation.
 - Larger models require more RAM or VRAM, so choose a model that suits your computer.
-- CPU-only mode is supported but may have higher latency, especially with larger speech models.
+- CPU-only installs avoid CUDA-specific runtime libraries and use less download and disk space.
+- The active runtime can be changed later from **Settings → Others → Runtime**. Switching is a staged, verified runtime replacement and preserves user data.
 - Cloud engines can help weaker computers but require internet access.
 
 ## Build
 
-Install dependencies:
+Install dependencies and build the shared shell:
 
 ```powershell
 npm ci
+npm run setup-python
+npm run build-runtime-shell
 ```
 
-Build the CUDA sidecar and Windows app:
+Build and stage both runtime variants:
 
 ```powershell
-npm run build-cuda
+npm run build-backend:cpu
+npm run build-backend:cuda
+npm run stage-runtime:cpu
+npm run stage-runtime:cuda
 ```
 
-The release executable and installer are generated under
-`src-tauri/target/release`.
+The staged payloads are generated under `build/release/cpu` and
+`build/release/cuda`. The authoritative public release workflow builds the
+small WPF bootstrapper `VRCNT_5.15.0_Setup.exe` and publishes both payloads.
+The legacy Tauri/NSIS build commands remain available for compatibility but are
+not the primary 5.15.0 installer.
 
 Official builds are published on [GitHub Releases](https://github.com/awakenginexe/VRCNT/releases).
-The installer can download its three signed multipart package files, or use
-`VRCNT_<version>.7z.001` through `.003` when they are placed beside it together
-with `package-manifest.json` and `package-manifest.json.sig`. To run
-VRCNT portably, keep all three parts together, extract `.7z.001` with 7-Zip,
-and launch `VRCNT.exe` from the extracted directory.
+The one installer detects compatible NVIDIA hardware, recommends CUDA when
+positive detection succeeds, and still allows a deliberate CPU choice. If
+detection is unavailable, CPU is the safe default and an advanced CUDA choice
+requires a compatibility warning plus staged capability validation. The signed
+manifest selects the exact number of CPU or CUDA archive parts; the two
+variants do not need the same number of parts.
+
+For portable use, keep all parts named by the selected manifest entry together,
+verify `package-manifest.json` and `package-manifest.json.sig`, extract the
+first `.7z.001` part with 7-Zip, and launch `VRCNT.exe` from the extracted
+directory.
 
 Downloaded models and configuration are stored under
-`%LOCALAPPDATA%\VRCNTData`. VRCNT 4.1.0 automatically migrates an existing
-`VRCNT-NextData` directory when the new directory does not yet exist.
+`%LOCALAPPDATA%\VRCNTData`. The stable setup manager is maintained at
+`%LOCALAPPDATA%\VRCNTInstaller\VRCNT.Setup.exe`; it preserves this user-data
+root while installing, updating, or switching runtimes. Existing pre-5.15.0
+installations are migrated only when their legacy runtime boundaries can be
+identified safely; ambiguous or stale metadata enters recovery instead of
+being deleted blindly.
 
 ## Project lineage
 

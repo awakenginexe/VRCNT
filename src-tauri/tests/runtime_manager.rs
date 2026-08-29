@@ -328,8 +328,14 @@ fn a_terminal_receipt_is_authenticated_consumed_once_and_rejects_forged_or_expir
         "receiptExpiresAtUnixMs": expires,
     });
     record["tokenSha256"] = serde_json::Value::String(format!("{:x}", Sha256::digest(b"token")));
+    let canonical_app_path = fs::canonicalize(&app_path).unwrap();
     record["proofSha256"] = serde_json::Value::String(
-        vrct_lib::runtime_manager::switch_proof_for_test("token", "nonce", "cuda", &app_path),
+        vrct_lib::runtime_manager::switch_proof_for_test(
+            "token",
+            "nonce",
+            "cuda",
+            &canonical_app_path,
+        ),
     );
     record["receiptMac"] = serde_json::Value::String(
         runtime_switch_receipt_mac(&record, &binding.receipt_secret).unwrap(),

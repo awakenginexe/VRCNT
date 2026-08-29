@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-5.14.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-5.15.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>
@@ -139,7 +139,7 @@ VRCNTは、オープンソースプロジェクト [VRCT](https://github.com/mis
 - クラウドサービスが利用できない場合のローカル CTranslate2 フォールバック機能
 - スキップまたは失敗した文の個別の手動再試行（Manual Retry）
 - VRオーバーレイ、デスクトップオーバーレイ、クリップボード、OSC、VRChatチャットボックスへの出力
-- CPU処理にも切り替え可能な1つのCUDA対応Windowsビルド
+- 1つのインストーラーから選択できるCPU専用ランタイムとNVIDIA CUDAランタイム
 - マットブラックとバイオレットを基調とした洗練されたデスクトップUI
 
 ## ハードウェアとパフォーマンス
@@ -150,7 +150,8 @@ VRCNTにはローカルAIランタイム依存関係が含まれているため�
 
 - 文字起こしモデルはインストール後に追加のダウンロードが必要な場合があります。
 - 大型モデルはより多くのRAMまたはVRAMを消費するため、お使いのPCに適したモデルを選択してください。
-- CPU専用モードもサポートされていますが、特に大型の音声モデルではレイテンシが高くなる場合があります。
+- CPU専用インストールではCUDA固有のランタイムを含めないため、ダウンロード容量とディスク使用量を抑えられます。
+- 使用中のランタイムは **Settings → Others → Runtime** から後で切り替えられます。切り替えはユーザーデータを保持する検証済みの入れ替え処理です。
 - クラウドエンジンは低スペックのPCを補うことができますが、インターネット接続が必要です。
 
 ## ビルド (Build)
@@ -161,21 +162,23 @@ VRCNTにはローカルAIランタイム依存関係が含まれているため�
 npm ci
 ```
 
-CUDAサイドカーとWindowsアプリをビルドします:
+共有シェルと両方のランタイムをビルドします:
 
 ```powershell
-npm run build-cuda
+npm run setup-python
+npm run build-runtime-shell
+npm run build-backend:cpu
+npm run build-backend:cuda
+npm run stage-runtime:cpu
+npm run stage-runtime:cuda
 ```
 
-リリース実行ファイルおよびインストーラーは `src-tauri/target/release` 以下に生成されます。
+ステージ済みのペイロードは `build/release/cpu` と `build/release/cuda` に生成されます。公開リリースでは小容量のWPFブートストラッパー `VRCNT_5.15.0_Setup.exe` と両方のペイロードを使用します。
 
 公式ビルドは [GitHub Releases](https://github.com/awakenginexe/VRCNT/releases) で公開されています。
-インストーラーは、署名された3つの分割パッケージファイルをダウンロードするか、
-`package-manifest.json` および `package-manifest.json.sig` と一緒に
-`VRCNT_<version>.7z.001` から `.003` を同じディレクトリに配置して使用できます。
-VRCNTをポータブルで実行する場合は、3つのパーツをすべて同じフォルダに保持し、7-Zipで `.7z.001` を解凍して、解凍先フォルダから `VRCNT.exe` を起動してください。
+インストーラーは互換性のあるNVIDIA GPUを検出し、CUDAを推奨します。署名済みマニフェストがCPUまたはCUDAのパーツ数を決定するため、両バリアントのパーツ数は同じである必要はありません。ポータブル実行では、選択したパーツと署名済みマニフェストを同じフォルダに置き、`.7z.001` を7-Zipで解凍して `VRCNT.exe` を起動してください。
 
-ダウンロードしたモデルと設定は `%LOCALAPPDATA%\VRCNTData` に保存されます。VRCNT 4.1.0 は、新しいディレクトリがまだ存在しない場合、既存の `VRCNT-NextData` ディレクトリを自動的に移行します。
+ダウンロードしたモデルと設定は `%LOCALAPPDATA%\VRCNTData` に保存されます。安定セットアップマネージャーは `%LOCALAPPDATA%\VRCNTInstaller\VRCNT.Setup.exe` にあり、ランタイムの更新や切り替えでもユーザーデータを保持します。
 
 ## プロジェクトの系譜
 

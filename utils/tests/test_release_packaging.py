@@ -1,7 +1,9 @@
 import json
+import re
 import subprocess
 import sys
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -11,16 +13,17 @@ UTILS_DIRECTORY = REPOSITORY_ROOT / "utils"
 sys.path.insert(0, str(UTILS_DIRECTORY))
 
 from release_config import ReleaseConfig, load_release_config
-from release import DEFAULT_RELEASE_DIRECTORIES, DEFAULT_RELEASE_FILES, validate_payload
+from release import REQUIRED_PAYLOAD_DIRECTORIES, REQUIRED_PAYLOAD_FILES, validate_payload
+import update_version
 
 
 class ReleaseNamingTests(unittest.TestCase):
     def test_release_artifacts_use_vrcnt_brand(self):
         config = load_release_config(REPOSITORY_ROOT)
 
-        self.assertEqual("VRCNT_${version}.7z", config.package_name_pattern)
+        self.assertEqual("VRCNT_${version}_${variant}.7z", config.package_name_pattern)
         self.assertEqual(
-            "VRCNT_${version}_x64-setup.exe",
+            "VRCNT_${version}_Setup.exe",
             config.installer_name_pattern,
         )
         self.assertNotIn("Next", config.package_name_pattern)
@@ -29,9 +32,9 @@ class ReleaseNamingTests(unittest.TestCase):
     def test_placeholder_release_artifacts_use_vrcnt_brand(self):
         config = ReleaseConfig.placeholder()
 
-        self.assertEqual("VRCNT_${version}.7z", config.package_name_pattern)
+        self.assertEqual("VRCNT_${version}_${variant}.7z", config.package_name_pattern)
         self.assertEqual(
-            "VRCNT_${version}_x64-setup.exe",
+            "VRCNT_${version}_Setup.exe",
             config.installer_name_pattern,
         )
 
@@ -57,7 +60,7 @@ class ReleaseNamingTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertIn("name: Release VRCNT\n", workflow)
-        self.assertIn("name: Build and publish VRCNT\n", workflow)
+        self.assertIn("name: Package, sign, and publish VRCNT\n", workflow)
         self.assertIn("uses: actions/checkout@v6", workflow)
         self.assertIn("uses: actions/setup-node@v6", workflow)
         self.assertIn("uses: actions/setup-python@v6", workflow)
@@ -91,7 +94,7 @@ import sys
 
 sys.path.insert(0, {str(UTILS_DIRECTORY)!r})
 import release
-print(release.DEFAULT_RELEASE_FILES[0])
+print(release.REQUIRED_PAYLOAD_FILES[0])
 """
         result = subprocess.run(
             [sys.executable, "-c", script],
@@ -105,44 +108,169 @@ print(release.DEFAULT_RELEASE_FILES[0])
 
     def test_default_payload_contains_all_runtime_components(self):
         self.assertEqual(
-            [
-                "src-tauri/target/release/VRCNT.exe",
-                "src-tauri/target/release/VRCNT-backend.exe",
-            ],
-            [str(path).replace("\\", "/") for path in DEFAULT_RELEASE_FILES],
+            ("VRCNT.exe", "VRCNT-backend.exe", "VRCNT.runtime.json"),
+            REQUIRED_PAYLOAD_FILES,
         )
-        self.assertEqual(
-            [
-                "src-tauri/target/release/_internal",
-                "src-tauri/target/release/frontend",
-            ],
-            [str(path).replace("\\", "/") for path in DEFAULT_RELEASE_DIRECTORIES],
-        )
+        self.assertEqual(("_internal", "frontend"), REQUIRED_PAYLOAD_DIRECTORIES)
 
     def test_missing_required_payload_fails_without_creating_zip(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
-            zip_path = root / "VRCNT.zip"
-
             with self.assertRaises(FileNotFoundError):
-                validate_payload([root / "missing.exe"], [])
-
-            self.assertFalse(zip_path.exists())
+                validate_payload(root)
 
     def test_valid_payload_contains_files_and_runtime_directories(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
             executable = root / "VRCNT.exe"
             sidecar = root / "VRCNT-backend.exe"
+            marker = root / "VRCNT.runtime.json"
             internal = root / "_internal"
             frontend = root / "frontend"
             executable.write_bytes(b"app")
             sidecar.write_bytes(b"sidecar")
+            marker.write_text("{}", encoding="utf-8")
             internal.mkdir()
             frontend.mkdir()
             (internal / "runtime.dll").write_bytes(b"runtime")
             (frontend / "index.html").write_text("VRCNT", encoding="utf-8")
-            validate_payload([executable, sidecar], [internal, frontend])
+            validate_payload(root)
+
+
+class VersionConsistencyTests(unittest.TestCase):
+    def test_all_active_release_surfaces_report_target_version(self):
+        target_version = "5.15.0"
+        package = json.loads((REPOSITORY_ROOT / "package.json").read_text(encoding="utf-8"))
+        package_lock = json.loads(
+            (REPOSITORY_ROOT / "package-lock.json").read_text(encoding="utf-8")
+        )
+        tauri = json.loads(
+            (REPOSITORY_ROOT / "src-tauri" / "tauri.conf.json").read_text(encoding="utf-8")
+        )
+        cargo_manifest = tomllib.loads(
+            (REPOSITORY_ROOT / "src-tauri" / "Cargo.toml").read_text(encoding="utf-8")
+        )
+        cargo_lock = tomllib.loads(
+            (REPOSITORY_ROOT / "src-tauri" / "Cargo.lock").read_text(encoding="utf-8")
+        )
+        vrcnt_package = next(
+            item for item in cargo_lock["package"] if item["name"] == "vrcnt"
+        )
+
+        self.assertEqual(target_version, package["version"])
+        self.assertEqual(target_version, package_lock["version"])
+        self.assertEqual(target_version, package_lock["packages"][""]["version"])
+        self.assertEqual(target_version, tauri["version"])
+        self.assertEqual(target_version, cargo_manifest["package"]["version"])
+        self.assertEqual(target_version, vrcnt_package["version"])
+
+        config = (REPOSITORY_ROOT / "src-python" / "config.py").read_text(encoding="utf-8")
+        self.assertRegex(config, rf'self\._VERSION = "{re.escape(target_version)}"')
+        ui_store = (REPOSITORY_ROOT / "src-ui" / "logics" / "store.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            f'createAtomWithHook("{target_version}", "SoftwareVersion")',
+            ui_store,
+        )
+
+        for path in (
+            REPOSITORY_ROOT / "src-python" / "models" / "telemetry" / "__init__.py",
+            REPOSITORY_ROOT / "src-python" / "models" / "telemetry" / "core.py",
+            REPOSITORY_ROOT / "src-python" / "models" / "telemetry" / "client.py",
+        ):
+            self.assertRegex(
+                path.read_text(encoding="utf-8"),
+                rf'app_version: str = "{re.escape(target_version)}"',
+            )
+
+        for path in (
+            REPOSITORY_ROOT / "installer-helper" / "VRCNT.RuntimeCore" / "VRCNT.RuntimeCore.csproj",
+            REPOSITORY_ROOT / "installer-helper" / "VRCNT.Setup" / "VRCNT.Setup.csproj",
+        ):
+            self.assertIn(
+                f"<Version>{target_version}</Version>",
+                path.read_text(encoding="utf-8"),
+            )
+
+        for path in (
+            REPOSITORY_ROOT / "README.md",
+            REPOSITORY_ROOT / "Readme" / "Readme.en.md",
+            REPOSITORY_ROOT / "Readme" / "Readme.jp.md",
+            REPOSITORY_ROOT / "Readme" / "Readme.kr.md",
+            REPOSITORY_ROOT / "Readme" / "Readme.scn.md",
+            REPOSITORY_ROOT / "Readme" / "Readme.tcn.md",
+            REPOSITORY_ROOT / "Readme" / "Readme.th.md",
+        ):
+            self.assertIn(
+                f"badge/version-{target_version}-",
+                path.read_text(encoding="utf-8"),
+            )
+
+        release_config = json.loads(
+            (REPOSITORY_ROOT / "release.config.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            "VRCNT_${version}_${variant}.7z",
+            release_config["packageNamePattern"],
+        )
+        self.assertEqual(
+            "VRCNT_${version}_Setup.exe",
+            release_config["installerNamePattern"],
+        )
+        self.assertNotIn("5.14.0", json.dumps(release_config))
+
+        build_document = (REPOSITORY_ROOT / "BUILD.md").read_text(encoding="utf-8")
+        self.assertIn(f"VRCNT {target_version}", build_document)
+        workflow = (
+            REPOSITORY_ROOT / ".github" / "workflows" / "release.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn(f"v{target_version}", workflow)
+        self.assertNotIn("5.14.0", workflow)
+
+        nsis_template = (
+            REPOSITORY_ROOT / "src-tauri" / "nsis" / "template.nsi"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            '!define PACKAGE_MANIFEST_NAME "package-manifest.json"',
+            nsis_template,
+        )
+        self.assertNotIn("PACKAGE_PART_COUNT", nsis_template)
+
+
+class VersionUpdaterTests(unittest.TestCase):
+    def test_readme_setup_names_follow_modern_and_legacy_formats(self):
+        readme_names = (
+            "README.md",
+            "Readme/Readme.en.md",
+            "Readme/Readme.jp.md",
+            "Readme/Readme.kr.md",
+            "Readme/Readme.scn.md",
+            "Readme/Readme.tcn.md",
+            "Readme/Readme.th.md",
+        )
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            for relative_name in readme_names:
+                readme_path = root / relative_name
+                readme_path.parent.mkdir(parents=True, exist_ok=True)
+                readme_path.write_text(
+                    "\n".join(
+                        (
+                            "https://img.shields.io/badge/version-0.1.2-purple",
+                            "VRCNT_0.1.2_x64-setup.exe",
+                            "VRCNT_0.1.2_Setup.exe",
+                        )
+                    ),
+                    encoding="utf-8",
+                )
+
+            update_version.update_readme_versions(str(root), "9.8.7")
+
+            for relative_name in readme_names:
+                content = (root / relative_name).read_text(encoding="utf-8")
+                self.assertIn("VRCNT_9.8.7_x64-setup.exe", content)
+                self.assertIn("VRCNT_9.8.7_Setup.exe", content)
 
 
 if __name__ == "__main__":

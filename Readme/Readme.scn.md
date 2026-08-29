@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-5.14.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-5.15.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>
@@ -139,7 +139,7 @@ VRCNT 是一款非官方的 VRChat 翻译与语音转文字应用，基于开源
 - 当云端服务不可用时，可自动回退至本地 CTranslate2。
 - 支持对被跳过或失败的单句进行手动重试（Manual Retry）。
 - 支持输出至 VR 悬浮窗、桌面悬浮窗、剪贴板、OSC 及 VRChat 聊天框。
-- 单一的 CUDA Windows 构建版本，同时支持切换至 CPU 处理。
+- 一个安装程序中可选择的纯 CPU 与 NVIDIA CUDA Windows 运行时版本。
 - 专注于使用体验的哑光黑与紫罗兰配色桌面界面。
 
 ## 硬件与性能
@@ -150,7 +150,8 @@ VRCNT 包含了本地 AI 运行时依赖，因此应用安装包体积较大。�
 
 - 语音模型在安装后可能需要额外下载。
 - 较大的模型需要消耗更多的内存（RAM）或显存（VRAM），请根据您的电脑配置选择合适的模型。
-- 支持纯 CPU 模式，但在使用较大语音模型时延迟可能较高。
+- 纯 CPU 安装不包含 CUDA 专用运行时，因此下载和磁盘占用更小。
+- 当前运行时可在 **Settings → Others → Runtime** 中切换，用户数据会被保留。
 - 云端引擎可以减轻性能较低电脑的负担，但需要连接互联网。
 
 ## 构建 (Build)
@@ -161,22 +162,24 @@ VRCNT 包含了本地 AI 运行时依赖，因此应用安装包体积较大。�
 npm ci
 ```
 
-构建 CUDA Sidecar 及 Windows 应用：
+构建共享 Shell 和两个运行时版本：
 
 ```powershell
-npm run build-cuda
+npm run setup-python
+npm run build-runtime-shell
+npm run build-backend:cpu
+npm run build-backend:cuda
+npm run stage-runtime:cpu
+npm run stage-runtime:cuda
 ```
 
-生成的发布可执行文件及安装包位于
-`src-tauri/target/release`。
+暂存的运行时位于 `build/release/cpu` 和 `build/release/cuda`。公开发布使用小型 WPF 引导安装程序 `VRCNT_5.15.0_Setup.exe` 以及两个运行时包。
 
 官方构建版本发布于 [GitHub Releases](https://github.com/awakenginexe/VRCNT/releases)。
-安装包可以自动下载其 3 个已签署的多分卷包文件，或者当
-`VRCNT_<version>.7z.001` 至 `.003` 与 `package-manifest.json` 及 `package-manifest.json.sig`
-放置在同一目录下时直接使用。如需便携运行 VRCNT，请保持这 3 个分卷包在同一目录下，使用 7-Zip 解压 `.7z.001`，并从解压后的目录中运行 `VRCNT.exe`。
+安装程序会检测兼容的 NVIDIA 硬件并推荐 CUDA，同时允许用户主动选择 CPU。签名清单决定 CPU 或 CUDA 所需的准确分卷数量，因此两个版本的分卷数量不必相同。便携运行时，请将清单选定的分卷和签名清单放在一起，用 7-Zip 解压 `.7z.001`，再从解压目录运行 `VRCNT.exe`。
 
 下载的模型和配置文件保存在
-`%LOCALAPPDATA%\VRCNTData`。如果新目录尚不存在，VRCNT 4.1.0 将自动迁移现有的 `VRCNT-NextData` 目录。
+`%LOCALAPPDATA%\VRCNTData`。稳定安装管理器位于 `%LOCALAPPDATA%\VRCNTInstaller\VRCNT.Setup.exe`，安装、更新和运行时切换都会保留用户数据。
 
 ## 项目渊源
 

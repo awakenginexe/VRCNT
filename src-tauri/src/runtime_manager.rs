@@ -1143,6 +1143,8 @@ pub fn persist_runtime_switch_receipt_binding(
 ) -> Result<RuntimeSwitchReceiptBinding, String> {
     let status_path = data_root.join(RUNTIME_SWITCH_STATUS_FILE_NAME);
     with_runtime_switch_lock(&status_path, || {
+        let canonical_app_path = fs::canonicalize(current_app_path)
+            .map_err(|_| "The runtime switch receipt application path is unavailable.".to_owned())?;
         persist_runtime_switch_receipt_binding_unlocked(
             data_root,
             nonce,
@@ -1150,7 +1152,7 @@ pub fn persist_runtime_switch_receipt_binding(
             install_path,
             current_app_path,
             token,
-            &switch_proof(token, nonce, target_variant, current_app_path),
+            &switch_proof(token, nonce, target_variant, &canonical_app_path),
             lease_generation,
             receipt_expires_at,
         )

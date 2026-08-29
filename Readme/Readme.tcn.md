@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-5.14.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-5.15.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>
@@ -139,7 +139,7 @@ VRCNT 是一款非官方的 VRChat 翻譯與語音轉文字應用，基於開源
 - 當雲端服務不可用時，可自動回退至本地 CTranslate2。
 - 支援對被跳過或失敗的單句進行手動重試（Manual Retry）。
 - 支援輸出至 VR 懸浮窗、桌面懸浮窗、剪貼簿、OSC 及 VRChat 聊天框。
-- 單一的 CUDA Windows 建置版本，同時支援切換至 CPU 處理。
+- 一個安裝程式中可選擇的純 CPU 與 NVIDIA CUDA Windows 執行階段。
 - 專注於使用體驗的啞光黑與紫羅蘭配色桌面介面。
 
 ## 硬體與效能
@@ -150,7 +150,8 @@ VRCNT 包含了本地 AI 執行階段依賴，因此應用安裝套件體積較�
 
 - 語音模型在安裝後可能需要額外下載。
 - 較大的模型需要消耗更多的記憶體（RAM）或顯示記憶體（VRAM），請根據您的電腦設定選擇合適的模型。
-- 支援純 CPU 模式，但在使用較大語音模型時延遲可能較高。
+- 純 CPU 安裝不包含 CUDA 專用執行階段，因此下載與磁碟佔用較小。
+- 目前執行階段可在 **Settings → Others → Runtime** 中切換，使用者資料會被保留。
 - 雲端引擎可以減輕效能較低電腦的負擔，但需要連接網際網路。
 
 ## 建置 (Build)
@@ -161,22 +162,24 @@ VRCNT 包含了本地 AI 執行階段依賴，因此應用安裝套件體積較�
 npm ci
 ```
 
-建置 CUDA Sidecar 及 Windows 應用：
+建置共用 Shell 與兩個執行階段版本：
 
 ```powershell
-npm run build-cuda
+npm run setup-python
+npm run build-runtime-shell
+npm run build-backend:cpu
+npm run build-backend:cuda
+npm run stage-runtime:cpu
+npm run stage-runtime:cuda
 ```
 
-生成的發布可執行檔及安裝套件位於
-`src-tauri/target/release`。
+暫存的執行階段位於 `build/release/cpu` 與 `build/release/cuda`。公開發布使用小型 WPF 引導安裝程式 `VRCNT_5.15.0_Setup.exe` 以及兩個執行階段套件。
 
 官方建置版本發布於 [GitHub Releases](https://github.com/awakenginexe/VRCNT/releases)。
-安裝套件可以自動下載其 3 個已簽署的多分割套件檔案，或者當
-`VRCNT_<version>.7z.001` 至 `.003` 與 `package-manifest.json` 及 `package-manifest.json.sig`
-放置在同一目錄下時直接使用。如需可攜執行 VRCNT，請保持這 3 個分割套件在同一目錄下，使用 7-Zip 解壓縮 `.7z.001`，並從解壓縮後的目錄中執行 `VRCNT.exe`。
+安裝程式會偵測相容的 NVIDIA 硬體並推薦 CUDA，同時允許使用者主動選擇 CPU。簽署清單決定 CPU 或 CUDA 所需的準確分割數量，因此兩個版本的分割數量不必相同。可攜執行時，請將清單選定的分割與簽署清單放在一起，用 7-Zip 解壓縮 `.7z.001`，再從解壓縮目錄執行 `VRCNT.exe`。
 
 下載的模型和設定檔保存在
-`%LOCALAPPDATA%\VRCNTData`。如果新目錄尚未存在，VRCNT 4.1.0 將自動遷移現有的 `VRCNT-NextData` 目錄。
+`%LOCALAPPDATA%\VRCNTData`。穩定安裝管理器位於 `%LOCALAPPDATA%\VRCNTInstaller\VRCNT.Setup.exe`，安裝、更新與執行階段切換都會保留使用者資料。
 
 ## 專案淵源
 

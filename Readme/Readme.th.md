@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-5.14.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-5.15.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>
@@ -139,7 +139,7 @@ VRCNT เป็นแอปพลิเคชันแปลภาษาแล�
 - รองรับระบบสำรอง CTranslate2 ภายในเครื่อง (Local Fallback) เมื่อไม่มีการเชื่อมต่อคลาวด์
 - สามารถกดลองใหม่ (Manual Retry) สำหรับประโยคที่ถูกข้ามหรือแปลไม่สำเร็จได้
 - ส่งออกข้อความไปยัง VR Overlay, Desktop Overlay, คลิปบอร์ด, OSC และ VRChat Chatbox
-- ไฟล์ติดตั้งแบบ Windows รองรับ CUDA (การ์ดจอ NVIDIA) และยังสามารถสลับไปใช้ประมวลผลด้วย CPU ได้
+- ตัวติดตั้งเดียวที่ให้เลือก Windows runtime แบบ CPU-only หรือ NVIDIA CUDA ได้
 - อินเทอร์เฟซสไตล์ Matte-black ผสม Violet ดูสบายตาและโฟกัสง่าย
 
 ## ความต้องการฮาร์ดแวร์และประสิทธิภาพ
@@ -150,7 +150,8 @@ VRCNT มาพร้อมกับไลบรารี AI รันไทม�
 
 - โมเดลถอดเสียงอาจต้องมีการดาวน์โหลดเพิ่มเติมหลังติดตั้ง
 - โมเดลขนาดใหญ่จะใช้ RAM หรือ VRAM มากขึ้น โปรดเลือกโมเดลให้เหมาะสมกับสเปกคอมพิวเตอร์ของคุณ
-- โหมด CPU-only สามารถใช้งานได้ แต่อาจมีความหน่วงสูงกว่า โดยเฉพาะเมื่อใช้โมเดลถอดเสียงขนาดใหญ่
+- การติดตั้งแบบ CPU-only ไม่รวม runtime เฉพาะของ CUDA จึงดาวน์โหลดและใช้พื้นที่ดิสก์น้อยกว่า
+- สามารถเปลี่ยน runtime ภายหลังได้ที่ **Settings → Others → Runtime** โดยข้อมูลผู้ใช้จะยังคงอยู่
 - การเลือกใช้ Cloud Engine จะช่วยลดภาระคอมพิวเตอร์ที่ไม่แรงมากได้ แต่จำเป็นต้องเชื่อมต่ออินเทอร์เน็ต
 
 ## การบิลด์โปรเจกต์ (Build)
@@ -161,23 +162,23 @@ VRCNT มาพร้อมกับไลบรารี AI รันไทม�
 npm ci
 ```
 
-บิลด์ CUDA Sidecar และ Windows App:
+บิลด์ shared shell และ runtime ทั้งสองแบบ:
 
 ```powershell
-npm run build-cuda
+npm run setup-python
+npm run build-runtime-shell
+npm run build-backend:cpu
+npm run build-backend:cuda
+npm run stage-runtime:cpu
+npm run stage-runtime:cuda
 ```
 
-ไฟล์สำหรับรันและติดตั้ง (Installer) จะถูกสร้างไว้ที่
-`src-tauri/target/release`
+ไฟล์ runtime ที่ stage แล้วจะอยู่ที่ `build/release/cpu` และ `build/release/cuda` ส่วน release สาธารณะใช้ WPF bootstrapper ขนาดเล็ก `VRCNT_5.15.0_Setup.exe` และ payload ทั้งสองแบบ
 
 บิลด์อย่างเป็นทางการจะถูกเผยแพร่บน [GitHub Releases](https://github.com/awakenginexe/VRCNT/releases)
-ตัวติดตั้งสามารถดาวน์โหลดไฟล์แพ็กเกจแบบหลากส่วน (Multipart package) ที่ลงลายเซ็นไว้ 3 ส่วน หรือใช้ไฟล์
-`VRCNT_<version>.7z.001` ถึง `.003` เมื่อนำวางไว้คู่กันพร้อมกับ
-`package-manifest.json` และ `package-manifest.json.sig`
-หากต้องการรัน VRCNT แบบพกพา (Portable) ให้นำทั้ง 3 ส่วนไว้ในโฟลเดอร์เดียวกัน แตกไฟล์ `.7z.001` ด้วย 7-Zip แล้วเปิดรัน `VRCNT.exe` จากโฟลเดอร์ที่แตกออกมา
+ตัวติดตั้งจะตรวจหาอุปกรณ์ NVIDIA ที่เข้ากันได้และแนะนำ CUDA แต่ผู้ใช้ยังเลือก CPU ได้เอง โดย signed manifest จะกำหนดจำนวนส่วนของแพ็กเกจ CPU หรือ CUDA ที่ต้องใช้จริง ซึ่งจำนวนส่วนของแต่ละแบบไม่จำเป็นต้องเท่ากัน หากต้องการรันแบบพกพา ให้วางส่วนที่ manifest เลือกไว้ในโฟลเดอร์เดียวกัน ตรวจสอบ manifest ที่ลงลายเซ็น แตกไฟล์ `.7z.001` ด้วย 7-Zip แล้วเปิด `VRCNT.exe` จากโฟลเดอร์ที่แตกออกมา
 
-โมเดลที่ดาวน์โหลดและการตั้งค่าจะถูกเก็บไว้ที่
-`%LOCALAPPDATA%\VRCNTData` โดย VRCNT 4.1.0 จะย้ายโฟลเดอร์ `VRCNT-NextData` เดิมให้อัตโนมัติหากยังไม่มีโฟลเดอร์ใหม่
+โมเดลที่ดาวน์โหลดและการตั้งค่าจะถูกเก็บไว้ที่ `%LOCALAPPDATA%\VRCNTData` ส่วน stable setup manager อยู่ที่ `%LOCALAPPDATA%\VRCNTInstaller\VRCNT.Setup.exe` และจะรักษาข้อมูลผู้ใช้ไว้ระหว่างการติดตั้ง อัปเดต และเปลี่ยน runtime
 
 ## ที่มาของโปรเจกต์
 
