@@ -207,6 +207,11 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
         start.ArgumentList.Add("/UPDATE");
         start.ArgumentList.Add("--manager-repaired");
         if (options.IsPassive) start.ArgumentList.Add("/passive");
+        if (options.CurrentAppPath is not null)
+        {
+            start.ArgumentList.Add("--current-app");
+            start.ArgumentList.Add(options.CurrentAppPath);
+        }
         foreach (var argument in options.CurrentAppArguments)
         {
             start.ArgumentList.Add("--current-app-arg");

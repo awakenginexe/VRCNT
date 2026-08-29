@@ -523,6 +523,7 @@ public sealed class ManagerLifecycleTests : IDisposable
 
         Assert.Contains("if (options.CurrentAppPath is not null)\n        {\n            start.ArgumentList.Add(\"--current-app\");\n            start.ArgumentList.Add(options.CurrentAppPath);\n        }\n        foreach (var argument in options.CurrentAppArguments)", normalizedWorker, StringComparison.Ordinal);
         Assert.Contains("foreach (var argument in options.CurrentAppArguments)", worker, StringComparison.Ordinal);
+        Assert.Contains("if (options.CurrentAppPath is not null)\n        {\n            start.ArgumentList.Add(\"--current-app\");\n            start.ArgumentList.Add(options.CurrentAppPath);\n        }\n        foreach (var argument in options.CurrentAppArguments)", promoted.Replace("\r\n", "\n", StringComparison.Ordinal), StringComparison.Ordinal);
         Assert.Contains("foreach (var argument in options.CurrentAppArguments)", promoted, StringComparison.Ordinal);
     }
 
