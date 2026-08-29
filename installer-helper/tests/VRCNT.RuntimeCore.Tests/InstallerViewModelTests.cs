@@ -78,12 +78,14 @@ public sealed class InstallerViewModelTests
     {
         var operations = new DeferredProgressOperations { CompleteImmediately = true };
         var options = SetupCommandLine.Parse(["--switch", "--variant", target == RuntimeVariant.Cuda ? "cuda" : "cpu"]);
-        var viewModel = CreateViewModel(operations, options, new FixedGpuSelectionPolicy(recommended));
+        var launcher = new RecordingLauncher();
+        var viewModel = CreateViewModel(operations, options, new FixedGpuSelectionPolicy(recommended), launcher);
 
         Assert.Equal(target, viewModel.SelectedVariant);
         await viewModel.InstallAsync();
 
         Assert.Equal(target, operations.ReceivedOptions!.Variant);
+        Assert.Equal(1, launcher.Count);
     }
 
     private static InstallerViewModel CreateViewModel(DeferredProgressOperations operations, IApplicationLauncher? launcher = null, IGpuAdvisoryPolicy? gpuAdvisoryPolicy = null)

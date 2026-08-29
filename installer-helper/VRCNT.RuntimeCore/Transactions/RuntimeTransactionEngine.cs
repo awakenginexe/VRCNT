@@ -192,6 +192,8 @@ public sealed class RuntimeTransactionEngine(
             directoryMover.Move(paths.StagingPath, request.InstallPath);
             journal = journal with { StagedRuntimeMoved = true };
             journalStore.WriteAtomic(paths.JournalPath, journal);
+            if (cancellationToken.IsCancellationRequested)
+                return await CancelAfterDestructiveStepAsync(paths, journal, request.InstallPath, processCoordinator);
 
             journal = journal with { Phase = TransactionPhase.Activate };
             journalStore.WriteAtomic(paths.JournalPath, journal);

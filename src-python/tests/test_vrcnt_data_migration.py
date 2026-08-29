@@ -1,6 +1,7 @@
 import os
 import sys
 import tempfile
+import types
 import unittest
 from unittest.mock import patch
 
@@ -9,6 +10,21 @@ sys.path.insert(
     0,
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..")),
 )
+
+if "requests" not in sys.modules:
+    class _RequestException(Exception):
+        pass
+
+    requests_stub = types.ModuleType("requests")
+    requests_stub.post = lambda *args, **kwargs: None
+    requests_stub.get = lambda *args, **kwargs: None
+    requests_stub.RequestException = _RequestException
+    requests_stub.exceptions = types.SimpleNamespace(
+        Timeout=_RequestException,
+        HTTPError=_RequestException,
+        ConnectionError=_RequestException,
+    )
+    sys.modules["requests"] = requests_stub
 
 from config import (
     _copytree_merge,
@@ -172,6 +188,29 @@ class VrcntDataMigrationTests(unittest.TestCase):
                 self.assertEqual(file_handle.read(), b"current-config")
             with open(os.path.join(target_path, "weights", "model.bin"), "rb") as file_handle:
                 self.assertEqual(file_handle.read(), b"current-model")
+
+    def test_migration_preserves_configuration_presets_and_downloaded_model_data(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            legacy_path = os.path.join(temporary_directory, "VRCNT-NextData")
+            target_path = os.path.join(temporary_directory, "VRCNTData")
+            os.makedirs(os.path.join(legacy_path, "presets", "default"))
+            os.makedirs(os.path.join(legacy_path, "weights"))
+            with open(os.path.join(legacy_path, "config.json"), "wb") as file_handle:
+                file_handle.write(b'{"UI_LANGUAGE":"th","API_PROVIDER":"local"}')
+            with open(os.path.join(legacy_path, "presets", "default", "profile.json"), "wb") as file_handle:
+                file_handle.write(b'{"name":"default"}')
+            with open(os.path.join(legacy_path, "weights", "model.bin"), "wb") as file_handle:
+                file_handle.write(b"downloaded-model")
+
+            self.assertTrue(_migrateRenamedUserData(legacy_path, target_path))
+            self.assertTrue(os.path.isdir(legacy_path))
+            for relative_path, expected in (
+                ("config.json", b'{"UI_LANGUAGE":"th","API_PROVIDER":"local"}'),
+                ("presets/default/profile.json", b'{"name":"default"}'),
+                ("weights/model.bin", b"downloaded-model"),
+            ):
+                with open(os.path.join(target_path, relative_path), "rb") as file_handle:
+                    self.assertEqual(file_handle.read(), expected)
 
 
 if __name__ == "__main__":

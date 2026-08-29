@@ -1,3 +1,4 @@
+using VRCNT.RuntimeCore.Models;
 using VRCNT.RuntimeCore.Migration;
 using VRCNT.RuntimeCore.Paths;
 using Xunit;
@@ -74,6 +75,77 @@ public sealed class LegacyMigrationTests : IDisposable
 
         Assert.True(legacy.RequiresMigration);
         Assert.False(legacy.HasRuntimeMarker);
+        Assert.Null(legacy.DetectedVariant);
+    }
+
+    [Fact]
+    public void Detect_maps_a_legacy_payload_with_cuda_boundaries_to_cuda()
+    {
+        var installPath = Path.Combine(_root, "cuda-install");
+        Write(Path.Combine(installPath, "VRCNT.exe"), "legacy-app");
+        Write(Path.Combine(installPath, "_internal", "onnxruntime", "capi", "onnxruntime_providers_cuda.dll"), "cuda");
+
+        var legacy = new LegacyInstallationDetector(new UserDataPathResolver()).Detect(
+            Path.Combine(_root, "local-app-data"), installPath);
+
+        Assert.Equal(RuntimeVariant.Cuda, legacy.DetectedVariant);
+        Assert.True(legacy.RequiresMigration);
+    }
+
+    [Fact]
+    public void Detect_maps_a_legacy_payload_without_cuda_boundaries_to_cpu()
+    {
+        var installPath = Path.Combine(_root, "cpu-install");
+        Write(Path.Combine(installPath, "VRCNT.exe"), "legacy-app");
+        Write(Path.Combine(installPath, "_internal", "onnxruntime", "capi", "onnxruntime.dll"), "cpu");
+
+        var legacy = new LegacyInstallationDetector(new UserDataPathResolver()).Detect(
+            Path.Combine(_root, "local-app-data"), installPath);
+
+        Assert.Equal(RuntimeVariant.Cpu, legacy.DetectedVariant);
+    }
+
+    [Fact]
+    public void Detect_requires_explicit_selection_for_data_only_unknown_installations()
+    {
+        var localAppData = Path.Combine(_root, "local-app-data");
+        Write(Path.Combine(localAppData, "VRCNT-NextData", "config.json"), "legacy-config");
+
+        var legacy = new LegacyInstallationDetector(new UserDataPathResolver()).Detect(
+            localAppData, Path.Combine(_root, "unknown-install"));
+
+        Assert.True(legacy.RequiresMigration);
+        Assert.Null(legacy.DetectedVariant);
+    }
+
+    [Fact]
+    public void A_stale_marker_bearing_installation_is_not_treated_as_markerless_migration()
+    {
+        var installPath = Path.Combine(_root, "stale-install");
+        Write(Path.Combine(installPath, "VRCNT.exe"), "legacy-app");
+        Write(Path.Combine(installPath, "VRCNT.runtime.json"), "stale-marker");
+
+        var legacy = new LegacyInstallationDetector(new UserDataPathResolver()).Detect(
+            Path.Combine(_root, "local-app-data"), installPath);
+
+        Assert.True(legacy.HasRuntimeMarker);
+        Assert.False(legacy.RequiresMigration);
+    }
+
+    [Fact]
+    public void Legacy_aware_state_transition_allows_only_a_markerless_legacy_payload()
+    {
+        var installPath = Path.Combine(_root, "legacy-install");
+        Write(Path.Combine(installPath, "VRCNT.exe"), "legacy-app");
+        var paths = new UserDataPathResolver();
+        var detector = new LegacyInstallationDetector(paths);
+        var transition = new LegacyAwareRuntimeStateTransition(
+            new RejectingStateTransition(), detector, paths);
+
+        transition.ValidateExistingRuntime(installPath);
+
+        Write(Path.Combine(installPath, "VRCNT.runtime.json"), "stale-marker");
+        Assert.Throws<InvalidDataException>(() => transition.ValidateExistingRuntime(installPath));
     }
 
     public void Dispose()
@@ -85,5 +157,11 @@ public sealed class LegacyMigrationTests : IDisposable
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, content);
+    }
+
+    private sealed class RejectingStateTransition : VRCNT.RuntimeCore.Transactions.IRuntimeStateTransition
+    {
+        public void ValidateExistingRuntime(string installPath) => throw new InvalidDataException("state is not active");
+        public void WriteActiveRuntime(string installPath, RuntimeIdentity identity) => throw new NotSupportedException();
     }
 }

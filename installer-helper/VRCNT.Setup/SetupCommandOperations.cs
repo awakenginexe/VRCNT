@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 using VRCNT.RuntimeCore.Manager;
+using VRCNT.RuntimeCore.Migration;
 using VRCNT.RuntimeCore.Models;
 using VRCNT.RuntimeCore.Paths;
 using VRCNT.RuntimeCore.State;
@@ -68,7 +69,7 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
 
     public async Task ExecuteRuntimeAsync(SetupCommandLineOptions options, IProgress<InstallProgress>? progress, CancellationToken cancellationToken)
     {
-        var activeRuntime = IsImplicitUpdater(options) ? _activeRuntimeLocator.Resolve() : null;
+        var activeRuntime = IsImplicitUpdater(options) ? ResolveImplicitUpdateRuntime() : null;
         var installPath = activeRuntime?.InstallPath ?? options.InstallPath ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VRCNT");
         var paths = _resolveUserDataPaths(installPath);
         var configPath = Path.Combine(paths.DataRoot, "config.json");
@@ -239,6 +240,34 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
 
     private static bool IsImplicitUpdater(SetupCommandLineOptions options) =>
         options.IsUpdate && !options.IsSwitch && options.TargetVariant is null;
+
+    private ActiveRuntime ResolveImplicitUpdateRuntime()
+    {
+        try
+        {
+            return _activeRuntimeLocator.Resolve();
+        }
+        catch (InvalidDataException stateException)
+        {
+            var paths = new UserDataPathResolver();
+            var defaultInstallPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "VRCNT");
+            var resolvedLegacyPaths = _resolveUserDataPaths(defaultInstallPath);
+            var canonicalInstallPath = paths.ValidateCustomInstallPath(resolvedLegacyPaths.InstallPath);
+            var legacy = new LegacyInstallationDetector(paths).Detect(
+                resolvedLegacyPaths with { InstallPath = canonicalInstallPath });
+            if (legacy.RequiresMigration && legacy.DetectedVariant is { } variant &&
+                File.Exists(Path.Combine(canonicalInstallPath, "VRCNT.exe")))
+            {
+                return new ActiveRuntime(variant, canonicalInstallPath, Path.Combine(canonicalInstallPath, "VRCNT.exe"));
+            }
+
+            throw new InvalidDataException(
+                "The installed runtime state is unavailable; explicit migration/runtime selection is required.",
+                stateException);
+        }
+    }
 
     private static void WriteInitialLanguageIfAbsent(string configPath, string languageId)
     {

@@ -70,7 +70,7 @@ public sealed class RuntimeInstallEngine : IRuntimeTransactionEngine
             new NamedPipeRuntimeActivationHealthMonitor(),
             new TransactionJournalStore(),
             new RuntimeDirectoryMover(),
-            new Task3RuntimeStateTransition(),
+            new LegacyAwareRuntimeStateTransition(new Task3RuntimeStateTransition(), legacyDetector, paths),
             onPreflightValidated: () => legacyDetector.PreserveUserData(legacyDetector.Detect(paths.Resolve(destination))));
         var replacement = new RuntimeReplacementRequest(
             destination,

@@ -68,6 +68,22 @@ test("resident close keeps the backend available for the next activation", () =>
     assert.doesNotMatch(closeHandlerSource, /updateIsBackendReady\(false\)/);
 });
 
+test("runtime switch closes the backend before acknowledging the native handoff", () => {
+    const source = readSource("src-ui/views/app/_app_controllers/StartPythonController.jsx");
+    const switchHandlerStart = source.indexOf("const handleRuntimeSwitch = async (event) => {");
+    const switchHandlerEnd = source.indexOf("const setup = async () => {", switchHandlerStart);
+    const switchHandler = source.slice(switchHandlerStart, switchHandlerEnd);
+
+    assert.ok(switchHandlerStart >= 0);
+    assert.ok(switchHandlerEnd > switchHandlerStart);
+    assert.match(switchHandler, /await stopPythonRef\.current\(\)/);
+    assert.match(switchHandler, /complete_runtime_switch_shutdown/);
+    assert.ok(
+        switchHandler.indexOf("await stopPythonRef.current()") <
+            switchHandler.indexOf('invoke("complete_runtime_switch_shutdown"'),
+    );
+});
+
 test("the title-bar close path lets native resident mode intercept enabled startup", () => {
     const source = readSource("src-ui/logics/common/useWindow.js");
 

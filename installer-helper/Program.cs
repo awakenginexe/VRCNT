@@ -43,7 +43,7 @@ internal static class Program
             new NamedPipeRuntimeActivationHealthMonitor(),
             new TransactionJournalStore(),
             new RuntimeDirectoryMover(),
-            new Task3RuntimeStateTransition(),
+            new LegacyAwareRuntimeStateTransition(new Task3RuntimeStateTransition(), legacyDetector, pathResolver),
             onPreflightValidated: () => legacyDetector.PreserveUserData(legacyDetector.Detect(pathResolver.Resolve(canonicalDestination))));
         var request = new RuntimeReplacementRequest(canonicalDestination, options.CacheDirectory, package.Parts.Select(part => Path.Combine(offline ? options.InstallerDirectory : options.CacheDirectory, part.Name)).ToArray(), package.InstalledSize, package.Identity,
             new ActivationRequest($"vrcnt-activation-{RandomHex(16)}", RandomHex(32), RandomHex(32)), false);

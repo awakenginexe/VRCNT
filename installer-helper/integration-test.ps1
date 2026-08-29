@@ -230,6 +230,33 @@ manifest = {
     return
   }
 
+  $legacyDestination = Join-Path $testRoot 'legacy-install'
+  New-Item -ItemType Directory -Path "$legacyDestination/_internal/onnxruntime", "$legacyDestination/weights", "$legacyDestination/logs" -Force | Out-Null
+  Copy-Item -LiteralPath "$payload/VRCNT.exe" -Destination "$legacyDestination/VRCNT.exe"
+  Copy-Item -LiteralPath "$payload/VRCNT-backend.exe" -Destination "$legacyDestination/VRCNT-backend.exe"
+  Set-Content -LiteralPath "$legacyDestination/_internal/onnxruntime/onnxruntime.dll" -Value 'legacy cpu marker' -Encoding utf8
+  Set-Content -LiteralPath "$legacyDestination/config.json" -Value '{"legacy_install":true}' -Encoding utf8 -NoNewline
+  Set-Content -LiteralPath "$legacyDestination/weights/legacy.bin" -Value 'legacy weight' -Encoding utf8 -NoNewline
+  Set-Content -LiteralPath "$legacyDestination/logs/legacy.log" -Value 'legacy log' -Encoding utf8 -NoNewline
+  $legacyDataRoot = Join-Path $env:LOCALAPPDATA 'VRCNT-NextData'
+  New-Item -ItemType Directory -Path "$legacyDataRoot/weights", "$legacyDataRoot/logs" -Force | Out-Null
+  Set-Content -LiteralPath "$legacyDataRoot/config.json" -Value '{"legacy_data":true}' -Encoding utf8 -NoNewline
+  Set-Content -LiteralPath "$legacyDataRoot/weights/legacy-data.bin" -Value 'legacy data weight' -Encoding utf8 -NoNewline
+  Set-Content -LiteralPath "$legacyDataRoot/logs/legacy-data.log" -Value 'legacy data log' -Encoding utf8 -NoNewline
+  $legacy = Invoke-Helper $release (Join-Path $testRoot 'legacy-cache') $legacyDestination 'http://127.0.0.1:1' -Variant cpu
+  if ($legacy.ExitCode -ne 0 -or -not (Test-Path "$legacyDestination/VRCNT.runtime.json")) {
+    throw "Markerless pre-5.15 CPU migration failed:`n$($legacy.Output)"
+  }
+  $legacyRuntime = Get-Content -LiteralPath (Join-Path $env:LOCALAPPDATA 'VRCNTData/runtime.json') -Raw | ConvertFrom-Json
+  $legacyConfig = Get-Content -LiteralPath (Join-Path $env:LOCALAPPDATA 'VRCNTData/config.json') -Raw
+  if ($legacyRuntime.status -ne 'Active' -or $legacyRuntime.variant -ne 'Cpu' -or $legacyConfig -ne '{"legacy_data":true}') {
+    throw "Legacy migration did not preserve the authenticated CPU state and user data."
+  }
+  if (-not (Test-Path (Join-Path $env:LOCALAPPDATA 'VRCNT-NextData/weights/legacy-data.bin')) -or
+      -not (Test-Path (Join-Path $env:LOCALAPPDATA 'VRCNT-NextData/logs/legacy-data.log'))) {
+    throw 'Legacy user-data source was removed during migration.'
+  }
+
   $localDestination = Join-Path $testRoot 'local-install'
   $local = Invoke-Helper $release (Join-Path $testRoot 'local-cache') $localDestination 'http://127.0.0.1:1' -Variant cpu
     if ($local.ExitCode -ne 0 -or -not (Test-Path "$localDestination/VRCNT.exe")) {
