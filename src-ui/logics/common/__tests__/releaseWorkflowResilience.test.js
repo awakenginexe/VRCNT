@@ -142,6 +142,19 @@ test("workflow bootstraps x64 7-Zip from pinned official archives", () => {
 });
 
 
+test("published WPF setup embeds verified helper inputs instead of releasing helper sidecars", () => {
+    const setupProject = read("installer-helper/VRCNT.Setup/VRCNT.Setup.csproj");
+
+    assert.match(setupProject, /EmbeddedResource Include="\$\(SetupToolSourceDirectory\)\\minisign\.exe" LogicalName="VRCNT\.Setup\.Tools\.minisign\.exe"/);
+    assert.match(setupProject, /EmbeddedResource Include="\$\(SetupToolSourceDirectory\)\\7za\.exe" LogicalName="VRCNT\.Setup\.Tools\.7za\.exe"/);
+    assert.doesNotMatch(setupProject, /Copy SourceFiles="@\(AuthenticatedSetupTool\)"/);
+    assert.match(workflow, /'7za\.exe' = '35d4d69d7cd6cb44558f208c3b1334268013f9daf82d2dda848893a1c30c59c2'/);
+    assert.match(workflow, /'minisign\.exe' = '5535be9e4e123831ebe6ef324aafe9dde507015c176191f9e20c3ad60567f9e1'/);
+    assert.match(workflow, /Published WPF setup must embed \$tool instead of shipping it as a sidecar/);
+    assert.match(workflow, /bootstrapper SHA-256 does not match the exact published WPF setup/);
+});
+
+
 test("workflow fails on missing, oversized, or mismatched release files", () => {
     assert.match(workflow, /Length -ge \[long\]\$env:MAX_ASSET_SIZE/);
     assert.match(workflow, /Get-FileHash .* -Algorithm SHA256/);

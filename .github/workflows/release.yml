@@ -105,8 +105,13 @@ jobs:
           $minisign = Get-ChildItem $minisignExtract -Recurse -Filter minisign.exe | Where-Object { $_.FullName -match 'x86_64' } | Select-Object -First 1
           if (-not $minisign) { throw 'The verified minisign archive did not contain the x86_64 executable.' }
           Copy-Item $minisign.FullName (Join-Path $toolDir 'minisign.exe') -Force
-          foreach ($tool in @('7za.exe', 'minisign.exe')) {
+          $trustedToolHashes = @{
+            '7za.exe' = '35d4d69d7cd6cb44558f208c3b1334268013f9daf82d2dda848893a1c30c59c2'
+            'minisign.exe' = '5535be9e4e123831ebe6ef324aafe9dde507015c176191f9e20c3ad60567f9e1'
+          }
+          foreach ($tool in $trustedToolHashes.Keys) {
             if (-not (Test-Path (Join-Path $toolDir $tool)) -or (Get-Item (Join-Path $toolDir $tool)).Length -eq 0) { throw "Installer tool $tool is missing or empty." }
+            if ((Get-FileHash (Join-Path $toolDir $tool) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $trustedToolHashes[$tool]) { throw "Installer tool $tool failed its trusted SHA-256 check." }
           }
 
       - name: Upload verified installer tools
@@ -302,6 +307,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'WPF setup publish failed.' }
           $setup = Join-Path (Get-Location) 'build/setup/VRCNT.Setup.exe'
           if (-not (Test-Path $setup) -or (Get-Item $setup).Length -eq 0) { throw 'WPF setup publish did not produce VRCNT.Setup.exe.' }
+          foreach ($tool in @('7za.exe', 'minisign.exe')) {
+            if (Test-Path (Join-Path (Get-Location) "build/setup/$tool")) { throw "Published WPF setup must embed $tool instead of shipping it as a sidecar." }
+          }
           New-Item -ItemType Directory -Path release-assets -Force | Out-Null
           Copy-Item $setup (Join-Path (Get-Location) ("release-assets/{0}" -f $env:INSTALLER_NAME)) -Force
 
@@ -367,6 +375,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Portable multipart extraction test failed for $($variant.Name)." }
           }
           $setup = Join-Path $assetDir $env:INSTALLER_NAME
+          if ((Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant() -ne $manifest.bootstrapper.sha256) { throw 'Combined manifest bootstrapper SHA-256 does not match the exact published WPF setup.' }
           $pubDate = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
           python ./utils/release.py latest --version $env:VERSION --updater-name $env:INSTALLER_NAME --signature "$setup.sig" --output (Join-Path $assetDir $env:LATEST_JSON_NAME) --pub-date $pubDate
           if ($LASTEXITCODE -ne 0) { throw 'latest.json generation failed.' }

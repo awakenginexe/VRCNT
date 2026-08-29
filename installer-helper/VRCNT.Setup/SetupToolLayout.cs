@@ -7,12 +7,14 @@ public sealed record SetupToolLayout(string MinisignPath, string SevenZipPath)
 {
     private const string TrustedMinisignSha256 = "5535be9e4e123831ebe6ef324aafe9dde507015c176191f9e20c3ad60567f9e1";
     private const string TrustedSevenZipSha256 = "35d4d69d7cd6cb44558f208c3b1334268013f9daf82d2dda848893a1c30c59c2";
+    private const string MinisignResourceName = "VRCNT.Setup.Tools.minisign.exe";
+    private const string SevenZipResourceName = "VRCNT.Setup.Tools.7za.exe";
 
     public static SetupToolLayout Require(string directory)
     {
         var root = Path.GetFullPath(directory);
-        var minisign = RequireTrustedTool(root, "minisign.exe", TrustedMinisignSha256);
-        var sevenZip = RequireTrustedTool(root, "7za.exe", TrustedSevenZipSha256);
+        var minisign = RequireTrustedToolOrEmbedded(root, "minisign.exe", TrustedMinisignSha256, MinisignResourceName);
+        var sevenZip = RequireTrustedToolOrEmbedded(root, "7za.exe", TrustedSevenZipSha256, SevenZipResourceName);
         return new SetupToolLayout(minisign, sevenZip);
     }
 
@@ -38,8 +40,63 @@ public sealed record SetupToolLayout(string MinisignPath, string SevenZipPath)
         File.Copy(layout.SevenZipPath, Path.Combine(destination, "7za.exe"), true);
     }
 
-    private static string RequireTrustedTool(string directory, string name, string expectedSha256) =>
-        VerifyTrustedTool(Path.Combine(directory, name), name, expectedSha256);
+    private static string RequireTrustedToolOrEmbedded(string directory, string name, string expectedSha256, string resourceName)
+    {
+        var adjacentPath = Path.Combine(directory, name);
+        try
+        {
+            return VerifyTrustedTool(adjacentPath, name, expectedSha256);
+        }
+        catch (FileNotFoundException)
+        {
+            return MaterializeEmbeddedTool(name, expectedSha256, resourceName);
+        }
+        catch (CryptographicException)
+        {
+            return MaterializeEmbeddedTool(name, expectedSha256, resourceName);
+        }
+    }
+
+    private static string MaterializeEmbeddedTool(string name, string expectedSha256, string resourceName)
+    {
+        var directory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "VRCNTInstaller",
+            "authenticated-tools");
+        Directory.CreateDirectory(directory);
+        var destination = Path.Combine(directory, name);
+        try
+        {
+            return VerifyTrustedTool(destination, name, expectedSha256);
+        }
+        catch (FileNotFoundException)
+        {
+            // The embedded bytes below are authoritative.
+        }
+        catch (CryptographicException)
+        {
+            // Replace a corrupted cache entry only after verifying the replacement.
+        }
+
+        using var resource = typeof(SetupToolLayout).Assembly.GetManifestResourceStream(resourceName)
+            ?? throw new InvalidDataException($"The published setup is missing authenticated tool resource '{resourceName}'.");
+        var temporaryPath = Path.Combine(directory, $".{name}.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            using (var output = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                resource.CopyTo(output);
+                output.Flush(flushToDisk: true);
+            }
+            VerifyTrustedTool(temporaryPath, name, expectedSha256);
+            File.Move(temporaryPath, destination, true);
+            return VerifyTrustedTool(destination, name, expectedSha256);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+        }
+    }
 
     private static string VerifyTrustedTool(string path, string name, string expectedSha256)
     {

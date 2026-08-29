@@ -491,16 +491,39 @@ public sealed class ManagerLifecycleTests : IDisposable
     }
 
     [Fact]
-    public void Production_tool_layout_rejects_a_tampered_source_before_copy()
+    public void Production_tool_layout_fails_closed_when_a_tampered_source_cannot_be_restored_from_a_published_resource()
     {
         var source = Path.Combine(_root, "tampered-published");
         WriteFile(Path.Combine("tampered-published", "minisign.exe"), "tampered-minisign");
         WriteFile(Path.Combine("tampered-published", "7za.exe"), "tampered-7za");
 
-        Assert.Throws<CryptographicException>(() => SetupToolLayout.Require(source));
+        Assert.Throws<InvalidDataException>(() => SetupToolLayout.Require(source));
         Assert.Throws<CryptographicException>(() => SetupToolLayout.CopyToWorker(
             new SetupToolLayout(Path.Combine(source, "minisign.exe"), Path.Combine(source, "7za.exe")),
             Path.Combine(_root, "tampered-worker")));
+    }
+
+    [Fact]
+    public void Published_setup_project_embeds_authenticated_tools_without_publishing_sidecars()
+    {
+        var project = File.ReadAllText(Path.Combine(RepositoryRoot(), "installer-helper", "VRCNT.Setup", "VRCNT.Setup.csproj"));
+
+        Assert.Contains("<EmbeddedResource Include=\"$(SetupToolSourceDirectory)\\minisign.exe\" LogicalName=\"VRCNT.Setup.Tools.minisign.exe\" />", project, StringComparison.Ordinal);
+        Assert.Contains("<EmbeddedResource Include=\"$(SetupToolSourceDirectory)\\7za.exe\" LogicalName=\"VRCNT.Setup.Tools.7za.exe\" />", project, StringComparison.Ordinal);
+        Assert.DoesNotContain("<Copy SourceFiles=\"@(AuthenticatedSetupTool)\"", project, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Update_repair_hops_forward_current_app_arguments_without_an_explicit_current_app_path()
+    {
+        var source = File.ReadAllText(Path.Combine(RepositoryRoot(), "installer-helper", "VRCNT.Setup", "SetupCommandOperations.cs"));
+        var worker = SourceMethod(source, "private async Task LaunchRepairWorkerAsync", "private async Task LaunchPromotedManagerAsync");
+        var promoted = SourceMethod(source, "private async Task LaunchPromotedManagerAsync", "public Task HandoffToCurrentAppAsync");
+        var normalizedWorker = worker.Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Contains("if (options.CurrentAppPath is not null)\n        {\n            start.ArgumentList.Add(\"--current-app\");\n            start.ArgumentList.Add(options.CurrentAppPath);\n        }\n        foreach (var argument in options.CurrentAppArguments)", normalizedWorker, StringComparison.Ordinal);
+        Assert.Contains("foreach (var argument in options.CurrentAppArguments)", worker, StringComparison.Ordinal);
+        Assert.Contains("foreach (var argument in options.CurrentAppArguments)", promoted, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -519,6 +542,24 @@ public sealed class ManagerLifecycleTests : IDisposable
     public void Dispose()
     {
         if (Directory.Exists(_root)) Directory.Delete(_root, true);
+    }
+
+    private static string RepositoryRoot()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "package.json"))) return directory.FullName;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate the VRCNT repository root from the test output directory.");
+    }
+
+    private static string SourceMethod(string source, string methodName, string nextMethodName)
+    {
+        var start = source.IndexOf(methodName, StringComparison.Ordinal);
+        var end = source.IndexOf(nextMethodName, start + methodName.Length, StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start, $"Could not isolate {methodName} in SetupCommandOperations.cs.");
+        return source[start..end];
     }
 
     private SetupManagerLifecycle CreateLifecycle(

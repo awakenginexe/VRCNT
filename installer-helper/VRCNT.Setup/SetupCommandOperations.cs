@@ -183,11 +183,11 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
         {
             start.ArgumentList.Add("--current-app");
             start.ArgumentList.Add(options.CurrentAppPath);
-            foreach (var argument in options.CurrentAppArguments)
-            {
-                start.ArgumentList.Add("--current-app-arg");
-                start.ArgumentList.Add(argument);
-            }
+        }
+        foreach (var argument in options.CurrentAppArguments)
+        {
+            start.ArgumentList.Add("--current-app-arg");
+            start.ArgumentList.Add(argument);
         }
 
         var worker = Process.Start(start) ?? throw new InvalidOperationException("Unable to start the out-of-process manager repair worker.");

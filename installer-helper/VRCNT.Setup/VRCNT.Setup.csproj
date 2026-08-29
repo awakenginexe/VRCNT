@@ -30,9 +30,18 @@
   <ItemGroup>
     <AuthenticatedSetupTool Include="$(SetupToolSourceDirectory)\minisign.exe" />
     <AuthenticatedSetupTool Include="$(SetupToolSourceDirectory)\7za.exe" />
+    <EmbeddedResource Include="$(SetupToolSourceDirectory)\minisign.exe" LogicalName="VRCNT.Setup.Tools.minisign.exe" />
+    <EmbeddedResource Include="$(SetupToolSourceDirectory)\7za.exe" LogicalName="VRCNT.Setup.Tools.7za.exe" />
   </ItemGroup>
-  <Target Name="ValidateAndCopyAuthenticatedSetupTools" AfterTargets="Publish">
+  <Target Name="ValidateAuthenticatedSetupTools" BeforeTargets="PrepareResources">
     <Error Condition="!Exists('%(AuthenticatedSetupTool.Identity)')" Text="Authenticated setup tool input is missing: %(AuthenticatedSetupTool.Identity). Provide the verified release/build tool directory through SetupToolSourceDirectory." />
-    <Copy SourceFiles="@(AuthenticatedSetupTool)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
+    <GetFileHash Files="$(SetupToolSourceDirectory)\minisign.exe" Algorithm="SHA256">
+      <Output TaskParameter="Items" ItemName="AuthenticatedMinisignHash" />
+    </GetFileHash>
+    <GetFileHash Files="$(SetupToolSourceDirectory)\7za.exe" Algorithm="SHA256">
+      <Output TaskParameter="Items" ItemName="AuthenticatedSevenZipHash" />
+    </GetFileHash>
+    <Error Condition="$([System.String]::Copy('%(AuthenticatedMinisignHash.FileHash)').ToLowerInvariant()) != '5535be9e4e123831ebe6ef324aafe9dde507015c176191f9e20c3ad60567f9e1'" Text="Authenticated setup tool minisign.exe failed its trusted SHA-256 check." />
+    <Error Condition="$([System.String]::Copy('%(AuthenticatedSevenZipHash.FileHash)').ToLowerInvariant()) != '35d4d69d7cd6cb44558f208c3b1334268013f9daf82d2dda848893a1c30c59c2'" Text="Authenticated setup tool 7za.exe failed its trusted SHA-256 check." />
   </Target>
 </Project>
