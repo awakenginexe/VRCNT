@@ -57,7 +57,7 @@
                 <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Progress}"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></StackPanel.Style>
                 <TextBlock Text="{Binding ProgressTitle}" FontSize="{DynamicResource InstallerHeadingFontSize}" FontWeight="SemiBold" />
                 <TextBlock Text="{Binding ProgressBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,12,0,24" TextWrapping="Wrap" />
-                <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressValue}" Height="{DynamicResource InstallerProgressHeight}" IsIndeterminate="{Binding IsProgressIndeterminate}" />
+                <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressValue, Mode=OneWay}" Height="{DynamicResource InstallerProgressHeight}" IsIndeterminate="{Binding IsProgressIndeterminate}" />
                 <TextBlock Text="{Binding ProgressDetail}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,12,0,0" TextWrapping="Wrap" />
             </StackPanel>
 

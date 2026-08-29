@@ -4,6 +4,7 @@ using VRCNT.Setup.CommandLine;
 using VRCNT.Setup.Localization;
 using VRCNT.Setup.Views;
 using Xunit;
+using System.Xml.Linq;
 
 namespace VRCNT.RuntimeCore.Tests;
 
@@ -69,6 +70,18 @@ public sealed class InstallerViewModelTests
         Assert.Contains("Command=\"{Binding EnableAdvancedCudaOverrideCommand}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding GpuDetectionState}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding AdvancedCudaWarning}\"", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Progress_value_binding_is_one_way_for_the_read_only_view_model_property()
+    {
+        var xamlPath = Path.Combine(AppContext.BaseDirectory, "Views", "MainWindow.xaml");
+        var xaml = XDocument.Load(xamlPath);
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+
+        var progressBar = xaml.Descendants(presentation + "ProgressBar").Single();
+
+        Assert.Equal("{Binding ProgressValue, Mode=OneWay}", progressBar.Attribute("Value")?.Value);
     }
 
     [Theory]
