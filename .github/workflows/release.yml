@@ -3,11 +3,11 @@ name: Release VRCNT
 on:
   push:
     tags:
-      - 'v*' # Trigger when tag starts with v (for example, v5.14.0)
+      - 'v*'
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Existing release tag to publish (for example, v5.14.0)'
+        description: 'Existing release tag to publish (for example, v5.15.0)'
         required: true
         type: string
 
@@ -16,13 +16,20 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Build and publish VRCNT
+  validate:
+    name: Validate release configuration
     runs-on: windows-latest
-    timeout-minutes: 240
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
+    outputs:
+      release_tag: ${{ steps.configuration.outputs.release_tag }}
+      version: ${{ steps.configuration.outputs.version }}
+      repository: ${{ steps.configuration.outputs.repository }}
+      installer_name: ${{ steps.configuration.outputs.installer_name }}
+      manifest_name: ${{ steps.configuration.outputs.manifest_name }}
+      hashes_name: ${{ steps.configuration.outputs.hashes_name }}
+      latest_name: ${{ steps.configuration.outputs.latest_name }}
+      max_asset_size: ${{ steps.configuration.outputs.max_asset_size }}
     steps:
       - name: Checkout release tag
         uses: actions/checkout@v6
@@ -31,338 +38,357 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Validate release configuration and signing secrets
+        id: configuration
+        env:
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        shell: pwsh
+        run: |
+          $tag = $env:INPUT_RELEASE_TAG
+          if ([string]::IsNullOrWhiteSpace($tag)) { $tag = $env:GITHUB_REF -replace '^refs/tags/', '' }
+          if ($tag -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') { throw "Release tag '$tag' must use the vMAJOR.MINOR.PATCH format." }
+          $version = $tag -replace '^v', ''
+          $config = Get-Content -Raw ./release.config.json | ConvertFrom-Json
+          foreach ($property in @('githubOwner', 'githubRepo', 'packageNamePattern', 'packageManifestAssetName', 'hashesAssetName', 'latestJsonAssetName', 'installerNamePattern')) {
+            if ([string]::IsNullOrWhiteSpace($config.$property)) { throw "release.config.json is missing $property." }
+          }
+          if ($config.maxAssetSizeBytes -le 0 -or $config.maxAssetSizeBytes -ge 2147483648) { throw 'maxAssetSizeBytes must remain safely below GitHub''s 2 GiB asset limit.' }
+          $repository = "$($config.githubOwner)/$($config.githubRepo)"
+          if (-not $repository.Equals($env:GITHUB_REPOSITORY, [System.StringComparison]::OrdinalIgnoreCase)) { throw "release.config.json targets $repository, but this workflow is running in $env:GITHUB_REPOSITORY." }
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) { throw 'TAURI_SIGNING_PRIVATE_KEY is required for updater and manifest signatures.' }
+          $packageVersion = (Get-Content -Raw ./package.json | ConvertFrom-Json).version
+          if ($packageVersion -ne $version) { throw "Tag $tag does not match package.json version $packageVersion." }
+          $installerName = $config.installerNamePattern.Replace('${version}', $version)
+          @{
+            release_tag = $tag; version = $version; repository = $repository; installer_name = $installerName
+            manifest_name = $config.packageManifestAssetName; hashes_name = $config.hashesAssetName
+            latest_name = $config.latestJsonAssetName; max_asset_size = $config.maxAssetSizeBytes
+          }.GetEnumerator() | ForEach-Object { "{0}={1}" -f $_.Key, $_.Value | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append }
+
+  installer-tools:
+    name: Prepare verified installer tools
+    needs: validate
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate.outputs.release_tag }}
+          persist-credentials: false
+
+      - name: Download and verify 7-Zip and minisign
+        shell: pwsh
+        run: |
+          $toolDir = Join-Path (Get-Location) 'build/installer-tools'
+          New-Item -ItemType Directory -Path $toolDir -Force | Out-Null
+          $bootstrap = Join-Path $env:RUNNER_TEMP '7zr-26.02.exe'
+          curl.exe -L --fail --retry 5 --retry-all-errors -o $bootstrap 'https://github.com/ip7z/7zip/releases/download/26.02/7zr.exe'
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download the pinned 7-Zip extraction tool.' }
+          if ((Get-FileHash $bootstrap -Algorithm SHA256).Hash.ToLowerInvariant() -ne '56b8cc9f4971cef253644fafe54063ed7fdca551d4dee0f8c6baa81b855acd72') { throw '7-Zip extraction tool SHA-256 mismatch.' }
+          $archive = Join-Path $env:RUNNER_TEMP '7z2602-extra.7z'
+          curl.exe -L --fail --retry 5 --retry-all-errors -o $archive 'https://github.com/ip7z/7zip/releases/download/26.02/7z2602-extra.7z'
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download the pinned 7-Zip archive.' }
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne '081df9e9311dfd9c9e0e98c1c80180b99bb51e4cb24156b5f3057fe3c259d70a') { throw '7-Zip archive SHA-256 mismatch.' }
+          $sevenZipExtract = Join-Path $env:RUNNER_TEMP '7z2602-extra'
+          & $bootstrap x -y $archive "-o$sevenZipExtract" | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Could not extract the verified 7-Zip archive.' }
+          Copy-Item (Join-Path $sevenZipExtract 'x64/7za.exe') (Join-Path $toolDir '7za.exe') -Force
+          $minisignArchive = Join-Path $env:RUNNER_TEMP 'minisign-0.12-win64.zip'
+          curl.exe -L --fail --retry 3 -o $minisignArchive 'https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-win64.zip'
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download minisign 0.12.' }
+          if ((Get-FileHash $minisignArchive -Algorithm SHA256).Hash.ToLowerInvariant() -ne '37b600344e20c19314b2e82813db2bfdcc408b77b876f7727889dbd46d539479') { throw 'minisign archive SHA-256 mismatch.' }
+          $minisignExtract = Join-Path $env:RUNNER_TEMP 'minisign-0.12'
+          Expand-Archive -LiteralPath $minisignArchive -DestinationPath $minisignExtract -Force
+          $minisign = Get-ChildItem $minisignExtract -Recurse -Filter minisign.exe | Where-Object { $_.FullName -match 'x86_64' } | Select-Object -First 1
+          if (-not $minisign) { throw 'The verified minisign archive did not contain the x86_64 executable.' }
+          Copy-Item $minisign.FullName (Join-Path $toolDir 'minisign.exe') -Force
+          foreach ($tool in @('7za.exe', 'minisign.exe')) {
+            if (-not (Test-Path (Join-Path $toolDir $tool)) -or (Get-Item (Join-Path $toolDir $tool)).Length -eq 0) { throw "Installer tool $tool is missing or empty." }
+          }
+
+      - name: Upload verified installer tools
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-tools
+          path: build/installer-tools
+          if-no-files-found: error
+
+  shared-shell:
+    name: Build shared frontend and Tauri shell
+    needs: validate
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate.outputs.release_tag }}
+          persist-credentials: false
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: '22.15.0'
           package-manager-cache: false
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install application dependencies
+        run: npm ci
+      - name: Build shared frontend and Tauri shell
+        run: npm run build-runtime-shell
+      - name: Stage shared shell artifact
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path build/shared-shell -Force | Out-Null
+          Copy-Item ./src-tauri/target/release/VRCNT.exe ./build/shared-shell/VRCNT.exe -Force
+          Copy-Item ./dist ./build/shared-shell/frontend -Recurse -Force
+      - name: Upload shared shell
+        uses: actions/upload-artifact@v4
+        with:
+          name: shared-shell
+          path: build/shared-shell
+          if-no-files-found: error
 
+  backend-cpu:
+    name: Build CPU backend
+    needs: validate
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate.outputs.release_tag }}
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22.15.0'
+          package-manager-cache: false
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: '3.11'
+      - name: Install application dependencies
+        run: npm ci
+      - name: Set up CPU Python environment and build backend
+        shell: pwsh
+        run: |
+          npm run setup-python
+          if ($LASTEXITCODE -ne 0) { throw 'CPU Python environment setup failed.' }
+          npm run build-backend:cpu
+          if ($LASTEXITCODE -ne 0) { throw 'CPU backend build failed.' }
+          New-Item -ItemType Directory -Path build/backend/cpu -Force | Out-Null
+          Copy-Item ./src-tauri/bin/* ./build/backend/cpu -Recurse -Force
+      - name: Upload CPU backend
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-cpu
+          path: build/backend/cpu
+          if-no-files-found: error
 
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+  backend-cuda:
+    name: Build CUDA backend
+    needs: validate
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate.outputs.release_tag }}
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22.15.0'
+          package-manager-cache: false
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Install application dependencies
+        run: npm ci
+      - name: Set up CUDA Python environment and build backend
+        shell: pwsh
+        run: |
+          npm run setup-python
+          if ($LASTEXITCODE -ne 0) { throw 'CUDA Python environment setup failed.' }
+          npm run build-backend:cuda
+          if ($LASTEXITCODE -ne 0) { throw 'CUDA backend build failed.' }
+      - name: Upload CUDA backend
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-cuda
+          path: build/backend/cuda
+          if-no-files-found: error
 
+  package-and-publish:
+    name: Package, sign, and publish VRCNT
+    needs: [validate, installer-tools, shared-shell, backend-cpu, backend-cuda]
+    runs-on: windows-latest
+    timeout-minutes: 240
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      RELEASE_TAG: ${{ needs.validate.outputs.release_tag }}
+      VERSION: ${{ needs.validate.outputs.version }}
+      RELEASE_REPOSITORY: ${{ needs.validate.outputs.repository }}
+      INSTALLER_NAME: ${{ needs.validate.outputs.installer_name }}
+      PACKAGE_MANIFEST_NAME: ${{ needs.validate.outputs.manifest_name }}
+      HASHES_NAME: ${{ needs.validate.outputs.hashes_name }}
+      LATEST_JSON_NAME: ${{ needs.validate.outputs.latest_name }}
+      MAX_ASSET_SIZE: ${{ needs.validate.outputs.max_asset_size }}
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate.outputs.release_tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22.15.0'
+          package-manager-cache: false
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
       - name: Set up .NET
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '8.0.x'
-
-      - name: Validate release configuration and signing secrets
-        env:
-          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        shell: pwsh
-        run: |
-          $tag = $env:INPUT_RELEASE_TAG
-          if ([string]::IsNullOrWhiteSpace($tag)) {
-            $tag = $env:GITHUB_REF -replace '^refs/tags/', ''
-          }
-          if ($tag -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') {
-            throw "Release tag '$tag' must use the vMAJOR.MINOR.PATCH format."
-          }
-          $version = $tag -replace '^v', ''
-          $config = Get-Content -Raw ./release.config.json | ConvertFrom-Json
-          $required = @(
-            'githubOwner', 'githubRepo', 'packageNamePattern',
-            'packageManifestAssetName', 'hashesAssetName',
-            'latestJsonAssetName', 'installerNamePattern'
-          )
-          foreach ($property in $required) {
-            if ([string]::IsNullOrWhiteSpace($config.$property)) {
-              throw "release.config.json is missing $property."
-            }
-          }
-          if ($config.packagePartCount -ne 3) {
-            throw 'VRCNT releases must contain exactly three multipart package assets.'
-          }
-          if ($config.maxAssetSizeBytes -le 0 -or $config.maxAssetSizeBytes -ge 2147483648) {
-            throw 'maxAssetSizeBytes must remain safely below GitHub''s 2 GiB asset limit.'
-          }
-          $configuredRepository = "$($config.githubOwner)/$($config.githubRepo)"
-          if (-not $configuredRepository.Equals(
-            $env:GITHUB_REPOSITORY,
-            [System.StringComparison]::OrdinalIgnoreCase
-          )) {
-            throw "release.config.json targets $configuredRepository, but this workflow is running in $env:GITHUB_REPOSITORY."
-          }
-          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
-            throw 'TAURI_SIGNING_PRIVATE_KEY is required for updater and manifest signatures.'
-          }
-          $packageVersion = (Get-Content -Raw ./package.json | ConvertFrom-Json).version
-          if ($packageVersion -ne $version) {
-            throw "Tag $tag does not match package.json version $packageVersion."
-          }
-
-          $installerName = $config.installerNamePattern.Replace('${version}', $version)
-          # GitHub lists release assets alphabetically. This internal prefix keeps the
-          # installer first while its public display label stays the clean installer name.
-          $installerReleaseAssetName = "00_$installerName"
-          $packageBaseName = $config.packageNamePattern.Replace('${version}', $version)
-          "RELEASE_TAG=$tag" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
-          "VERSION=$version" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
-          "RELEASE_REPOSITORY=$configuredRepository" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
-          "INSTALLER_NAME=$installerName" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
-          "INSTALLER_RELEASE_ASSET_NAME=$installerReleaseAssetName" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
-          "PACKAGE_BASE_NAME=$packageBaseName" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
-          "PACKAGE_MANIFEST_NAME=$($config.packageManifestAssetName)" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
-          "HASHES_NAME=$($config.hashesAssetName)" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
-          "LATEST_JSON_NAME=$($config.latestJsonAssetName)" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
-          "MAX_ASSET_SIZE=$($config.maxAssetSizeBytes)" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
-
       - name: Install application dependencies
         run: npm ci
+      - name: Download shared shell
+        uses: actions/download-artifact@v4
+        with:
+          name: shared-shell
+          path: build/artifacts/shared-shell
+      - name: Download CPU backend
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-cpu
+          path: build/artifacts/backend-cpu
+      - name: Download CUDA backend
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-cuda
+          path: build/artifacts/backend-cuda
+      - name: Download installer tools
+        uses: actions/download-artifact@v4
+        with:
+          name: installer-tools
+          path: build/artifacts/installer-tools
 
-      - name: Prepare bundled installer tools
+      - name: Stage variant runtimes and publish the WPF setup
         shell: pwsh
         run: |
-          $sevenZipBootstrap = Join-Path $env:RUNNER_TEMP '7zr-26.02.exe'
-          curl.exe -L --fail --retry 5 --retry-all-errors `
-            -o $sevenZipBootstrap `
-            'https://github.com/ip7z/7zip/releases/download/26.02/7zr.exe'
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Could not download the pinned 7-Zip extraction tool.'
-          }
-          $expectedSevenZipBootstrapSha256 = '56b8cc9f4971cef253644fafe54063ed7fdca551d4dee0f8c6baa81b855acd72'
-          $actualSevenZipBootstrapSha256 = (Get-FileHash $sevenZipBootstrap -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($actualSevenZipBootstrapSha256 -ne $expectedSevenZipBootstrapSha256) {
-            throw "7-Zip extraction tool SHA-256 mismatch: expected $expectedSevenZipBootstrapSha256, got $actualSevenZipBootstrapSha256."
-          }
+          $shell = Join-Path (Get-Location) 'build/artifacts/shared-shell'
+          $cpu = Join-Path (Get-Location) 'build/artifacts/backend-cpu'
+          $cuda = Join-Path (Get-Location) 'build/artifacts/backend-cuda'
+          $tools = Join-Path (Get-Location) 'build/artifacts/installer-tools'
+          $commit = (git rev-parse HEAD).Trim()
+          ./scripts/stage_runtime.ps1 -Variant cpu -ShellPath $shell -BackendPayloadPath $cpu -OutputPath ./build/release/cpu -Version $env:VERSION -SourceCommit $commit
+          ./scripts/stage_runtime.ps1 -Variant cuda -ShellPath $shell -BackendPayloadPath $cuda -OutputPath ./build/release/cuda -Version $env:VERSION -SourceCommit $commit
+          dotnet publish ./installer-helper/VRCNT.Setup/VRCNT.Setup.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -p:SetupToolSourceDirectory=$tools -o ./build/setup
+          if ($LASTEXITCODE -ne 0) { throw 'WPF setup publish failed.' }
+          $setup = Join-Path (Get-Location) 'build/setup/VRCNT.Setup.exe'
+          if (-not (Test-Path $setup) -or (Get-Item $setup).Length -eq 0) { throw 'WPF setup publish did not produce VRCNT.Setup.exe.' }
+          New-Item -ItemType Directory -Path release-assets -Force | Out-Null
+          Copy-Item $setup (Join-Path (Get-Location) ("release-assets/{0}" -f $env:INSTALLER_NAME)) -Force
 
-          $sevenZipArchive = Join-Path $env:RUNNER_TEMP '7z2602-extra.7z'
-          curl.exe -L --fail --retry 5 --retry-all-errors `
-            -o $sevenZipArchive `
-            'https://github.com/ip7z/7zip/releases/download/26.02/7z2602-extra.7z'
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Could not download the pinned 7-Zip archive.'
-          }
-          $expectedSevenZipArchiveSha256 = '081df9e9311dfd9c9e0e98c1c80180b99bb51e4cb24156b5f3057fe3c259d70a'
-          $actualSevenZipArchiveSha256 = (Get-FileHash $sevenZipArchive -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($actualSevenZipArchiveSha256 -ne $expectedSevenZipArchiveSha256) {
-            throw "7-Zip archive SHA-256 mismatch: expected $expectedSevenZipArchiveSha256, got $actualSevenZipArchiveSha256."
-          }
-
-          $toolDir = Join-Path (Get-Location) 'src-tauri/nsis/bin'
-          New-Item -ItemType Directory -Path $toolDir -Force | Out-Null
-          $sevenZipExtract = Join-Path $env:RUNNER_TEMP '7z2602-extra'
-          New-Item -ItemType Directory -Path $sevenZipExtract -Force | Out-Null
-          & $sevenZipBootstrap x -y $sevenZipArchive "-o$sevenZipExtract" | Out-Null
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Could not extract the verified 7-Zip archive.'
-          }
-          $sevenZip = Get-Item (Join-Path $sevenZipExtract 'x64/7za.exe')
-          if (-not $sevenZip) {
-            throw 'The verified 7-Zip archive did not contain the x64 7za.exe.'
-          }
-          Copy-Item $sevenZip.FullName (Join-Path $toolDir '7za.exe') -Force
-
-          $minisignArchive = Join-Path $env:RUNNER_TEMP 'minisign-0.12-win64.zip'
-          curl.exe -L --fail --retry 3 `
-            -o $minisignArchive `
-            'https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-win64.zip'
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Could not download minisign 0.12.'
-          }
-          $expectedMinisignSha256 = '37b600344e20c19314b2e82813db2bfdcc408b77b876f7727889dbd46d539479'
-          $actualMinisignSha256 = (Get-FileHash $minisignArchive -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($actualMinisignSha256 -ne $expectedMinisignSha256) {
-            throw "minisign archive SHA-256 mismatch: expected $expectedMinisignSha256, got $actualMinisignSha256."
-          }
-          $minisignExtract = Join-Path $env:RUNNER_TEMP 'minisign-0.12'
-          Expand-Archive -LiteralPath $minisignArchive -DestinationPath $minisignExtract -Force
-          $minisign = Get-ChildItem $minisignExtract -Recurse -Filter minisign.exe |
-            Where-Object { $_.FullName -match 'x86_64' } |
-            Select-Object -First 1
-          if (-not $minisign) {
-            throw 'The verified minisign 0.12 archive did not contain the x86_64 executable.'
-          }
-          Copy-Item $minisign.FullName (Join-Path $toolDir 'minisign.exe') -Force
-          dotnet publish ./installer-helper/VRCNT.ReleaseHelper.csproj `
-            -c Release -r win-x64 --self-contained true `
-            -p:PublishSingleFile=true -p:PublishTrimmed=false `
-            -o ./installer-helper/publish
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Installer helper publish failed.'
-          }
-          Copy-Item ./installer-helper/publish/VRCNT.ReleaseHelper.exe `
-            (Join-Path $toolDir 'VRCNT.ReleaseHelper.exe') -Force
-          foreach ($tool in @('7za.exe', 'minisign.exe', 'VRCNT.ReleaseHelper.exe')) {
-            $path = Join-Path $toolDir $tool
-            if (-not (Test-Path $path) -or (Get-Item $path).Length -eq 0) {
-              throw "Bundled installer tool $tool is missing or empty."
-            }
-          }
-          "SEVEN_ZIP_PATH=$(Join-Path $toolDir '7za.exe')" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
-          "MINISIGN_PATH=$(Join-Path $toolDir 'minisign.exe')" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Test thin installer package handling
+      - name: Create variant packages and combined manifest
         shell: pwsh
         run: |
-          ./installer-helper/integration-test.ps1 `
-            -SevenZip $env:SEVEN_ZIP_PATH `
-            -Minisign $env:MINISIGN_PATH
+          $tools = Join-Path (Get-Location) 'build/artifacts/installer-tools'
+          python ./utils/release.py package --version $env:VERSION --variant cpu --source-dir ./build/release/cpu --seven-zip (Join-Path $tools '7za.exe') --output-dir ./release-assets/cpu
+          if ($LASTEXITCODE -ne 0) { throw 'CPU portable package generation failed.' }
+          python ./utils/release.py package --version $env:VERSION --variant cuda --source-dir ./build/release/cuda --seven-zip (Join-Path $tools '7za.exe') --output-dir ./release-assets/cuda
+          if ($LASTEXITCODE -ne 0) { throw 'CUDA portable package generation failed.' }
+          python ./utils/release.py manifest --version $env:VERSION --cpu-dir ./release-assets/cpu --cuda-dir ./release-assets/cuda --setup (Join-Path (Get-Location) ("release-assets/{0}" -f $env:INSTALLER_NAME)) --output (Join-Path (Get-Location) ("release-assets/{0}" -f $env:PACKAGE_MANIFEST_NAME))
+          if ($LASTEXITCODE -ne 0) { throw 'Combined package manifest generation failed.' }
 
-      - name: Set up CUDA Python environment
-        shell: pwsh
-        run: |
-          $maxAttempts = 4
-          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
-            npm run setup-python
-            if ($LASTEXITCODE -eq 0) {
-              break
-            }
-            if ($attempt -eq $maxAttempts) {
-              throw "Python environment setup failed after $maxAttempts attempts."
-            }
-            $delaySeconds = 30 * [Math]::Pow(2, $attempt - 1)
-            Write-Warning "Python setup attempt $attempt failed; retrying in $delaySeconds seconds."
-            Start-Sleep -Seconds $delaySeconds
-          }
-
-      - name: Build CUDA application and signed Tauri updater
+      - name: Sign and verify setup and combined manifest
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: npm run build-cuda
-
-      - name: Create three-part portable package
         shell: pwsh
         run: |
           $assetDir = Join-Path (Get-Location) 'release-assets'
-          New-Item -ItemType Directory -Path $assetDir -Force | Out-Null
-          python ./utils/release.py package `
-            --version $env:VERSION `
-            --seven-zip $env:SEVEN_ZIP_PATH `
-            --output-dir $assetDir
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Portable multipart package generation failed.'
-          }
-          "ASSET_DIR=$assetDir" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Locate and validate updater artifacts
-        shell: pwsh
-        run: |
-          $installer = Get-ChildItem ./src-tauri/target/release/bundle/nsis -Filter $env:INSTALLER_NAME |
-            Sort-Object LastWriteTime -Descending | Select-Object -First 1
-          if (-not $installer) {
-            throw "Expected thin installer $env:INSTALLER_NAME was not generated."
-          }
-          if ($installer.Length -ge 536870912) {
-            throw "Installer is $($installer.Length) bytes; it appears to contain the application payload."
-          }
-          $updaterSignature = "$($installer.FullName).sig"
-          if (-not (Test-Path $updaterSignature)) {
-            throw 'The signed Tauri updater artifact is missing. Signature verification is mandatory.'
-          }
-          $releaseInstaller = Join-Path $env:ASSET_DIR $env:INSTALLER_RELEASE_ASSET_NAME
-          $releaseInstallerSignature = "$releaseInstaller.sig"
-          Copy-Item $installer.FullName $releaseInstaller -Force
-          Copy-Item $updaterSignature $releaseInstallerSignature -Force
-          "INSTALLER_PATH=$releaseInstaller" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
-          "UPDATER_SIGNATURE_PATH=$releaseInstallerSignature" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Sign and verify package manifest
-        env:
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        shell: pwsh
-        run: |
-          $manifest = Join-Path $env:ASSET_DIR $env:PACKAGE_MANIFEST_NAME
+          $tools = Join-Path (Get-Location) 'build/artifacts/installer-tools'
+          $manifest = Join-Path $assetDir $env:PACKAGE_MANIFEST_NAME
+          $setup = Join-Path $assetDir $env:INSTALLER_NAME
           npm run tauri signer sign -- $manifest
-          if ($LASTEXITCODE -ne 0 -or -not (Test-Path "$manifest.sig")) {
-            throw 'Package manifest signing failed.'
-          }
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path "$manifest.sig")) { throw 'Package manifest signing failed.' }
+          npm run tauri signer sign -- $setup
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path "$setup.sig")) { throw 'WPF updater setup signing failed.' }
           $verificationDir = Join-Path $env:RUNNER_TEMP 'vrcnt-signature-verification'
           New-Item -ItemType Directory -Path $verificationDir -Force | Out-Null
-          $signature = Join-Path $verificationDir 'manifest.minisig'
-          $updaterSignature = Join-Path $verificationDir 'updater.minisig'
           $publicKey = Join-Path $verificationDir 'manifest.pub'
-          [IO.File]::WriteAllBytes(
-            $signature,
-            [Convert]::FromBase64String((Get-Content -Raw "$manifest.sig").Trim())
-          )
           $configuredPublicKey = (Get-Content -Raw ./src-tauri/tauri.conf.json | ConvertFrom-Json).plugins.updater.pubkey
           [IO.File]::WriteAllBytes($publicKey, [Convert]::FromBase64String($configuredPublicKey))
-          & $env:MINISIGN_PATH -Vm $manifest -x $signature -p $publicKey -q
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Signed package manifest could not be verified with the embedded public key.'
+          foreach ($candidate in @($manifest, $setup)) {
+            $signature = Join-Path $verificationDir ("{0}.minisig" -f [IO.Path]::GetFileName($candidate))
+            [IO.File]::WriteAllBytes($signature, [Convert]::FromBase64String((Get-Content -Raw "$candidate.sig").Trim()))
+            & (Join-Path $tools 'minisign.exe') -Vm $candidate -x $signature -p $publicKey -q
+            if ($LASTEXITCODE -ne 0) {
+              if ($candidate -eq $manifest) { throw 'Signed package manifest could not be verified with the embedded public key.' }
+              throw "Signed artifact $([IO.Path]::GetFileName($candidate)) could not be verified with the embedded public key."
+            }
           }
-          [IO.File]::WriteAllBytes(
-            $updaterSignature,
-            [Convert]::FromBase64String((Get-Content -Raw $env:UPDATER_SIGNATURE_PATH).Trim())
-          )
-          & $env:MINISIGN_PATH -Vm $env:INSTALLER_PATH -x $updaterSignature -p $publicKey -q
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Tauri updater signature does not match the generated thin installer.'
+
+      - name: Validate selected package parts and updater metadata
+        shell: pwsh
+        run: |
+          $assetDir = Join-Path (Get-Location) 'release-assets'
+          $tools = Join-Path (Get-Location) 'build/artifacts/installer-tools'
+          $manifestPath = Join-Path $assetDir $env:PACKAGE_MANIFEST_NAME
+          $manifest = Get-Content -Raw $manifestPath | ConvertFrom-Json
+          if ($manifest.schema -ne 2 -or $manifest.bootstrapper.name -ne $env:INSTALLER_NAME) { throw 'Combined manifest does not identify the exact WPF setup.' }
+          foreach ($variant in $manifest.variants.PSObject.Properties) {
+            if ($variant.Value.parts.Count -lt 1) { throw "Variant $($variant.Name) has no selected package parts." }
+            foreach ($entry in $variant.Value.parts) {
+              $path = Join-Path $assetDir "$($variant.Name)/$($entry.name)"
+              if (-not (Test-Path $path)) { throw "Manifest package part $($entry.name) is missing." }
+              $file = Get-Item $path
+              if ($file.Length -ne $entry.size -or $file.Length -ge [long]$env:MAX_ASSET_SIZE) { throw "Package part $($entry.name) has an invalid or oversized length." }
+              if ((Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry.sha256) { throw "Package part $($entry.name) failed SHA-256 verification." }
+            }
+            $firstPart = Join-Path $assetDir "$($variant.Name)/$($variant.Value.parts[0].name)"
+            & (Join-Path $tools '7za.exe') t $firstPart
+            if ($LASTEXITCODE -ne 0) { throw "Portable multipart extraction test failed for $($variant.Name)." }
           }
+          $setup = Join-Path $assetDir $env:INSTALLER_NAME
+          $pubDate = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+          python ./utils/release.py latest --version $env:VERSION --updater-name $env:INSTALLER_NAME --signature "$setup.sig" --output (Join-Path $assetDir $env:LATEST_JSON_NAME) --pub-date $pubDate
+          if ($LASTEXITCODE -ne 0) { throw 'latest.json generation failed.' }
+          $latestDocument = Get-Content -Raw (Join-Path $assetDir $env:LATEST_JSON_NAME) | ConvertFrom-Json
+          $expectedUrl = "https://github.com/$env:RELEASE_REPOSITORY/releases/download/$env:RELEASE_TAG/$env:INSTALLER_NAME"
+          if ($latestDocument.platforms.'windows-x86_64'.url -ne $expectedUrl -or [string]::IsNullOrWhiteSpace($latestDocument.platforms.'windows-x86_64'.signature)) { throw 'latest.json has an invalid GitHub updater URL or empty signature.' }
 
       - name: Scan portable executables with VirusTotal
         env:
           VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
         shell: pwsh
         run: |
-          python ./utils/virustotal.py scan `
-            --version $env:VERSION `
-            --output-dir $env:ASSET_DIR `
-            --file ./src-tauri/target/release/VRCNT.exe `
-            --file ./src-tauri/target/release/VRCNT-backend.exe
-          if ($LASTEXITCODE -ne 0) {
-            throw 'VirusTotal scanning failed; the release will not publish an unverified status.'
-          }
+          python ./utils/virustotal.py scan --version $env:VERSION --output-dir ./release-assets --file ./build/release/cpu/VRCNT.exe --file ./build/release/cpu/VRCNT-backend.exe
+          if ($LASTEXITCODE -ne 0) { throw 'VirusTotal scanning failed; the release will not publish an unverified status.' }
 
-      - name: Generate and validate latest.json and SHA-256 hashes
+      - name: Generate hashes for every published release artifact
         shell: pwsh
         run: |
-          $pubDate = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
-          $latest = Join-Path $env:ASSET_DIR $env:LATEST_JSON_NAME
-          python ./utils/release.py latest `
-            --version $env:VERSION `
-            --updater-name $env:INSTALLER_RELEASE_ASSET_NAME `
-            --signature $env:UPDATER_SIGNATURE_PATH `
-            --output $latest `
-            --pub-date $pubDate
-          if ($LASTEXITCODE -ne 0) {
-            throw 'latest.json generation failed.'
-          }
-          $latestDocument = Get-Content -Raw $latest | ConvertFrom-Json
-          $platform = $latestDocument.platforms.'windows-x86_64'
-          $expectedUrl = "https://github.com/$env:RELEASE_REPOSITORY/releases/download/$env:RELEASE_TAG/$env:INSTALLER_RELEASE_ASSET_NAME"
-          if ($platform.url -ne $expectedUrl -or [string]::IsNullOrWhiteSpace($platform.signature)) {
-            throw 'latest.json has an invalid GitHub updater URL or empty signature.'
-          }
-
-          $manifest = Get-Content -Raw (Join-Path $env:ASSET_DIR $env:PACKAGE_MANIFEST_NAME) | ConvertFrom-Json
-          if ($manifest.files.Count -ne 3) {
-            throw 'The signed package manifest must contain exactly three parts.'
-          }
-          foreach ($entry in $manifest.files) {
-            $path = Join-Path $env:ASSET_DIR $entry.name
-            if (-not (Test-Path $path)) {
-              throw "Manifest package part $($entry.name) is missing."
-            }
-            $file = Get-Item $path
-            if ($file.Length -ne $entry.size -or $file.Length -ge [long]$env:MAX_ASSET_SIZE) {
-              throw "Package part $($entry.name) has an invalid or oversized length."
-            }
-            $actualHash = (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
-            if ($actualHash -ne $entry.sha256) {
-              throw "Package part $($entry.name) failed SHA-256 verification."
-            }
-          }
-
-          & $env:SEVEN_ZIP_PATH t (Join-Path $env:ASSET_DIR "$env:PACKAGE_BASE_NAME.001")
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Portable multipart extraction test failed.'
-          }
-          $assetPaths = Get-ChildItem $env:ASSET_DIR -File | ForEach-Object FullName
-          $hashesPath = Join-Path $env:ASSET_DIR $env:HASHES_NAME
-          python ./utils/release.py hashes --output $hashesPath $assetPaths
-          if ($LASTEXITCODE -ne 0) {
-            throw 'SHA256SUMS.txt generation failed.'
-          }
+          $assetDir = Join-Path (Get-Location) 'release-assets'
+          $releaseAssets = Get-ChildItem $assetDir -File -Recurse -Exclude package-metadata.json | ForEach-Object FullName
+          python ./utils/release.py hashes --output (Join-Path $assetDir $env:HASHES_NAME) $releaseAssets
+          if ($LASTEXITCODE -ne 0) { throw 'SHA256SUMS.txt generation failed.' }
 
       - name: Publish GitHub Release assets
         env:
@@ -372,172 +398,34 @@ jobs:
           $notes = @"
           VRCNT $env:VERSION
 
-          Install with $env:INSTALLER_NAME. Place all three VRCNT_$env:VERSION.7z parts beside the installer for an offline install, or run it online to download from this release. The multipart archive can also be extracted directly with 7-Zip for portable use.
+          Install with $env:INSTALLER_NAME. The setup manager preserves the selected CPU or CUDA runtime on normal updates. Each variant archive has its own variable number of parts and can be used for portable or offline installation.
 
-          Package integrity is authenticated by $env:PACKAGE_MANIFEST_NAME.sig and documented in $env:HASHES_NAME. Tauri updates use the signed installer and latest.json.
+          Package integrity is authenticated by $env:PACKAGE_MANIFEST_NAME.sig and documented in $env:HASHES_NAME. Tauri updates use the signed WPF setup and latest.json.
 
           VirusTotal results for VRCNT.exe and VRCNT-backend.exe are included in VirusTotal-report.json.
           "@
           gh release view $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release edit $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY `
-              --title "VRCNT $env:VERSION" --draft=false --prerelease=false --notes $notes
+            gh release edit $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --title "VRCNT $env:VERSION" --draft=false --prerelease=false --notes $notes
           } else {
-            gh release create $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY `
-              --title "VRCNT $env:VERSION" --notes $notes --verify-tag
+            gh release create $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --title "VRCNT $env:VERSION" --notes $notes --verify-tag
           }
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Could not create or update the GitHub Release.'
-          }
-          $installerAsset = Join-Path $env:ASSET_DIR $env:INSTALLER_RELEASE_ASSET_NAME
-          $installerSignatureAsset = "$installerAsset.sig"
-          if (-not (Test-Path -LiteralPath $installerAsset)) {
-            throw "Installer asset $env:INSTALLER_RELEASE_ASSET_NAME is missing."
-          }
-          if (-not (Test-Path -LiteralPath $installerSignatureAsset)) {
-            throw "Installer signature asset $env:INSTALLER_RELEASE_ASSET_NAME.sig is missing."
-          }
-
-          # Remove the pre-v4.2.4 naming scheme if this is a repaired release.
-          # The local source file is still VRCNT_X.X.X_x64-setup.exe; only its
-          # GitHub storage name has a sort prefix.
-          $existingRelease = gh release view $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --json assets |
-            ConvertFrom-Json
-          foreach ($legacyAsset in @($env:INSTALLER_NAME, "$env:INSTALLER_NAME.sig")) {
-            if ($existingRelease.assets.name -contains $legacyAsset) {
-              gh release delete-asset $env:RELEASE_TAG $legacyAsset --repo $env:RELEASE_REPOSITORY --yes
-              if ($LASTEXITCODE -ne 0) {
-                throw "Could not remove legacy release asset $legacyAsset."
-              }
-            }
-          }
-
-          $installerUpload = "$installerAsset#$env:INSTALLER_NAME"
-          $installerSignatureUpload = "$installerSignatureAsset#$env:INSTALLER_NAME.sig"
-          $supportingAssets = @(
-            Get-ChildItem $env:ASSET_DIR -File |
-              Where-Object { $_.FullName -notin @($installerAsset, $installerSignatureAsset) } |
-              Sort-Object Name |
-              ForEach-Object FullName
-          )
-
-          # GitHub displays assets alphabetically by stored name. The 00_ prefix places
-          # the installer first, while the label shows users VRCNT_X.X.X_x64-setup.exe.
-          gh release upload $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --clobber $installerUpload
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Installer asset upload failed.'
-          }
-          gh release upload $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --clobber $installerSignatureUpload
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Installer signature asset upload failed.'
-          }
-          if ($supportingAssets.Count -gt 0) {
-            gh release upload $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --clobber $supportingAssets
-            if ($LASTEXITCODE -ne 0) {
-              throw 'Supporting release asset upload failed.'
-            }
-          }
+          if ($LASTEXITCODE -ne 0) { throw 'Could not create or update the GitHub Release.' }
+          $releaseAssets = @(Get-ChildItem ./release-assets -File -Recurse -Exclude package-metadata.json | Sort-Object Name | ForEach-Object FullName)
+          gh release upload $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --clobber $releaseAssets
+          if ($LASTEXITCODE -ne 0) { throw 'Release asset upload failed.' }
 
       - name: Verify published GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
-          $expected = Get-ChildItem $env:ASSET_DIR -File
-          $published = gh release view $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --json assets |
-            ConvertFrom-Json
+          $expected = Get-ChildItem ./release-assets -File -Recurse -Exclude package-metadata.json
+          $published = gh release view $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --json assets | ConvertFrom-Json
           foreach ($file in $expected) {
             $asset = $published.assets | Where-Object name -eq $file.Name
-            if (-not $asset) {
-              throw "Published GitHub Release is missing $($file.Name)."
-            }
-            if ([long]$asset.size -ne $file.Length) {
-              throw "Published asset $($file.Name) has the wrong size."
-            }
+            if (-not $asset) { throw "Published GitHub Release is missing $($file.Name)." }
+            if ([long]$asset.size -ne $file.Length) { throw "Published asset $($file.Name) has the wrong size." }
           }
-          $orderedAssets = @($published.assets | Sort-Object name)
-          if ($orderedAssets[0].name -ne $env:INSTALLER_RELEASE_ASSET_NAME) {
-            throw 'The installer is not the first release asset.'
-          }
-          $installer = $published.assets | Where-Object name -eq $env:INSTALLER_RELEASE_ASSET_NAME
-          if ($installer.label -ne $env:INSTALLER_NAME) {
-            throw 'The installer display label is incorrect.'
-          }
-          $installerSignature = $published.assets | Where-Object name -eq "$env:INSTALLER_RELEASE_ASSET_NAME.sig"
-          if ($installerSignature.label -ne "$env:INSTALLER_NAME.sig") {
-            throw 'The installer signature display label is incorrect.'
-          }
-
-      - name: Open README VirusTotal links pull request
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: pwsh
-        run: |
-          # The release is built from a tag, so switch to the current main branch
-          # before committing the latest per-file scan URLs and badge images.
-          git remote set-url origin "https://x-access-token:$env:GH_TOKEN@github.com/$env:GITHUB_REPOSITORY.git"
-          git fetch --no-tags origin main
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Could not fetch main before updating VirusTotal README links.'
-          }
-          git checkout --detach origin/main
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Could not check out main before updating VirusTotal README links.'
-          }
-
-          python ./utils/virustotal.py update-readme `
-            --report (Join-Path $env:ASSET_DIR 'VirusTotal-report.json') `
-            --repository-root .
-          if ($LASTEXITCODE -ne 0) {
-            throw 'VirusTotal README link generation failed.'
-          }
-
-          git add -- README.md `
-            Readme/Readme.en.md Readme/Readme.jp.md Readme/Readme.kr.md `
-            Readme/Readme.scn.md Readme/Readme.tcn.md Readme/Readme.th.md `
-            Readme/VirusTotal-VRCNT.svg Readme/VirusTotal-backend.svg
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Could not stage the generated VirusTotal README artifacts.'
-          }
-          git diff --cached --quiet
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host 'VirusTotal README links are already current.'
-            exit 0
-          }
-
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m "docs: update VirusTotal links for $env:VERSION"
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Could not commit the generated VirusTotal README artifacts.'
-          }
-          $branchName = "automation/virustotal-links-$($env:RELEASE_TAG -replace '[^0-9A-Za-z._-]', '-')"
-          # This release-specific branch is owned by the workflow; force-updating it makes reruns deterministic.
-          git push origin "HEAD:refs/heads/$branchName" --force
-          if ($LASTEXITCODE -ne 0) {
-            throw "Could not push the generated VirusTotal README artifacts to $branchName."
-          }
-          $existingPr = gh pr list `
-            --repo $env:GITHUB_REPOSITORY `
-            --base main `
-            --head $branchName `
-            --state open `
-            --json number `
-            --jq '.[0].number // empty'
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Could not check for an existing VirusTotal README pull request.'
-          }
-          if ($existingPr) {
-            Write-Host "VirusTotal README pull request #$existingPr is already open."
-            exit 0
-          }
-          $prUrl = gh pr create `
-            --repo $env:GITHUB_REPOSITORY `
-            --base main `
-            --head $branchName `
-            --title "docs: update VirusTotal links for $env:VERSION" `
-            --body "Automated VirusTotal scan links and badges for release $env:RELEASE_TAG."
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Could not create the VirusTotal README pull request.'
-          }
-          Write-Host "Created VirusTotal README pull request: $prUrl"
+          $installer = $published.assets | Where-Object name -eq $env:INSTALLER_NAME
+          if (-not $installer) { throw "Published GitHub Release is missing the exact WPF setup $env:INSTALLER_NAME." }

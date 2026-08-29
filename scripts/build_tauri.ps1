@@ -10,11 +10,7 @@ if (-not (Test-Path -LiteralPath $tauri -PathType Leaf)) {
   throw "Tauri CLI was not found at $tauri. Run npm install first."
 }
 
-$arguments = @('build')
-if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
-  Write-Warning 'TAURI_SIGNING_PRIVATE_KEY is not set; building the unsigned local installer without updater artifacts.'
-  $arguments += @('--config', (Join-Path $repoRoot 'src-tauri\tauri.local.conf.json'))
-}
+$arguments = @('build', '--no-bundle')
 
 if ($DryRun) {
   Write-Output ($arguments -join ' ')

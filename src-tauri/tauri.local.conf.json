@@ -1,5 +1,6 @@
 {
   "bundle": {
+    "active": false,
     "createUpdaterArtifacts": false
   }
 }

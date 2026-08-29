@@ -4,6 +4,7 @@ using System.Text.Json;
 using VRCNT.RuntimeCore.Manager;
 using VRCNT.RuntimeCore.Models;
 using VRCNT.RuntimeCore.Paths;
+using VRCNT.RuntimeCore.State;
 using VRCNT.RuntimeCore.Transactions;
 using VRCNT.Setup.CommandLine;
 
@@ -19,6 +20,7 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
     private readonly string _managerDirectory;
     private readonly string _managerPath;
     private readonly Func<string, UserDataPaths> _resolveUserDataPaths;
+    private readonly IActiveRuntimeLocator _activeRuntimeLocator;
 
     public SetupCommandOperations(
         IRuntimeTransactionEngine runtimeEngine,
@@ -26,7 +28,8 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
         Uri managerLatestJsonUri,
         string? managerDirectory = null,
         string? managerPath = null,
-        Func<string, UserDataPaths>? resolveUserDataPaths = null)
+        Func<string, UserDataPaths>? resolveUserDataPaths = null,
+        IActiveRuntimeLocator? activeRuntimeLocator = null)
     {
         _runtimeEngine = runtimeEngine ?? throw new ArgumentNullException(nameof(runtimeEngine));
         _managerLifecycle = managerLifecycle ?? throw new ArgumentNullException(nameof(managerLifecycle));
@@ -34,6 +37,7 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
         _managerDirectory = Path.GetFullPath(managerDirectory ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VRCNTInstaller"));
         _managerPath = Path.GetFullPath(managerPath ?? Path.Combine(_managerDirectory, "VRCNT.Setup.exe"));
         _resolveUserDataPaths = resolveUserDataPaths ?? new UserDataPathResolver().Resolve;
+        _activeRuntimeLocator = activeRuntimeLocator ?? new ActiveRuntimeLocator();
     }
 
     public static SetupCommandOperations CreateProduction(ManagerCapabilities capabilities)
@@ -64,13 +68,14 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
 
     public async Task ExecuteRuntimeAsync(SetupCommandLineOptions options, IProgress<InstallProgress>? progress, CancellationToken cancellationToken)
     {
-        var installPath = options.InstallPath ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VRCNT");
+        var activeRuntime = IsImplicitUpdater(options) ? _activeRuntimeLocator.Resolve() : null;
+        var installPath = activeRuntime?.InstallPath ?? options.InstallPath ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VRCNT");
         var paths = _resolveUserDataPaths(installPath);
         var configPath = Path.Combine(paths.DataRoot, "config.json");
         var initializeLanguage = ShouldInitializeLanguage(options);
         var targetVariant = options.IsSwitch
             ? options.TargetVariant ?? throw new InvalidDataException("A runtime switch requires an explicit target variant.")
-            : options.TargetVariant ?? RuntimeVariant.Cpu;
+            : activeRuntime?.Variant ?? options.TargetVariant ?? RuntimeVariant.Cpu;
         RuntimeSwitchStatusStore? statusStore = null;
         RuntimeShutdownHandoff? shutdownHandoff = null;
         if (options.IsSwitch)
@@ -148,6 +153,7 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
 
         var result = await _managerLifecycle.RepairAsync(_managerLatestJsonUri, cancellationToken);
         if (!result.Succeeded) throw new InvalidOperationException(result.FailureCode ?? "Manager repair failed closed.");
+        if (options.IsUpdate) await LaunchPromotedManagerAsync(options, cancellationToken);
     }
 
     private async Task LaunchRepairWorkerAsync(SetupCommandLineOptions options, CancellationToken cancellationToken)
@@ -169,6 +175,7 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
             UseShellExecute = false,
             WorkingDirectory = _managerDirectory,
         };
+        if (options.IsUpdate) start.ArgumentList.Add("/UPDATE");
         start.ArgumentList.Add("--repair-manager");
         start.ArgumentList.Add("--manager-repair-worker");
         if (options.IsPassive) start.ArgumentList.Add("/passive");
@@ -183,16 +190,40 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
             }
         }
 
-        _ = Process.Start(start) ?? throw new InvalidOperationException("Unable to start the out-of-process manager repair worker.");
-        await Task.CompletedTask;
+        var worker = Process.Start(start) ?? throw new InvalidOperationException("Unable to start the out-of-process manager repair worker.");
+        await worker.WaitForExitAsync(cancellationToken);
+        if (worker.ExitCode != 0) throw new InvalidOperationException($"The out-of-process manager repair worker failed with exit code {worker.ExitCode}.");
+    }
+
+    private async Task LaunchPromotedManagerAsync(SetupCommandLineOptions options, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!File.Exists(_managerPath)) throw new FileNotFoundException("The promoted stable setup manager was not found.", _managerPath);
+        var start = new ProcessStartInfo(_managerPath)
+        {
+            UseShellExecute = false,
+            WorkingDirectory = _managerDirectory,
+        };
+        start.ArgumentList.Add("/UPDATE");
+        start.ArgumentList.Add("--manager-repaired");
+        if (options.IsPassive) start.ArgumentList.Add("/passive");
+        foreach (var argument in options.CurrentAppArguments)
+        {
+            start.ArgumentList.Add("--current-app-arg");
+            start.ArgumentList.Add(argument);
+        }
+        var manager = Process.Start(start) ?? throw new InvalidOperationException("Unable to start the promoted stable setup manager.");
+        await manager.WaitForExitAsync(cancellationToken);
+        if (manager.ExitCode != 0) throw new InvalidOperationException($"The promoted stable setup manager failed with exit code {manager.ExitCode}.");
     }
 
     public Task HandoffToCurrentAppAsync(SetupCommandLineOptions options, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (options.CurrentAppPath is null) return Task.CompletedTask;
-        if (!File.Exists(options.CurrentAppPath)) throw new FileNotFoundException("The current VRCNT application was not found.", options.CurrentAppPath);
-        var start = new ProcessStartInfo(options.CurrentAppPath) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(options.CurrentAppPath)! };
+        var currentAppPath = options.CurrentAppPath ?? (options.IsUpdate ? _activeRuntimeLocator.Resolve().CurrentAppPath : null);
+        if (currentAppPath is null) return Task.CompletedTask;
+        if (!File.Exists(currentAppPath)) throw new FileNotFoundException("The current VRCNT application was not found.", currentAppPath);
+        var start = new ProcessStartInfo(currentAppPath) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(currentAppPath)! };
         foreach (var argument in options.CurrentAppArguments) start.ArgumentList.Add(argument);
         _ = Process.Start(start) ?? throw new InvalidOperationException("Unable to hand off to the current VRCNT application.");
         return Task.CompletedTask;
@@ -200,6 +231,9 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
 
     private static bool ShouldInitializeLanguage(SetupCommandLineOptions options) =>
         !options.IsUpdate && !options.IsSwitch && !string.IsNullOrWhiteSpace(options.InstallerLanguage);
+
+    private static bool IsImplicitUpdater(SetupCommandLineOptions options) =>
+        options.IsUpdate && !options.IsSwitch && options.TargetVariant is null;
 
     private static void WriteInitialLanguageIfAbsent(string configPath, string languageId)
     {

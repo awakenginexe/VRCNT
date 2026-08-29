@@ -19,11 +19,15 @@ public sealed class SetupCommandDispatcher(ISetupCommandOperations operations)
         if (options.IsSwitch && options.TargetVariant is null)
             throw new ArgumentException("A runtime switch requires an explicit target variant.", nameof(options));
         if (options.IsRepairManager)
+        {
             await _operations.ExecuteRepairManagerAsync(options, cancellationToken);
+            if (!options.IsManagerRepairWorker || options.IsUpdate)
+                return 0;
+        }
         else
             await _operations.ExecuteRuntimeAsync(options, progress, cancellationToken);
 
-        if (options.CurrentAppPath is not null && (!options.IsRepairManager || options.IsManagerRepairWorker))
+        if (options.CurrentAppPath is not null || options.IsUpdate)
             await _operations.HandoffToCurrentAppAsync(options, cancellationToken);
         return 0;
     }

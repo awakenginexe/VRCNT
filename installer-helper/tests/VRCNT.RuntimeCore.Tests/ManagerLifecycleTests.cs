@@ -279,6 +279,34 @@ public sealed class ManagerLifecycleTests : IDisposable
     }
 
     [Fact]
+    public void Command_line_parser_preserves_tauri_args_without_interpreting_them_as_setup_options()
+    {
+        var vrcntArguments = new[] { "--switch", "--variant", "cuda", "--current-app", "C:\\untrusted.exe" };
+
+        var options = SetupCommandLine.Parse([
+            "/UPDATE", "/ARGS", .. vrcntArguments,
+            "--tauri-update-contract-v1", "/passive", "--repair-manager",
+        ]);
+
+        Assert.True(options.IsUpdate);
+        Assert.True(options.IsPassive);
+        Assert.True(options.IsRepairManager);
+        Assert.False(options.IsSwitch);
+        Assert.Null(options.TargetVariant);
+        Assert.Null(options.CurrentAppPath);
+        Assert.Equal(vrcntArguments, options.CurrentAppArguments);
+    }
+
+    [Fact]
+    public void Command_line_parser_rejects_untrusted_normal_update_path_overrides_and_tauri_arg_contracts_without_update_mode()
+    {
+        Assert.Throws<ArgumentException>(() => SetupCommandLine.Parse(["/UPDATE", "--install-path", "C:\\untrusted-runtime"]));
+        Assert.Throws<ArgumentException>(() => SetupCommandLine.Parse([
+            "/ARGS", "--resume", "--tauri-update-contract-v1", "/passive", "--repair-manager",
+        ]));
+    }
+
+    [Fact]
     public async Task Command_dispatcher_rejects_a_switch_without_an_explicit_target()
     {
         var operations = new RecordingSetupOperations();
@@ -303,6 +331,20 @@ public sealed class ManagerLifecycleTests : IDisposable
     }
 
     [Fact]
+    public async Task Command_dispatcher_runs_the_runtime_update_after_the_stable_manager_has_been_repaired()
+    {
+        var operations = new RecordingSetupOperations();
+        var options = SetupCommandLine.Parse([
+            "/UPDATE", "/passive", "--manager-repaired", "--current-app", "C:\\VRCNT\\VRCNT.exe",
+        ]);
+
+        var exitCode = await new SetupCommandDispatcher(operations).DispatchAsync(options, default);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal(new[] { "runtime", "handoff" }, operations.Calls);
+    }
+
+    [Fact]
     public async Task Command_dispatcher_defers_current_app_handoff_to_the_out_of_process_repair_worker()
     {
         var operations = new RecordingSetupOperations();
@@ -324,6 +366,18 @@ public sealed class ManagerLifecycleTests : IDisposable
 
         Assert.Equal(0, exitCode);
         Assert.Equal(["repair-manager", "handoff"], operations.Calls);
+    }
+
+    [Fact]
+    public async Task Command_dispatcher_does_not_handoff_or_run_the_runtime_from_an_update_repair_worker()
+    {
+        var operations = new RecordingSetupOperations();
+        var options = SetupCommandLine.Parse(["/UPDATE", "/passive", "--repair-manager", "--manager-repair-worker"]);
+
+        var exitCode = await new SetupCommandDispatcher(operations).DispatchAsync(options, default);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal(["repair-manager"], operations.Calls);
     }
 
     [Fact]

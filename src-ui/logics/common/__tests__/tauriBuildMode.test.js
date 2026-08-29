@@ -29,10 +29,10 @@ function previewBuild({ signingKey } = {}) {
   );
 }
 
-test('local Tauri builds disable updater artifacts when no signing key is available', { skip: process.platform !== 'win32' }, () => {
-  assert.match(previewBuild(), /tauri\.local\.conf\.json/);
+test('local Tauri builds create only the reusable shell without a public installer bundle', { skip: process.platform !== 'win32' }, () => {
+  assert.equal(previewBuild().trim(), 'build --no-bundle');
 });
 
-test('release Tauri builds keep updater artifacts when a signing key is available', { skip: process.platform !== 'win32' }, () => {
-  assert.doesNotMatch(previewBuild({ signingKey: 'test-signing-key' }), /tauri\.local\.conf\.json/);
+test('release Tauri shell builds do not depend on signing keys or NSIS updater output', { skip: process.platform !== 'win32' }, () => {
+  assert.equal(previewBuild({ signingKey: 'test-signing-key' }).trim(), 'build --no-bundle');
 });

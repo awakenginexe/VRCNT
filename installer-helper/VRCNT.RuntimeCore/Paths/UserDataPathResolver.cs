@@ -4,6 +4,20 @@ public sealed record UserDataPaths(string DataRoot, string LegacyDataRoot, strin
 
 public sealed class UserDataPathResolver
 {
+    public string ResolveDataRoot()
+    {
+        var localAppData = Environment.GetEnvironmentVariable("LOCALAPPDATA")
+            ?? Environment.GetEnvironmentVariable("APPDATA")
+            ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return ResolveDataRoot(localAppData);
+    }
+
+    public string ResolveDataRoot(string localAppData)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(localAppData);
+        return Path.Combine(Path.GetFullPath(localAppData), "VRCNTData");
+    }
+
     public UserDataPaths Resolve(string installPath)
     {
         var localAppData = Environment.GetEnvironmentVariable("LOCALAPPDATA")

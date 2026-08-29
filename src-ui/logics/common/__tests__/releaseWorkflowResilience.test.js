@@ -29,30 +29,55 @@ test("release distribution uses GitHub Releases without Hugging Face pipeline de
     assert.match(workflow, /gh release upload/);
 });
 
-test("workflow places the installer first while keeping its public display name", () => {
-    const installerUpload = workflow.indexOf(
-        "gh release upload $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --clobber $installerUpload",
-    );
-    const signatureUpload = workflow.indexOf(
-        "gh release upload $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --clobber $installerSignatureUpload",
-    );
-    const supportingUpload = workflow.indexOf(
-        "gh release upload $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --clobber $supportingAssets",
-    );
+test("release workflow builds one shared shell, packages CPU and CUDA independently, then publishes one WPF setup", () => {
+    assert.match(workflow, /^  shared-shell:/m);
+    assert.match(workflow, /^  backend-cpu:/m);
+    assert.match(workflow, /^  backend-cuda:/m);
+    assert.match(workflow, /^  package-and-publish:/m);
+    assert.match(workflow, /needs:\s*\[validate, installer-tools, shared-shell, backend-cpu, backend-cuda\]/);
+    assert.match(workflow, /npm run build-runtime-shell/);
+    assert.match(workflow, /npm run build-backend:cpu/);
+    assert.match(workflow, /npm run build-backend:cuda/);
+    assert.match(workflow, /release\.py package[\s\S]*--variant cpu[\s\S]*--source-dir/);
+    assert.match(workflow, /release\.py package[\s\S]*--variant cuda[\s\S]*--source-dir/);
+    assert.match(workflow, /release\.py manifest[\s\S]*--cpu-dir[\s\S]*--cuda-dir[\s\S]*--setup/);
+    assert.match(workflow, /installerName = \$config\.installerNamePattern\.Replace/);
+    assert.match(workflow, /dotnet publish \.\/installer-helper\/VRCNT\.Setup\/VRCNT\.Setup\.csproj/);
+    assert.doesNotMatch(workflow, /packagePartCount|exactly three|Create three-part portable package|npm run build-cuda|bundle\/nsis/i);
+});
 
-    assert.match(workflow, /\$installerReleaseAssetName = "00_\$installerName"/);
-    assert.match(workflow, /INSTALLER_RELEASE_ASSET_NAME=\$installerReleaseAssetName/);
-    assert.match(workflow, /--updater-name \$env:INSTALLER_RELEASE_ASSET_NAME/);
-    assert.match(workflow, /\$installerAsset = Join-Path \$env:ASSET_DIR \$env:INSTALLER_RELEASE_ASSET_NAME/);
-    assert.match(workflow, /\$installerUpload = "\$installerAsset#\$env:INSTALLER_NAME"/);
-    assert.match(workflow, /\$installerSignatureUpload = "\$installerSignatureAsset#\$env:INSTALLER_NAME\.sig"/);
-    assert.match(workflow, /\$supportingAssets = @\(/);
-    assert.match(workflow, /Sort-Object Name/);
-    assert.ok(installerUpload >= 0, "installer upload must be present");
-    assert.ok(signatureUpload > installerUpload, "signature must upload after installer");
-    assert.ok(supportingUpload > signatureUpload, "supporting assets must upload last");
-    assert.match(workflow, /The installer is not the first release asset/);
-    assert.match(workflow, /The installer display label is incorrect/);
+test("combined release validation accepts every signed variant part without fixed counts", () => {
+    assert.match(workflow, /foreach \(\$variant in \$manifest\.variants\.PSObject\.Properties\)/);
+    assert.match(workflow, /foreach \(\$entry in \$variant\.Value\.parts\)/);
+    assert.match(workflow, /Signed package manifest could not be verified/);
+    assert.match(workflow, /WPF updater setup signing failed/);
+    assert.doesNotMatch(workflow, /\.files\.Count\s*-ne\s*3|packagePartCount|all three VRCNT_/i);
+});
+
+test("published release assets exclude duplicate per-variant package metadata", () => {
+    const releaseAssetEnumerations = workflow.match(/Get-ChildItem (?:\.\/)?release-assets -File -Recurse[^\r\n]*/g) || [];
+
+    assert.equal(releaseAssetEnumerations.length, 2, "hashing and publication must enumerate the same release assets");
+    assert.ok(
+        releaseAssetEnumerations.every((enumeration) => /-Exclude ['"]?package-metadata\.json['"]?/i.test(enumeration)),
+        "per-variant package metadata has duplicate leaf names and must remain internal to combined-manifest creation",
+    );
+    assert.match(workflow, /\$expected = Get-ChildItem \.\/release-assets -File -Recurse -Exclude package-metadata\.json/);
+});
+
+test("release hashes are generated after VirusTotal adds its public report", () => {
+    const virusTotalScan = workflow.indexOf("python ./utils/virustotal.py scan");
+    const generateHashes = workflow.lastIndexOf("python ./utils/release.py hashes");
+
+    assert.ok(virusTotalScan >= 0, "the release must scan the approved portable executables");
+    assert.ok(generateHashes > virusTotalScan, "SHA256SUMS.txt must include the public VirusTotal report as well as payload and signature artifacts");
+});
+
+test("workflow publishes the WPF setup under its exact updater filename without NSIS labels", () => {
+    assert.match(workflow, /--updater-name \$env:INSTALLER_NAME/);
+    assert.match(workflow, /\$setup = Join-Path \$assetDir \$env:INSTALLER_NAME/);
+    assert.match(workflow, /gh release upload \$env:RELEASE_TAG --repo \$env:RELEASE_REPOSITORY --clobber \$releaseAssets/);
+    assert.doesNotMatch(workflow, /INSTALLER_RELEASE_ASSET_NAME|00_\$installerName|installerUpload|installerSignatureUpload/);
 });
 
 
@@ -65,7 +90,9 @@ test("updater endpoint moved to GitHub while the existing public key remains unc
         "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY4NTYzNUI0QUI2RTI4RkMKUldUOEtHNnJ0RFZXYUt4L1cwOVhIL1NtZXJGQkxzZkVVYXMrWGJZQlZ5NFNPdldRMk9RdUkrVCsK",
     );
     assert.match(minisignVerifier, new RegExp(tauriConfig.plugins.updater.pubkey));
-    assert.equal(tauriConfig.bundle.createUpdaterArtifacts, true);
+    assert.equal(tauriConfig.bundle.active, false);
+    assert.equal(tauriConfig.bundle.createUpdaterArtifacts, false);
+    assert.deepEqual(tauriConfig.plugins.updater.windows.installerArgs, ["--tauri-update-contract-v1", "/passive", "--repair-manager"]);
 });
 
 
@@ -90,12 +117,14 @@ test("release helper uses the shared signed manifest loader before selecting var
 test("workflow signs and verifies both package and Tauri updater artifacts", () => {
     assert.match(workflow, /TAURI_SIGNING_PRIVATE_KEY/);
     assert.match(workflow, /TAURI_SIGNING_PRIVATE_KEY_PASSWORD/);
+    assert.match(workflow, /Sign and verify setup and combined manifest[\s\S]*TAURI_SIGNING_PRIVATE_KEY:\s*\$\{\{ secrets\.TAURI_SIGNING_PRIVATE_KEY \}\}[\s\S]*TAURI_SIGNING_PRIVATE_KEY_PASSWORD:\s*\$\{\{ secrets\.TAURI_SIGNING_PRIVATE_KEY_PASSWORD \}\}/);
+    assert.doesNotMatch(workflow, /^\s+TAURI_PRIVATE_KEY(?:_PASSWORD)?:/m);
     assert.doesNotMatch(workflow, /TAURI_SIGNING_PRIVATE_KEY_PASSWORD is required/);
     assert.match(workflow, /tauri signer sign/);
     assert.match(workflow, /minisign.*-Vm/s);
-    assert.match(workflow, /Tauri updater signature does not match/);
+    assert.match(workflow, /WPF updater setup signing failed/);
     assert.match(workflow, /latest\.json has an invalid GitHub updater URL or empty signature/);
-    assert.match(workflow, /signed Tauri updater artifact is missing/i);
+    assert.match(workflow, /Signed artifact .* could not be verified/);
     assert.doesNotMatch(workflow, /continue-on-error:\s*true/);
     assert.match(workflow, /minisign-0\.12-win64\.zip/);
     assert.match(workflow, /37b600344e20c19314b2e82813db2bfdcc408b77b876f7727889dbd46d539479/);
@@ -117,8 +146,8 @@ test("workflow fails on missing, oversized, or mismatched release files", () => 
     assert.match(workflow, /Length -ge \[long\]\$env:MAX_ASSET_SIZE/);
     assert.match(workflow, /Get-FileHash .* -Algorithm SHA256/);
     assert.match(workflow, /failed SHA-256 verification/);
-    assert.match(workflow, /7zip.* t /is);
-    assert.match(workflow, /appears to contain the application payload/);
+    assert.match(workflow, /7za\.exe'\) t \$firstPart/);
+    assert.match(workflow, /Combined manifest does not identify the exact WPF setup/);
 });
 
 

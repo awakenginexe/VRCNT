@@ -2,6 +2,7 @@ using System.Text.Json;
 using VRCNT.RuntimeCore.Manager;
 using VRCNT.RuntimeCore.Models;
 using VRCNT.RuntimeCore.Paths;
+using VRCNT.RuntimeCore.State;
 using VRCNT.Setup;
 using VRCNT.Setup.CommandLine;
 using Xunit;
@@ -44,6 +45,72 @@ public sealed class InstallerOperationTests : IDisposable
         await operations.ExecuteRuntimeAsync(options, null, default);
 
         Assert.Equal("{\"UI_LANGUAGE\":\"ja\",\"FONT_FAMILY\":\"VRCNT Noto\"}", File.ReadAllText(Path.Combine(dataRoot, "config.json")));
+    }
+
+    [Fact]
+    public async Task Execute_runtime_update_uses_the_validated_custom_runtime_state_instead_of_defaulting_to_cpu()
+    {
+        var customInstallPath = Path.Combine(_root, "custom", "VRCNT");
+        var dataRoot = Path.Combine(_root, "VRCNTData");
+        var markerPath = Path.Combine(customInstallPath, "VRCNT.runtime.json");
+        Directory.CreateDirectory(customInstallPath);
+        File.WriteAllText(Path.Combine(customInstallPath, "VRCNT.exe"), "app");
+        File.WriteAllText(Path.Combine(customInstallPath, "VRCNT-backend.exe"), "backend");
+        File.WriteAllText(markerPath, JsonSerializer.Serialize(new
+        {
+            Product = "VRCNT",
+            Version = "5.15.0",
+            Variant = RuntimeVariant.Cuda,
+            Architecture = "x64",
+            BuildIdentity = "cuda-build",
+        }));
+        Directory.CreateDirectory(dataRoot);
+        File.WriteAllText(Path.Combine(dataRoot, "runtime.json"), JsonSerializer.Serialize(new
+        {
+            Schema = 1,
+            Status = "Active",
+            Product = "VRCNT",
+            Version = "5.15.0",
+            Variant = "Cuda",
+            Architecture = "x64",
+            InstallPath = customInstallPath,
+            MarkerBuildIdentity = "cuda-build",
+            MarkerSha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(markerPath))).ToLowerInvariant(),
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+        }));
+        var engine = new RecordingRuntimeEngine();
+        var operations = CreateOperations(engine, dataRoot);
+
+        await operations.ExecuteRuntimeAsync(new SetupCommandLineOptions(true, true, false, false, false, null, null, null, ["--resume"], null), null, default);
+
+        Assert.True(engine.WasCalled);
+        Assert.NotNull(engine.LastRequest);
+        Assert.Equal(RuntimeVariant.Cuda, engine.LastRequest!.TargetVariant);
+        Assert.Equal(Path.GetFullPath(customInstallPath), engine.LastRequest.InstallPath);
+    }
+
+    [Fact]
+    public async Task Execute_runtime_update_rejects_missing_or_untrusted_state_without_starting_a_default_cpu_transaction()
+    {
+        var engine = new RecordingRuntimeEngine();
+        var operations = CreateOperations(engine, Path.Combine(_root, "VRCNTData"));
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => operations.ExecuteRuntimeAsync(
+            new SetupCommandLineOptions(true, true, false, false, false, null, null, null, [], null), null, default));
+
+        Assert.False(engine.WasCalled);
+    }
+
+    [Fact]
+    public async Task Execute_runtime_update_does_not_allow_a_programmatic_install_path_to_bypass_active_runtime_validation()
+    {
+        var engine = new RecordingRuntimeEngine();
+        var operations = CreateOperations(engine, Path.Combine(_root, "VRCNTData"));
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => operations.ExecuteRuntimeAsync(
+            new SetupCommandLineOptions(true, true, false, false, false, null, Path.Combine(_root, "untrusted-runtime"), null, [], null), null, default));
+
+        Assert.False(engine.WasCalled);
     }
 
     [Theory]
@@ -188,7 +255,8 @@ public sealed class InstallerOperationTests : IDisposable
         new Uri("https://example.invalid/latest.json"),
         Path.Combine(_root, "manager"),
         Path.Combine(_root, "manager", "VRCNT.Setup.exe"),
-        _ => new UserDataPaths(dataRoot, Path.Combine(_root, "VRCNT-NextData"), Path.Combine(_root, "VRCNT")));
+        _ => new UserDataPaths(dataRoot, Path.Combine(_root, "VRCNT-NextData"), Path.Combine(_root, "VRCNT")),
+        new ActiveRuntimeLocator(resolveDataRoot: () => dataRoot));
 
     private static string WritePendingSwitch(string dataRoot, string currentAppPath, string nonce, string token)
     {
@@ -216,10 +284,12 @@ public sealed class InstallerOperationTests : IDisposable
     private sealed class RecordingRuntimeEngine : IRuntimeTransactionEngine
     {
         public bool WasCalled { get; private set; }
+        public RuntimeInstallRequest? LastRequest { get; private set; }
 
         public Task<RuntimeOperationResult> ExecuteAsync(RuntimeInstallRequest request, IProgress<InstallProgress>? progress, CancellationToken cancellationToken)
         {
             WasCalled = true;
+            LastRequest = request;
             progress?.Report(new InstallProgress(TransactionPhase.Acquire, 250, 1000, "runtime.7z"));
             return Task.FromResult(new RuntimeOperationResult(true, false, false, null, null));
         }

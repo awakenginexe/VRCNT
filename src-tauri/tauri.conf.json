@@ -50,9 +50,8 @@
         }
     },
     "bundle": {
-        "active": true,
-        "targets": "nsis",
-        "createUpdaterArtifacts": true,
+        "active": false,
+        "createUpdaterArtifacts": false,
         "publisher": "awakenginexe",
         "copyright": "Copyright 2026 awakenginexe. Portions Copyright 2023 misyaguziya.",
         "licenseFile": "../LICENSE",
@@ -70,18 +69,19 @@
         "resources": {
             "../dist": "frontend",
             "bin/_internal": "_internal"
-        },
-        "windows": {
-            "nsis": {
-                "template": "nsis/template.nsi",
-                "installMode": "currentUser",
-                "displayLanguageSelector": true
-            }
         }
     },
     "plugins": {
         "updater": {
             "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY4NTYzNUI0QUI2RTI4RkMKUldUOEtHNnJ0RFZXYUt4L1cwOVhIL1NtZXJGQkxzZkVVYXMrWGJZQlZ5NFNPdldRMk9RdUkrVCsK",
+            "windows": {
+                "installMode": "basicUi",
+                "installerArgs": [
+                    "--tauri-update-contract-v1",
+                    "/passive",
+                    "--repair-manager"
+                ]
+            },
             "endpoints": [
                 "https://github.com/awakenginexe/VRCNT/releases/latest/download/latest.json"
             ]
