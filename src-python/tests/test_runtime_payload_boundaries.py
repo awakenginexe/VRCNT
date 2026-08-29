@@ -88,6 +88,25 @@ class RuntimePayloadBoundaryTests(unittest.TestCase):
             self.assertTrue((payload / "VRCNT-backend.exe").is_file())
             self.assertFalse((payload / BUILT_BACKEND_NAME).exists())
 
+    def test_cpu_validation_ignores_python_cudnn_modules_and_license_metadata(self):
+        self._write(
+            self.cpu_backend / "_internal" / "torch" / "backends" / "cudnn" / "__init__.py",
+            b"cpu-compatible python module",
+        )
+        self._write(
+            self.cpu_backend
+            / "_internal"
+            / "torch-2.13.0.dist-info"
+            / "licenses"
+            / "third_party"
+            / "cudnn_frontend"
+            / "LICENSE.txt",
+            b"license metadata",
+        )
+
+        self._stage("cpu", self.cpu_backend, self.cpu_payload)
+        self._validate("cpu", self.cpu_payload)
+
     def test_cpu_validation_rejects_each_cuda_library_boundary(self):
         self._stage("cpu", self.cpu_backend, self.cpu_payload)
         for marker in CUDA_MARKERS:

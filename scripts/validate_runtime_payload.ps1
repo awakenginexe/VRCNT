@@ -61,12 +61,13 @@ foreach ($field in @('sharedShellIdentity', 'backendPayloadIdentity', 'buildIden
 $files = Get-ChildItem -LiteralPath $payload -File -Recurse -Force | ForEach-Object {
   Get-RelativeFilePath ($payload.TrimEnd([char[]]'\\/') + [IO.Path]::DirectorySeparatorChar) $_.FullName
 }
+$nativeLibrary = '(?:\.dll|\.pyd|\.lib)$'
 $cudaBoundaries = @(
-  @{ Name = 'Torch CUDA'; Pattern = '(^|/)(torch_cuda|c10_cuda)' },
-  @{ Name = 'cuDNN'; Pattern = '(^|/)cudnn[0-9_]*' },
-  @{ Name = 'cuBLAS'; Pattern = '(^|/)cublas[0-9_]*' },
-  @{ Name = 'CUDA ONNX Runtime'; Pattern = '(^|/)onnxruntime.*/onnxruntime_providers_cuda' },
-  @{ Name = 'CUDA sherpa-onnx'; Pattern = '(^|/)(sherpa-onnx-cuda|sherpa_onnx/.+cuda)' }
+  @{ Name = 'Torch CUDA'; Pattern = "(^|/)(torch_cuda|c10_cuda)[^/]*$nativeLibrary" },
+  @{ Name = 'cuDNN'; Pattern = "(^|/)cudnn[^/]*$nativeLibrary" },
+  @{ Name = 'cuBLAS'; Pattern = "(^|/)cublas[^/]*$nativeLibrary" },
+  @{ Name = 'CUDA ONNX Runtime'; Pattern = "(^|/)onnxruntime.*/onnxruntime_providers_cuda$nativeLibrary" },
+  @{ Name = 'CUDA sherpa-onnx'; Pattern = "(^|/)(sherpa-onnx-cuda|sherpa_onnx/.+cuda)[^/]*$nativeLibrary" }
 )
 if ($Variant -eq 'cpu') {
   foreach ($boundary in $cudaBoundaries) {
