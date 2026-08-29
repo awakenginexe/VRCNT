@@ -307,6 +307,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'WPF setup publish failed.' }
           $setup = Join-Path (Get-Location) 'build/setup/VRCNT.Setup.exe'
           if (-not (Test-Path $setup) -or (Get-Item $setup).Length -eq 0) { throw 'WPF setup publish did not produce VRCNT.Setup.exe.' }
+          & ./scripts/validate_setup_publish.ps1 -ProjectPath ./installer-helper/VRCNT.Setup/VRCNT.Setup.csproj -PublishOutputPath ./build/setup
+          if ($LASTEXITCODE -ne 0) { throw 'WPF setup publish contract validation failed.' }
           foreach ($tool in @('7za.exe', 'minisign.exe')) {
             if (Test-Path (Join-Path (Get-Location) "build/setup/$tool")) { throw "Published WPF setup must embed $tool instead of shipping it as a sidecar." }
           }
