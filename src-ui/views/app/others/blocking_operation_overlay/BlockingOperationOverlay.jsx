@@ -35,6 +35,7 @@ export const BlockingOperationOverlay = ({
 
     const titleId = `blocking-operation-${operationId}-title`;
     const descriptionId = `blocking-operation-${operationId}-description`;
+    const showProgress = progress.kind !== "error";
     const determinate = progress.kind === "determinate";
     const progressPercent = determinate
         ? Math.min(100, Math.max(0, progress.max > 0
@@ -84,26 +85,28 @@ export const BlockingOperationOverlay = ({
                     <p className={styles.phase}>{phase}</p>
                     {detail ? <p className={styles.detail}>{detail}</p> : null}
                 </div>
-                <div className={styles.progress_section}>
-                    <div className={styles.progress_meta}>
-                        <span className={styles.progress_label}>{progressLabel}</span>
-                        <p className={styles.progress_text}>{progressText}</p>
+                {showProgress ? (
+                    <div className={styles.progress_section}>
+                        <div className={styles.progress_meta}>
+                            <span className={styles.progress_label}>{progressLabel}</span>
+                            <p className={styles.progress_text}>{progressText}</p>
+                        </div>
+                        <div
+                            className={progressClassName}
+                            role="progressbar"
+                            aria-label={progressLabel}
+                            {...progressAria}
+                        >
+                            <span
+                                className={styles.progress_fill}
+                                style={determinate
+                                    ? { "--progress-percent": `${progressPercent}%` }
+                                    : undefined}
+                            />
+                        </div>
+                        <p className={styles.elapsed}>{elapsedText}</p>
                     </div>
-                    <div
-                        className={progressClassName}
-                        role="progressbar"
-                        aria-label={progressLabel}
-                        {...progressAria}
-                    >
-                        <span
-                            className={styles.progress_fill}
-                            style={determinate
-                                ? { "--progress-percent": `${progressPercent}%` }
-                                : undefined}
-                        />
-                    </div>
-                    <p className={styles.elapsed}>{elapsedText}</p>
-                </div>
+                ) : null}
             </section>
         </div>
     );

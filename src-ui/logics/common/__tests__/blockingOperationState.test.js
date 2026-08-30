@@ -116,7 +116,7 @@ test("only a blocking startup operation blocks the page", () => {
     }), false);
 });
 
-test("a terminal startup error stays visible without making the page inert", () => {
+test("a terminal startup error stays visible without reporting completed progress", () => {
     const operation = getBlockingOperationCandidate(createInput({
         isBackendReady: false,
         initStatus: {
@@ -131,6 +131,7 @@ test("a terminal startup error stays visible without making the page inert", () 
 
     assert.equal(operation.id, "startup");
     assert.equal(operation.terminalError, true);
+    assert.deepEqual(operation.progress, { kind: "error" });
     assert.equal(isPageBlockingOperation({
         isBlocking: true,
         operation,

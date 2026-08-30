@@ -51,12 +51,13 @@ public sealed class NamedPipeRuntimeActivationHealthMonitor : IRuntimeActivation
                 PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
             await server.WaitForConnectionAsync(deadline.Token);
             if (!GetNamedPipeClientProcessId(server.SafePipeHandle, out var clientProcessId))
-                return Fail("activation_invalid_proof");
+                return Fail("activation_invalid_proof_client_pid");
 
             var proof = await ReadSingleProofAsync(server, deadline.Token);
-            return IsValid(proof, clientProcessId, installPath, expectedIdentity, request)
+            var failureCode = ValidateProof(proof, clientProcessId, installPath, expectedIdentity, request);
+            return failureCode is null
                 ? new RuntimeActivationHealthResult(true, false, null)
-                : Fail("activation_invalid_proof");
+                : Fail(failureCode);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -64,11 +65,15 @@ public sealed class NamedPipeRuntimeActivationHealthMonitor : IRuntimeActivation
         }
         catch (JsonException)
         {
-            return Fail("activation_invalid_proof");
+            return Fail("activation_invalid_proof_payload");
+        }
+        catch (DecoderFallbackException)
+        {
+            return Fail("activation_invalid_proof_payload");
         }
         catch (IOException)
         {
-            return Fail("activation_invalid_proof");
+            return Fail("activation_invalid_proof_transport");
         }
     }
 
@@ -97,17 +102,19 @@ public sealed class NamedPipeRuntimeActivationHealthMonitor : IRuntimeActivation
         return JsonSerializer.Deserialize<RuntimeActivationProof>(text, Json);
     }
 
-    private bool IsValid(RuntimeActivationProof? proof, uint clientProcessId, string installPath, RuntimeIdentity expectedIdentity, ActivationRequest request) =>
-        proof is not null
-        && proof.ProtocolVersion == 1
-        && string.Equals(proof.Status, "ready", StringComparison.Ordinal)
-        && FixedTimeEquals(proof.Token, request.SingleUseToken)
-        && FixedTimeEquals(proof.Nonce, request.Nonce)
-        && proof.BackendPid > 0
-        && proof.BackendPid == clientProcessId
-        && ClientRunsStagedBackend(clientProcessId, installPath)
-        && string.Equals(proof.AppVersion, expectedIdentity.Version, StringComparison.Ordinal)
-        && string.Equals(proof.RuntimeVariant, expectedIdentity.Variant == RuntimeVariant.Cuda ? "cuda" : "cpu", StringComparison.Ordinal);
+    private string? ValidateProof(RuntimeActivationProof? proof, uint clientProcessId, string installPath, RuntimeIdentity expectedIdentity, ActivationRequest request)
+    {
+        if (proof is null) return "activation_invalid_proof_payload";
+        if (proof.ProtocolVersion != 1) return "activation_invalid_proof_protocol";
+        if (!string.Equals(proof.Status, "ready", StringComparison.Ordinal)) return "activation_invalid_proof_status";
+        if (!FixedTimeEquals(proof.Token, request.SingleUseToken)) return "activation_invalid_proof_token";
+        if (!FixedTimeEquals(proof.Nonce, request.Nonce)) return "activation_invalid_proof_nonce";
+        if (proof.BackendPid <= 0 || proof.BackendPid != clientProcessId) return "activation_invalid_proof_backend_pid";
+        if (!ClientRunsStagedBackend(clientProcessId, installPath)) return "activation_invalid_proof_backend_path";
+        if (!string.Equals(proof.AppVersion, expectedIdentity.Version, StringComparison.Ordinal)) return "activation_invalid_proof_version";
+        if (!string.Equals(proof.RuntimeVariant, expectedIdentity.Variant == RuntimeVariant.Cuda ? "cuda" : "cpu", StringComparison.Ordinal)) return "activation_invalid_proof_variant";
+        return null;
+    }
 
     private bool ClientRunsStagedBackend(uint clientProcessId, string installPath)
     {

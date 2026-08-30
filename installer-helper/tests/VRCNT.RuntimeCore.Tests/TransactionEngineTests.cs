@@ -406,6 +406,23 @@ public sealed class TransactionEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task ExecuteAsync_preserves_the_activation_failure_predicate_when_rolling_back()
+    {
+        var request = CreateRequest("health", "diagnostic");
+        WriteActiveRuntime(request);
+        var engine = CreateEngine(health: new TestHealthMonitor(
+            ready: false,
+            errorCode: "activation_invalid_proof_backend_path"));
+
+        var result = await engine.ExecuteAsync(request, null, default);
+
+        Assert.False(result.Succeeded);
+        Assert.True(result.RolledBack);
+        Assert.Equal("activation_invalid_proof_backend_path", result.ErrorCode);
+        Assert.Equal("activation_invalid_proof_backend_path", result.ErrorMessage);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_starts_the_real_pipe_listener_before_launch_and_commits_only_after_a_staged_backend_proof()
     {
         var request = CreateRequest("real-listener", "valid-proof") with
@@ -667,12 +684,12 @@ public sealed class TransactionEngineTests : IDisposable
         public Task RelaunchActiveRuntimeAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
-    private sealed class TestHealthMonitor(bool ready = true, Action? onCheck = null) : IRuntimeActivationHealthMonitor
+    private sealed class TestHealthMonitor(bool ready = true, Action? onCheck = null, string? errorCode = null) : IRuntimeActivationHealthMonitor
     {
         public Task<RuntimeActivationHealthResult> WaitForReadyAsync(string installPath, RuntimeIdentity expectedIdentity, ActivationRequest request, CancellationToken cancellationToken)
         {
             onCheck?.Invoke();
-            return Task.FromResult(new RuntimeActivationHealthResult(ready, false, ready ? null : "activation_unhealthy"));
+            return Task.FromResult(new RuntimeActivationHealthResult(ready, false, ready ? null : errorCode ?? "activation_unhealthy"));
         }
     }
 

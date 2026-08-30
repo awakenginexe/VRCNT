@@ -349,7 +349,8 @@ public sealed class RuntimeTransactionEngine(
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException) { return false; }
     }
     private static RuntimeOperationResult Fail(string code, string message) => new(false, false, false, code, message);
-    private static string Classify(Exception exception) => exception is InvalidDataException && exception.Message.Contains("volume", StringComparison.OrdinalIgnoreCase) ? "cross_volume"
+    private static string Classify(Exception exception) => exception is InvalidDataException && exception.Message.StartsWith("activation_", StringComparison.Ordinal) ? exception.Message
+        : exception is InvalidDataException && exception.Message.Contains("volume", StringComparison.OrdinalIgnoreCase) ? "cross_volume"
         : exception is InvalidDataException && exception.Message.Contains("unsafe path", StringComparison.OrdinalIgnoreCase) ? "unsafe_archive"
         : "transaction_failed";
     private static void Report(IProgress<InstallProgress>? progress, TransactionPhase phase, string message) => progress?.Report(new InstallProgress(phase, 0, 0, message));

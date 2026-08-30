@@ -81,11 +81,7 @@ export const getBlockingOperationCandidate = ({
             detailKey: initStatus.detail_key ?? "",
             delayMs: 0,
             terminalError: true,
-            progress: {
-                kind: "determinate",
-                value: 4,
-                max: 4,
-            },
+            progress: { kind: "error" },
         };
     }
 

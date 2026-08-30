@@ -2,98 +2,381 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:VRCNT.Setup.Views"
-        Title="{Binding AppTitle}" Width="760" Height="560" MinWidth="620" MinHeight="480"
-        WindowStartupLocation="CenterScreen" ResizeMode="CanResizeWithGrip">
-    <Grid Margin="{DynamicResource InstallerPageMargin}">
-        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-        <DockPanel Margin="0,0,0,28">
-            <TextBlock Text="{Binding AppTitle}" FontWeight="SemiBold" FontSize="{DynamicResource InstallerHeaderFontSize}" DockPanel.Dock="Left" />
-            <TextBlock Text="{Binding CurrentPageTitle}" Foreground="{DynamicResource InstallerTextMutedBrush}" HorizontalAlignment="Right" />
-        </DockPanel>
+        Title="{Binding AppTitle}" Width="780" Height="520" MinWidth="680" MinHeight="480"
+        WindowStartupLocation="CenterScreen" ResizeMode="CanMinimize" WindowStyle="None"
+        Background="{DynamicResource InstallerCanvasBrush}" Foreground="{DynamicResource InstallerTextBrush}"
+        BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="1">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="42" ResizeBorderThickness="4" GlassFrameThickness="0" CornerRadius="8" />
+    </WindowChrome.WindowChrome>
 
-        <Grid Grid.Row="1" KeyboardNavigation.TabNavigation="Cycle">
-            <StackPanel x:Name="Welcome" VerticalAlignment="Center">
-                <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Welcome}"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></StackPanel.Style>
-                <TextBlock Text="{Binding WelcomeTitle}" FontSize="{DynamicResource InstallerHeadingFontSize}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                <TextBlock Text="{Binding WelcomeBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,12,0,0" MaxWidth="560" TextWrapping="Wrap" LineHeight="22" />
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- Row 0: Custom Dark Titlebar -->
+            <RowDefinition Height="42" />
+            <!-- Row 1: Main Content View -->
+            <RowDefinition Height="*" />
+            <!-- Row 2: Action Footer -->
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ==================== HEADER / TITLEBAR ==================== -->
+        <Border Grid.Row="0" Background="{DynamicResource InstallerSurfaceBrush}" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="0,0,0,1" Padding="14,0,8,0">
+            <Grid>
+                <!-- Left: Branding & App Title -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
+                    <Border Width="22" Height="22" Background="#1A334D" BorderBrush="{DynamicResource InstallerAccentBrush}" BorderThickness="1" CornerRadius="4" Margin="0,0,8,0">
+                        <TextBlock Text="VR" Foreground="{DynamicResource InstallerAccentBrush}" FontWeight="Bold" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock Text="{Binding AppTitle}" FontWeight="SemiBold" FontSize="13" Foreground="{DynamicResource InstallerTextBrush}" VerticalAlignment="Center" />
+                    <Border Background="{DynamicResource InstallerSurfaceMutedBrush}" CornerRadius="4" Padding="6,2" Margin="8,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="v5.15.0" Foreground="{DynamicResource InstallerTextMutedBrush}" FontSize="10" FontWeight="SemiBold" />
+                    </Border>
+                </StackPanel>
+
+                <!-- Right: Language Selector & Window Buttons -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+                    <!-- Language Selector Dropdown -->
+                    <ComboBox WindowChrome.IsHitTestVisibleInChrome="True" ItemsSource="{Binding Languages}" SelectedItem="{Binding SelectedLanguage}" DisplayMemberPath="Name" MinWidth="110" Height="28" Margin="0,0,12,0" AutomationProperties.Name="{Binding LanguageTitle}" />
+
+                    <!-- Window Control Buttons (Minimize, Close) -->
+                    <Button WindowChrome.IsHitTestVisibleInChrome="True" Click="Minimize_Click" Style="{StaticResource SecondaryButtonStyle}" Width="32" Height="28" Padding="0" MinHeight="0" Margin="0,0,4,0" ToolTip="Minimize">
+                        <Path Data="M0 6 L10 6" Stroke="{DynamicResource InstallerTextMutedBrush}" StrokeThickness="1.5" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Button>
+                    <Button WindowChrome.IsHitTestVisibleInChrome="True" Command="{Binding CloseCommand}" Style="{StaticResource SecondaryButtonStyle}" Width="32" Height="28" Padding="0" MinHeight="0" ToolTip="Close">
+                        <Path Data="M0 0 L8 8 M8 0 L0 8" Stroke="{DynamicResource InstallerTextMutedBrush}" StrokeThickness="1.5" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ==================== MAIN CONTENT AREA ==================== -->
+        <Grid Grid.Row="1" Margin="{DynamicResource InstallerPageMargin}" KeyboardNavigation.TabNavigation="Cycle">
+
+            <!-- VIEW: Welcome -->
+            <StackPanel x:Name="Welcome" VerticalAlignment="Center" MaxWidth="580" HorizontalAlignment="Center">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Welcome}">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+                <Border Width="48" Height="48" Background="#142838" BorderBrush="{DynamicResource InstallerAccentBrush}" BorderThickness="1.5" CornerRadius="10" Margin="0,0,0,16" HorizontalAlignment="Left">
+                    <TextBlock Text="VR" Foreground="{DynamicResource InstallerAccentBrush}" FontWeight="Bold" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <TextBlock Text="{Binding WelcomeTitle}" FontSize="{DynamicResource InstallerHeadingFontSize}" FontWeight="Bold" Foreground="{DynamicResource InstallerTextBrush}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding WelcomeBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,10,0,0" TextWrapping="Wrap" LineHeight="20" FontSize="13" />
             </StackPanel>
 
-            <StackPanel x:Name="LanguageStep" VerticalAlignment="Center">
-                <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Language}"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></StackPanel.Style>
-                <TextBlock Text="{Binding LanguageTitle}" FontSize="{DynamicResource InstallerHeadingFontSize}" FontWeight="SemiBold" />
-                <TextBlock Text="{Binding LanguageBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,12,0,22" TextWrapping="Wrap" MaxWidth="620" />
-                <ComboBox ItemsSource="{Binding Languages}" SelectedItem="{Binding SelectedLanguage}" DisplayMemberPath="Name" MinHeight="42" MaxWidth="360" HorizontalAlignment="Left" AutomationProperties.Name="{Binding LanguageTitle}" />
+            <!-- VIEW: Language Step -->
+            <StackPanel x:Name="LanguageStep" VerticalAlignment="Center" MaxWidth="580" HorizontalAlignment="Center">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Language}">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+                <TextBlock Text="{Binding LanguageTitle}" FontSize="{DynamicResource InstallerHeadingFontSize}" FontWeight="Bold" Foreground="{DynamicResource InstallerTextBrush}" />
+                <TextBlock Text="{Binding LanguageBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,8,0,20" TextWrapping="Wrap" LineHeight="20" />
+                <ComboBox ItemsSource="{Binding Languages}" SelectedItem="{Binding SelectedLanguage}" DisplayMemberPath="Name" MinHeight="36" MaxWidth="320" HorizontalAlignment="Left" AutomationProperties.Name="{Binding LanguageTitle}" />
             </StackPanel>
 
-            <StackPanel x:Name="Runtime" VerticalAlignment="Center">
-                <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Runtime}"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></StackPanel.Style>
-                <TextBlock Text="{Binding RuntimeTitle}" FontSize="{DynamicResource InstallerHeadingFontSize}" FontWeight="SemiBold" />
-                <TextBlock Text="{Binding RuntimeBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,12,0,22" TextWrapping="Wrap" MaxWidth="620" />
-                <TextBlock Text="{Binding ConfirmedTargetText}" Foreground="{DynamicResource InstallerAccentBrush}" FontWeight="SemiBold" Margin="0,0,0,12" TextWrapping="Wrap" />
-                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                    <RadioButton Grid.Column="0" GroupName="Runtime" Style="{StaticResource RuntimeCardStyle}" IsChecked="{Binding IsCpuSelected}" IsEnabled="{Binding CanChangeRuntimeSelection}" AutomationProperties.Name="{Binding CpuTitle}">
-                        <StackPanel><TextBlock Text="{Binding CpuStatus}" Foreground="{DynamicResource InstallerSuccessBrush}" FontWeight="SemiBold" /><TextBlock Text="{Binding CpuTitle}" FontSize="{DynamicResource InstallerCardTitleFontSize}" FontWeight="SemiBold" Margin="0,8,0,0" /><TextBlock Text="{Binding CpuBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" TextWrapping="Wrap" Margin="0,6,0,14" /><TextBlock Text="{Binding CpuSize}" /><TextBlock Text="{Binding CpuTime}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,4,0,0" /></StackPanel>
+            <!-- VIEW: Runtime Selection -->
+            <Grid x:Name="Runtime" VerticalAlignment="Center">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Runtime}">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Top: GPU Detection Intelligence Banner -->
+                <Border Grid.Row="0" Background="#121F24" BorderBrush="#1C3835" BorderThickness="1" CornerRadius="6" Padding="12,8" Margin="0,0,0,14">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Path Grid.Column="0" Data="M4 11 L10 2 L8 8 L14 8 L6 18 L8 12 Z" Fill="{DynamicResource InstallerSuccessBrush}" Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{Binding GpuDetectionState}" Foreground="{DynamicResource InstallerTextBrush}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" />
+                        <TextBlock Grid.Column="2" Text="{Binding ConfirmedTargetText}" Foreground="{DynamicResource InstallerAccentBrush}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" Margin="8,0,0,0" />
+                    </Grid>
+                </Border>
+
+                <!-- Center: Side-by-Side Runtime Cards -->
+                <Grid Grid.Row="2" Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="14" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- CPU Runtime Card -->
+                    <RadioButton Grid.Column="0" GroupName="Runtime" Style="{StaticResource RuntimeCardStyle}" IsChecked="{Binding IsCpuSelected}" IsEnabled="{Binding CanChangeRuntimeSelection}" AutomationProperties.Name="{Binding CpuTitle}" VerticalAlignment="Stretch">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <!-- Card Header -->
+                            <DockPanel Grid.Row="0" Margin="0,0,0,8">
+                                <TextBlock Text="{Binding CpuTitle}" FontSize="{DynamicResource InstallerCardTitleFontSize}" FontWeight="Bold" Foreground="{DynamicResource InstallerTextBrush}" DockPanel.Dock="Left" />
+                                <Border Background="{DynamicResource InstallerSurfaceMutedBrush}" CornerRadius="4" Padding="6,2" HorizontalAlignment="Right" DockPanel.Dock="Right">
+                                    <TextBlock Text="{Binding CpuStatus}" Foreground="{DynamicResource InstallerTextMutedBrush}" FontSize="10" FontWeight="SemiBold" />
+                                </Border>
+                            </DockPanel>
+                            <!-- Card Body -->
+                            <TextBlock Grid.Row="1" Text="{Binding CpuBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" TextWrapping="Wrap" FontSize="12" LineHeight="18" Margin="0,0,0,12" />
+                            <!-- Specs Row -->
+                            <Border Grid.Row="2" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="0,1,0,0" Padding="0,8,0,0">
+                                <DockPanel>
+                                    <TextBlock Text="{Binding CpuSize}" Foreground="{DynamicResource InstallerTextBrush}" FontSize="11" FontWeight="Medium" DockPanel.Dock="Left" />
+                                    <TextBlock Text="{Binding CpuTime}" Foreground="{DynamicResource InstallerTextDimBrush}" FontSize="11" HorizontalAlignment="Right" DockPanel.Dock="Right" />
+                                </DockPanel>
+                            </Border>
+                        </Grid>
                     </RadioButton>
-                    <RadioButton Grid.Column="1" GroupName="Runtime" Style="{StaticResource RuntimeCardStyle}" IsChecked="{Binding IsCudaSelected}" IsEnabled="{Binding CanSelectCudaRadio}" Margin="12,0,0,12" AutomationProperties.Name="{Binding CudaTitle}">
-                        <StackPanel><TextBlock Text="{Binding CudaStatus}" Foreground="{DynamicResource InstallerTextMutedBrush}" FontWeight="SemiBold" /><TextBlock Text="{Binding CudaTitle}" FontSize="{DynamicResource InstallerCardTitleFontSize}" FontWeight="SemiBold" Margin="0,8,0,0" /><TextBlock Text="{Binding CudaBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" TextWrapping="Wrap" Margin="0,6,0,10" /><TextBlock Text="{Binding CudaAdvisory}" Foreground="{DynamicResource InstallerTextMutedBrush}" TextWrapping="Wrap" Margin="0,0,0,10" /><TextBlock Text="{Binding CudaSize}" /><TextBlock Text="{Binding CudaTime}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,4,0,0" /></StackPanel>
+
+                    <!-- CUDA Runtime Card -->
+                    <RadioButton Grid.Column="2" GroupName="Runtime" Style="{StaticResource CudaRuntimeCardStyle}" IsChecked="{Binding IsCudaSelected}" IsEnabled="{Binding CanSelectCudaRadio}" AutomationProperties.Name="{Binding CudaTitle}" VerticalAlignment="Stretch">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <!-- Card Header -->
+                            <DockPanel Grid.Row="0" Margin="0,0,0,8">
+                                <TextBlock Text="{Binding CudaTitle}" FontSize="{DynamicResource InstallerCardTitleFontSize}" FontWeight="Bold" Foreground="{DynamicResource InstallerTextBrush}" DockPanel.Dock="Left" />
+                                <Border Background="#16382A" BorderBrush="{DynamicResource InstallerCudaAccentBrush}" BorderThickness="1" CornerRadius="4" Padding="6,2" HorizontalAlignment="Right" DockPanel.Dock="Right">
+                                    <TextBlock Text="{Binding CudaStatus}" Foreground="{DynamicResource InstallerCudaAccentBrush}" FontSize="10" FontWeight="Bold" />
+                                </Border>
+                            </DockPanel>
+                            <!-- Card Body -->
+                            <StackPanel Grid.Row="1" Margin="0,0,0,12">
+                                <TextBlock Text="{Binding CudaBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" TextWrapping="Wrap" FontSize="12" LineHeight="18" />
+                                <TextBlock Text="{Binding CudaAdvisory}" Foreground="{DynamicResource InstallerWarningBrush}" TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0" />
+                            </StackPanel>
+                            <!-- Specs Row -->
+                            <Border Grid.Row="2" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="0,1,0,0" Padding="0,8,0,0">
+                                <DockPanel>
+                                    <TextBlock Text="{Binding CudaSize}" Foreground="{DynamicResource InstallerTextBrush}" FontSize="11" FontWeight="Medium" DockPanel.Dock="Left" />
+                                    <TextBlock Text="{Binding CudaTime}" Foreground="{DynamicResource InstallerTextDimBrush}" FontSize="11" HorizontalAlignment="Right" DockPanel.Dock="Right" />
+                                </DockPanel>
+                            </Border>
+                        </Grid>
                     </RadioButton>
                 </Grid>
-                <TextBlock Text="{Binding GpuDetectionState}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,0,0,8" TextWrapping="Wrap" />
-                <StackPanel>
-                    <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding RequiresAdvancedCudaOverride}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></StackPanel.Style>
-                    <TextBlock Text="{Binding AdvancedCudaWarning}" Foreground="{DynamicResource InstallerErrorBrush}" TextWrapping="Wrap" Margin="0,0,0,8" />
-                    <Button Content="{Binding EnableAdvancedCudaOverrideText}" Command="{Binding EnableAdvancedCudaOverrideCommand}" Style="{StaticResource SecondaryButtonStyle}" HorizontalAlignment="Left" />
+
+                <!-- Advanced CUDA Override Warning (If Inconclusive / Blocked) -->
+                <StackPanel Grid.Row="3">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding RequiresAdvancedCudaOverride}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <Border Background="#261318" BorderBrush="{DynamicResource InstallerErrorBrush}" BorderThickness="1" CornerRadius="6" Padding="10,6" Margin="0,4,0,0">
+                        <DockPanel>
+                            <TextBlock Text="{Binding AdvancedCudaWarning}" Foreground="{DynamicResource InstallerErrorBrush}" TextWrapping="Wrap" FontSize="11" VerticalAlignment="Center" DockPanel.Dock="Left" />
+                            <Button Content="{Binding EnableAdvancedCudaOverrideText}" Command="{Binding EnableAdvancedCudaOverrideCommand}" Style="{StaticResource SecondaryButtonStyle}" HorizontalAlignment="Right" Padding="10,4" MinHeight="26" FontSize="11" Margin="8,0,0,0" DockPanel.Dock="Right" />
+                        </DockPanel>
+                    </Border>
                 </StackPanel>
+            </Grid>
+
+            <!-- VIEW: Options / Summary -->
+            <StackPanel x:Name="Options" VerticalAlignment="Center" MaxWidth="580" HorizontalAlignment="Center">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Options}">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+                <TextBlock Text="{Binding OptionsTitle}" FontSize="{DynamicResource InstallerHeadingFontSize}" FontWeight="Bold" Foreground="{DynamicResource InstallerTextBrush}" />
+                <TextBlock Text="{Binding OptionsBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,8,0,16" TextWrapping="Wrap" />
+                <Border Background="{DynamicResource InstallerSurfaceBrush}" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource InstallerCardRadius}" Padding="{DynamicResource InstallerCardPadding}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding SelectedRuntimeTitle}" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource InstallerTextBrush}" />
+                        <TextBlock Text="{Binding SelectedRuntimeSize}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,6,0,0" FontSize="12" />
+                        <TextBlock Text="{Binding SelectedRuntimeTime}" Foreground="{DynamicResource InstallerTextDimBrush}" Margin="0,2,0,0" FontSize="11" />
+                        <CheckBox Content="{Binding LaunchVrcntText}" IsChecked="{Binding LaunchAfterSetup}" Margin="0,16,0,0" />
+                    </StackPanel>
+                </Border>
             </StackPanel>
 
-            <StackPanel x:Name="Options" VerticalAlignment="Center">
-                <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Options}"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></StackPanel.Style>
-                <TextBlock Text="{Binding OptionsTitle}" FontSize="{DynamicResource InstallerHeadingFontSize}" FontWeight="SemiBold" />
-                <TextBlock Text="{Binding OptionsBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,12,0,24" TextWrapping="Wrap" MaxWidth="600" />
-                <Border Background="{DynamicResource InstallerSurfaceBrush}" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource InstallerCardRadius}" Padding="{DynamicResource InstallerCardPadding}" MaxWidth="600"><StackPanel><TextBlock Text="{Binding SelectedRuntimeTitle}" FontWeight="SemiBold" /><TextBlock Text="{Binding SelectedRuntimeSize}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,8,0,0" /><TextBlock Text="{Binding SelectedRuntimeTime}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,4,0,0" /><CheckBox Content="{Binding LaunchVrcntText}" IsChecked="{Binding LaunchAfterSetup}" Margin="0,16,0,0" /></StackPanel></Border>
+            <!-- VIEW: Installation Progress -->
+            <StackPanel x:Name="Progress" VerticalAlignment="Center" MaxWidth="520" HorizontalAlignment="Center">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Progress}">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+                <TextBlock Text="{Binding ProgressTitle}" FontSize="{DynamicResource InstallerHeadingFontSize}" FontWeight="Bold" Foreground="{DynamicResource InstallerTextBrush}" HorizontalAlignment="Center" />
+                <TextBlock Text="{Binding SelectedRuntimeTitle}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,4,0,20" HorizontalAlignment="Center" FontSize="12" />
+                <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressValue, Mode=OneWay}" Height="{DynamicResource InstallerProgressHeight}" IsIndeterminate="{Binding IsProgressIndeterminate}" Margin="0,0,0,12" />
+                <TextBlock Text="{Binding ProgressDetail}" Foreground="{DynamicResource InstallerTextMutedBrush}" TextWrapping="Wrap" HorizontalAlignment="Center" FontSize="12" />
             </StackPanel>
 
-            <StackPanel x:Name="Progress" VerticalAlignment="Center">
-                <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Progress}"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></StackPanel.Style>
-                <TextBlock Text="{Binding ProgressTitle}" FontSize="{DynamicResource InstallerHeadingFontSize}" FontWeight="SemiBold" />
-                <TextBlock Text="{Binding ProgressBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,12,0,24" TextWrapping="Wrap" />
-                <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressValue, Mode=OneWay}" Height="{DynamicResource InstallerProgressHeight}" IsIndeterminate="{Binding IsProgressIndeterminate}" />
-                <TextBlock Text="{Binding ProgressDetail}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,12,0,0" TextWrapping="Wrap" />
-            </StackPanel>
-
-            <StackPanel x:Name="Error" VerticalAlignment="Center">
-                <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Error}"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></StackPanel.Style>
-                <TextBlock Text="{Binding ErrorTitle}" FontSize="{DynamicResource InstallerHeadingFontSize}" FontWeight="SemiBold" />
-                <TextBlock Text="{Binding ErrorBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,12,0,24" TextWrapping="Wrap" MaxWidth="600" />
-                <TextBlock Text="{Binding ErrorDetail}" Foreground="{DynamicResource InstallerTextBrush}" Margin="0,0,0,24" TextWrapping="Wrap" MaxWidth="600" />
+            <!-- VIEW: Error State -->
+            <StackPanel x:Name="Error" VerticalAlignment="Center" MaxWidth="560" HorizontalAlignment="Center">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Error}">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+                <Border Width="40" Height="40" Background="#261318" BorderBrush="{DynamicResource InstallerErrorBrush}" BorderThickness="1.5" CornerRadius="8" Margin="0,0,0,14" HorizontalAlignment="Left">
+                    <TextBlock Text="!" Foreground="{DynamicResource InstallerErrorBrush}" FontWeight="Bold" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <TextBlock Text="{Binding ErrorTitle}" FontSize="{DynamicResource InstallerHeadingFontSize}" FontWeight="Bold" Foreground="{DynamicResource InstallerTextBrush}" />
+                <TextBlock Text="{Binding ErrorBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,8,0,12" TextWrapping="Wrap" />
+                <Border Background="{DynamicResource InstallerSurfaceBrush}" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,16">
+                    <TextBlock Text="{Binding ErrorDetail}" Foreground="{DynamicResource InstallerErrorBrush}" TextWrapping="Wrap" FontFamily="Consolas, Cascadia Mono, monospace" FontSize="11" />
+                </Border>
                 <Button Content="{Binding RetryText}" Command="{Binding RetryCommand}" Style="{StaticResource PrimaryButtonStyle}" HorizontalAlignment="Left" />
             </StackPanel>
 
-            <StackPanel x:Name="Complete" VerticalAlignment="Center">
-                <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Complete}"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></StackPanel.Style>
-                <TextBlock Text="{Binding CompleteTitle}" FontSize="{DynamicResource InstallerHeadingFontSize}" FontWeight="SemiBold" />
-                <TextBlock Text="{Binding CompleteBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,12,0,24" TextWrapping="Wrap" MaxWidth="600" />
+            <!-- VIEW: Complete / Success -->
+            <StackPanel x:Name="Complete" VerticalAlignment="Center" MaxWidth="540" HorizontalAlignment="Center">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Complete}">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+                <Border Width="48" Height="48" Background="#143328" BorderBrush="{DynamicResource InstallerSuccessBrush}" BorderThickness="1.5" CornerRadius="10" Margin="0,0,0,16" HorizontalAlignment="Left">
+                    <TextBlock Text="✓" Foreground="{DynamicResource InstallerSuccessBrush}" FontWeight="Bold" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <TextBlock Text="{Binding CompleteTitle}" FontSize="{DynamicResource InstallerHeadingFontSize}" FontWeight="Bold" Foreground="{DynamicResource InstallerTextBrush}" />
+                <TextBlock Text="{Binding CompleteBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,10,0,24" TextWrapping="Wrap" LineHeight="20" FontSize="13" />
             </StackPanel>
         </Grid>
 
-        <DockPanel Grid.Row="2" Margin="0,28,0,0">
-            <Button Content="{Binding BackText}" Command="{Binding BackCommand}" DockPanel.Dock="Left">
-                <Button.Style><Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}"><Style.Triggers><DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Welcome}"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger><DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Progress}"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger><DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Error}"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger><DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Complete}"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Button.Style>
-            </Button>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="{Binding LaunchVrcntText}" Command="{Binding LaunchCommand}" Margin="0,0,10,0">
-                    <Button.Style><Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Complete}"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Button.Style>
+        <!-- ==================== ACTION FOOTER ==================== -->
+        <Border Grid.Row="2" Background="{DynamicResource InstallerSurfaceBrush}" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="0,1,0,0" Padding="20,12">
+            <DockPanel>
+                <!-- Back Button (Left) -->
+                <Button Content="{Binding BackText}" Command="{Binding BackCommand}" DockPanel.Dock="Left">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Welcome}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Progress}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Error}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Complete}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
                 </Button>
-                <Button Content="{Binding CloseText}" Command="{Binding CloseCommand}">
-                    <Button.Style><Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Complete}"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Button.Style>
-                </Button>
-                <Button Content="{Binding InstallText}" Command="{Binding InstallCommand}">
-                    <Button.Style><Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Options}"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Button.Style>
-                </Button>
-                <Button Content="{Binding ContinueText}" Command="{Binding ContinueCommand}">
-                    <Button.Style><Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Welcome}"><Setter Property="Visibility" Value="Visible" /></DataTrigger><DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Language}"><Setter Property="Visibility" Value="Visible" /></DataTrigger><DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Runtime}"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Button.Style>
-                </Button>
-            </StackPanel>
-        </DockPanel>
+
+                <!-- Primary Action Buttons (Right) -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="{Binding LaunchVrcntText}" Command="{Binding LaunchCommand}" Margin="0,0,10,0">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Complete}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Content="{Binding CloseText}" Command="{Binding CloseCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Complete}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Content="{Binding InstallText}" Command="{Binding InstallCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Options}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Content="{Binding ContinueText}" Command="{Binding ContinueCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Welcome}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Language}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Runtime}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </StackPanel>
+            </DockPanel>
+        </Border>
     </Grid>
 </Window>

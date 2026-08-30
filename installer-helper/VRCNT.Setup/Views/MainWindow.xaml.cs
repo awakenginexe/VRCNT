@@ -10,4 +10,9 @@ public partial class MainWindow : Window
         DataContext = viewModel;
         viewModel.CloseRequested += (_, _) => Close();
     }
+
+    private void Minimize_Click(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState.Minimized;
+    }
 }

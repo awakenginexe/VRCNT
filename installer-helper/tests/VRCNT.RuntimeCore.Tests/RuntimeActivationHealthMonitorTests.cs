@@ -33,12 +33,12 @@ public sealed class RuntimeActivationHealthMonitorTests : IDisposable
     }
 
     [Theory]
-    [InlineData("wrong-token", "nonce", 0, "5.15.0", "cpu")]
-    [InlineData("token", "wrong-nonce", 0, "5.15.0", "cpu")]
-    [InlineData("token", "nonce", 0, "5.14.0", "cpu")]
-    [InlineData("token", "nonce", 0, "5.15.0", "cuda")]
-    [InlineData("token", "nonce", 1, "5.15.0", "cpu")]
-    public async Task WaitForReadyAsync_rejects_invalid_identity_bound_proofs(string token, string nonce, int ignoredPid, string version, string variant)
+    [InlineData("wrong-token", "nonce", 0, "5.15.0", "cpu", "activation_invalid_proof_token")]
+    [InlineData("token", "wrong-nonce", 0, "5.15.0", "cpu", "activation_invalid_proof_nonce")]
+    [InlineData("token", "nonce", 0, "5.14.0", "cpu", "activation_invalid_proof_version")]
+    [InlineData("token", "nonce", 0, "5.15.0", "cuda", "activation_invalid_proof_variant")]
+    [InlineData("token", "nonce", 1, "5.15.0", "cpu", "activation_invalid_proof_backend_pid")]
+    public async Task WaitForReadyAsync_reports_the_failed_identity_bound_proof_predicate(string token, string nonce, int ignoredPid, string version, string variant, string expectedErrorCode)
     {
         var request = Request();
         var monitor = new NamedPipeRuntimeActivationHealthMonitor(TimeSpan.FromSeconds(2), _ => StagedBackendPath());
@@ -48,7 +48,21 @@ public sealed class RuntimeActivationHealthMonitorTests : IDisposable
 
         var result = await waiting;
         Assert.False(result.Ready);
-        Assert.NotNull(result.ErrorCode);
+        Assert.Equal(expectedErrorCode, result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task WaitForReadyAsync_reports_a_malformed_proof_payload()
+    {
+        var request = Request();
+        var monitor = new NamedPipeRuntimeActivationHealthMonitor(TimeSpan.FromSeconds(2), _ => StagedBackendPath());
+        var waiting = monitor.WaitForReadyAsync(_installPath, Identity, request, default);
+
+        await SendPayloadAsync(request, "\n");
+
+        var result = await waiting;
+        Assert.False(result.Ready);
+        Assert.Equal("activation_invalid_proof_payload", result.ErrorCode);
     }
 
     [Fact]
@@ -74,7 +88,7 @@ public sealed class RuntimeActivationHealthMonitorTests : IDisposable
 
         var result = await waiting;
         Assert.False(result.Ready);
-        Assert.Equal("activation_invalid_proof", result.ErrorCode);
+        Assert.Equal("activation_invalid_proof_backend_path", result.ErrorCode);
     }
 
     public void Dispose()
@@ -92,5 +106,13 @@ public sealed class RuntimeActivationHealthMonitorTests : IDisposable
         await client.ConnectAsync(2000);
         await using var writer = new StreamWriter(client) { AutoFlush = true };
         await writer.WriteLineAsync(JsonSerializer.Serialize(proof));
+    }
+
+    private static async Task SendPayloadAsync(ActivationRequest request, string payload)
+    {
+        using var client = new NamedPipeClientStream(".", request.PipeName, PipeDirection.Out, PipeOptions.Asynchronous);
+        await client.ConnectAsync(2000);
+        await using var writer = new StreamWriter(client) { AutoFlush = true };
+        await writer.WriteAsync(payload);
     }
 }
