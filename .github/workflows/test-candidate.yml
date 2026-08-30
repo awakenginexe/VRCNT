@@ -1,0 +1,406 @@
+name: Build VRCNT Test Candidate
+
+on:
+  push:
+    branches:
+      - test/5.15.0-runtime-installer
+  workflow_dispatch:
+
+concurrency:
+  group: test-candidate-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate candidate configuration
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.configuration.outputs.version }}
+      installer_name: ${{ steps.configuration.outputs.installer_name }}
+      manifest_name: ${{ steps.configuration.outputs.manifest_name }}
+      hashes_name: ${{ steps.configuration.outputs.hashes_name }}
+      max_asset_size: ${{ steps.configuration.outputs.max_asset_size }}
+    steps:
+      - name: Checkout candidate source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Validate configuration and signing secret
+        id: configuration
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        shell: pwsh
+        run: |
+          $config = Get-Content -Raw ./release.config.json | ConvertFrom-Json
+          $package = Get-Content -Raw ./package.json | ConvertFrom-Json
+          $repository = "$($config.githubOwner)/$($config.githubRepo)"
+          if (-not $repository.Equals($env:GITHUB_REPOSITORY, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "release.config.json targets $repository, but this workflow is running in $env:GITHUB_REPOSITORY."
+          }
+          if ($package.version -ne '5.15.0') { throw "Test candidate must build package version 5.15.0, found $($package.version)." }
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
+            throw 'TAURI_SIGNING_PRIVATE_KEY is required for the signed test candidate.'
+          }
+          if ($config.maxAssetSizeBytes -le 0 -or $config.maxAssetSizeBytes -ge 2147483648) {
+            throw 'maxAssetSizeBytes must remain safely below GitHub''s 2 GiB asset limit.'
+          }
+
+          $propertyNames = @(
+            'PublishSingleFile',
+            'SelfContained',
+            'RuntimeIdentifier',
+            'PublishTrimmed',
+            'IncludeNativeLibrariesForSelfExtract',
+            'UseWPF'
+          )
+          $propertyJson = & dotnet msbuild ./installer-helper/VRCNT.Setup/VRCNT.Setup.csproj -nologo ("-getProperty:{0}" -f ($propertyNames -join ','))
+          if ($LASTEXITCODE -ne 0) { throw 'Could not evaluate the Setup publish properties.' }
+          $properties = (($propertyJson -join [Environment]::NewLine) | ConvertFrom-Json).Properties
+          $expectedProperties = [ordered]@{
+            PublishSingleFile = 'true'
+            SelfContained = 'true'
+            RuntimeIdentifier = 'win-x64'
+            PublishTrimmed = 'false'
+            IncludeNativeLibrariesForSelfExtract = 'true'
+            UseWPF = 'true'
+          }
+          foreach ($entry in $expectedProperties.GetEnumerator()) {
+            if (-not [string]::Equals([string]$properties.($entry.Key), $entry.Value, [System.StringComparison]::OrdinalIgnoreCase)) {
+              throw "$($entry.Key) must be '$($entry.Value)' but evaluated as '$($properties.($entry.Key))'."
+            }
+          }
+
+          $version = $package.version
+          $installerName = $config.installerNamePattern.Replace('${version}', $version)
+          @{
+            version = $version
+            installer_name = $installerName
+            manifest_name = $config.packageManifestAssetName
+            hashes_name = $config.hashesAssetName
+            max_asset_size = $config.maxAssetSizeBytes
+          }.GetEnumerator() | ForEach-Object {
+            "{0}={1}" -f $_.Key, $_.Value | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          }
+
+  installer-tools:
+    name: Prepare verified installer tools
+    needs: validate
+    runs-on: windows-latest
+    steps:
+      - name: Checkout candidate source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Download and verify 7-Zip and minisign
+        shell: pwsh
+        run: |
+          $toolDir = Join-Path (Get-Location) 'build/installer-tools'
+          New-Item -ItemType Directory -Path $toolDir -Force | Out-Null
+          $bootstrap = Join-Path $env:RUNNER_TEMP '7zr-26.02.exe'
+          curl.exe -L --fail --retry 5 --retry-all-errors -o $bootstrap 'https://github.com/ip7z/7zip/releases/download/26.02/7zr.exe'
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download the pinned 7-Zip extraction tool.' }
+          if ((Get-FileHash $bootstrap -Algorithm SHA256).Hash.ToLowerInvariant() -ne '56b8cc9f4971cef253644fafe54063ed7fdca551d4dee0f8c6baa81b855acd72') { throw '7-Zip extraction tool SHA-256 mismatch.' }
+          $archive = Join-Path $env:RUNNER_TEMP '7z2602-extra.7z'
+          curl.exe -L --fail --retry 5 --retry-all-errors -o $archive 'https://github.com/ip7z/7zip/releases/download/26.02/7z2602-extra.7z'
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download the pinned 7-Zip archive.' }
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne '081df9e9311dfd9c9e0e98c1c80180b99bb51e4cb24156b5f3057fe3c259d70a') { throw '7-Zip archive SHA-256 mismatch.' }
+          $sevenZipExtract = Join-Path $env:RUNNER_TEMP '7z2602-extra'
+          & $bootstrap x -y $archive "-o$sevenZipExtract" | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Could not extract the verified 7-Zip archive.' }
+          Copy-Item (Join-Path $sevenZipExtract 'x64/7za.exe') (Join-Path $toolDir '7za.exe') -Force
+          $minisignArchive = Join-Path $env:RUNNER_TEMP 'minisign-0.12-win64.zip'
+          curl.exe -L --fail --retry 3 -o $minisignArchive 'https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-win64.zip'
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download minisign 0.12.' }
+          if ((Get-FileHash $minisignArchive -Algorithm SHA256).Hash.ToLowerInvariant() -ne '37b600344e20c19314b2e82813db2bfdcc408b77b876f7727889dbd46d539479') { throw 'minisign archive SHA-256 mismatch.' }
+          $minisignExtract = Join-Path $env:RUNNER_TEMP 'minisign-0.12'
+          Expand-Archive -LiteralPath $minisignArchive -DestinationPath $minisignExtract -Force
+          $minisign = Get-ChildItem $minisignExtract -Recurse -Filter minisign.exe | Where-Object { $_.FullName -match 'x86_64' } | Select-Object -First 1
+          if (-not $minisign) { throw 'The verified minisign archive did not contain the x86_64 executable.' }
+          Copy-Item $minisign.FullName (Join-Path $toolDir 'minisign.exe') -Force
+          $trustedToolHashes = @{
+            '7za.exe' = '35d4d69d7cd6cb44558f208c3b1334268013f9daf82d2dda848893a1c30c59c2'
+            'minisign.exe' = '5535be9e4e123831ebe6ef324aafe9dde507015c176191f9e20c3ad60567f9e1'
+          }
+          foreach ($tool in $trustedToolHashes.Keys) {
+            $path = Join-Path $toolDir $tool
+            if (-not (Test-Path $path) -or (Get-Item $path).Length -eq 0) { throw "Installer tool $tool is missing or empty." }
+            if ((Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $trustedToolHashes[$tool]) { throw "Installer tool $tool failed its trusted SHA-256 check." }
+          }
+
+      - name: Upload verified installer tools
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-tools
+          path: build/installer-tools
+          if-no-files-found: error
+
+  shared-shell:
+    name: Build shared frontend and Tauri shell
+    needs: validate
+    runs-on: windows-latest
+    steps:
+      - name: Checkout candidate source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22.15.0'
+          package-manager-cache: false
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install application dependencies
+        run: npm ci
+      - name: Build shared frontend and Tauri shell
+        run: npm run build-runtime-shell
+      - name: Stage shared shell artifact
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path build/shared-shell -Force | Out-Null
+          Copy-Item ./src-tauri/target/release/VRCNT.exe ./build/shared-shell/VRCNT.exe -Force
+          Copy-Item ./dist ./build/shared-shell/frontend -Recurse -Force
+      - name: Upload shared shell
+        uses: actions/upload-artifact@v4
+        with:
+          name: shared-shell
+          path: build/shared-shell
+          if-no-files-found: error
+
+  backend-cpu:
+    name: Build CPU backend
+    needs: validate
+    runs-on: windows-latest
+    steps:
+      - name: Checkout candidate source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22.15.0'
+          package-manager-cache: false
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Install application dependencies
+        run: npm ci
+      - name: Set up CPU Python environment and build backend
+        shell: pwsh
+        run: |
+          npm run setup-python
+          if ($LASTEXITCODE -ne 0) { throw 'CPU Python environment setup failed.' }
+          npm run build-backend:cpu
+          if ($LASTEXITCODE -ne 0) { throw 'CPU backend build failed.' }
+          New-Item -ItemType Directory -Path build/backend/cpu -Force | Out-Null
+          Copy-Item ./src-tauri/bin/* ./build/backend/cpu -Recurse -Force
+      - name: Upload CPU backend
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-cpu
+          path: build/backend/cpu
+          if-no-files-found: error
+
+  backend-cuda:
+    name: Build CUDA backend
+    needs: validate
+    runs-on: windows-latest
+    steps:
+      - name: Checkout candidate source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22.15.0'
+          package-manager-cache: false
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Install application dependencies
+        run: npm ci
+      - name: Set up CUDA Python environment and build backend
+        shell: pwsh
+        run: |
+          npm run setup-python
+          if ($LASTEXITCODE -ne 0) { throw 'CUDA Python environment setup failed.' }
+          npm run build-backend:cuda
+          if ($LASTEXITCODE -ne 0) { throw 'CUDA backend build failed.' }
+      - name: Upload CUDA backend
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-cuda
+          path: build/backend/cuda
+          if-no-files-found: error
+
+  package-candidate:
+    name: Package and sign test candidate
+    needs: [validate, installer-tools, shared-shell, backend-cpu, backend-cuda]
+    runs-on: windows-latest
+    timeout-minutes: 240
+    env:
+      VERSION: ${{ needs.validate.outputs.version }}
+      INSTALLER_NAME: ${{ needs.validate.outputs.installer_name }}
+      PACKAGE_MANIFEST_NAME: ${{ needs.validate.outputs.manifest_name }}
+      HASHES_NAME: ${{ needs.validate.outputs.hashes_name }}
+      MAX_ASSET_SIZE: ${{ needs.validate.outputs.max_asset_size }}
+    steps:
+      - name: Checkout candidate source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22.15.0'
+          package-manager-cache: false
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '8.0.x'
+      - name: Install application dependencies
+        run: npm ci
+      - name: Download shared shell
+        uses: actions/download-artifact@v4
+        with:
+          name: shared-shell
+          path: build/artifacts/shared-shell
+      - name: Download CPU backend
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-cpu
+          path: build/artifacts/backend-cpu
+      - name: Download CUDA backend
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-cuda
+          path: build/artifacts/backend-cuda
+      - name: Download installer tools
+        uses: actions/download-artifact@v4
+        with:
+          name: installer-tools
+          path: build/artifacts/installer-tools
+
+      - name: Stage variant runtimes and publish the WPF setup
+        shell: pwsh
+        run: |
+          $shell = Join-Path (Get-Location) 'build/artifacts/shared-shell'
+          $cpu = Join-Path (Get-Location) 'build/artifacts/backend-cpu'
+          $cuda = Join-Path (Get-Location) 'build/artifacts/backend-cuda'
+          $tools = Join-Path (Get-Location) 'build/artifacts/installer-tools'
+          $commit = (git rev-parse HEAD).Trim()
+          ./scripts/stage_runtime.ps1 -Variant cpu -ShellPath $shell -BackendPayloadPath $cpu -OutputPath ./build/release/cpu -Version $env:VERSION -SourceCommit $commit
+          ./scripts/stage_runtime.ps1 -Variant cuda -ShellPath $shell -BackendPayloadPath $cuda -OutputPath ./build/release/cuda -Version $env:VERSION -SourceCommit $commit
+          dotnet publish ./installer-helper/VRCNT.Setup/VRCNT.Setup.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -p:SetupToolSourceDirectory=$tools -o ./build/setup
+          if ($LASTEXITCODE -ne 0) { throw 'WPF setup publish failed.' }
+          $setup = Join-Path (Get-Location) 'build/setup/VRCNT.Setup.exe'
+          if (-not (Test-Path $setup) -or (Get-Item $setup).Length -eq 0) { throw 'WPF setup publish did not produce VRCNT.Setup.exe.' }
+          & ./scripts/validate_setup_publish.ps1 -ProjectPath ./installer-helper/VRCNT.Setup/VRCNT.Setup.csproj -PublishOutputPath ./build/setup
+          if ($LASTEXITCODE -ne 0) { throw 'WPF setup publish contract validation failed.' }
+          foreach ($tool in @('7za.exe', 'minisign.exe')) {
+            if (Test-Path (Join-Path (Get-Location) "build/setup/$tool")) { throw "Published WPF setup must embed $tool instead of shipping it as a sidecar." }
+          }
+          New-Item -ItemType Directory -Path release-assets -Force | Out-Null
+          Copy-Item $setup (Join-Path (Get-Location) ("release-assets/{0}" -f $env:INSTALLER_NAME)) -Force
+
+      - name: Create variant packages and combined manifest
+        shell: pwsh
+        run: |
+          $tools = Join-Path (Get-Location) 'build/artifacts/installer-tools'
+          python ./utils/release.py package --version $env:VERSION --variant cpu --source-dir ./build/release/cpu --seven-zip (Join-Path $tools '7za.exe') --output-dir ./release-assets/cpu
+          if ($LASTEXITCODE -ne 0) { throw 'CPU portable package generation failed.' }
+          python ./utils/release.py package --version $env:VERSION --variant cuda --source-dir ./build/release/cuda --seven-zip (Join-Path $tools '7za.exe') --output-dir ./release-assets/cuda
+          if ($LASTEXITCODE -ne 0) { throw 'CUDA portable package generation failed.' }
+          python ./utils/release.py manifest --version $env:VERSION --cpu-dir ./release-assets/cpu --cuda-dir ./release-assets/cuda --setup (Join-Path (Get-Location) ("release-assets/{0}" -f $env:INSTALLER_NAME)) --output (Join-Path (Get-Location) ("release-assets/{0}" -f $env:PACKAGE_MANIFEST_NAME))
+          if ($LASTEXITCODE -ne 0) { throw 'Combined package manifest generation failed.' }
+
+      - name: Sign and verify setup and combined manifest
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        shell: pwsh
+        run: |
+          $assetDir = Join-Path (Get-Location) 'release-assets'
+          $tools = Join-Path (Get-Location) 'build/artifacts/installer-tools'
+          $manifest = Join-Path $assetDir $env:PACKAGE_MANIFEST_NAME
+          $setup = Join-Path $assetDir $env:INSTALLER_NAME
+          npm run tauri signer sign -- $manifest
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path "$manifest.sig")) { throw 'Package manifest signing failed.' }
+          npm run tauri signer sign -- $setup
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path "$setup.sig")) { throw 'WPF updater setup signing failed.' }
+          $verificationDir = Join-Path $env:RUNNER_TEMP 'vrcnt-signature-verification'
+          New-Item -ItemType Directory -Path $verificationDir -Force | Out-Null
+          $publicKey = Join-Path $verificationDir 'manifest.pub'
+          $configuredPublicKey = (Get-Content -Raw ./src-tauri/tauri.conf.json | ConvertFrom-Json).plugins.updater.pubkey
+          [IO.File]::WriteAllBytes($publicKey, [Convert]::FromBase64String($configuredPublicKey))
+          foreach ($candidate in @($manifest, $setup)) {
+            $signature = Join-Path $verificationDir ("{0}.minisig" -f [IO.Path]::GetFileName($candidate))
+            [IO.File]::WriteAllBytes($signature, [Convert]::FromBase64String((Get-Content -Raw "$candidate.sig").Trim()))
+            & (Join-Path $tools 'minisign.exe') -Vm $candidate -x $signature -p $publicKey -q
+            if ($LASTEXITCODE -ne 0) {
+              if ($candidate -eq $manifest) { throw 'Signed package manifest could not be verified with the embedded public key.' }
+              throw "Signed artifact $([IO.Path]::GetFileName($candidate)) could not be verified with the embedded public key."
+            }
+          }
+
+      - name: Validate candidate package and generate hashes
+        shell: pwsh
+        run: |
+          $assetDir = Join-Path (Get-Location) 'release-assets'
+          $tools = Join-Path (Get-Location) 'build/artifacts/installer-tools'
+          $manifestPath = Join-Path $assetDir $env:PACKAGE_MANIFEST_NAME
+          $manifest = Get-Content -Raw $manifestPath | ConvertFrom-Json
+          if ($manifest.schema -ne 2 -or $manifest.bootstrapper.name -ne $env:INSTALLER_NAME) { throw 'Combined manifest does not identify the exact WPF setup.' }
+          foreach ($variant in $manifest.variants.PSObject.Properties) {
+            if ($variant.Value.parts.Count -lt 1) { throw "Variant $($variant.Name) has no selected package parts." }
+            foreach ($entry in $variant.Value.parts) {
+              $path = Join-Path $assetDir "$($variant.Name)/$($entry.name)"
+              if (-not (Test-Path $path)) { throw "Manifest package part $($entry.name) is missing." }
+              $file = Get-Item $path
+              if ($file.Length -ne $entry.size -or $file.Length -ge [long]$env:MAX_ASSET_SIZE) { throw "Package part $($entry.name) has an invalid or oversized length." }
+              if ((Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry.sha256) { throw "Package part $($entry.name) failed SHA-256 verification." }
+            }
+            $firstPart = Join-Path $assetDir "$($variant.Name)/$($variant.Value.parts[0].name)"
+            & (Join-Path $tools '7za.exe') t $firstPart
+            if ($LASTEXITCODE -ne 0) { throw "Portable multipart extraction test failed for $($variant.Name)." }
+          }
+          $setup = Join-Path $assetDir $env:INSTALLER_NAME
+          if ((Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant() -ne $manifest.bootstrapper.sha256) { throw 'Combined manifest bootstrapper SHA-256 does not match the exact test setup.' }
+          $releaseAssets = Get-ChildItem $assetDir -File -Recurse -Exclude package-metadata.json | ForEach-Object FullName
+          python ./utils/release.py hashes --output (Join-Path $assetDir $env:HASHES_NAME) $releaseAssets
+          if ($LASTEXITCODE -ne 0) { throw 'SHA256SUMS.txt generation failed.' }
+
+      - name: Upload signed test candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: VRCNT-5.15.0-test-candidate-${{ github.sha }}
+          path: release-assets
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
