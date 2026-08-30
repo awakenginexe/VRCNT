@@ -58,6 +58,29 @@ test("test candidate workflow uploads a complete artifact without publishing a r
     assert.doesNotMatch(candidateWorkflow, /contents:\s*write/);
 });
 
+test("signing workflows map secrets to the environment names used by the pinned Tauri signer", () => {
+    const command = process.platform === "win32"
+        ? [process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", "npm run tauri -- signer sign --help"]]
+        : ["npm", ["run", "tauri", "--", "signer", "sign", "--help"]];
+    const help = spawnSync(
+        command[0],
+        command[1],
+        { cwd: repoRoot, encoding: "utf8" },
+    );
+    assert.equal(help.status, 0, help.error?.message ?? help.stderr);
+    const signerHelp = `${help.stdout}\n${help.stderr}`;
+    assert.match(signerHelp, /\[env: TAURI_PRIVATE_KEY=\]/);
+    assert.match(signerHelp, /\[env: TAURI_PRIVATE_KEY_PASSWORD=\]/);
+
+    for (const candidate of [workflow, candidateWorkflow]) {
+        const signingStep = candidate.slice(candidate.indexOf("Sign and verify setup and combined manifest"));
+        assert.match(signingStep, /TAURI_PRIVATE_KEY:\s*\$\{\{ secrets\.TAURI_SIGNING_PRIVATE_KEY \}\}/);
+        assert.match(signingStep, /TAURI_PRIVATE_KEY_PASSWORD:\s*\$\{\{ secrets\.TAURI_SIGNING_PRIVATE_KEY_PASSWORD \}\}/);
+        assert.doesNotMatch(signingStep, /TAURI_SIGNING_PRIVATE_KEY:\s*\$\{\{/);
+        assert.doesNotMatch(signingStep, /TAURI_SIGNING_PRIVATE_KEY_PASSWORD:\s*\$\{\{/);
+    }
+});
+
 test("release workflow rejects WPF setup publishes that leave native runtime sidecars", () => {
     assert.match(workflow, /scripts[\\/]validate_setup_publish\.ps1/);
     assert.match(workflow, /-ProjectPath \.\/installer-helper[\\/]VRCNT\.Setup[\\/]VRCNT\.Setup\.csproj/);
@@ -144,8 +167,9 @@ test("release helper uses the shared signed manifest loader before selecting var
 test("workflow signs and verifies both package and Tauri updater artifacts", () => {
     assert.match(workflow, /TAURI_SIGNING_PRIVATE_KEY/);
     assert.match(workflow, /TAURI_SIGNING_PRIVATE_KEY_PASSWORD/);
-    assert.match(workflow, /Sign and verify setup and combined manifest[\s\S]*TAURI_SIGNING_PRIVATE_KEY:\s*\$\{\{ secrets\.TAURI_SIGNING_PRIVATE_KEY \}\}[\s\S]*TAURI_SIGNING_PRIVATE_KEY_PASSWORD:\s*\$\{\{ secrets\.TAURI_SIGNING_PRIVATE_KEY_PASSWORD \}\}/);
-    assert.doesNotMatch(workflow, /^\s+TAURI_PRIVATE_KEY(?:_PASSWORD)?:/m);
+    assert.match(workflow, /Sign and verify setup and combined manifest[\s\S]*TAURI_PRIVATE_KEY:\s*\$\{\{ secrets\.TAURI_SIGNING_PRIVATE_KEY \}\}[\s\S]*TAURI_PRIVATE_KEY_PASSWORD:\s*\$\{\{ secrets\.TAURI_SIGNING_PRIVATE_KEY_PASSWORD \}\}/);
+    assert.doesNotMatch(workflow, /Sign and verify setup and combined manifest[\s\S]*TAURI_SIGNING_PRIVATE_KEY:\s*\$\{\{/);
+    assert.doesNotMatch(workflow, /Sign and verify setup and combined manifest[\s\S]*TAURI_SIGNING_PRIVATE_KEY_PASSWORD:\s*\$\{\{/);
     assert.doesNotMatch(workflow, /TAURI_SIGNING_PRIVATE_KEY_PASSWORD is required/);
     assert.match(workflow, /tauri signer sign/);
     assert.match(workflow, /minisign.*-Vm/s);
