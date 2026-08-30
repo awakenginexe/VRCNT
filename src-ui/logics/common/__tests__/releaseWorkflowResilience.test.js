@@ -220,6 +220,18 @@ test("published WPF setup embeds verified helper inputs instead of releasing hel
     assert.match(workflow, /bootstrapper SHA-256 does not match the exact published WPF setup/);
 });
 
+test("WPF setup uses the VRCNT logo for the executable and visible window branding", () => {
+    const setupProject = read("installer-helper/VRCNT.Setup/VRCNT.Setup.csproj");
+    const mainWindow = read("installer-helper/VRCNT.Setup/Views/MainWindow.xaml");
+    assert.ok(fs.existsSync(path.join(repoRoot, "src-tauri/icons/icon.ico")));
+    assert.ok(fs.existsSync(path.join(repoRoot, "src-tauri/icons/icon.png")));
+    assert.match(setupProject, /<ApplicationIcon>\.\.\\\.\.\\src-tauri\\icons\\icon\.ico<\/ApplicationIcon>/);
+    assert.match(setupProject, /<Resource Include="\.\.\\\.\.\\src-tauri\\icons\\icon\.png"/);
+    assert.match(mainWindow, /Icon="pack:\/\/application:,,,\/VRCNT\.Setup;component\/Assets\/icon\.png"/);
+    assert.match(mainWindow, /Source="pack:\/\/application:,,,\/VRCNT\.Setup;component\/Assets\/icon\.png"/);
+    assert.doesNotMatch(mainWindow, /<TextBlock Text="VR"/);
+});
+
 
 test("workflow fails on missing, oversized, or mismatched release files", () => {
     assert.match(workflow, /Length -ge \[long\]\$env:MAX_ASSET_SIZE/);

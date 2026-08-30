@@ -2,6 +2,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
+    <ApplicationIcon>..\..\src-tauri\icons\icon.ico</ApplicationIcon>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
     <UseWPF>true</UseWPF>
@@ -22,6 +23,9 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\VRCNT.RuntimeCore\VRCNT.RuntimeCore.csproj" />
+    <Resource Include="..\..\src-tauri\icons\icon.png">
+      <Link>Assets\icon.png</Link>
+    </Resource>
     <EmbeddedResource Include="$(InstallerLocalesOutput)" LogicalName="VRCNT.Setup.InstallerLocales.json" />
   </ItemGroup>
   <Target Name="GenerateInstallerLocales" BeforeTargets="PrepareResources">

@@ -60,7 +60,7 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
             selfCheck.CheckEmbeddedAsync,
             new ProcessManagerExitCoordinator(managerPath).ExitAndWaitAsync);
         return new SetupCommandOperations(
-            new RuntimeInstallEngine(managerDirectory, cacheDirectory, minisignPath, sevenZipPath),
+            new RuntimeInstallEngine(AppContext.BaseDirectory, cacheDirectory, minisignPath, sevenZipPath),
             new SetupManagerLifecycle(managerPath, null, selfCheck, new ManagerStateStore(localAppData, capabilities, managerPath), source, handoff),
             new Uri(ReleaseEndpoint + "latest/download/latest.json"),
             managerDirectory,

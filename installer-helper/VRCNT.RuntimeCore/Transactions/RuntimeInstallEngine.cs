@@ -48,8 +48,15 @@ public sealed class RuntimeInstallEngine : IRuntimeTransactionEngine
             ? _defaultCacheDirectory
             : Path.Combine(_defaultCacheDirectory, request.TargetVersion);
         Directory.CreateDirectory(cacheDirectory);
-        var manifestPath = await AcquireAsync(releaseBase, "package-manifest.json", cacheDirectory, cancellationToken);
-        var signaturePath = await AcquireAsync(releaseBase, "package-manifest.json.sig", cacheDirectory, cancellationToken);
+        var localManifestPath = Path.Combine(_installerDirectory, "package-manifest.json");
+        var localSignaturePath = Path.Combine(_installerDirectory, "package-manifest.json.sig");
+        var hasAdjacentManifest = File.Exists(localManifestPath) && File.Exists(localSignaturePath);
+        var manifestPath = hasAdjacentManifest
+            ? localManifestPath
+            : await AcquireAsync(releaseBase, "package-manifest.json", cacheDirectory, cancellationToken);
+        var signaturePath = hasAdjacentManifest
+            ? localSignaturePath
+            : await AcquireAsync(releaseBase, "package-manifest.json.sig", cacheDirectory, cancellationToken);
         var verified = await new ManifestLoader(new MinisignVerifier(_minisignPath))
             .LoadAndVerifyAsync(manifestPath, signaturePath, request.TargetVersion, cancellationToken);
         var packageKey = request.TargetVariant == RuntimeVariant.Cpu ? "cpu" : "cuda";
@@ -61,8 +68,11 @@ public sealed class RuntimeInstallEngine : IRuntimeTransactionEngine
         var legacyDetector = new LegacyInstallationDetector(paths);
         var archiveProgress = new Progress<VRCNT.RuntimeCore.Packages.TransferProgress>(transfer =>
             progress?.Report(new InstallProgress(TransactionPhase.Acquire, transfer.TotalBytes, transfer.TotalBytesExpected, transfer.Name)));
+        var hasAdjacentPackage = package.Parts.All(part => File.Exists(Path.Combine(_installerDirectory, part.Name)));
+        var packageDirectory = hasAdjacentPackage ? _installerDirectory : cacheDirectory;
+        var packageClient = hasAdjacentPackage ? null : _httpClient;
         var engine = new RuntimeTransactionEngine(
-            new ManifestArchiveAcquirer(verified.Manifest, request.TargetVariant, releaseBase, cacheDirectory, _httpClient, archiveProgress),
+            new ManifestArchiveAcquirer(verified.Manifest, request.TargetVariant, releaseBase, packageDirectory, packageClient, archiveProgress),
             new SevenZipExtractor(_sevenZipPath),
             new RuntimePathValidator(new VolumeIdentityProbe()),
             new RequiredSpaceCalculator(new AvailableSpaceProbe()),
@@ -74,8 +84,8 @@ public sealed class RuntimeInstallEngine : IRuntimeTransactionEngine
             onPreflightValidated: () => legacyDetector.PreserveUserData(legacyDetector.Detect(paths.Resolve(destination))));
         var replacement = new RuntimeReplacementRequest(
             destination,
-            cacheDirectory,
-            package.Parts.Select(part => Path.Combine(cacheDirectory, part.Name)).ToArray(),
+            packageDirectory,
+            package.Parts.Select(part => Path.Combine(packageDirectory, part.Name)).ToArray(),
             package.InstalledSize,
             package.Identity,
             new ActivationRequest($"vrcnt-activation-{Convert.ToHexString(RandomNumberGenerator.GetBytes(16))}", Convert.ToHexString(RandomNumberGenerator.GetBytes(32)), Convert.ToHexString(RandomNumberGenerator.GetBytes(32))),
@@ -101,7 +111,7 @@ public sealed class RuntimeInstallEngine : IRuntimeTransactionEngine
         RuntimeVariant variant,
         Uri releaseBase,
         string cacheDirectory,
-        HttpClient httpClient,
+        HttpClient? httpClient,
         IProgress<VRCNT.RuntimeCore.Packages.TransferProgress>? progress) : IRuntimeArchiveAcquirer
     {
         public Task<IReadOnlyList<string>> AcquireAsync(RuntimeReplacementRequest request, CancellationToken cancellationToken) =>
