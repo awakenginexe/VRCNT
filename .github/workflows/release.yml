@@ -123,7 +123,7 @@ jobs:
 
   shared-shell:
     name: Build shared frontend and Tauri shell
-    needs: validate
+    needs: [validate, backend-cpu]
     runs-on: windows-latest
     permissions:
       contents: read
@@ -140,6 +140,11 @@ jobs:
           package-manager-cache: false
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
+      - name: Download CPU backend
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-cpu
+          path: src-tauri/bin
       - name: Install application dependencies
         run: npm ci
       - name: Build shared frontend and Tauri shell

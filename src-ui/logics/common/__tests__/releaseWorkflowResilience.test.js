@@ -9,6 +9,7 @@ import path from "node:path";
 const repoRoot = path.resolve(import.meta.dirname, "../../../..");
 const read = (relativePath) => fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
 const workflow = read(".github/workflows/release.yml");
+const candidateWorkflow = read(".github/workflows/test-candidate.yml");
 const setupPublishValidator = read("scripts/validate_setup_publish.ps1");
 const nsis = read("src-tauri/nsis/template.nsi");
 const helper = read("installer-helper/Program.cs");
@@ -45,6 +46,16 @@ test("release workflow builds one shared shell, packages CPU and CUDA independen
     assert.match(workflow, /installerName = \$config\.installerNamePattern\.Replace/);
     assert.match(workflow, /dotnet publish \.\/installer-helper\/VRCNT\.Setup\/VRCNT\.Setup\.csproj/);
     assert.doesNotMatch(workflow, /packagePartCount|exactly three|Create three-part portable package|npm run build-cuda|bundle\/nsis/i);
+});
+
+test("test candidate workflow uploads a complete artifact without publishing a release", () => {
+    assert.match(candidateWorkflow, /branches:\s*[\s\S]*test\/5\.15\.0-runtime-installer/);
+    assert.match(candidateWorkflow, /workflow_dispatch:/);
+    assert.match(candidateWorkflow, /shared-shell:[\s\S]*needs: \[validate, backend-cpu\]/);
+    assert.match(candidateWorkflow, /Download CPU backend[\s\S]*name: backend-cpu[\s\S]*path: src-tauri\/bin/);
+    assert.match(candidateWorkflow, /Upload signed test candidate[\s\S]*actions\/upload-artifact@v4[\s\S]*path: release-assets/);
+    assert.doesNotMatch(candidateWorkflow, /gh release (create|edit|upload)/);
+    assert.doesNotMatch(candidateWorkflow, /contents:\s*write/);
 });
 
 test("release workflow rejects WPF setup publishes that leave native runtime sidecars", () => {
