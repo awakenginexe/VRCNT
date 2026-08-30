@@ -141,7 +141,7 @@ jobs:
           }
 
       - name: Upload verified installer tools
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: installer-tools
           path: build/installer-tools
@@ -165,7 +165,7 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Download CPU backend
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: backend-cpu
           path: src-tauri/bin
@@ -180,7 +180,7 @@ jobs:
           Copy-Item ./src-tauri/target/release/VRCNT.exe ./build/shared-shell/VRCNT.exe -Force
           Copy-Item ./dist ./build/shared-shell/frontend -Recurse -Force
       - name: Upload shared shell
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: shared-shell
           path: build/shared-shell
@@ -217,7 +217,7 @@ jobs:
           New-Item -ItemType Directory -Path build/backend/cpu -Force | Out-Null
           Copy-Item ./src-tauri/bin/* ./build/backend/cpu -Recurse -Force
       - name: Upload CPU backend
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: backend-cpu
           path: build/backend/cpu
@@ -252,7 +252,7 @@ jobs:
           npm run build-backend:cuda
           if ($LASTEXITCODE -ne 0) { throw 'CUDA backend build failed.' }
       - name: Upload CUDA backend
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: backend-cuda
           path: build/backend/cuda
@@ -292,22 +292,22 @@ jobs:
       - name: Install application dependencies
         run: npm ci
       - name: Download shared shell
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: shared-shell
           path: build/artifacts/shared-shell
       - name: Download CPU backend
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: backend-cpu
           path: build/artifacts/backend-cpu
       - name: Download CUDA backend
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: backend-cuda
           path: build/artifacts/backend-cuda
       - name: Download installer tools
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: installer-tools
           path: build/artifacts/installer-tools
@@ -402,7 +402,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'SHA256SUMS.txt generation failed.' }
 
       - name: Upload signed test candidate
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: VRCNT-5.15.0-test-candidate-${{ github.sha }}
           path: release-assets

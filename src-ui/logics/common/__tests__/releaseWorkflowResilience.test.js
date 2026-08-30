@@ -53,9 +53,24 @@ test("test candidate workflow uploads a complete artifact without publishing a r
     assert.match(candidateWorkflow, /workflow_dispatch:/);
     assert.match(candidateWorkflow, /shared-shell:[\s\S]*needs: \[validate, backend-cpu\]/);
     assert.match(candidateWorkflow, /Download CPU backend[\s\S]*name: backend-cpu[\s\S]*path: src-tauri\/bin/);
-    assert.match(candidateWorkflow, /Upload signed test candidate[\s\S]*actions\/upload-artifact@v4[\s\S]*path: release-assets/);
+    assert.match(candidateWorkflow, /Upload signed test candidate[\s\S]*actions\/upload-artifact@v6[\s\S]*path: release-assets/);
     assert.doesNotMatch(candidateWorkflow, /gh release (create|edit|upload)/);
     assert.doesNotMatch(candidateWorkflow, /contents:\s*write/);
+});
+
+test("release and candidate artifact actions use Node.js 24-capable releases", () => {
+    const expectedVersions = {
+        "actions/upload-artifact": "v6",
+        "actions/download-artifact": "v7",
+    };
+
+    for (const [workflowName, content] of [["release", workflow], ["test candidate", candidateWorkflow]]) {
+        const references = [...content.matchAll(/uses:\s*(actions\/(?:upload|download)-artifact)@(v\d+)/g)];
+        assert.ok(references.length > 0, `${workflowName} workflow must use artifact actions`);
+        for (const [, action, version] of references) {
+            assert.equal(version, expectedVersions[action], `${workflowName} workflow uses ${action}@${version}`);
+        }
+    }
 });
 
 test("signing workflows map secrets to the environment names used by the pinned Tauri signer", () => {
