@@ -20,19 +20,22 @@ public sealed class RuntimeInstallEngine : IRuntimeTransactionEngine
     private readonly string _minisignPath;
     private readonly string _sevenZipPath;
     private readonly HttpClient _httpClient;
+    private readonly IManifestLoader _manifestLoader;
 
     public RuntimeInstallEngine(
         string installerDirectory,
         string defaultCacheDirectory,
         string minisignPath,
         string sevenZipPath,
-        HttpClient? httpClient = null)
+        HttpClient? httpClient = null,
+        IManifestLoader? manifestLoader = null)
     {
         _installerDirectory = Path.GetFullPath(installerDirectory);
         _defaultCacheDirectory = Path.GetFullPath(defaultCacheDirectory);
         _minisignPath = Path.GetFullPath(minisignPath);
         _sevenZipPath = Path.GetFullPath(sevenZipPath);
         _httpClient = httpClient ?? new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
+        _manifestLoader = manifestLoader ?? new ManifestLoader(new MinisignVerifier(_minisignPath));
     }
 
     public async Task<RuntimeOperationResult> ExecuteAsync(
@@ -57,8 +60,19 @@ public sealed class RuntimeInstallEngine : IRuntimeTransactionEngine
         var signaturePath = hasAdjacentManifest
             ? localSignaturePath
             : await AcquireAsync(releaseBase, "package-manifest.json.sig", cacheDirectory, cancellationToken);
-        var verified = await new ManifestLoader(new MinisignVerifier(_minisignPath))
-            .LoadAndVerifyAsync(manifestPath, signaturePath, request.TargetVersion, cancellationToken);
+        VerifiedManifest verified;
+        try
+        {
+            verified = await _manifestLoader.LoadAndVerifyAsync(manifestPath, signaturePath, request.TargetVersion, cancellationToken);
+        }
+        catch (CryptographicException) when (!hasAdjacentManifest)
+        {
+            File.Delete(manifestPath);
+            File.Delete(signaturePath);
+            manifestPath = await AcquireAsync(releaseBase, "package-manifest.json", cacheDirectory, cancellationToken);
+            signaturePath = await AcquireAsync(releaseBase, "package-manifest.json.sig", cacheDirectory, cancellationToken);
+            verified = await _manifestLoader.LoadAndVerifyAsync(manifestPath, signaturePath, request.TargetVersion, cancellationToken);
+        }
         var packageKey = request.TargetVariant == RuntimeVariant.Cpu ? "cpu" : "cuda";
         if (!verified.Manifest.Variants.TryGetValue(packageKey, out var package))
             throw new InvalidDataException($"The signed manifest does not offer the requested {packageKey} package.");
