@@ -194,7 +194,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     public string SelectedRuntimeTitle => SelectedVariant == RuntimeVariant.Cpu ? CpuTitle : CudaTitle;
     public string SelectedRuntimeSize => SelectedVariant == RuntimeVariant.Cpu ? CpuSize : CudaSize;
     public string SelectedRuntimeTime => SelectedVariant == RuntimeVariant.Cpu ? CpuTime : CudaTime;
-    public string CpuStatus => T("recommended");
+    public string CpuStatus => _gpuSelection.RecommendedVariant == RuntimeVariant.Cpu ? T("recommended") : T("compatible");
     public string CudaStatus => !_usesInjectedGpuAdvisoryPolicy && _gpuSelection.Detection.Status == GpuDetectionStatus.NvidiaDetected ? T("recommended") : _gpuAdvisoryPolicy.Assess().Compatibility switch
     {
         GpuCompatibility.Recommended => T("recommended"),

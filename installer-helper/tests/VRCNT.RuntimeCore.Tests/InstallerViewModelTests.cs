@@ -61,6 +61,21 @@ public sealed class InstallerViewModelTests
     }
 
     [Fact]
+    public void Nvidia_detection_marks_cuda_recommended_and_cpu_compatible()
+    {
+        var viewModel = CreateViewModel(
+            new DeferredProgressOperations(),
+            new SetupCommandLineOptions(false, false, false, false, false, RuntimeVariant.Cpu, "C:\\VRCNT", null, [], "en"),
+            new FixedGpuSelectionPolicy(RuntimeVariant.Cuda));
+
+        Assert.Equal(RuntimeVariant.Cuda, viewModel.SelectedVariant);
+        Assert.False(viewModel.IsCpuSelected);
+        Assert.True(viewModel.IsCudaSelected);
+        Assert.Equal("Compatible", viewModel.CpuStatus);
+        Assert.Equal("Recommended", viewModel.CudaStatus);
+    }
+
+    [Fact]
     public void Runtime_page_binds_cuda_availability_detection_and_the_deliberate_advanced_override_control()
     {
         var xamlPath = Path.Combine(AppContext.BaseDirectory, "Views", "MainWindow.xaml");
