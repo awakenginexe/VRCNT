@@ -290,6 +290,13 @@ public sealed class RuntimeTransactionEngine(
     {
         try
         {
+            if (journal.StagedRuntimeMoved && Directory.Exists(targetPath))
+            {
+                var stop = await coordinator.RequestGracefulStopAsync(CancellationToken.None);
+                if (!stop.Stopped && coordinator is IRuntimeProcessForceCloser forceCloser)
+                    stop = await forceCloser.ForceCloseRemainingAsync(stop.RemainingProcessIds, CancellationToken.None);
+                if (!stop.Stopped) return false;
+            }
             if (Directory.Exists(paths.BackupPath))
             {
                 if (Directory.Exists(targetPath)) Directory.Delete(targetPath, true);

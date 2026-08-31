@@ -406,6 +406,38 @@ public sealed class TransactionEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task ExecuteAsync_stops_a_launched_staged_runtime_before_rolling_back_a_failed_activation()
+    {
+        var request = CreateRequest("health", "locked-staged-runtime");
+        WriteActiveRuntime(request);
+        using var processes = new ActivationLockingProcessCoordinator();
+        var engine = CreateEngine(processes: processes, health: new TestHealthMonitor(ready: false));
+
+        var result = await engine.ExecuteAsync(request, null, default);
+
+        Assert.False(result.Succeeded);
+        Assert.True(result.RolledBack);
+        Assert.Equal("old-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
+        Assert.Equal(2, processes.GracefulStopRequests);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_force_stops_a_launched_staged_runtime_before_rolling_back_a_failed_activation()
+    {
+        var request = CreateRequest("health", "force-locked-staged-runtime");
+        WriteActiveRuntime(request);
+        using var processes = new ActivationLockingProcessCoordinator(requiresForceClose: true);
+        var engine = CreateEngine(processes: processes, health: new TestHealthMonitor(ready: false));
+
+        var result = await engine.ExecuteAsync(request, null, default);
+
+        Assert.False(result.Succeeded);
+        Assert.True(result.RolledBack);
+        Assert.Equal("old-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
+        Assert.Equal(1, processes.ForceCloseRequests);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_preserves_the_activation_failure_predicate_when_rolling_back()
     {
         var request = CreateRequest("health", "diagnostic");
@@ -661,6 +693,44 @@ public sealed class TransactionEngineTests : IDisposable
         public Task<ProcessStopResult> ForceCloseRemainingAsync(IReadOnlyList<int> processIds, CancellationToken cancellationToken) { ForceCloseCalled = true; return Task.FromResult(new ProcessStopResult(true, [], false, null)); }
         public Task LaunchForActivationAsync(string installPath, RuntimeIdentity expectedIdentity, ActivationRequest request, CancellationToken cancellationToken) { LaunchCalled = true; return Task.CompletedTask; }
         public Task RelaunchActiveRuntimeAsync(CancellationToken cancellationToken) { RelaunchCalled = true; return Task.CompletedTask; }
+    }
+
+    private sealed class ActivationLockingProcessCoordinator(bool requiresForceClose = false) : IRuntimeProcessCoordinator, IRuntimeProcessForceCloser, IDisposable
+    {
+        private FileStream? _stagedRuntimeLock;
+
+        public int GracefulStopRequests { get; private set; }
+        public int ForceCloseRequests { get; private set; }
+
+        public Task<ProcessStopResult> RequestGracefulStopAsync(CancellationToken cancellationToken)
+        {
+            GracefulStopRequests++;
+            if (_stagedRuntimeLock is not null && requiresForceClose)
+                return Task.FromResult(new ProcessStopResult(false, [42], true, "processes_running"));
+            _stagedRuntimeLock?.Dispose();
+            _stagedRuntimeLock = null;
+            return Task.FromResult(new ProcessStopResult(true, [], false, null));
+        }
+
+        public Task<bool> AreKnownProcessesStoppedAsync(CancellationToken cancellationToken) => Task.FromResult(true);
+
+        public Task LaunchForActivationAsync(string installPath, RuntimeIdentity expectedIdentity, ActivationRequest request, CancellationToken cancellationToken)
+        {
+            _stagedRuntimeLock = new FileStream(Path.Combine(installPath, "VRCNT.exe"), FileMode.Open, FileAccess.Read, FileShare.None);
+            return Task.CompletedTask;
+        }
+
+        public Task<ProcessStopResult> ForceCloseRemainingAsync(IReadOnlyList<int> processIds, CancellationToken cancellationToken)
+        {
+            ForceCloseRequests++;
+            _stagedRuntimeLock?.Dispose();
+            _stagedRuntimeLock = null;
+            return Task.FromResult(new ProcessStopResult(true, [], false, null));
+        }
+
+        public Task RelaunchActiveRuntimeAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public void Dispose() => _stagedRuntimeLock?.Dispose();
     }
 
     private static RuntimeActivationProof ProofFor(RuntimeReplacementRequest request) => new(
