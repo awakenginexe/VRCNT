@@ -247,8 +247,22 @@
                 </StackPanel.Style>
                 <TextBlock Text="{Binding ProgressTitle}" FontSize="{DynamicResource InstallerHeadingFontSize}" FontWeight="Bold" Foreground="{DynamicResource InstallerTextBrush}" HorizontalAlignment="Center" />
                 <TextBlock Text="{Binding SelectedRuntimeTitle}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,4,0,20" HorizontalAlignment="Center" FontSize="12" />
-                <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressValue, Mode=OneWay}" Height="{DynamicResource InstallerProgressHeight}" IsIndeterminate="{Binding IsProgressIndeterminate}" Margin="0,0,0,12" />
-                <TextBlock Text="{Binding ProgressDetail}" Foreground="{DynamicResource InstallerTextMutedBrush}" TextWrapping="Wrap" HorizontalAlignment="Center" FontSize="12" />
+                <Grid Margin="0,0,0,8">
+                    <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressValue, Mode=OneWay}" Height="{DynamicResource InstallerProgressHeight}" IsIndeterminate="False" />
+                    <TextBlock Text="{Binding ProgressPercentText}" Foreground="{DynamicResource InstallerTextBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="10" FontWeight="SemiBold" />
+                </Grid>
+                <TextBlock Text="{Binding ProgressDetail}" Foreground="{DynamicResource InstallerTextMutedBrush}" TextWrapping="Wrap" HorizontalAlignment="Center" FontSize="12" Margin="0,0,0,10" />
+                <Border Background="{DynamicResource InstallerSurfaceBrush}" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="10">
+                    <ScrollViewer Height="112" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding ProgressHistory}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}" Foreground="{DynamicResource InstallerTextDimBrush}" FontFamily="Consolas, Cascadia Mono, monospace" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,5" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Border>
             </StackPanel>
 
             <!-- VIEW: Error State -->

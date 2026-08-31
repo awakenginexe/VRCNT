@@ -82,9 +82,9 @@ public sealed class RuntimeInstallEngine : IRuntimeTransactionEngine
         var legacyDetector = new LegacyInstallationDetector(paths);
         var archiveProgress = new Progress<VRCNT.RuntimeCore.Packages.TransferProgress>(transfer =>
             progress?.Report(new InstallProgress(TransactionPhase.Acquire, transfer.TotalBytes, transfer.TotalBytesExpected, transfer.Name)));
-        var hasAdjacentPackage = package.Parts.All(part => File.Exists(Path.Combine(_installerDirectory, part.Name)));
-        var packageDirectory = hasAdjacentPackage ? _installerDirectory : cacheDirectory;
-        var packageClient = hasAdjacentPackage ? null : _httpClient;
+        var adjacentPackageDirectory = FindAdjacentPackageDirectory(packageKey, package);
+        var packageDirectory = adjacentPackageDirectory ?? cacheDirectory;
+        var packageClient = adjacentPackageDirectory is null ? _httpClient : null;
         var engine = new RuntimeTransactionEngine(
             new ManifestArchiveAcquirer(verified.Manifest, request.TargetVariant, releaseBase, packageDirectory, packageClient, archiveProgress),
             new SevenZipExtractor(_sevenZipPath),
@@ -106,6 +106,19 @@ public sealed class RuntimeInstallEngine : IRuntimeTransactionEngine
             request.ForceCloseConfirmed,
             request.ShutdownHandoff);
         return await engine.ExecuteAsync(replacement, progress, cancellationToken);
+    }
+
+    private string? FindAdjacentPackageDirectory(string packageKey, VariantPackage package)
+    {
+        var directories = new[]
+        {
+            _installerDirectory,
+            Path.Combine(_installerDirectory, packageKey),
+        };
+        var completeDirectory = directories.FirstOrDefault(directory => package.Parts.All(part => File.Exists(Path.Combine(directory, part.Name))));
+        if (completeDirectory is not null) return completeDirectory;
+
+        return directories.FirstOrDefault(directory => package.Parts.Any(part => File.Exists(Path.Combine(directory, part.Name))));
     }
 
     private async Task<string> AcquireAsync(Uri releaseBase, string name, string cacheDirectory, CancellationToken cancellationToken)

@@ -19,7 +19,7 @@ public sealed class InstallerViewModelTests
         var install = viewModel.InstallAsync();
         await operations.ProgressReported.Task;
 
-        Assert.Equal(25, viewModel.ProgressValue);
+        Assert.Equal(18.75, viewModel.ProgressValue);
         Assert.Equal("runtime.7z", viewModel.ProgressDetail);
 
         operations.Fail(new InvalidOperationException("Signed release metadata could not be verified."));
@@ -27,6 +27,40 @@ public sealed class InstallerViewModelTests
 
         Assert.Equal(InstallerPage.Error, viewModel.CurrentPage);
         Assert.Equal("Signed release metadata could not be verified.", viewModel.ErrorDetail);
+    }
+
+    [Fact]
+    public async Task Install_keeps_phase_progress_determinate_and_records_live_history()
+    {
+        var operations = new DeferredProgressOperations
+        {
+            ReportedProgress =
+            [
+                new InstallProgress(TransactionPhase.Preflight, 0, 0, "Validating replacement paths."),
+                new InstallProgress(TransactionPhase.Acquire, 0, 0, "Acquiring resumable runtime archives."),
+                new InstallProgress(TransactionPhase.Stage, 0, 0, "Extracting archive into the transaction staging directory."),
+            ],
+        };
+        var viewModel = CreateViewModel(operations);
+
+        var install = viewModel.InstallAsync();
+        await operations.ProgressReported.Task;
+
+        Assert.Equal(70, viewModel.ProgressValue);
+        Assert.Equal("Extracting archive into the transaction staging directory.", viewModel.ProgressDetail);
+        var historyProperty = typeof(InstallerViewModel).GetProperty("ProgressHistory");
+        Assert.NotNull(historyProperty);
+        var history = Assert.IsAssignableFrom<IEnumerable<string>>(historyProperty!.GetValue(viewModel));
+        Assert.Equal(
+            [
+                "Validating replacement paths.",
+                "Acquiring resumable runtime archives.",
+                "Extracting archive into the transaction staging directory.",
+            ],
+            history);
+
+        operations.Fail(new InvalidOperationException("Installation interrupted."));
+        await install;
     }
 
     [Fact]
@@ -97,6 +131,9 @@ public sealed class InstallerViewModelTests
         var progressBar = xaml.Descendants(presentation + "ProgressBar").Single();
 
         Assert.Equal("{Binding ProgressValue, Mode=OneWay}", progressBar.Attribute("Value")?.Value);
+        Assert.Equal("False", progressBar.Attribute("IsIndeterminate")?.Value);
+        var progressHistory = xaml.Descendants(presentation + "ItemsControl").Single();
+        Assert.Equal("{Binding ProgressHistory}", progressHistory.Attribute("ItemsSource")?.Value);
     }
 
     [Theory]
@@ -141,12 +178,13 @@ public sealed class InstallerViewModelTests
         private readonly TaskCompletionSource _completion = new();
         public TaskCompletionSource ProgressReported { get; } = new();
         public bool CompleteImmediately { get; init; }
+        public IReadOnlyList<InstallProgress> ReportedProgress { get; init; } = [new InstallProgress(TransactionPhase.Acquire, 250, 1000, "runtime.7z")];
         public SetupCommandLineOptions? ReceivedOptions { get; private set; }
 
         public Task ExecuteRuntimeAsync(SetupCommandLineOptions options, IProgress<InstallProgress>? progress, CancellationToken cancellationToken)
         {
             ReceivedOptions = options;
-            progress?.Report(new InstallProgress(TransactionPhase.Acquire, 250, 1000, "runtime.7z"));
+            foreach (var item in ReportedProgress) progress?.Report(item);
             ProgressReported.TrySetResult();
             return CompleteImmediately ? Task.CompletedTask : _completion.Task;
         }

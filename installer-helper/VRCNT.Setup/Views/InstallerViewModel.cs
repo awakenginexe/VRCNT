@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
@@ -31,6 +32,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     private readonly GpuSelectionRecommendation _gpuSelection;
     private readonly bool _useReducedMotion;
     private readonly DelegateCommand _launchCommand;
+    private readonly ObservableCollection<string> _progressHistory = [];
     private InstallerPage _currentPage = InstallerPage.Welcome;
     private InstallerLanguage _selectedLanguage;
     private RuntimeVariant _selectedVariant = RuntimeVariant.Cpu;
@@ -61,6 +63,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
             ? options.TargetVariant ?? throw new ArgumentException("A runtime switch requires an explicit target variant.", nameof(options))
             : _gpuSelection.RecommendedVariant;
         _useReducedMotion = useReducedMotion;
+        ProgressHistory = new ReadOnlyObservableCollection<string>(_progressHistory);
         if (options.InstallerLanguage is not null) _localizer.SetLanguage(options.InstallerLanguage);
         _selectedLanguage = _localizer.Languages.Single(language => language.Id == _localizer.CurrentLanguage);
         _localizer.LanguageChanged += (_, _) => RefreshLocalizedProperties();
@@ -153,13 +156,21 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         {
             if (!SetField(ref _isInstalling, value)) return;
             ((AsyncDelegateCommand)InstallCommand).RaiseCanExecuteChanged();
-            OnPropertyChanged(nameof(IsProgressIndeterminate));
         }
     }
     public bool UseReducedMotion => _useReducedMotion;
-    public bool IsProgressIndeterminate => IsInstalling && _progressValue == 0 && !UseReducedMotion;
-    public double ProgressValue { get => _progressValue; private set => SetField(ref _progressValue, value); }
+    public double ProgressValue
+    {
+        get => _progressValue;
+        private set
+        {
+            if (SetField(ref _progressValue, Math.Clamp(value, 0, 100)))
+                OnPropertyChanged(nameof(ProgressPercentText));
+        }
+    }
+    public string ProgressPercentText => $"{Math.Round(ProgressValue):0}%";
     public string ProgressDetail { get => _progressDetail; private set => SetField(ref _progressDetail, value); }
+    public ReadOnlyObservableCollection<string> ProgressHistory { get; }
     public string ErrorDetail { get => _errorDetail; private set => SetField(ref _errorDetail, value); }
 
     public string AppTitle => T("app_name");
@@ -260,6 +271,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     {
         ProgressValue = 0;
         ProgressDetail = string.Empty;
+        _progressHistory.Clear();
         ErrorDetail = string.Empty;
         IsInstalling = true;
         CurrentPage = InstallerPage.Progress;
@@ -293,10 +305,25 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     private void ReportProgress(InstallProgress progress)
     {
         ProgressDetail = progress.Message;
-        if (progress.TotalBytes > 0)
-            ProgressValue = Math.Clamp(progress.CompletedBytes * 100d / progress.TotalBytes, 0, 100);
-        OnPropertyChanged(nameof(IsProgressIndeterminate));
+        ProgressValue = GetProgressValue(progress);
+        if (_progressHistory.LastOrDefault() != progress.Message)
+            _progressHistory.Add(progress.Message);
     }
+
+    private static double GetProgressValue(InstallProgress progress) => progress.Phase switch
+    {
+        TransactionPhase.Preflight => 0,
+        TransactionPhase.Acquire when progress.TotalBytes > 0 => 5 + 55 * Math.Clamp(progress.CompletedBytes / (double)progress.TotalBytes, 0, 1),
+        TransactionPhase.Acquire => 5,
+        TransactionPhase.Verify => 60,
+        TransactionPhase.Stage => 70,
+        TransactionPhase.Quiesce => 80,
+        TransactionPhase.Replace => 87,
+        TransactionPhase.Activate => 94,
+        TransactionPhase.Commit => 98,
+        TransactionPhase.Cleanup => 100,
+        _ => 0,
+    };
 
     private string T(string key) => _localizer[key];
 
