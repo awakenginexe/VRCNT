@@ -25,7 +25,7 @@ public partial class App : Application
                 Shutdown(exitCode);
                 return;
             }
-            var viewModel = new InstallerViewModel(operations, options, InstallerLocalizer.FromEmbedded(), useReducedMotion: !SystemParameters.ClientAreaAnimation);
+            var viewModel = new InstallerViewModel(operations, options, InstallerLocalizer.FromEmbedded(), useReducedMotion: !SystemParameters.ClientAreaAnimation, installDirectoryPicker: new InstallDirectoryPicker());
             MainWindow = new MainWindow(viewModel);
             MainWindow.Show();
         }

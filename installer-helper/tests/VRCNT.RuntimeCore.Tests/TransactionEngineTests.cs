@@ -231,7 +231,7 @@ public sealed class TransactionEngineTests : IDisposable
         Assert.Equal("processes_running", result.ErrorCode);
         Assert.Equal("old-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
         Assert.Empty(mover.Moves);
-        Assert.True(processes.RelaunchCalled);
+        Assert.False(processes.RelaunchCalled);
     }
 
     [Fact]
@@ -371,7 +371,7 @@ public sealed class TransactionEngineTests : IDisposable
             Assert.False(result.RolledBack);
             Assert.Equal("cancelled", result.ErrorCode);
             Assert.Equal("old-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
-            Assert.True(processes.RelaunchCalled);
+            Assert.False(processes.RelaunchCalled);
         }
         else if (phase == TransactionPhase.Replace)
         {
@@ -379,7 +379,7 @@ public sealed class TransactionEngineTests : IDisposable
             Assert.True(result.RolledBack);
             Assert.Equal("cancelled", result.ErrorCode);
             Assert.Equal("old-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
-            Assert.True(processes.RelaunchCalled);
+            Assert.False(processes.RelaunchCalled);
         }
         else
         {
@@ -474,6 +474,44 @@ public sealed class TransactionEngineTests : IDisposable
         Assert.True(processes.LaunchCalled);
         Assert.Equal(request.ExpectedIdentity, state.ActiveIdentity);
         Assert.Equal("new-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_commits_a_standalone_install_without_launching_vrcnt()
+    {
+        var request = CreateRequest("standalone", "no-activation") with { Activation = null! };
+        WriteActiveRuntime(request);
+        var processes = new TestProcessCoordinator(new(true, [], false, null));
+        var state = new RecordingStateTransition();
+        var engine = CreateEngine(processes: processes, stateTransition: state);
+
+        var result = await engine.ExecuteAsync(request, null, default);
+
+        Assert.True(result.Succeeded);
+        Assert.False(processes.LaunchCalled);
+        Assert.False(processes.RelaunchCalled);
+        Assert.Equal(request.ExpectedIdentity, state.ActiveIdentity);
+        Assert.Equal("new-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_does_not_relaunch_the_old_app_when_a_standalone_install_is_cancelled_after_replacement_starts()
+    {
+        var request = CreateRequest("standalone", "cancelled-replace") with { Activation = null! };
+        WriteActiveRuntime(request);
+        using var cancellation = new CancellationTokenSource();
+        var processes = new TestProcessCoordinator(new(true, [], false, null));
+        var moves = new CallbackMover((_, _) => cancellation.Cancel());
+        var engine = CreateEngine(processes: processes, mover: moves);
+
+        var result = await engine.ExecuteAsync(request, null, cancellation.Token);
+
+        Assert.False(result.Succeeded);
+        Assert.True(result.RolledBack);
+        Assert.Equal("cancelled", result.ErrorCode);
+        Assert.False(processes.LaunchCalled);
+        Assert.False(processes.RelaunchCalled);
+        Assert.Equal("old-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
     }
 
     [Fact]
@@ -734,7 +772,7 @@ public sealed class TransactionEngineTests : IDisposable
     }
 
     private static RuntimeActivationProof ProofFor(RuntimeReplacementRequest request) => new(
-        1, "ready", request.Activation.SingleUseToken, request.Activation.Nonce, Environment.ProcessId,
+        1, "ready", request.Activation!.SingleUseToken, request.Activation!.Nonce, Environment.ProcessId,
         request.ExpectedIdentity.Version, "cpu");
 
     private sealed class ImmediateProofProcessCoordinator(IEnumerable<RuntimeActivationProof> proofs) : IRuntimeProcessCoordinator

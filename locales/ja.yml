@@ -1330,6 +1330,8 @@ installer:
     install_time: "所要時間の目安"
     options_title: "インストールの準備完了"
     options_body: "検証済みパッケージ処理で、選択したランタイムを VRCNT にインストールします。"
+    install_location: "インストール先"
+    browse_install_directory: "参照..."
     launch_vrcnt: "セットアップ完了後に VRCNT を起動する"
     install: "VRCNT をインストール"
     progress_title: "VRCNT をインストール中"

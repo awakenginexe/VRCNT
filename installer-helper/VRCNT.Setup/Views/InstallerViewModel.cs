@@ -27,6 +27,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     private readonly SetupCommandLineOptions _options;
     private readonly InstallerLocalizer _localizer;
     private readonly IApplicationLauncher _applicationLauncher;
+    private readonly IInstallDirectoryPicker _installDirectoryPicker;
     private readonly IGpuAdvisoryPolicy _gpuAdvisoryPolicy;
     private readonly bool _usesInjectedGpuAdvisoryPolicy;
     private readonly GpuSelectionRecommendation _gpuSelection;
@@ -36,7 +37,8 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     private InstallerPage _currentPage = InstallerPage.Welcome;
     private InstallerLanguage _selectedLanguage;
     private RuntimeVariant _selectedVariant = RuntimeVariant.Cpu;
-    private bool _launchAfterSetup = true;
+    private bool _launchAfterSetup;
+    private string _installPath = string.Empty;
     private bool _isInstalling;
     private bool _advancedCudaOverrideEnabled;
     private double _progressValue;
@@ -50,18 +52,21 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         IApplicationLauncher? applicationLauncher = null,
         IGpuAdvisoryPolicy? gpuAdvisoryPolicy = null,
         bool useReducedMotion = false,
-        IGpuSelectionPolicy? gpuSelectionPolicy = null)
+        IGpuSelectionPolicy? gpuSelectionPolicy = null,
+        IInstallDirectoryPicker? installDirectoryPicker = null)
     {
         _operations = operations ?? throw new ArgumentNullException(nameof(operations));
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _localizer = localizer ?? throw new ArgumentNullException(nameof(localizer));
         _applicationLauncher = applicationLauncher ?? new ApplicationLauncher();
+        _installDirectoryPicker = installDirectoryPicker ?? new NullInstallDirectoryPicker();
         _gpuAdvisoryPolicy = gpuAdvisoryPolicy ?? new InconclusiveGpuAdvisoryPolicy();
         _usesInjectedGpuAdvisoryPolicy = gpuAdvisoryPolicy is not null;
         _gpuSelection = (gpuSelectionPolicy ?? new GpuSelectionPolicy(new DxgiGpuDetector())).Assess();
         _selectedVariant = options.IsSwitch
             ? options.TargetVariant ?? throw new ArgumentException("A runtime switch requires an explicit target variant.", nameof(options))
             : _gpuSelection.RecommendedVariant;
+        _installPath = options.InstallPath ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VRCNT");
         _useReducedMotion = useReducedMotion;
         ProgressHistory = new ReadOnlyObservableCollection<string>(_progressHistory);
         if (options.InstallerLanguage is not null) _localizer.SetLanguage(options.InstallerLanguage);
@@ -75,6 +80,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         LaunchCommand = _launchCommand;
         CloseCommand = new DelegateCommand(() => CloseRequested?.Invoke(this, EventArgs.Empty));
         EnableAdvancedCudaOverrideCommand = new DelegateCommand(EnableAdvancedCudaOverride, () => RequiresAdvancedCudaOverride && !AdvancedCudaOverrideEnabled);
+        BrowseInstallDirectoryCommand = new DelegateCommand(BrowseInstallDirectory, () => CanChooseInstallDirectory && !IsInstalling);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -87,6 +93,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     public ICommand LaunchCommand { get; }
     public ICommand CloseCommand { get; }
     public ICommand EnableAdvancedCudaOverrideCommand { get; }
+    public ICommand BrowseInstallDirectoryCommand { get; }
 
     public IReadOnlyList<InstallerLanguage> Languages => _localizer.Languages;
     public InstallerPage CurrentPage
@@ -149,6 +156,8 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     }
     public bool CanSelectCuda => IsSwitch ? TargetVariant == RuntimeVariant.Cuda : IsCudaNormallyAvailable || (RequiresAdvancedCudaOverride && AdvancedCudaOverrideEnabled);
     public bool LaunchAfterSetup { get => _launchAfterSetup; set => SetField(ref _launchAfterSetup, value); }
+    public bool CanChooseInstallDirectory => !IsSwitch;
+    public string InstallPath { get => _installPath; set => SetField(ref _installPath, value); }
     public bool IsInstalling
     {
         get => _isInstalling;
@@ -156,6 +165,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         {
             if (!SetField(ref _isInstalling, value)) return;
             ((AsyncDelegateCommand)InstallCommand).RaiseCanExecuteChanged();
+            ((DelegateCommand)BrowseInstallDirectoryCommand).RaiseCanExecuteChanged();
         }
     }
     public bool UseReducedMotion => _useReducedMotion;
@@ -229,6 +239,8 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     public string InstallTimeLabel => T("install_time");
     public string OptionsTitle => T("options_title");
     public string OptionsBody => T("options_body");
+    public string InstallLocationLabel => T("install_location");
+    public string BrowseInstallDirectoryText => T("browse_install_directory");
     public string LaunchVrcntText => T("launch_vrcnt");
     public string InstallText => T("install");
     public string ProgressTitle => T("progress_title");
@@ -256,6 +268,13 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         if (RequiresAdvancedCudaOverride) AdvancedCudaOverrideEnabled = true;
     }
 
+    private void BrowseInstallDirectory()
+    {
+        if (!CanChooseInstallDirectory) return;
+        var selected = _installDirectoryPicker.PickDirectory(InstallPath);
+        if (!string.IsNullOrWhiteSpace(selected)) InstallPath = selected;
+    }
+
     private void Back()
     {
         CurrentPage = CurrentPage switch
@@ -277,11 +296,11 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         CurrentPage = InstallerPage.Progress;
         try
         {
-            var request = _options with { TargetVariant = IsSwitch ? TargetVariant : SelectedVariant, InstallerLanguage = SelectedLanguage.Id };
+            var request = _options with { TargetVariant = IsSwitch ? TargetVariant : SelectedVariant, InstallPath = InstallPath, InstallerLanguage = SelectedLanguage.Id };
             await new SetupCommandDispatcher(_operations).DispatchAsync(request, CancellationToken.None, new InlineProgress<InstallProgress>(ReportProgress));
             ProgressValue = 100;
             CurrentPage = InstallerPage.Complete;
-            if (LaunchAfterSetup) LaunchVrcnt(force: false);
+            if (LaunchAfterSetup || IsSwitch) LaunchVrcnt(force: IsSwitch);
         }
         catch (Exception exception)
         {
@@ -297,8 +316,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     private void LaunchVrcnt(bool force)
     {
         if (!force && !LaunchAfterSetup) return;
-        var installPath = _options.InstallPath ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VRCNT");
-        var executable = Path.Combine(installPath, "VRCNT.exe");
+        var executable = Path.Combine(InstallPath, "VRCNT.exe");
         _applicationLauncher.Launch(executable);
     }
 
@@ -336,7 +354,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
             nameof(CpuBody), nameof(CpuSize), nameof(CpuTime), nameof(CudaTitle), nameof(CudaBody), nameof(CudaSize),
             nameof(CudaTime), nameof(CpuStatus), nameof(CudaStatus), nameof(CudaAdvisory), nameof(GpuDetectionState), nameof(AdvancedCudaWarning), nameof(EnableAdvancedCudaOverrideText), nameof(IsCudaNormallyAvailable), nameof(RequiresAdvancedCudaOverride), nameof(AdvancedCudaOverrideEnabled), nameof(CanSelectCuda), nameof(SelectedRuntimeTitle), nameof(SelectedRuntimeSize), nameof(SelectedRuntimeTime), nameof(CurrentPageTitle), nameof(InstallSizeLabel), nameof(InstallTimeLabel),
             nameof(OptionsTitle), nameof(OptionsBody), nameof(LaunchVrcntText), nameof(InstallText), nameof(ProgressTitle), nameof(CanChangeRuntimeSelection), nameof(CanSelectCudaRadio),
-            nameof(ProgressBody), nameof(ErrorTitle), nameof(ErrorBody), nameof(RetryText), nameof(CompleteTitle),
+            nameof(InstallLocationLabel), nameof(BrowseInstallDirectoryText), nameof(ProgressBody), nameof(ErrorTitle), nameof(ErrorBody), nameof(RetryText), nameof(CompleteTitle),
             nameof(CompleteBody), nameof(CloseText),
         }) OnPropertyChanged(property);
     }

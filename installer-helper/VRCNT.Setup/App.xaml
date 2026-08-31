@@ -11,7 +11,7 @@
         <SolidColorBrush x:Key="InstallerSurfaceDropdownBrush" Color="#1A202C" />
         <SolidColorBrush x:Key="InstallerTextBrush" Color="#F8FAFC" />
         <SolidColorBrush x:Key="InstallerTextMutedBrush" Color="#94A3B8" />
-        <SolidColorBrush x:Key="InstallerTextDimBrush" Color="#64748B" />
+        <SolidColorBrush x:Key="InstallerTextDimBrush" Color="#AEBBD0" />
         <SolidColorBrush x:Key="InstallerBorderBrush" Color="#222A3A" />
         <SolidColorBrush x:Key="InstallerBorderHoverBrush" Color="#3A4760" />
         <SolidColorBrush x:Key="InstallerAccentBrush" Color="#00D2FF" />

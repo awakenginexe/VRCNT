@@ -76,12 +76,39 @@ public sealed class InstallerViewModelTests
         viewModel.LaunchCommand.Execute(null);
         Assert.Equal(1, launcher.Count);
 
+        var defaultLauncher = new RecordingLauncher();
+        var defaultViewModel = CreateViewModel(new DeferredProgressOperations { CompleteImmediately = true }, defaultLauncher);
+
+        await defaultViewModel.InstallAsync();
+
+        Assert.Equal(0, defaultLauncher.Count);
+
         var automaticLauncher = new RecordingLauncher();
         var automaticViewModel = CreateViewModel(new DeferredProgressOperations { CompleteImmediately = true }, automaticLauncher);
+        automaticViewModel.LaunchAfterSetup = true;
 
         await automaticViewModel.InstallAsync();
 
         Assert.Equal(1, automaticLauncher.Count);
+    }
+
+    [Fact]
+    public async Task Install_forwards_the_selected_location_and_defaults_to_manual_launch()
+    {
+        var operations = new DeferredProgressOperations { CompleteImmediately = true };
+        var launcher = new RecordingLauncher();
+        var viewModel = CreateViewModel(operations, launcher);
+        var installPathProperty = typeof(InstallerViewModel).GetProperty("InstallPath");
+        Assert.NotNull(installPathProperty);
+        installPathProperty!.SetValue(viewModel, "C:\\VRCNT-Custom");
+
+        Assert.False(viewModel.LaunchAfterSetup);
+        await viewModel.InstallAsync();
+
+        Assert.Equal("C:\\VRCNT-Custom", operations.ReceivedOptions!.InstallPath);
+        Assert.Equal(0, launcher.Count);
+        viewModel.LaunchCommand.Execute(null);
+        Assert.Equal("C:\\VRCNT-Custom\\VRCNT.exe", launcher.LastPath);
     }
 
     [Fact]
@@ -136,6 +163,62 @@ public sealed class InstallerViewModelTests
         Assert.Equal("{Binding ProgressHistory}", progressHistory.Attribute("ItemsSource")?.Value);
     }
 
+    [Fact]
+    public void Installer_options_expose_a_browseable_install_location_and_a_visible_completion_launch_action()
+    {
+        var xamlPath = Path.Combine(AppContext.BaseDirectory, "Views", "MainWindow.xaml");
+        var xaml = XDocument.Load(xamlPath);
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+
+        var installPath = xaml.Descendants(presentation + "TextBox").Single();
+        Assert.Equal("{Binding InstallPath, UpdateSourceTrigger=PropertyChanged}", installPath.Attribute("Text")?.Value);
+        var browse = xaml.Descendants(presentation + "Button").Single(button => button.Attribute("Command")?.Value == "{Binding BrowseInstallDirectoryCommand}");
+        Assert.Equal("{Binding BrowseInstallDirectoryText}", browse.Attribute("Content")?.Value);
+        var autoLaunch = xaml.Descendants(presentation + "CheckBox").Single(checkBox => checkBox.Attribute("IsChecked")?.Value == "{Binding LaunchAfterSetup}");
+        var switchTrigger = autoLaunch.Descendants(presentation + "DataTrigger").Single(trigger => trigger.Attribute("Binding")?.Value == "{Binding IsSwitch}" && trigger.Attribute("Value")?.Value == "True");
+        Assert.Equal("Collapsed", switchTrigger.Descendants(presentation + "Setter").Single().Attribute("Value")?.Value);
+
+        var complete = xaml.Descendants(presentation + "StackPanel").Single(panel => panel.Attribute(x + "Name")?.Value == "Complete");
+        var launch = complete.Descendants(presentation + "Button").Single();
+        Assert.Equal("{Binding LaunchVrcntText}", launch.Attribute("Content")?.Value);
+        Assert.Equal("{Binding LaunchCommand}", launch.Attribute("Command")?.Value);
+    }
+
+    [Fact]
+    public void Installer_options_keep_secondary_copy_and_the_auto_launch_checkbox_readable()
+    {
+        var appXamlPath = Path.Combine(AppContext.BaseDirectory, "App.xaml");
+        var appXaml = XDocument.Load(appXamlPath);
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+
+        var dimText = appXaml.Descendants(presentation + "SolidColorBrush").Single(brush => brush.Attribute(x + "Key")?.Value == "InstallerTextDimBrush");
+        Assert.Equal("#AEBBD0", dimText.Attribute("Color")?.Value);
+
+        var windowXamlPath = Path.Combine(AppContext.BaseDirectory, "Views", "MainWindow.xaml");
+        var windowXaml = XDocument.Load(windowXamlPath);
+        var autoLaunch = windowXaml.Descendants(presentation + "CheckBox").Single(checkBox => checkBox.Attribute("IsChecked")?.Value == "{Binding LaunchAfterSetup}");
+        var style = autoLaunch.Element(presentation + "CheckBox.Style")?.Element(presentation + "Style");
+        Assert.Equal("{StaticResource {x:Type CheckBox}}", style?.Attribute("BasedOn")?.Value);
+    }
+
+    [Fact]
+    public void Installer_pages_use_a_reduced_motion_safe_transition_style()
+    {
+        var xamlPath = Path.Combine(AppContext.BaseDirectory, "Views", "MainWindow.xaml");
+        var xaml = XDocument.Load(xamlPath);
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+
+        var transitionStyle = xaml.Descendants(presentation + "Style").Single(style => style.Attribute(x + "Key")?.Value == "InstallerPageTransitionStyle");
+        var transition = transitionStyle.Descendants(presentation + "MultiDataTrigger").Single();
+        var conditions = transition.Descendants(presentation + "Condition").ToArray();
+        Assert.Contains(conditions, condition => condition.Attribute("Binding")?.Value == "{Binding RelativeSource={RelativeSource Self}, Path=Visibility}" && condition.Attribute("Value")?.Value == "Visible");
+        Assert.Contains(conditions, condition => condition.Attribute("Binding")?.Value == "{Binding DataContext.UseReducedMotion, RelativeSource={RelativeSource Self}}" && condition.Attribute("Value")?.Value == "False");
+        Assert.Equal(2, transition.Descendants(presentation + "DoubleAnimation").Count());
+    }
+
     [Theory]
     [InlineData(RuntimeVariant.Cpu, RuntimeVariant.Cuda)]
     [InlineData(RuntimeVariant.Cuda, RuntimeVariant.Cpu)]
@@ -167,7 +250,7 @@ public sealed class InstallerViewModelTests
                 ["language_title"] = "Language", ["language_body"] = "Language body", ["runtime_title"] = "Runtime", ["runtime_body"] = "Runtime body",
                 ["cpu_title"] = "CPU", ["cpu_body"] = "CPU body", ["cpu_size"] = "1 GB", ["cpu_time"] = "5 min", ["cuda_title"] = "CUDA", ["cuda_body"] = "CUDA body", ["cuda_size"] = "2 GB", ["cuda_time"] = "10 min",
                 ["recommended"] = "Recommended", ["compatible"] = "Compatible", ["cuda_requires_nvidia"] = "Requires a compatible NVIDIA GPU", ["cuda_advisory_inconclusive"] = "CUDA is checked locally after download and before VRCNT is replaced.", ["gpu_detection_nvidia"] = "NVIDIA GPU detected.", ["gpu_detection_no_nvidia"] = "No NVIDIA GPU detected.", ["gpu_detection_inconclusive"] = "GPU detection is inconclusive.", ["cuda_advanced_warning"] = "CUDA is not verified before download.", ["cuda_advanced_override"] = "I understand and enable CUDA",
-                ["install_size"] = "Install size", ["install_time"] = "Install time", ["options_title"] = "Options", ["options_body"] = "Options body", ["launch_vrcnt"] = "Launch VRCNT", ["install"] = "Install",
+                ["install_size"] = "Install size", ["install_time"] = "Install time", ["options_title"] = "Options", ["options_body"] = "Options body", ["install_location"] = "Install location", ["browse_install_directory"] = "Browse...", ["launch_vrcnt"] = "Launch VRCNT", ["install"] = "Install",
                 ["progress_title"] = "Installing", ["progress_body"] = "Please wait", ["error_title"] = "Error", ["error_body"] = "We could not install", ["retry"] = "Retry", ["complete_title"] = "Complete", ["complete_body"] = "Done", ["close"] = "Close",
             }, StringComparer.Ordinal);
         return new InstallerViewModel(operations, options, InstallerLocalizer.FromCatalog(languages, translations), launcher, gpuAdvisoryPolicy, gpuSelectionPolicy: gpuSelectionPolicy);
@@ -197,7 +280,12 @@ public sealed class InstallerViewModelTests
     private sealed class RecordingLauncher : IApplicationLauncher
     {
         public int Count { get; private set; }
-        public void Launch(string executablePath) => Count++;
+        public string? LastPath { get; private set; }
+        public void Launch(string executablePath)
+        {
+            Count++;
+            LastPath = executablePath;
+        }
     }
 
     private sealed class FixedGpuAdvisoryPolicy(GpuAdvisory advisory) : IGpuAdvisoryPolicy

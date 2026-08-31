@@ -1330,6 +1330,8 @@ installer:
     install_time: "安装时间预估"
     options_title: "准备安装"
     options_body: "VRCNT 将通过已验证的软件包处理安装所选运行时。"
+    install_location: "安装位置"
+    browse_install_directory: "浏览..."
     launch_vrcnt: "设置完成后启动 VRCNT"
     install: "安装 VRCNT"
     progress_title: "正在安装 VRCNT"

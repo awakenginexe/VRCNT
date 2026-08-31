@@ -1331,6 +1331,8 @@ installer:
     install_time: "เวลาติดตั้งโดยประมาณ"
     options_title: "พร้อมติดตั้ง"
     options_body: "VRCNT จะติดตั้งรันไทม์ที่เลือกโดยใช้การจัดการแพ็กเกจที่ตรวจสอบแล้ว"
+    install_location: "ตำแหน่งติดตั้ง"
+    browse_install_directory: "เลือกโฟลเดอร์..."
     launch_vrcnt: "เปิด VRCNT เมื่อติดตั้งเสร็จ"
     install: "ติดตั้ง VRCNT"
     progress_title: "กำลังติดตั้ง VRCNT"

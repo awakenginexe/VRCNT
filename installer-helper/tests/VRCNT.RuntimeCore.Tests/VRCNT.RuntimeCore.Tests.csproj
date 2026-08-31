@@ -23,8 +23,10 @@
     <Compile Include="..\..\VRCNT.Setup\SetupToolLayout.cs" Link="Setup\SetupToolLayout.cs" />
     <Compile Include="..\..\VRCNT.Setup\Localization\InstallerLocalizer.cs" Link="Localization\InstallerLocalizer.cs" />
     <Compile Include="..\..\VRCNT.Setup\Views\InstallerViewModel.cs" Link="Views\InstallerViewModel.cs" />
+    <Compile Include="..\..\VRCNT.Setup\Views\IInstallDirectoryPicker.cs" Link="Views\IInstallDirectoryPicker.cs" />
     <Compile Include="..\..\VRCNT.Setup\Views\InstallerGpuAdvisory.cs" Link="Views\InstallerGpuAdvisory.cs" />
     <Compile Include="..\..\VRCNT.Setup\Views\IApplicationLauncher.cs" Link="Views\IApplicationLauncher.cs" />
+    <None Include="..\..\VRCNT.Setup\App.xaml" Link="App.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\VRCNT.Setup\Views\MainWindow.xaml" Link="Views\MainWindow.xaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

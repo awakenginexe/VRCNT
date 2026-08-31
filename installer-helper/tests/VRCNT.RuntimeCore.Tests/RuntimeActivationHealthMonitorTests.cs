@@ -32,6 +32,30 @@ public sealed class RuntimeActivationHealthMonitorTests : IDisposable
         Assert.Null(result.ErrorCode);
     }
 
+    [Fact]
+    public async Task WaitForReadyAsync_accepts_the_snake_case_proof_emitted_by_the_python_backend()
+    {
+        var request = Request();
+        var monitor = new NamedPipeRuntimeActivationHealthMonitor(TimeSpan.FromSeconds(2), _ => StagedBackendPath());
+        var waiting = monitor.WaitForReadyAsync(_installPath, Identity, request, default);
+        var proof = JsonSerializer.Serialize(new
+        {
+            protocol_version = 1,
+            status = "ready",
+            token = request.SingleUseToken,
+            nonce = request.Nonce,
+            backend_pid = Environment.ProcessId,
+            app_version = "5.15.0",
+            runtime_variant = "cpu",
+        });
+
+        await SendPayloadAsync(request, proof + "\n");
+
+        var result = await waiting;
+        Assert.True(result.Ready);
+        Assert.Null(result.ErrorCode);
+    }
+
     [Theory]
     [InlineData("wrong-token", "nonce", 0, "5.15.0", "cpu", "activation_invalid_proof_token")]
     [InlineData("token", "wrong-nonce", 0, "5.15.0", "cpu", "activation_invalid_proof_nonce")]

@@ -1330,6 +1330,8 @@ installer:
     install_time: "Install estimate"
     options_title: "Ready to install"
     options_body: "VRCNT will install the selected runtime with verified package handling."
+    install_location: "Install location"
+    browse_install_directory: "Browse..."
     launch_vrcnt: "Launch VRCNT when setup finishes"
     install: "Install VRCNT"
     progress_title: "Installing VRCNT"

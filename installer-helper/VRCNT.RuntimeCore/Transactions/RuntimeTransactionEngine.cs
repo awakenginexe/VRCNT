@@ -17,7 +17,7 @@ public sealed record RuntimeReplacementRequest(
     IReadOnlyList<string> ArchiveParts,
     long InstalledSize,
     RuntimeIdentity ExpectedIdentity,
-    ActivationRequest Activation,
+    ActivationRequest? Activation,
     bool ForceCloseConfirmed,
     RuntimeShutdownHandoff? ShutdownHandoff = null);
 
@@ -162,13 +162,15 @@ public sealed class RuntimeTransactionEngine(
             quiesced = true;
             if (cancellationToken.IsCancellationRequested)
             {
-                await processCoordinator.RelaunchActiveRuntimeAsync(CancellationToken.None);
+                if (request.ShutdownHandoff is not null)
+                    await processCoordinator.RelaunchActiveRuntimeAsync(CancellationToken.None);
                 DeleteTransaction(paths.TransactionRoot);
                 return Fail("cancelled", "Cancellation was applied before runtime replacement.");
             }
             if (!await processCoordinator.AreKnownProcessesStoppedAsync(CancellationToken.None))
             {
-                await processCoordinator.RelaunchActiveRuntimeAsync(CancellationToken.None);
+                if (request.ShutdownHandoff is not null)
+                    await processCoordinator.RelaunchActiveRuntimeAsync(CancellationToken.None);
                 DeleteTransaction(paths.TransactionRoot);
                 return Fail("processes_running", "A VRCNT process restarted before the runtime could be replaced.");
             }
@@ -184,22 +186,23 @@ public sealed class RuntimeTransactionEngine(
                 journal = journal with { ActiveRuntimeMoved = true };
                 journalStore.WriteAtomic(paths.JournalPath, journal);
             }
-            if (cancellationToken.IsCancellationRequested) return await CancelAfterDestructiveStepAsync(paths, journal, request.InstallPath, processCoordinator);
+            if (cancellationToken.IsCancellationRequested) return await CancelAfterDestructiveStepAsync(paths, journal, request.InstallPath, processCoordinator, ShouldRelaunchOnRollback(request, quiesced));
             if (!await processCoordinator.AreKnownProcessesStoppedAsync(CancellationToken.None))
-                return await RollbackAfterDestructiveStepAsync(paths, journal, request.InstallPath, processCoordinator, "processes_running", "A VRCNT process restarted during runtime replacement.");
+                return await RollbackAfterDestructiveStepAsync(paths, journal, request.InstallPath, processCoordinator, ShouldRelaunchOnRollback(request, quiesced), "processes_running", "A VRCNT process restarted during runtime replacement.");
             journal = journal with { StagedMoveIntent = true };
             journalStore.WriteAtomic(paths.JournalPath, journal);
             directoryMover.Move(paths.StagingPath, request.InstallPath);
             journal = journal with { StagedRuntimeMoved = true };
             journalStore.WriteAtomic(paths.JournalPath, journal);
             if (cancellationToken.IsCancellationRequested)
-                return await CancelAfterDestructiveStepAsync(paths, journal, request.InstallPath, processCoordinator);
+                return await CancelAfterDestructiveStepAsync(paths, journal, request.InstallPath, processCoordinator, ShouldRelaunchOnRollback(request, quiesced));
 
-            journal = journal with { Phase = TransactionPhase.Activate };
-            journalStore.WriteAtomic(paths.JournalPath, journal);
-            Report(progress, TransactionPhase.Activate, "Waiting for Tauri and backend activation health.");
-            using (var activationLifetime = new CancellationTokenSource())
+            if (request.Activation is not null)
             {
+                journal = journal with { Phase = TransactionPhase.Activate };
+                journalStore.WriteAtomic(paths.JournalPath, journal);
+                Report(progress, TransactionPhase.Activate, "Waiting for Tauri and backend activation health.");
+                using var activationLifetime = new CancellationTokenSource();
                 // Calling the monitor creates the pipe before the fast backend can attempt its one proof.
                 var healthTask = activationHealthMonitor.WaitForReadyAsync(request.InstallPath, request.ExpectedIdentity, request.Activation, activationLifetime.Token);
                 try
@@ -235,8 +238,7 @@ public sealed class RuntimeTransactionEngine(
         catch (Exception exception)
         {
             if (paths is null || journal is null) return Fail(Classify(exception), exception.Message);
-            var shutdownAcknowledged = ShutdownWasAcknowledged(request.ShutdownHandoff);
-            var rollback = await RollbackAsync(paths, journal, request.InstallPath, processCoordinator, quiesced || shutdownAcknowledged);
+            var rollback = await RollbackAsync(paths, journal, request.InstallPath, processCoordinator, ShouldRelaunchOnRollback(request, quiesced));
             return new RuntimeOperationResult(false, rollback, !rollback, Classify(exception), exception.Message);
         }
     }
@@ -277,16 +279,19 @@ public sealed class RuntimeTransactionEngine(
         catch (Exception exception) { return Task.FromResult(new RuntimeOperationResult(false, false, true, "recovery_required", exception.Message)); }
     }
 
-    private async Task<RuntimeOperationResult> CancelAfterDestructiveStepAsync(RuntimeTransactionPaths paths, RuntimeTransactionJournal journal, string targetPath, IRuntimeProcessCoordinator coordinator)
-        => await RollbackAfterDestructiveStepAsync(paths, journal, targetPath, coordinator, "cancelled", "Cancellation was applied after runtime replacement began.");
+    private async Task<RuntimeOperationResult> CancelAfterDestructiveStepAsync(RuntimeTransactionPaths paths, RuntimeTransactionJournal journal, string targetPath, IRuntimeProcessCoordinator coordinator, bool relaunchOnRollback)
+        => await RollbackAfterDestructiveStepAsync(paths, journal, targetPath, coordinator, relaunchOnRollback, "cancelled", "Cancellation was applied after runtime replacement began.");
 
-    private async Task<RuntimeOperationResult> RollbackAfterDestructiveStepAsync(RuntimeTransactionPaths paths, RuntimeTransactionJournal journal, string targetPath, IRuntimeProcessCoordinator coordinator, string errorCode, string errorMessage)
+    private async Task<RuntimeOperationResult> RollbackAfterDestructiveStepAsync(RuntimeTransactionPaths paths, RuntimeTransactionJournal journal, string targetPath, IRuntimeProcessCoordinator coordinator, bool relaunchOnRollback, string errorCode, string errorMessage)
     {
-        var rollback = await RollbackAsync(paths, journal, targetPath, coordinator, true);
+        var rollback = await RollbackAsync(paths, journal, targetPath, coordinator, relaunchOnRollback);
         return new RuntimeOperationResult(false, rollback, !rollback, errorCode, errorMessage);
     }
 
-    private async Task<bool> RollbackAsync(RuntimeTransactionPaths paths, RuntimeTransactionJournal journal, string targetPath, IRuntimeProcessCoordinator coordinator, bool quiesced)
+    private static bool ShouldRelaunchOnRollback(RuntimeReplacementRequest request, bool quiesced)
+        => request.ShutdownHandoff is not null && (quiesced || ShutdownWasAcknowledged(request.ShutdownHandoff));
+
+    private async Task<bool> RollbackAsync(RuntimeTransactionPaths paths, RuntimeTransactionJournal journal, string targetPath, IRuntimeProcessCoordinator coordinator, bool relaunchOnRollback)
     {
         try
         {
@@ -303,7 +308,7 @@ public sealed class RuntimeTransactionEngine(
                 directoryMover.Move(paths.BackupPath, targetPath);
             }
             else if (journal.StagedMoveIntent && Directory.Exists(targetPath)) Directory.Delete(targetPath, true);
-            if (quiesced) await coordinator.RelaunchActiveRuntimeAsync(CancellationToken.None);
+            if (relaunchOnRollback) await coordinator.RelaunchActiveRuntimeAsync(CancellationToken.None);
             DeleteTransaction(paths.TransactionRoot);
             return true;
         }

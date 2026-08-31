@@ -1330,6 +1330,8 @@ installer:
     install_time: "예상 설치 시간"
     options_title: "설치 준비 완료"
     options_body: "검증된 패키지 처리로 선택한 런타임을 VRCNT에 설치합니다."
+    install_location: "설치 위치"
+    browse_install_directory: "찾아보기..."
     launch_vrcnt: "설치가 끝나면 VRCNT 실행"
     install: "VRCNT 설치"
     progress_title: "VRCNT 설치 중"

@@ -72,7 +72,7 @@ public sealed class EndToEndTransactionTests : IDisposable
     }
 
     [Fact]
-    public async Task Failed_activation_restores_the_old_runtime_and_keeps_user_data()
+    public async Task Failed_standalone_activation_restores_the_old_runtime_without_relaunching_it()
     {
         var request = CreateRequest("activation-failure", RuntimeVariant.Cuda);
         WriteExistingRuntime(request.InstallPath, RuntimeVariant.Cpu);
@@ -88,7 +88,7 @@ public sealed class EndToEndTransactionTests : IDisposable
         Assert.True(result.RolledBack);
         Assert.Equal("old-cpu", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
         Assert.Equal("presets", File.ReadAllText(userData));
-        Assert.True(processes.RelaunchCalled);
+        Assert.False(processes.RelaunchCalled);
         Assert.Null(state.ActiveIdentity);
     }
 
@@ -114,7 +114,7 @@ public sealed class EndToEndTransactionTests : IDisposable
     }
 
     [Fact]
-    public async Task Cancellation_after_replacement_rolls_back_and_relaunches_the_old_runtime()
+    public async Task Cancellation_after_standalone_replacement_rolls_back_without_relaunching_the_old_runtime()
     {
         using var cancellation = new CancellationTokenSource();
         var request = CreateRequest("cancel-replace", RuntimeVariant.Cuda);
@@ -133,7 +133,7 @@ public sealed class EndToEndTransactionTests : IDisposable
         Assert.True(result.RolledBack);
         Assert.Equal("cancelled", result.ErrorCode);
         Assert.Equal("old-cpu", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
-        Assert.True(processes.RelaunchCalled);
+        Assert.False(processes.RelaunchCalled);
     }
 
     [Fact]

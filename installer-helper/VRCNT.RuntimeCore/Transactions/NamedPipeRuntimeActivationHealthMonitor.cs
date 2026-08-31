@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Win32.SafeHandles;
 using VRCNT.RuntimeCore.Models;
 using VRCNT.RuntimeCore.Process;
@@ -11,12 +12,19 @@ namespace VRCNT.RuntimeCore.Transactions;
 
 /// <summary>One local, single-use proof emitted by the activation backend after readiness succeeds.</summary>
 public sealed record RuntimeActivationProof(
+    [property: JsonPropertyName("protocol_version")]
     int ProtocolVersion,
+    [property: JsonPropertyName("status")]
     string Status,
+    [property: JsonPropertyName("token")]
     string Token,
+    [property: JsonPropertyName("nonce")]
     string Nonce,
+    [property: JsonPropertyName("backend_pid")]
     int BackendPid,
+    [property: JsonPropertyName("app_version")]
     string AppVersion,
+    [property: JsonPropertyName("runtime_variant")]
     string RuntimeVariant);
 
 /// <summary>

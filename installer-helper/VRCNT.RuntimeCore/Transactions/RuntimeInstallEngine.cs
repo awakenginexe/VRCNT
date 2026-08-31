@@ -102,7 +102,9 @@ public sealed class RuntimeInstallEngine : IRuntimeTransactionEngine
             package.Parts.Select(part => Path.Combine(packageDirectory, part.Name)).ToArray(),
             package.InstalledSize,
             package.Identity,
-            new ActivationRequest($"vrcnt-activation-{Convert.ToHexString(RandomNumberGenerator.GetBytes(16))}", Convert.ToHexString(RandomNumberGenerator.GetBytes(32)), Convert.ToHexString(RandomNumberGenerator.GetBytes(32))),
+            request.ShutdownHandoff is null
+                ? null
+                : new ActivationRequest($"vrcnt-activation-{Convert.ToHexString(RandomNumberGenerator.GetBytes(16))}", Convert.ToHexString(RandomNumberGenerator.GetBytes(32)), Convert.ToHexString(RandomNumberGenerator.GetBytes(32))),
             request.ForceCloseConfirmed,
             request.ShutdownHandoff);
         return await engine.ExecuteAsync(replacement, progress, cancellationToken);
