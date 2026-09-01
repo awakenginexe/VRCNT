@@ -1840,7 +1840,10 @@ pub fn stage_manager_signature_for_verification(
     signature: &str,
 ) -> Result<PathBuf, String> {
     let signature_path = check_directory.join("manager.minisig");
-    fs::write(&signature_path, signature.as_bytes())
+    let signature = BASE64
+        .decode(signature.trim().trim_start_matches('\u{feff}'))
+        .map_err(|_| "The setup manager signature is malformed. Run Setup recovery and try again.".to_owned())?;
+    fs::write(&signature_path, signature)
         .map_err(|_| "The setup manager signature could not be staged.".to_owned())?;
     Ok(signature_path)
 }
@@ -2059,6 +2062,18 @@ mod retry_clear_tests {
     use std::sync::{Arc, Barrier};
     use std::thread;
     use tempfile::tempdir;
+
+    #[test]
+    fn stages_encoded_manager_signature_as_minisign_bytes() {
+        let temporary = tempdir().unwrap();
+        let expected = b"untrusted comment: signature from test\nRWTestSignature\n";
+        let encoded = BASE64.encode(expected);
+
+        let signature_path =
+            stage_manager_signature_for_verification(temporary.path(), &encoded).unwrap();
+
+        assert_eq!(fs::read(signature_path).unwrap(), expected);
+    }
 
     #[test]
     fn signed_schema_two_manager_state_reaches_signature_validation() {
