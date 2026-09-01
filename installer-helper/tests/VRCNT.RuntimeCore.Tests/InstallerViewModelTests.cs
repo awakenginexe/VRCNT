@@ -251,6 +251,24 @@ public sealed class InstallerViewModelTests
         Assert.Equal(1, launcher.Count);
     }
 
+    [Fact]
+    public async Task Switch_mode_begins_installation_without_a_manual_install_command()
+    {
+        var operations = new DeferredProgressOperations();
+        var options = SetupCommandLine.Parse(["--switch", "--variant", "cpu", "--install-path", "C:\\VRCNT"]);
+        var viewModel = CreateViewModel(operations, options, new FixedGpuSelectionPolicy(RuntimeVariant.Cuda));
+
+        var installation = viewModel.BeginSwitchAsync();
+        await operations.ProgressReported.Task;
+
+        Assert.Equal(InstallerPage.Progress, viewModel.CurrentPage);
+        Assert.True(operations.ReceivedOptions!.IsSwitch);
+        Assert.Equal(RuntimeVariant.Cpu, operations.ReceivedOptions.TargetVariant);
+
+        operations.Fail(new InvalidOperationException("Test runtime switch completion."));
+        await installation;
+    }
+
     private static InstallerViewModel CreateViewModel(DeferredProgressOperations operations, IApplicationLauncher? launcher = null, IGpuAdvisoryPolicy? gpuAdvisoryPolicy = null)
         => CreateViewModel(operations, new SetupCommandLineOptions(false, false, false, false, false, RuntimeVariant.Cpu, "C:\\VRCNT", null, [], "en"), new FixedGpuSelectionPolicy(RuntimeVariant.Cpu), launcher, gpuAdvisoryPolicy);
 

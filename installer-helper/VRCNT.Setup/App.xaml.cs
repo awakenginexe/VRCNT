@@ -28,6 +28,7 @@ public partial class App : Application
             var viewModel = new InstallerViewModel(operations, options, InstallerLocalizer.FromEmbedded(), useReducedMotion: !SystemParameters.ClientAreaAnimation, installDirectoryPicker: new InstallDirectoryPicker());
             MainWindow = new MainWindow(viewModel);
             MainWindow.Show();
+            if (options.IsSwitch) await viewModel.BeginSwitchAsync();
         }
         catch (ArgumentException exception)
         {

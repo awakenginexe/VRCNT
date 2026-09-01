@@ -96,6 +96,9 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     public ICommand BrowseInstallDirectoryCommand { get; }
 
     public IReadOnlyList<InstallerLanguage> Languages => _localizer.Languages;
+
+    public Task BeginSwitchAsync() => IsSwitch ? InstallAsync() : Task.CompletedTask;
+
     public InstallerPage CurrentPage
     {
         get => _currentPage;
