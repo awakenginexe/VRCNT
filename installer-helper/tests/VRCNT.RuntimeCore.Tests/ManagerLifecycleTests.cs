@@ -16,9 +16,17 @@ public sealed class ManagerLifecycleTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), "vrcnt-manager", Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public void Current_capabilities_are_embedded_for_the_5_15_manager_contract()
+    public void Current_capabilities_accept_the_signed_schema_two_manager_contract()
     {
-        Assert.Equal(new ManagerCapabilities("5.15.0", 1, 1, 1, 1), ManagerCapabilities.Current);
+        var manifest = new PackageManifest(
+            2,
+            "VRCNT",
+            "5.15.0",
+            "x64",
+            new BootstrapperMetadata("VRCNT_5.15.0_Setup.exe", 1, new string('a', 64), 1, 2, 1, 1),
+            new Dictionary<string, VariantPackage>());
+
+        Assert.True(ManagerCapabilities.Current.IsCompatibleWith(manifest));
     }
 
     [Fact]
@@ -27,7 +35,7 @@ public sealed class ManagerLifecycleTests : IDisposable
         var managerPath = WriteFile(Path.Combine("VRCNTInstaller", "VRCNT.Setup.exe"), "known-manageR");
         var manifest = CreateManifest(managerBytes: "known-manager");
         var stateStore = CreateStateStore(managerPath);
-        stateStore.Write(new ManagerState(managerPath, Hash("known-manager"), "5.15.0", 1, 1, 1, 1, true, null, DateTimeOffset.UtcNow));
+        stateStore.Write(new ManagerState(managerPath, Hash("known-manager"), "5.15.0", 1, 2, 1, 1, true, null, DateTimeOffset.UtcNow));
 
         var result = await CreateLifecycle(managerPath, manifest, stateStore).CheckAsync(default);
 
@@ -71,7 +79,7 @@ public sealed class ManagerLifecycleTests : IDisposable
             Bootstrapper = CreateManifest().Bootstrapper with { RuntimeStateSchema = 2 },
         };
         var stateStore = CreateStateStore(managerPath);
-        stateStore.Write(new ManagerState(managerPath, Hash("known-manager"), "5.15.0", 1, 1, 2, 1, true, null, DateTimeOffset.UtcNow));
+        stateStore.Write(new ManagerState(managerPath, Hash("known-manager"), "5.15.0", 1, 2, 2, 1, true, null, DateTimeOffset.UtcNow));
 
         var result = await CreateLifecycle(managerPath, manifest, stateStore).CheckAsync(default);
 
@@ -88,7 +96,7 @@ public sealed class ManagerLifecycleTests : IDisposable
         WriteFile(Path.Combine("VRCNTInstaller", "repair", "VRCNT.Setup.exe.sig"), "signature");
         var manifest = CreateManifest(managerBytes: "new-manager");
         var stateStore = CreateStateStore(managerPath);
-        stateStore.Write(new ManagerState(managerPath, Hash("old-manager"), "5.15.0", 1, 1, 1, 1, true, null, DateTimeOffset.UtcNow));
+        stateStore.Write(new ManagerState(managerPath, Hash("old-manager"), "5.15.0", 1, 2, 1, 1, true, null, DateTimeOffset.UtcNow));
         var handoff = new ManagerHandoff(
             managerPath,
             (_, _) => Task.FromResult(new ManagerSelfCheckResult(true, true, null)),
@@ -115,7 +123,7 @@ public sealed class ManagerLifecycleTests : IDisposable
         WriteFile(Path.Combine("VRCNTInstaller", "repair", "VRCNT.Setup.exe.sig"), "signature");
         var manifest = CreateManifest(managerBytes: failure == "hash" ? "new-manageR" : "new-manager");
         var stateStore = CreateStateStore(managerPath);
-        stateStore.Write(new ManagerState(managerPath, Hash("old-manager"), "5.15.0", 1, 1, 1, 1, true, null, DateTimeOffset.UtcNow));
+        stateStore.Write(new ManagerState(managerPath, Hash("old-manager"), "5.15.0", 1, 2, 1, 1, true, null, DateTimeOffset.UtcNow));
         var verifier = new FixedSignatureVerifier(failure != "signature");
         var lifecycle = CreateLifecycle(managerPath, manifest, stateStore, new FixedRepairSource(candidatePath), handoff: null, verifier);
 
@@ -614,7 +622,7 @@ public sealed class ManagerLifecycleTests : IDisposable
         var signaturePath = WriteFile(Path.Combine("incoming", "VRCNT.Setup.exe.sig"), "untrusted comment: signature from minisign secret key\nRWQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\ntrusted comment: timestamp: 1787932800\nRUTAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n");
         var store = CreateStateStore(managerPath);
 
-        store.WriteAuthenticated(new ManagerState(managerPath, Hash("manager"), "5.15.0", 1, 1, 1, 1, true, null, DateTimeOffset.UtcNow), signaturePath);
+        store.WriteAuthenticated(new ManagerState(managerPath, Hash("manager"), "5.15.0", 1, 2, 1, 1, true, null, DateTimeOffset.UtcNow), signaturePath);
 
         Assert.Equal(File.ReadAllText(signaturePath), store.ReadSignature());
         Assert.Equal("5.15.0", store.Read()!.Version);
@@ -674,7 +682,7 @@ public sealed class ManagerLifecycleTests : IDisposable
 
     private static PackageManifest CreateManifest(string managerBytes = "known-manager") =>
         new(
-            1,
+            2,
             "VRCNT",
             "5.15.0",
             "x64",
@@ -683,7 +691,7 @@ public sealed class ManagerLifecycleTests : IDisposable
                 Encoding.UTF8.GetByteCount(managerBytes),
                 Hash(managerBytes),
                 1,
-                1,
+                2,
                 1,
                 1),
             new Dictionary<string, VariantPackage>());
@@ -693,7 +701,7 @@ public sealed class ManagerLifecycleTests : IDisposable
     private static Task PromoteCandidateAsync(ManagerHandoff handoff, string candidatePath) => handoff.PromoteAsync(
         new VerifiedManagerArtifact(
             candidatePath,
-            new BootstrapperMetadata("VRCNT.Setup.exe", Encoding.UTF8.GetByteCount("new-manager"), Hash("new-manager"), 1, 1, 1, 1),
+            new BootstrapperMetadata("VRCNT.Setup.exe", Encoding.UTF8.GetByteCount("new-manager"), Hash("new-manager"), 1, 2, 1, 1),
             candidatePath + ".sig",
             new ManagerSelfCheck(ManagerCapabilities.Current, new FixedSignatureVerifier(true))),
         default);

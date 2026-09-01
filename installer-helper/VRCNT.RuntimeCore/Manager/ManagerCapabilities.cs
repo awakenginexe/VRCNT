@@ -9,7 +9,7 @@ public sealed record ManagerCapabilities(
     int RuntimeStateSchema,
     int ActivationProtocol)
 {
-    public static ManagerCapabilities Current { get; } = new("5.15.0", 1, 1, 1, 1);
+    public static ManagerCapabilities Current { get; } = new("5.15.0", 1, 2, 1, 1);
 
     public bool IsCompatibleWith(PackageManifest manifest) =>
         manifest.Schema == ManifestSchema &&
