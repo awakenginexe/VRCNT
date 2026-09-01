@@ -22,6 +22,22 @@ public sealed class RuntimeStateTests : IDisposable
         Assert.Empty(Directory.EnumerateFiles(_root, "runtime.json.*.tmp", SearchOption.TopDirectoryOnly));
     }
 
+    [Fact]
+    public void WriteAtomic_uses_the_shared_camel_case_runtime_state_contract()
+    {
+        new RuntimeStateStore().WriteAtomic(_root, CreateState(Path.Combine(_root, "runtime")));
+
+        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(_root, "runtime.json")));
+        var state = document.RootElement;
+
+        Assert.True(state.TryGetProperty("schema", out _));
+        Assert.True(state.TryGetProperty("installPath", out _));
+        Assert.True(state.TryGetProperty("markerBuildIdentity", out _));
+        Assert.True(state.TryGetProperty("markerSha256", out _));
+        Assert.True(state.TryGetProperty("updatedAtUtc", out _));
+        Assert.False(state.TryGetProperty("Schema", out _));
+    }
+
     [Theory]
     [InlineData(RuntimeStateStatus.Active, RuntimeStateStatus.Active)]
     [InlineData(RuntimeStateStatus.Activating, RuntimeStateStatus.Recovery)]

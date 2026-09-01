@@ -61,6 +61,35 @@ fn only_a_physically_valid_active_runtime_is_exposed_to_the_frontend() {
 }
 
 #[test]
+fn legacy_pascal_case_runtime_state_is_exposed_to_the_frontend() {
+    let temporary = tempdir().unwrap();
+    let data_root = temporary.path().join("VRCNTData");
+    let install_path = temporary.path().join("VRCNT");
+    write_active_runtime(&data_root, &install_path);
+
+    let state: serde_json::Value =
+        serde_json::from_slice(&fs::read(data_root.join("runtime.json")).unwrap()).unwrap();
+    let legacy_state = serde_json::json!({
+        "Schema": state["schema"],
+        "Status": state["status"],
+        "Product": state["product"],
+        "Version": state["version"],
+        "Variant": state["variant"],
+        "Architecture": state["architecture"],
+        "InstallPath": state["installPath"],
+        "MarkerBuildIdentity": state["markerBuildIdentity"],
+        "MarkerSha256": state["markerSha256"],
+        "UpdatedAtUtc": state["updatedAtUtc"],
+    });
+    fs::write(data_root.join("runtime.json"), serde_json::to_vec(&legacy_state).unwrap()).unwrap();
+
+    assert_eq!(
+        read_runtime_state_from_data_root(&data_root).unwrap().status,
+        "active"
+    );
+}
+
+#[test]
 fn runtime_switch_variants_are_a_closed_cpu_cuda_set() {
     assert_eq!(RuntimeVariant::parse("cpu").unwrap(), RuntimeVariant::Cpu);
     assert_eq!(RuntimeVariant::parse("cuda").unwrap(), RuntimeVariant::Cuda);

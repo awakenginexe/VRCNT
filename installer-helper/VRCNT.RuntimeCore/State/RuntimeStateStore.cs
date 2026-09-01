@@ -12,7 +12,12 @@ public interface IRuntimeStateStore
 public sealed class RuntimeStateStore : IRuntimeStateStore
 {
     private const string StateFileName = "runtime.json";
-    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true, WriteIndented = true };
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true,
+    };
 
     public RuntimeState Read(string dataRoot)
     {

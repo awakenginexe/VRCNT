@@ -326,15 +326,25 @@ impl RuntimeVariant {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RuntimeStateRecord {
+    #[serde(alias = "Schema")]
     schema: u32,
+    #[serde(alias = "Status")]
     status: String,
+    #[serde(alias = "Product")]
     product: String,
+    #[serde(alias = "Version")]
     version: String,
+    #[serde(alias = "Variant")]
     variant: String,
+    #[serde(alias = "Architecture")]
     architecture: String,
+    #[serde(alias = "InstallPath")]
     install_path: String,
+    #[serde(alias = "MarkerBuildIdentity")]
     marker_build_identity: String,
+    #[serde(alias = "MarkerSha256")]
     marker_sha256: String,
+    #[serde(alias = "UpdatedAtUtc")]
     updated_at_utc: String,
 }
 

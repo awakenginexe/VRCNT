@@ -12,7 +12,7 @@ except ImportError:
 
 
 class AptabaseWrapper:
-    APP_KEY = "A-US-6044063021"
+    APP_KEY = "A-EU-1797028245"
     
     def __init__(self):
         self.client = None
