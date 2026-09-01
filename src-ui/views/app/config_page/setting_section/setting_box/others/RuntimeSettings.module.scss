@@ -61,6 +61,11 @@
     p { color: var(--dark_450_color); font-size: 1.35rem; line-height: 1.55; }
 }
 
+:global(html:not(.performance_mode)) .confirmation {
+    background: color-mix(in srgb, var(--canvas_color) 94%, var(--palette_surface_2_color));
+    backdrop-filter: blur(1.2rem) saturate(1.15);
+}
+
 .confirmation_actions {
     display: flex;
     justify-content: end;

@@ -22,6 +22,7 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
     private readonly string _managerPath;
     private readonly Func<string, UserDataPaths> _resolveUserDataPaths;
     private readonly IActiveRuntimeLocator _activeRuntimeLocator;
+    private readonly Action _ensureManagerTools;
 
     public SetupCommandOperations(
         IRuntimeTransactionEngine runtimeEngine,
@@ -30,7 +31,8 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
         string? managerDirectory = null,
         string? managerPath = null,
         Func<string, UserDataPaths>? resolveUserDataPaths = null,
-        IActiveRuntimeLocator? activeRuntimeLocator = null)
+        IActiveRuntimeLocator? activeRuntimeLocator = null,
+        Action? ensureManagerTools = null)
     {
         _runtimeEngine = runtimeEngine ?? throw new ArgumentNullException(nameof(runtimeEngine));
         _managerLifecycle = managerLifecycle ?? throw new ArgumentNullException(nameof(managerLifecycle));
@@ -39,6 +41,7 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
         _managerPath = Path.GetFullPath(managerPath ?? Path.Combine(_managerDirectory, "VRCNT.Setup.exe"));
         _resolveUserDataPaths = resolveUserDataPaths ?? new UserDataPathResolver().Resolve;
         _activeRuntimeLocator = activeRuntimeLocator ?? new ActiveRuntimeLocator();
+        _ensureManagerTools = ensureManagerTools ?? (() => { });
     }
 
     public static SetupCommandOperations CreateProduction(ManagerCapabilities capabilities)
@@ -64,7 +67,8 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
             new SetupManagerLifecycle(managerPath, null, selfCheck, new ManagerStateStore(localAppData, capabilities, managerPath), source, handoff),
             new Uri(ReleaseEndpoint + "latest/download/latest.json"),
             managerDirectory,
-            managerPath);
+            managerPath,
+            ensureManagerTools: () => SetupToolLayout.CopyToWorker(tools, managerDirectory));
     }
 
     public async Task ExecuteRuntimeAsync(SetupCommandLineOptions options, IProgress<InstallProgress>? progress, CancellationToken cancellationToken)
@@ -121,6 +125,15 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
                 }
                 throw new InvalidOperationException(result.ErrorMessage ?? result.ErrorCode ?? "Runtime installation failed.");
             }
+            if (!options.IsSwitch)
+            {
+                var currentSetupPath = ResolveCurrentSetupPath();
+                if (!string.Equals(currentSetupPath, _managerPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    await _managerLifecycle.PromoteAsync(currentSetupPath, cancellationToken);
+                    _ensureManagerTools();
+                }
+            }
             statusStore?.WriteTerminal("succeeded", targetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu", shutdownHandoff!, null, null);
             terminalStatusWritten = statusStore is not null;
             if (initializeLanguage && !File.Exists(configPath)) WriteInitialLanguageIfAbsent(configPath, options.InstallerLanguage!);
@@ -142,6 +155,13 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
             }
             throw;
         }
+    }
+
+    private static string ResolveCurrentSetupPath()
+    {
+        var currentPath = Process.GetCurrentProcess().MainModule?.FileName;
+        if (string.IsNullOrWhiteSpace(currentPath)) throw new InvalidOperationException("The setup manager executable path is unavailable.");
+        return Path.GetFullPath(currentPath);
     }
 
     public async Task ExecuteRepairManagerAsync(SetupCommandLineOptions options, CancellationToken cancellationToken)

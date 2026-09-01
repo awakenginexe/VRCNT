@@ -241,6 +241,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     public string OptionsBody => T("options_body");
     public string InstallLocationLabel => T("install_location");
     public string BrowseInstallDirectoryText => T("browse_install_directory");
+    public string LaunchAfterSetupText => T("launch_after_setup");
     public string LaunchVrcntText => T("launch_vrcnt");
     public string InstallText => T("install");
     public string ProgressTitle => T("progress_title");
@@ -318,6 +319,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         if (!force && !LaunchAfterSetup) return;
         var executable = Path.Combine(InstallPath, "VRCNT.exe");
         _applicationLauncher.Launch(executable);
+        if (force) CloseRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void ReportProgress(InstallProgress progress)
@@ -353,7 +355,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
             nameof(LanguageTitle), nameof(LanguageBody), nameof(RuntimeTitle), nameof(RuntimeBody), nameof(ConfirmedTargetText), nameof(CpuTitle),
             nameof(CpuBody), nameof(CpuSize), nameof(CpuTime), nameof(CudaTitle), nameof(CudaBody), nameof(CudaSize),
             nameof(CudaTime), nameof(CpuStatus), nameof(CudaStatus), nameof(CudaAdvisory), nameof(GpuDetectionState), nameof(AdvancedCudaWarning), nameof(EnableAdvancedCudaOverrideText), nameof(IsCudaNormallyAvailable), nameof(RequiresAdvancedCudaOverride), nameof(AdvancedCudaOverrideEnabled), nameof(CanSelectCuda), nameof(SelectedRuntimeTitle), nameof(SelectedRuntimeSize), nameof(SelectedRuntimeTime), nameof(CurrentPageTitle), nameof(InstallSizeLabel), nameof(InstallTimeLabel),
-            nameof(OptionsTitle), nameof(OptionsBody), nameof(LaunchVrcntText), nameof(InstallText), nameof(ProgressTitle), nameof(CanChangeRuntimeSelection), nameof(CanSelectCudaRadio),
+            nameof(OptionsTitle), nameof(OptionsBody), nameof(LaunchAfterSetupText), nameof(LaunchVrcntText), nameof(InstallText), nameof(ProgressTitle), nameof(CanChangeRuntimeSelection), nameof(CanSelectCudaRadio),
             nameof(InstallLocationLabel), nameof(BrowseInstallDirectoryText), nameof(ProgressBody), nameof(ErrorTitle), nameof(ErrorBody), nameof(RetryText), nameof(CompleteTitle),
             nameof(CompleteBody), nameof(CloseText),
         }) OnPropertyChanged(property);

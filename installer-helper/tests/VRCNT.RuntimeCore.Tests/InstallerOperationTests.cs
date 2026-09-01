@@ -48,6 +48,56 @@ public sealed class InstallerOperationTests : IDisposable
     }
 
     [Fact]
+    public async Task Execute_runtime_registers_a_trusted_manager_after_a_successful_non_switch_install()
+    {
+        var dataRoot = Path.Combine(_root, "VRCNTData");
+        var managerReadyPath = Path.Combine(_root, "manager-ready");
+        var operations = CreateOperations(new RecordingRuntimeEngine(), dataRoot, new ManagerRegistrationLifecycle(managerReadyPath));
+        var options = new SetupCommandLineOptions(false, false, false, false, false, RuntimeVariant.Cpu, Path.Combine(_root, "VRCNT"), null, [], "en");
+
+        await operations.ExecuteRuntimeAsync(options, null, default);
+
+        Assert.True(File.Exists(managerReadyPath));
+    }
+
+    [Fact]
+    public async Task Execute_runtime_from_the_stable_manager_does_not_replace_its_own_running_image()
+    {
+        var dataRoot = Path.Combine(_root, "VRCNTData");
+        var managerReadyPath = Path.Combine(_root, "manager-ready");
+        var runningSetupPath = System.Diagnostics.Process.GetCurrentProcess().MainModule!.FileName!;
+        var operations = CreateOperations(
+            new RecordingRuntimeEngine(),
+            dataRoot,
+            new ManagerRegistrationLifecycle(managerReadyPath),
+            runningSetupPath);
+        var options = new SetupCommandLineOptions(true, true, false, false, false, RuntimeVariant.Cpu, Path.Combine(_root, "VRCNT"), null, [], "en");
+
+        await operations.ExecuteRuntimeAsync(options, null, default);
+
+        Assert.False(File.Exists(managerReadyPath));
+    }
+
+    [Fact]
+    public async Task Execute_runtime_provides_the_authenticated_verifier_beside_a_newly_promoted_manager()
+    {
+        var dataRoot = Path.Combine(_root, "VRCNTData");
+        var managerReadyPath = Path.Combine(_root, "manager-ready");
+        var verifierReady = false;
+        var operations = CreateOperations(
+            new RecordingRuntimeEngine(),
+            dataRoot,
+            new ManagerRegistrationLifecycle(managerReadyPath),
+            ensureManagerTools: () => verifierReady = true);
+        var options = new SetupCommandLineOptions(false, false, false, false, false, RuntimeVariant.Cpu, Path.Combine(_root, "VRCNT"), null, [], "en");
+
+        await operations.ExecuteRuntimeAsync(options, null, default);
+
+        Assert.True(File.Exists(managerReadyPath));
+        Assert.True(verifierReady);
+    }
+
+    [Fact]
     public async Task Execute_runtime_update_uses_the_validated_custom_runtime_state_instead_of_defaulting_to_cpu()
     {
         var customInstallPath = Path.Combine(_root, "custom", "VRCNT");
@@ -249,14 +299,24 @@ public sealed class InstallerOperationTests : IDisposable
         if (Directory.Exists(_root)) Directory.Delete(_root, true);
     }
 
-    private SetupCommandOperations CreateOperations(IRuntimeTransactionEngine engine, string dataRoot) => new(
-        engine,
-        new NoopManagerLifecycle(),
-        new Uri("https://example.invalid/latest.json"),
-        Path.Combine(_root, "manager"),
-        Path.Combine(_root, "manager", "VRCNT.Setup.exe"),
-        _ => new UserDataPaths(dataRoot, Path.Combine(_root, "VRCNT-NextData"), Path.Combine(_root, "VRCNT")),
-        new ActiveRuntimeLocator(resolveDataRoot: () => dataRoot));
+    private SetupCommandOperations CreateOperations(
+        IRuntimeTransactionEngine engine,
+        string dataRoot,
+        IManagerLifecycle? managerLifecycle = null,
+        string? managerPath = null,
+        Action? ensureManagerTools = null)
+    {
+        var resolvedManagerPath = managerPath ?? Path.Combine(_root, "manager", "VRCNT.Setup.exe");
+        return new SetupCommandOperations(
+            engine,
+            managerLifecycle ?? new NoopManagerLifecycle(),
+            new Uri("https://example.invalid/latest.json"),
+            Path.GetDirectoryName(resolvedManagerPath),
+            resolvedManagerPath,
+            _ => new UserDataPaths(dataRoot, Path.Combine(_root, "VRCNT-NextData"), Path.Combine(_root, "VRCNT")),
+            new ActiveRuntimeLocator(resolveDataRoot: () => dataRoot),
+            ensureManagerTools);
+    }
 
     private static string WritePendingSwitch(string dataRoot, string currentAppPath, string nonce, string token)
     {
@@ -334,5 +394,17 @@ public sealed class InstallerOperationTests : IDisposable
         public Task<ManagerSelfCheckResult> CheckAsync(CancellationToken cancellationToken) => Task.FromResult(new ManagerSelfCheckResult(true, false, null));
         public Task<ManagerRepairResult> RepairAsync(Uri latestJsonUri, CancellationToken cancellationToken) => Task.FromResult(new ManagerRepairResult(true, null, null));
         public Task PromoteAsync(string verifiedSetupPath, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class ManagerRegistrationLifecycle(string readyPath) : IManagerLifecycle
+    {
+        public Task<ManagerSelfCheckResult> CheckAsync(CancellationToken cancellationToken) => Task.FromResult(new ManagerSelfCheckResult(true, true, null));
+        public Task<ManagerRepairResult> RepairAsync(Uri latestJsonUri, CancellationToken cancellationToken) => Task.FromResult(new ManagerRepairResult(true, null, null));
+        public Task PromoteAsync(string verifiedSetupPath, CancellationToken cancellationToken)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(readyPath)!);
+            File.WriteAllText(readyPath, "registered");
+            return Task.CompletedTask;
+        }
     }
 }

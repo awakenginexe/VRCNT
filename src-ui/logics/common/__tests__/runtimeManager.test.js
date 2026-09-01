@@ -256,3 +256,23 @@ test("all six locales provide matching runtime-switching copy", () => {
         }
     }
 });
+
+test("installer completion uses an immediate launch action while its checkbox explains the delayed launch", () => {
+    for (const localeFile of localeFiles) {
+        const locale = yaml.load(fs.readFileSync(path.join(repoRoot, "locales", localeFile), "utf8"));
+        const installer = locale?.installer ?? {};
+        assert.equal(typeof installer.launch_after_setup, "string", `${localeFile}: launch_after_setup`);
+        assert.notEqual(installer.launch_after_setup.trim(), "", `${localeFile}: launch_after_setup empty`);
+        assert.equal(typeof installer.launch_vrcnt, "string", `${localeFile}: launch_vrcnt`);
+        assert.notEqual(installer.launch_vrcnt.trim(), "", `${localeFile}: launch_vrcnt empty`);
+    }
+    const english = yaml.load(fs.readFileSync(path.join(repoRoot, "locales", "en.yml"), "utf8"));
+    assert.equal(english.installer.launch_vrcnt, "Launch VRCNT");
+    assert.equal(english.installer.launch_after_setup, "Launch VRCNT when setup finishes");
+});
+
+test("runtime switch confirmation is opaque and blurred only outside Performance Mode", () => {
+    const styles = fs.readFileSync(path.join(repoRoot, "src-ui", "views", "app", "config_page", "setting_section", "setting_box", "others", "RuntimeSettings.module.scss"), "utf8");
+
+    assert.match(styles, /:global\(html:not\(\.performance_mode\)\) \.confirmation\s*\{[\s\S]*background:\s*color-mix\(in srgb,\s*var\(--canvas_color\) 94%,\s*var\(--palette_surface_2_color\)\);[\s\S]*backdrop-filter:\s*blur\(1\.2rem\)/);
+});

@@ -461,6 +461,86 @@ public sealed class ManagerLifecycleTests : IDisposable
     }
 
     [Fact]
+    public async Task Public_lifecycle_promotion_promotes_a_signed_current_candidate_and_records_its_trust_data()
+    {
+        var managerPath = WriteFile(Path.Combine("VRCNTInstaller", "VRCNT.Setup.exe"), "old-manager");
+        var candidatePath = WriteFile(Path.Combine("VRCNTInstaller", "repair", "VRCNT.Setup.exe"), "new-manager");
+        var signaturePath = WriteFile(Path.Combine("VRCNTInstaller", "repair", "VRCNT.Setup.exe.sig"), "signature");
+        var manifest = CreateManifest("new-manager");
+        var stateStore = CreateStateStore(managerPath);
+        var lifecycle = CreateLifecycle(managerPath, manifest, stateStore, new FixedCurrentSource(candidatePath));
+
+        await lifecycle.PromoteAsync(candidatePath, default);
+
+        Assert.Equal("new-manager", await File.ReadAllTextAsync(managerPath));
+        Assert.Equal(File.ReadAllText(signaturePath), stateStore.ReadSignature());
+        Assert.Equal(Hash("new-manager"), stateStore.Read()!.ManagerSha256);
+    }
+
+    [Fact]
+    public async Task Current_setup_source_stages_the_signed_bundle_under_the_manager_directory_without_fetching_a_release()
+    {
+        var sourceSetup = WriteFile(Path.Combine("incoming", "VRCNT.Setup.exe"), "new-manager");
+        WriteFile(Path.Combine("incoming", "VRCNT.Setup.exe.sig"), "signature");
+        WriteFile(Path.Combine("incoming", "package-manifest.json"), "manifest");
+        WriteFile(Path.Combine("incoming", "package-manifest.json.sig"), "manifest-signature");
+        var managerDirectory = Path.Combine(_root, "VRCNTInstaller");
+        var manifest = CreateManifest("new-manager");
+        IManagerRepairSource source = new HttpManagerRepairSource(
+            ManagerCapabilities.Current,
+            new FixedManifestLoader(manifest),
+            new FixedSignatureVerifier(true),
+            new Uri("https://example.test/releases/"),
+            managerDirectory,
+            new HttpClient(new FixtureHttpHandler(new Dictionary<string, byte[]>())));
+
+        var update = await source.AcquireCurrentAsync(sourceSetup, default);
+
+        Assert.StartsWith(Path.GetFullPath(managerDirectory), Path.GetFullPath(update.SetupPath), StringComparison.OrdinalIgnoreCase);
+        Assert.NotEqual(Path.GetFullPath(sourceSetup), Path.GetFullPath(update.SetupPath));
+        Assert.Equal("new-manager", await File.ReadAllTextAsync(update.SetupPath));
+        Assert.Equal("signature", await File.ReadAllTextAsync(update.SignaturePath));
+    }
+
+    [Fact]
+    public async Task Current_setup_source_without_a_bundle_fetches_the_exact_versioned_release()
+    {
+        var managerDirectory = Path.Combine(_root, "VRCNTInstaller");
+        var releaseEndpoint = new Uri("https://example.test/releases/");
+        var bootstrapperBytes = Encoding.UTF8.GetBytes("new-manager");
+        var manifest = CreateManifest("new-manager");
+        var latest = JsonSerializer.Serialize(new
+        {
+            version = "5.15.0",
+            platforms = new Dictionary<string, object>
+            {
+                ["windows-x86_64"] = new
+                {
+                    url = "https://example.test/releases/download/v5.15.0/VRCNT.Setup.exe",
+                    signature = "signature",
+                },
+            },
+        });
+        IManagerRepairSource source = new HttpManagerRepairSource(
+            ManagerCapabilities.Current,
+            new FixedManifestLoader(manifest),
+            new FixedSignatureVerifier(true),
+            releaseEndpoint,
+            managerDirectory,
+            new HttpClient(new FixtureHttpHandler(new Dictionary<string, byte[]>
+            {
+                ["https://example.test/releases/download/v5.15.0/latest.json"] = Encoding.UTF8.GetBytes(latest),
+                ["https://example.test/releases/download/v5.15.0/package-manifest.json"] = Encoding.UTF8.GetBytes("manifest"),
+                ["https://example.test/releases/download/v5.15.0/package-manifest.json.sig"] = Encoding.UTF8.GetBytes("manifest-signature"),
+                ["https://example.test/releases/download/v5.15.0/VRCNT.Setup.exe"] = bootstrapperBytes,
+            })));
+
+        var update = await source.AcquireCurrentAsync(Path.Combine(_root, "incoming", "VRCNT.Setup.exe"), default);
+
+        Assert.Equal("new-manager", await File.ReadAllTextAsync(update.SetupPath));
+    }
+
+    [Fact]
     public async Task Repair_rejects_forged_matching_metadata_when_signature_path_is_null()
     {
         var managerPath = WriteFile(Path.Combine("VRCNTInstaller", "VRCNT.Setup.exe"), "old-manager");
@@ -621,6 +701,15 @@ public sealed class ManagerLifecycleTests : IDisposable
     private sealed class FixedRepairSource(string candidatePath) : IManagerRepairSource
     {
         public Task<VerifiedManagerUpdate> AcquireAsync(Uri latestJsonUri, CancellationToken cancellationToken) =>
+            Task.FromResult(new VerifiedManagerUpdate(candidatePath, candidatePath + ".sig"));
+    }
+
+    private sealed class FixedCurrentSource(string candidatePath) : IManagerRepairSource
+    {
+        public Task<VerifiedManagerUpdate> AcquireAsync(Uri latestJsonUri, CancellationToken cancellationToken) =>
+            Task.FromException<VerifiedManagerUpdate>(new InvalidOperationException("Current setup promotion must not fetch release metadata."));
+
+        public Task<VerifiedManagerUpdate> AcquireCurrentAsync(string currentSetupPath, CancellationToken cancellationToken) =>
             Task.FromResult(new VerifiedManagerUpdate(candidatePath, candidatePath + ".sig"));
     }
 

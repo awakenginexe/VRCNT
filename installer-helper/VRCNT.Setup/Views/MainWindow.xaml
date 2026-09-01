@@ -262,7 +262,7 @@
                         <TextBlock Text="{Binding SelectedRuntimeTitle}" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource InstallerTextBrush}" />
                         <TextBlock Text="{Binding SelectedRuntimeSize}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,6,0,0" FontSize="12" />
                         <TextBlock Text="{Binding SelectedRuntimeTime}" Foreground="{DynamicResource InstallerTextDimBrush}" Margin="0,2,0,0" FontSize="11" />
-                        <CheckBox Content="{Binding LaunchVrcntText}" IsChecked="{Binding LaunchAfterSetup}" Margin="0,16,0,0">
+                        <CheckBox Content="{Binding LaunchAfterSetupText}" IsChecked="{Binding LaunchAfterSetup}" Margin="0,16,0,0">
                             <CheckBox.Style>
                                 <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
                                     <Style.Triggers>
@@ -380,18 +380,6 @@
 
                 <!-- Primary Action Buttons (Right) -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Content="{Binding CloseText}" Command="{Binding CloseCommand}">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Complete}">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
                     <Button Content="{Binding InstallText}" Command="{Binding InstallCommand}">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
