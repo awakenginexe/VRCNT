@@ -27,7 +27,7 @@ const MINISIGN_PUBLIC_KEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpY
 const RUNTIME_SWITCH_REQUESTED_EVENT: &str = "vrcnt://runtime-switch-requested";
 const MANAGER_VERSION: &str = "5.15.0";
 const MANAGER_PROTOCOL: u32 = 1;
-const MANIFEST_SCHEMA: u32 = 1;
+const MANIFEST_SCHEMA: u32 = 2;
 const RUNTIME_STATE_SCHEMA: u32 = 1;
 const ACTIVATION_PROTOCOL: u32 = 1;
 
@@ -2059,6 +2059,38 @@ mod retry_clear_tests {
     use std::sync::{Arc, Barrier};
     use std::thread;
     use tempfile::tempdir;
+
+    #[test]
+    fn signed_schema_two_manager_state_reaches_signature_validation() {
+        let temporary = tempdir().unwrap();
+        let manager = temporary.path().join(MANAGER_FILE_NAME);
+        let manager_bytes = b"trusted setup manager";
+        fs::write(&manager, manager_bytes).unwrap();
+        let canonical_manager = fs::canonicalize(&manager).unwrap();
+        let manager_state = serde_json::json!({
+            "managerPath": canonical_manager.display().to_string(),
+            "managerSha256": hash_bytes(manager_bytes),
+            "version": MANAGER_VERSION,
+            "managerProtocol": MANAGER_PROTOCOL,
+            "manifestSchema": 2,
+            "runtimeStateSchema": RUNTIME_STATE_SCHEMA,
+            "activationProtocol": ACTIVATION_PROTOCOL,
+            "lastSelfCheckSucceeded": true,
+            "updatedAtUtc": format_time(SystemTime::now()),
+        });
+        fs::write(
+            temporary.path().join(MANAGER_STATE_FILE_NAME),
+            serde_json::to_vec(&manager_state).unwrap(),
+        )
+        .unwrap();
+
+        let error = validate_promoted_manager(&canonical_manager, temporary.path()).unwrap_err();
+
+        assert_eq!(
+            error,
+            "The setup manager signature is missing. Run Setup recovery and try again."
+        );
+    }
 
     fn handoff(root: &Path, nonce: &str, token: &str, generation: u64) -> RuntimeSwitchHandoff {
         let app = root.join("VRCNT.exe");
