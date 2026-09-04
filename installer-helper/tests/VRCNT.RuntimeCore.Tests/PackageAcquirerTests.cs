@@ -69,6 +69,27 @@ public sealed class PackageAcquirerTests : IDisposable
     }
 
     [Fact]
+    public async Task AcquireAsync_restarts_without_a_range_after_the_server_rejects_a_stale_partial()
+    {
+        var manifest = ManifestValidationTests.CreateManifest();
+        Directory.CreateDirectory(_root);
+        await File.WriteAllBytesAsync(Path.Combine(_root, "cpu.001.partial"), Bytes("cp"));
+        var handler = new RangeNotSatisfiableOnceHandler(Bytes("cpu1"));
+        using var client = new HttpClient(handler);
+
+        var paths = await new VariantPackageAcquirer(client).AcquireAsync(
+            manifest,
+            RuntimeVariant.Cpu,
+            new Uri("https://example.test/release/"),
+            _root,
+            null,
+            default);
+
+        Assert.Equal([2L, null], handler.RangeStarts);
+        Assert.Equal("cpu1", await File.ReadAllTextAsync(paths.Single()));
+    }
+
+    [Fact]
     public async Task AcquireAsync_rejects_invalid_local_part_without_network_when_offline()
     {
         var manifest = ManifestValidationTests.CreateManifest();
@@ -101,6 +122,28 @@ public sealed class PackageAcquirerTests : IDisposable
             response.Content.Headers.ContentLength = payload.Length;
             if (status == HttpStatusCode.PartialContent) response.Content.Headers.ContentRange = new ContentRangeHeaderValue(start, data.Length - 1, data.Length);
             return Task.FromResult(response);
+        }
+    }
+
+    private sealed class RangeNotSatisfiableOnceHandler(byte[] asset) : HttpMessageHandler
+    {
+        public List<long?> RangeStarts { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var start = request.Headers.Range?.Ranges.SingleOrDefault()?.From;
+            RangeStarts.Add(start);
+            if (RangeStarts.Count == 1)
+            {
+                var rejected = new HttpResponseMessage(HttpStatusCode.RequestedRangeNotSatisfiable);
+                rejected.Content.Headers.ContentRange = new ContentRangeHeaderValue(asset.Length);
+                return Task.FromResult(rejected);
+            }
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(asset),
+            });
         }
     }
 }

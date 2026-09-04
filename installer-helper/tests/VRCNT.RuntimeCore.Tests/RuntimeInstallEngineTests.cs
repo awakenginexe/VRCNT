@@ -1,5 +1,6 @@
 using System.Net;
 using System.Security.Cryptography;
+using System.Text;
 using VRCNT.RuntimeCore.Manifest;
 using VRCNT.RuntimeCore.Models;
 using VRCNT.RuntimeCore.Transactions;
@@ -54,7 +55,8 @@ public sealed class RuntimeInstallEngineTests : IDisposable
     {
         var candidateDirectory = Path.Combine(_root, "candidate");
         var cacheDirectory = Path.Combine(_root, "cache");
-        var versionCacheDirectory = Path.Combine(cacheDirectory, "5.15.0");
+        var releaseUrl = "https://example.invalid/releases/latest/download/";
+        var versionCacheDirectory = ReleaseCacheDirectory(cacheDirectory, "5.15.0", releaseUrl);
         Directory.CreateDirectory(candidateDirectory);
         Directory.CreateDirectory(versionCacheDirectory);
         await File.WriteAllTextAsync(Path.Combine(versionCacheDirectory, "package-manifest.json"), "cached manifest");
@@ -76,7 +78,7 @@ public sealed class RuntimeInstallEngineTests : IDisposable
                 RuntimeVariant.Cpu,
                 "5.15.0",
                 Path.Combine(_root, "install"),
-                "https://example.invalid/releases/latest/download/",
+                releaseUrl,
                 string.Empty,
                 false),
             null,
@@ -97,7 +99,8 @@ public sealed class RuntimeInstallEngineTests : IDisposable
     {
         var candidateDirectory = Path.Combine(_root, "candidate");
         var cacheDirectory = Path.Combine(_root, "cache");
-        var versionCacheDirectory = Path.Combine(cacheDirectory, "5.15.0");
+        var releaseUrl = "https://example.invalid/releases/download/v5.15.0-rc.1/";
+        var versionCacheDirectory = ReleaseCacheDirectory(cacheDirectory, "5.15.0", releaseUrl);
         Directory.CreateDirectory(candidateDirectory);
         Directory.CreateDirectory(versionCacheDirectory);
         await File.WriteAllTextAsync(Path.Combine(versionCacheDirectory, "package-manifest.json"), "wrong-version manifest");
@@ -119,7 +122,7 @@ public sealed class RuntimeInstallEngineTests : IDisposable
                 RuntimeVariant.Cpu,
                 "5.15.0",
                 Path.Combine(_root, "install"),
-                "https://example.invalid/releases/download/v5.15.0-rc.1/",
+                releaseUrl,
                 string.Empty,
                 false),
             null,
@@ -132,6 +135,45 @@ public sealed class RuntimeInstallEngineTests : IDisposable
             request => Assert.Equal("https://example.invalid/releases/download/v5.15.0-rc.1/package-manifest.json", request.ToString()),
             request => Assert.Equal("https://example.invalid/releases/download/v5.15.0-rc.1/package-manifest.json.sig", request.ToString()));
         Assert.Equal("remote response", await File.ReadAllTextAsync(Path.Combine(versionCacheDirectory, "package-manifest.json")));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_does_not_reuse_metadata_from_another_release_with_the_same_app_version()
+    {
+        var candidateDirectory = Path.Combine(_root, "candidate");
+        var cacheDirectory = Path.Combine(_root, "cache");
+        var legacyVersionCache = Path.Combine(cacheDirectory, "5.15.0");
+        Directory.CreateDirectory(candidateDirectory);
+        Directory.CreateDirectory(legacyVersionCache);
+        await File.WriteAllTextAsync(Path.Combine(legacyVersionCache, "package-manifest.json"), "stale rc1 manifest");
+        await File.WriteAllTextAsync(Path.Combine(legacyVersionCache, "package-manifest.json.sig"), "stale rc1 signature");
+
+        var manifest = ManifestValidationTests.CreateManifest();
+        var loader = new RecordingManifestLoader(manifest);
+        var handler = new ReleaseAssetHandler();
+        using var client = new HttpClient(handler);
+        var engine = new RuntimeInstallEngine(
+            candidateDirectory,
+            cacheDirectory,
+            Path.Combine(_root, "missing-minisign.exe"),
+            Path.Combine(_root, "missing-7za.exe"),
+            client,
+            loader);
+
+        _ = await engine.ExecuteAsync(
+            new RuntimeInstallRequest(
+                RuntimeVariant.Cpu,
+                "5.15.0",
+                Path.Combine(_root, "install"),
+                "https://example.invalid/releases/download/v5.15.0-rc.2/",
+                string.Empty,
+                false),
+            null,
+            default);
+
+        Assert.Equal("remote rc2 manifest", loader.ManifestText);
+        Assert.Contains(handler.Requests, request => request.AbsolutePath.EndsWith("/package-manifest.json", StringComparison.Ordinal));
+        Assert.Equal("stale rc1 manifest", await File.ReadAllTextAsync(Path.Combine(legacyVersionCache, "package-manifest.json")));
     }
 
     [Fact]
@@ -216,6 +258,12 @@ public sealed class RuntimeInstallEngineTests : IDisposable
         if (Directory.Exists(_root)) Directory.Delete(_root, true);
     }
 
+    private static string ReleaseCacheDirectory(string cacheDirectory, string version, string releaseUrl)
+    {
+        var key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(new Uri(releaseUrl).AbsoluteUri))).ToLowerInvariant();
+        return Path.Combine(cacheDirectory, version, key);
+    }
+
     private sealed class RecordingHandler : HttpMessageHandler
     {
         public List<Uri> Requests { get; } = [];
@@ -267,6 +315,44 @@ public sealed class RuntimeInstallEngineTests : IDisposable
         {
             Calls++;
             throw new InvalidDataException("Package manifest identity does not match this installer.");
+        }
+    }
+
+    private sealed class RecordingManifestLoader(PackageManifest manifest) : IManifestLoader
+    {
+        public string? ManifestText { get; private set; }
+
+        public async Task<VerifiedManifest> LoadAndVerifyAsync(
+            string manifestPath,
+            string signaturePath,
+            string expectedVersion,
+            CancellationToken cancellationToken)
+        {
+            ManifestText = await File.ReadAllTextAsync(manifestPath, cancellationToken);
+            return new VerifiedManifest(manifest, manifestPath);
+        }
+    }
+
+    private sealed class ReleaseAssetHandler : HttpMessageHandler
+    {
+        public List<Uri> Requests { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request.RequestUri!);
+            var name = request.RequestUri!.Segments[^1];
+            var content = name switch
+            {
+                "package-manifest.json" => "remote rc2 manifest",
+                "package-manifest.json.sig" => "remote rc2 signature",
+                "cpu.001" => "cpu1",
+                _ => throw new InvalidOperationException($"Unexpected asset request: {name}"),
+            };
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                RequestMessage = request,
+                Content = new StringContent(content),
+            });
         }
     }
 

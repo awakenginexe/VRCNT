@@ -53,6 +53,7 @@ public sealed class VariantPackageAcquirer(HttpClient? httpClient) : IVariantPac
 
     private async Task DownloadAsync(Uri uri, string partialPath, PackagePart part, long completed, long total, IProgress<TransferProgress>? progress, CancellationToken cancellationToken)
     {
+        var recoveredUnsatisfiableRange = false;
         for (var attempt = 1; attempt <= 5; attempt++)
         {
             var existing = File.Exists(partialPath) ? new FileInfo(partialPath).Length : 0;
@@ -62,6 +63,13 @@ public sealed class VariantPackageAcquirer(HttpClient? httpClient) : IVariantPac
                 using var request = new HttpRequestMessage(HttpMethod.Get, uri);
                 if (existing > 0) request.Headers.Range = new RangeHeaderValue(existing, null);
                 using var response = await httpClient!.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                if (existing > 0 && response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable && !recoveredUnsatisfiableRange)
+                {
+                    TryDelete(partialPath);
+                    recoveredUnsatisfiableRange = true;
+                    attempt--;
+                    continue;
+                }
                 if (existing > 0 && response.StatusCode == HttpStatusCode.OK) { TryDelete(partialPath); existing = 0; }
                 response.EnsureSuccessStatusCode();
                 if (existing > 0 && response.StatusCode != HttpStatusCode.PartialContent) throw new HttpRequestException($"Unexpected resume response {response.StatusCode}.");

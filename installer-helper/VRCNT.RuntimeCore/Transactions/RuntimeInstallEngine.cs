@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using VRCNT.RuntimeCore.Archive;
 using VRCNT.RuntimeCore.Filesystem;
@@ -48,9 +49,10 @@ public sealed class RuntimeInstallEngine : IRuntimeTransactionEngine
             throw new InvalidDataException("Runtime installation requires a configured HTTPS release endpoint.");
 
         Directory.CreateDirectory(_installerDirectory);
-        var cacheDirectory = string.IsNullOrWhiteSpace(request.InstallPath)
-            ? _defaultCacheDirectory
-            : Path.Combine(_defaultCacheDirectory, request.TargetVersion);
+        var cacheDirectory = Path.Combine(
+            _defaultCacheDirectory,
+            request.TargetVersion,
+            ReleaseCacheKey(releaseBase));
         Directory.CreateDirectory(cacheDirectory);
         var localManifestPath = Path.Combine(_installerDirectory, "package-manifest.json");
         var localSignaturePath = Path.Combine(_installerDirectory, "package-manifest.json.sig");
@@ -113,6 +115,9 @@ public sealed class RuntimeInstallEngine : IRuntimeTransactionEngine
 
     private static bool IsRefreshableMetadataFailure(Exception exception) =>
         exception is CryptographicException or InvalidDataException or JsonException;
+
+    private static string ReleaseCacheKey(Uri releaseBase) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(releaseBase.AbsoluteUri))).ToLowerInvariant();
 
     private string? FindAdjacentPackageDirectory(string packageKey, VariantPackage package)
     {
