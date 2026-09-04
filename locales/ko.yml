@@ -1340,6 +1340,7 @@ installer:
     error_title: "설치 확인이 필요합니다"
     error_body: "VRCNT가 이 단계를 완료하지 못했습니다. 연결과 여유 디스크 공간을 확인한 다음 다시 시도하세요."
     retry: "다시 시도"
+    close_return_to_vrcnt: "닫고 VRCNT로 돌아가기"
     complete_title: "VRCNT가 준비되었습니다"
     complete_body: "선택한 런타임이 설치되었습니다. 나중에 VRCNT 설정에서 변경할 수 있습니다."
     close: "닫기"

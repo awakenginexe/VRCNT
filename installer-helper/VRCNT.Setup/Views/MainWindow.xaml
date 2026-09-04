@@ -329,7 +329,7 @@
                 <Border Background="{DynamicResource InstallerSurfaceBrush}" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,16">
                     <TextBlock Text="{Binding ErrorDetail}" Foreground="{DynamicResource InstallerErrorBrush}" TextWrapping="Wrap" FontFamily="Consolas, Cascadia Mono, monospace" FontSize="11" />
                 </Border>
-                <Button Content="{Binding RetryText}" Command="{Binding RetryCommand}" Style="{StaticResource PrimaryButtonStyle}" HorizontalAlignment="Left" />
+                <Button Content="{Binding ErrorActionText}" Command="{Binding ErrorActionCommand}" Style="{StaticResource PrimaryButtonStyle}" HorizontalAlignment="Left" />
             </StackPanel>
 
             <!-- VIEW: Complete / Success -->

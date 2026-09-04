@@ -11,10 +11,16 @@ public sealed record SetupToolLayout(string MinisignPath, string SevenZipPath)
     private const string SevenZipResourceName = "VRCNT.Setup.Tools.7za.exe";
 
     public static SetupToolLayout Require(string directory)
+        => Require(directory, null);
+
+    internal static SetupToolLayout RequireForTest(string directory, string authenticatedToolsDirectory)
+        => Require(directory, Path.GetFullPath(authenticatedToolsDirectory));
+
+    private static SetupToolLayout Require(string directory, string? authenticatedToolsDirectory)
     {
         var root = Path.GetFullPath(directory);
-        var minisign = RequireTrustedToolOrEmbedded(root, "minisign.exe", TrustedMinisignSha256, MinisignResourceName);
-        var sevenZip = RequireTrustedToolOrEmbedded(root, "7za.exe", TrustedSevenZipSha256, SevenZipResourceName);
+        var minisign = RequireTrustedToolOrEmbedded(root, "minisign.exe", TrustedMinisignSha256, MinisignResourceName, authenticatedToolsDirectory);
+        var sevenZip = RequireTrustedToolOrEmbedded(root, "7za.exe", TrustedSevenZipSha256, SevenZipResourceName, authenticatedToolsDirectory);
         return new SetupToolLayout(minisign, sevenZip);
     }
 
@@ -40,7 +46,7 @@ public sealed record SetupToolLayout(string MinisignPath, string SevenZipPath)
         File.Copy(layout.SevenZipPath, Path.Combine(destination, "7za.exe"), true);
     }
 
-    private static string RequireTrustedToolOrEmbedded(string directory, string name, string expectedSha256, string resourceName)
+    private static string RequireTrustedToolOrEmbedded(string directory, string name, string expectedSha256, string resourceName, string? authenticatedToolsDirectory)
     {
         var adjacentPath = Path.Combine(directory, name);
         try
@@ -49,17 +55,17 @@ public sealed record SetupToolLayout(string MinisignPath, string SevenZipPath)
         }
         catch (FileNotFoundException)
         {
-            return MaterializeEmbeddedTool(name, expectedSha256, resourceName);
+            return MaterializeEmbeddedTool(name, expectedSha256, resourceName, authenticatedToolsDirectory);
         }
         catch (CryptographicException)
         {
-            return MaterializeEmbeddedTool(name, expectedSha256, resourceName);
+            return MaterializeEmbeddedTool(name, expectedSha256, resourceName, authenticatedToolsDirectory);
         }
     }
 
-    private static string MaterializeEmbeddedTool(string name, string expectedSha256, string resourceName)
+    private static string MaterializeEmbeddedTool(string name, string expectedSha256, string resourceName, string? authenticatedToolsDirectory)
     {
-        var directory = Path.Combine(
+        var directory = authenticatedToolsDirectory ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "VRCNTInstaller",
             "authenticated-tools");

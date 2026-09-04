@@ -1,5 +1,6 @@
 using System.Text.Json;
 using VRCNT.RuntimeCore.Models;
+using VRCNT.RuntimeCore.Paths;
 
 namespace VRCNT.RuntimeCore.State;
 
@@ -36,9 +37,5 @@ public sealed class RuntimeStateValidator(IPayloadIdentityValidator payloadIdent
         string.Equals(state.MarkerBuildIdentity, identity.BuildIdentity, StringComparison.Ordinal) &&
         string.Equals(state.MarkerSha256, identity.MarkerSha256, StringComparison.OrdinalIgnoreCase);
 
-    private static bool PathsEqual(string left, string right)
-    {
-        try { return string.Equals(Path.GetFullPath(left), Path.GetFullPath(right), StringComparison.OrdinalIgnoreCase); }
-        catch (Exception exception) when (exception is ArgumentException or NotSupportedException) { return false; }
-    }
+    private static bool PathsEqual(string left, string right) => PathIdentity.Equals(left, right);
 }

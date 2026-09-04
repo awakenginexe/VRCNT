@@ -90,6 +90,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     public ICommand BackCommand { get; }
     public ICommand InstallCommand { get; }
     public ICommand RetryCommand { get; }
+    public ICommand ErrorActionCommand => IsSwitch ? CloseCommand : RetryCommand;
     public ICommand LaunchCommand { get; }
     public ICommand CloseCommand { get; }
     public ICommand EnableAdvancedCudaOverrideCommand { get; }
@@ -252,6 +253,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     public string ErrorTitle => T("error_title");
     public string ErrorBody => T("error_body");
     public string RetryText => T("retry");
+    public string ErrorActionText => IsSwitch ? T("close_return_to_vrcnt") : RetryText;
     public string CompleteTitle => T("complete_title");
     public string CompleteBody => T("complete_body");
     public string CloseText => T("close");
@@ -359,7 +361,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
             nameof(CpuBody), nameof(CpuSize), nameof(CpuTime), nameof(CudaTitle), nameof(CudaBody), nameof(CudaSize),
             nameof(CudaTime), nameof(CpuStatus), nameof(CudaStatus), nameof(CudaAdvisory), nameof(GpuDetectionState), nameof(AdvancedCudaWarning), nameof(EnableAdvancedCudaOverrideText), nameof(IsCudaNormallyAvailable), nameof(RequiresAdvancedCudaOverride), nameof(AdvancedCudaOverrideEnabled), nameof(CanSelectCuda), nameof(SelectedRuntimeTitle), nameof(SelectedRuntimeSize), nameof(SelectedRuntimeTime), nameof(CurrentPageTitle), nameof(InstallSizeLabel), nameof(InstallTimeLabel),
             nameof(OptionsTitle), nameof(OptionsBody), nameof(LaunchAfterSetupText), nameof(LaunchVrcntText), nameof(InstallText), nameof(ProgressTitle), nameof(CanChangeRuntimeSelection), nameof(CanSelectCudaRadio),
-            nameof(InstallLocationLabel), nameof(BrowseInstallDirectoryText), nameof(ProgressBody), nameof(ErrorTitle), nameof(ErrorBody), nameof(RetryText), nameof(CompleteTitle),
+            nameof(InstallLocationLabel), nameof(BrowseInstallDirectoryText), nameof(ProgressBody), nameof(ErrorTitle), nameof(ErrorBody), nameof(RetryText), nameof(ErrorActionText), nameof(CompleteTitle),
             nameof(CompleteBody), nameof(CloseText),
         }) OnPropertyChanged(property);
     }

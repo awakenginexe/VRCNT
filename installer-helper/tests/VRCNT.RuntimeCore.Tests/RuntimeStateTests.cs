@@ -136,6 +136,35 @@ public sealed class RuntimeStateTests : IDisposable
         Assert.Equal(RuntimeStateStatus.Active, validated.Status);
     }
 
+    [Theory]
+    [InlineData(RuntimeVariant.Cpu)]
+    [InlineData(RuntimeVariant.Cuda)]
+    public void Validate_accepts_the_same_windows_path_with_an_extended_length_prefix(RuntimeVariant variant)
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        var installPath = Path.Combine(_root, "runtime");
+        var identity = CreateIdentity() with
+        {
+            Variant = variant,
+            BuildIdentity = variant == RuntimeVariant.Cuda ? "cuda-build" : "cpu-build",
+        };
+        WritePayload(installPath, identity);
+        var state = CreateState(installPath) with
+        {
+            Variant = identity.Variant,
+            MarkerBuildIdentity = identity.BuildIdentity,
+            MarkerSha256 = FileHash(Path.Combine(installPath, "VRCNT.runtime.json")),
+        };
+        var extendedInstallPath = $@"\\?\{installPath}";
+
+        var validated = new RuntimeStateValidator(new PayloadIdentityReader()).Validate(
+            state,
+            extendedInstallPath,
+            PackageFor(identity with { MarkerSha256 = state.MarkerSha256 }));
+
+        Assert.Equal(RuntimeStateStatus.Active, validated.Status);
+    }
+
     [Fact]
     public void Validate_accepts_a_matching_marker_hash_regardless_of_hex_casing()
     {

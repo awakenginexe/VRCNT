@@ -269,6 +269,26 @@ public sealed class InstallerViewModelTests
         await installation;
     }
 
+    [Fact]
+    public async Task Failed_switch_offers_close_instead_of_retrying_a_consumed_handoff()
+    {
+        var operations = new DeferredProgressOperations();
+        var options = SetupCommandLine.Parse(["--switch", "--variant", "cpu", "--install-path", "C:\\VRCNT"]);
+        var viewModel = CreateViewModel(operations, options, new FixedGpuSelectionPolicy(RuntimeVariant.Cuda));
+        var closeRequested = false;
+        viewModel.CloseRequested += (_, _) => closeRequested = true;
+
+        var installation = viewModel.BeginSwitchAsync();
+        await operations.ProgressReported.Task;
+        operations.Fail(new InvalidOperationException("Switch failed before shutdown."));
+        await installation;
+
+        Assert.Equal("Close and return to VRCNT", viewModel.ErrorActionText);
+        viewModel.ErrorActionCommand.Execute(null);
+        Assert.True(closeRequested);
+        Assert.Equal(InstallerPage.Error, viewModel.CurrentPage);
+    }
+
     private static InstallerViewModel CreateViewModel(DeferredProgressOperations operations, IApplicationLauncher? launcher = null, IGpuAdvisoryPolicy? gpuAdvisoryPolicy = null)
         => CreateViewModel(operations, new SetupCommandLineOptions(false, false, false, false, false, RuntimeVariant.Cpu, "C:\\VRCNT", null, [], "en"), new FixedGpuSelectionPolicy(RuntimeVariant.Cpu), launcher, gpuAdvisoryPolicy);
 
@@ -284,7 +304,7 @@ public sealed class InstallerViewModelTests
                 ["cpu_title"] = "CPU", ["cpu_body"] = "CPU body", ["cpu_size"] = "1 GB", ["cpu_time"] = "5 min", ["cuda_title"] = "CUDA", ["cuda_body"] = "CUDA body", ["cuda_size"] = "2 GB", ["cuda_time"] = "10 min",
                 ["recommended"] = "Recommended", ["compatible"] = "Compatible", ["cuda_requires_nvidia"] = "Requires a compatible NVIDIA GPU", ["cuda_advisory_inconclusive"] = "CUDA is checked locally after download and before VRCNT is replaced.", ["gpu_detection_nvidia"] = "NVIDIA GPU detected.", ["gpu_detection_no_nvidia"] = "No NVIDIA GPU detected.", ["gpu_detection_inconclusive"] = "GPU detection is inconclusive.", ["cuda_advanced_warning"] = "CUDA is not verified before download.", ["cuda_advanced_override"] = "I understand and enable CUDA",
                 ["install_size"] = "Install size", ["install_time"] = "Install time", ["options_title"] = "Options", ["options_body"] = "Options body", ["install_location"] = "Install location", ["browse_install_directory"] = "Browse...", ["launch_after_setup"] = "Launch VRCNT when setup finishes", ["launch_vrcnt"] = "Launch VRCNT", ["install"] = "Install",
-                ["progress_title"] = "Installing", ["progress_body"] = "Please wait", ["error_title"] = "Error", ["error_body"] = "We could not install", ["retry"] = "Retry", ["complete_title"] = "Complete", ["complete_body"] = "Done", ["close"] = "Close",
+                ["progress_title"] = "Installing", ["progress_body"] = "Please wait", ["error_title"] = "Error", ["error_body"] = "We could not install", ["retry"] = "Retry", ["close_return_to_vrcnt"] = "Close and return to VRCNT", ["complete_title"] = "Complete", ["complete_body"] = "Done", ["close"] = "Close",
             }, StringComparer.Ordinal);
         return new InstallerViewModel(operations, options, InstallerLocalizer.FromCatalog(languages, translations), launcher, gpuAdvisoryPolicy, gpuSelectionPolicy: gpuSelectionPolicy);
     }

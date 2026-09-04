@@ -1340,6 +1340,7 @@ installer:
     error_title: "安装需要处理"
     error_body: "VRCNT 无法完成此步骤。请检查网络连接和可用磁盘空间，然后重试。"
     retry: "重试"
+    close_return_to_vrcnt: "关闭并返回 VRCNT"
     complete_title: "VRCNT 已准备就绪"
     complete_body: "已安装所选运行时。以后可在 VRCNT 设置中更改。"
     close: "关闭"

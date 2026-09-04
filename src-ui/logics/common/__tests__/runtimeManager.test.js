@@ -7,6 +7,7 @@ import * as runtimeManager from "../runtimeManager.js";
 import {
     createRuntimeSwitchState,
     getRuntimePresentation,
+    getRuntimeBadge,
     getSwitchTarget,
     normalizeRuntimeState,
     confirmRuntimeSwitch,
@@ -41,6 +42,21 @@ test("runtime presentation shows the validated CPU or CUDA runtime", () => {
         getRuntimePresentation(normalizeRuntimeState({ ...activeCpu, variant: "cuda" })).currentVariant,
         "cuda",
     );
+});
+
+test("runtime badge labels only a verified active edition", () => {
+    assert.equal(getRuntimeBadge(normalizeRuntimeState(activeCpu)), "CPU Runtime");
+    assert.equal(getRuntimeBadge(normalizeRuntimeState({ ...activeCpu, variant: "cuda" })), "CUDA Runtime");
+    assert.equal(getRuntimeBadge(normalizeRuntimeState({ ...activeCpu, installPath: "" })), "Runtime unknown");
+});
+
+test("main-page branding shows the unknown fallback until runtime verification completes", () => {
+    const source = fs.readFileSync(
+        path.join(repoRoot, "src-ui", "views", "app", "main_page", "sidebar_section", "logo", "Logo.jsx"),
+        "utf8",
+    );
+    assert.match(source, /useState\("Runtime unknown"\)/);
+    assert.doesNotMatch(source, /runtimeBadge\s*&&/);
 });
 
 test("invalid runtime state enters recovery instead of being displayed as active", () => {
@@ -221,7 +237,8 @@ test("runtime switch bridge source includes authenticated manager status and res
     const source = fs.readFileSync(path.join(repoRoot, "src-tauri", "src", "runtime_manager.rs"), "utf8");
     assert.match(source, /manager-state\.json/);
     assert.match(source, /VRCNT\.Setup\.exe\.sig/);
-    assert.match(source, /MINISIGN_SHA256/);
+    assert.match(source, /MINISIGN_PUBLIC_KEY/);
+    assert.match(source, /verify_encoded_minisign/);
     assert.match(source, /validate_manager_signature/);
     assert.match(source, /proof_sha256/);
     assert.match(source, /current_exe/);

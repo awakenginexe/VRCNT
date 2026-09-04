@@ -14,7 +14,7 @@ public sealed class RuntimeReleaseChannelTests
     [Fact]
     public void ResolveTag_accepts_the_approved_prerelease_and_rejects_latest()
     {
-        Assert.Equal("v5.15.0-rc.1", RuntimeReleaseChannel.ResolveTag("5.15.0", "v5.15.0-rc.1"));
+        Assert.Equal("v5.15.0-rc.2", RuntimeReleaseChannel.ResolveTag("5.15.0", "v5.15.0-rc.2"));
         Assert.Throws<InvalidDataException>(() => RuntimeReleaseChannel.ResolveTag("5.15.0", "latest"));
     }
 }

@@ -1340,6 +1340,7 @@ installer:
     error_title: "安裝需要注意"
     error_body: "VRCNT 無法完成此步驟。請檢查連線與可用磁碟空間，然後再試一次。"
     retry: "再試一次"
+    close_return_to_vrcnt: "關閉並返回 VRCNT"
     complete_title: "VRCNT 已準備完成"
     complete_body: "已安裝所選執行階段。之後可在 VRCNT 設定中變更。"
     close: "關閉"

@@ -68,6 +68,12 @@ export const getRuntimePresentation = (runtime) => {
     };
 };
 
+export const getRuntimeBadge = (runtime) => {
+    const presentation = getRuntimePresentation(runtime);
+    if (presentation.status !== "active") return "Runtime unknown";
+    return presentation.currentVariant === "cuda" ? "CUDA Runtime" : "CPU Runtime";
+};
+
 export const requestRuntimeSwitch = ({ runtime, targetVariant }) => {
     const presentation = getRuntimePresentation(runtime);
     if (!presentation.canSwitch) {

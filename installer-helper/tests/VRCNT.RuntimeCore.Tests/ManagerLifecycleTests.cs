@@ -585,7 +585,7 @@ public sealed class ManagerLifecycleTests : IDisposable
         WriteFile(Path.Combine("tampered-published", "minisign.exe"), "tampered-minisign");
         WriteFile(Path.Combine("tampered-published", "7za.exe"), "tampered-7za");
 
-        Assert.Throws<InvalidDataException>(() => SetupToolLayout.Require(source));
+        Assert.Throws<InvalidDataException>(() => SetupToolLayout.RequireForTest(source, Path.Combine(_root, "isolated-authenticated-tools")));
         Assert.Throws<CryptographicException>(() => SetupToolLayout.CopyToWorker(
             new SetupToolLayout(Path.Combine(source, "minisign.exe"), Path.Combine(source, "7za.exe")),
             Path.Combine(_root, "tampered-worker")));

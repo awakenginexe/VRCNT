@@ -48,14 +48,17 @@ test("release workflow builds one shared shell, packages CPU and CUDA independen
     assert.doesNotMatch(workflow, /packagePartCount|exactly three|Create three-part portable package|npm run build-cuda|bundle\/nsis/i);
 });
 
-test("test candidate workflow uploads a complete artifact without publishing a release", () => {
+test("test candidate workflow uploads a complete artifact and publishes only an immutable prerelease", () => {
     assert.match(candidateWorkflow, /branches:\s*[\s\S]*test\/5\.15\.0-runtime-installer/);
     assert.match(candidateWorkflow, /workflow_dispatch:/);
     assert.match(candidateWorkflow, /shared-shell:[\s\S]*needs: \[validate, backend-cpu\]/);
     assert.match(candidateWorkflow, /Download CPU backend[\s\S]*name: backend-cpu[\s\S]*path: src-tauri\/bin/);
     assert.match(candidateWorkflow, /Upload signed test candidate[\s\S]*actions\/upload-artifact@v6[\s\S]*path: release-assets/);
-    assert.doesNotMatch(candidateWorkflow, /gh release (create|edit|upload)/);
-    assert.doesNotMatch(candidateWorkflow, /contents:\s*write/);
+    assert.match(candidateWorkflow, /RELEASE_TAG: v5\.15\.0-rc\.2/);
+    assert.match(candidateWorkflow, /Prerelease \$env:RELEASE_TAG already exists; refusing to overwrite tested assets/);
+    assert.match(candidateWorkflow, /gh release create[\s\S]*--draft --prerelease/);
+    assert.match(candidateWorkflow, /gh release upload[\s\S]*gh release edit[\s\S]*--prerelease/);
+    assert.doesNotMatch(candidateWorkflow, /RELEASE_TAG: v5\.15\.0(?:\s|$)/m);
 });
 
 test("release and candidate artifact actions use Node.js 24-capable releases", () => {

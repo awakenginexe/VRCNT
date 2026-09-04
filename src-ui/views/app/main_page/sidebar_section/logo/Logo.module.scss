@@ -40,6 +40,20 @@
     font-weight: 900;
 }
 
+.runtime_badge {
+    align-self: flex-start;
+    padding: 0.3rem 0.7rem;
+    border: 1px solid color-mix(in srgb, var(--dark_400_color) 55%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--dark_800_color) 72%, transparent);
+    color: var(--primary_150_color);
+    font-size: 0.9rem;
+    line-height: 1.2;
+    font-weight: 800;
+    letter-spacing: 0.05rem;
+    white-space: nowrap;
+}
+
 .logo_subtitle {
     max-width: 16rem;
     color: var(--dark_400_color);

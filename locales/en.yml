@@ -1340,6 +1340,7 @@ installer:
     error_title: "Setup needs attention"
     error_body: "VRCNT could not finish this step. Check your connection and available disk space, then try again."
     retry: "Try again"
+    close_return_to_vrcnt: "Close and return to VRCNT"
     complete_title: "VRCNT is ready"
     complete_body: "Your selected runtime is installed. You can change it later in VRCNT settings."
     close: "Close"

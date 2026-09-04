@@ -1340,6 +1340,7 @@ installer:
     error_title: "セットアップには確認が必要です"
     error_body: "VRCNT はこの処理を完了できませんでした。接続と空きディスク容量を確認して、もう一度お試しください。"
     retry: "再試行"
+    close_return_to_vrcnt: "閉じて VRCNT に戻る"
     complete_title: "VRCNT の準備ができました"
     complete_body: "選択したランタイムをインストールしました。後から VRCNT の設定で変更できます。"
     close: "閉じる"
