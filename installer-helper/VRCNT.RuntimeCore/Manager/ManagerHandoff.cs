@@ -479,7 +479,7 @@ public sealed class HttpManagerRepairSource : IManagerRepairSource
         var manifestSourcePath = Path.Combine(sourceDirectory, "package-manifest.json");
         var manifestSignatureSourcePath = manifestSourcePath + ".sig";
         if (!File.Exists(sourcePath) || !File.Exists(signatureSourcePath) || !File.Exists(manifestSourcePath) || !File.Exists(manifestSignatureSourcePath))
-            return await AcquireAsync(new Uri(_releaseEndpoint, $"download/v{_capabilities.Version}/latest.json"), cancellationToken);
+            return await AcquireAsync(new Uri(_releaseEndpoint, "latest.json"), cancellationToken);
 
         var setupName = Path.GetFileName(sourcePath);
         if (string.IsNullOrWhiteSpace(setupName) || setupName is "." or "..")

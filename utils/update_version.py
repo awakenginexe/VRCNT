@@ -106,6 +106,14 @@ def update_versions():
             [(r'(\[\[package\]\]\nname = "vrcnt"\nversion = ")[^"]+(")', rf'\g<1>{version}\g<2>', 1)]
         )
 
+    replace_in_file(
+        os.path.join(root, "src-tauri", "src", "runtime_manager.rs"),
+        [
+            (r'(None => "v)[0-9]+\.[0-9]+\.[0-9]+(",)', rf'\g<1>{version}\g<2>', 1),
+            (r'(const MANAGER_VERSION: &str = ")[0-9]+\.[0-9]+\.[0-9]+(";)', rf'\g<1>{version}\g<2>', 1),
+        ],
+    )
+
     update_readme_versions(root, version)
 
     replace_in_file(

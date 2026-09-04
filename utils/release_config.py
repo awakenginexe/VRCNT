@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import json
 import os
+import re
 from string import Template
 
 
@@ -51,11 +52,14 @@ class ReleaseConfig:
     def installer_name(self, version):
         return Template(self.installer_name_pattern).safe_substitute(version=str(version).lstrip("v"))
 
-    def release_download_url(self, version, asset_name):
+    def release_download_url(self, version, asset_name, release_tag=None):
         version = str(version).strip().lstrip("v")
+        release_tag = str(release_tag or f"v{version}").strip()
+        if not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?", release_tag):
+            raise ValueError(f"Invalid exact release tag: {release_tag}")
         return (
             f"https://github.com/{self.github_owner}/{self.github_repo}/releases/"
-            f"download/v{version}/{asset_name}"
+            f"download/{release_tag}/{asset_name}"
         )
 
 

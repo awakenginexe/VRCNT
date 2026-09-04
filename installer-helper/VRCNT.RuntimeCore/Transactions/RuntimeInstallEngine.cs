@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text.Json;
 using VRCNT.RuntimeCore.Archive;
 using VRCNT.RuntimeCore.Filesystem;
 using VRCNT.RuntimeCore.Manifest;
@@ -65,7 +66,7 @@ public sealed class RuntimeInstallEngine : IRuntimeTransactionEngine
         {
             verified = await _manifestLoader.LoadAndVerifyAsync(manifestPath, signaturePath, request.TargetVersion, cancellationToken);
         }
-        catch (CryptographicException) when (!hasAdjacentManifest)
+        catch (Exception exception) when (!hasAdjacentManifest && IsRefreshableMetadataFailure(exception))
         {
             File.Delete(manifestPath);
             File.Delete(signaturePath);
@@ -109,6 +110,9 @@ public sealed class RuntimeInstallEngine : IRuntimeTransactionEngine
             request.ShutdownHandoff);
         return await engine.ExecuteAsync(replacement, progress, cancellationToken);
     }
+
+    private static bool IsRefreshableMetadataFailure(Exception exception) =>
+        exception is CryptographicException or InvalidDataException or JsonException;
 
     private string? FindAdjacentPackageDirectory(string packageKey, VariantPackage package)
     {

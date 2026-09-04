@@ -13,8 +13,6 @@ namespace VRCNT.Setup;
 
 public sealed class SetupCommandOperations : ISetupCommandOperations
 {
-    private const string ReleaseEndpoint = "https://github.com/awakenginexe/VRCNT/releases/";
-    private const string RuntimeReleaseEndpoint = "https://github.com/awakenginexe/VRCNT/releases/latest/download/";
     private readonly IRuntimeTransactionEngine _runtimeEngine;
     private readonly IManagerLifecycle _managerLifecycle;
     private readonly Uri _managerLatestJsonUri;
@@ -55,7 +53,8 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
         var sevenZipPath = tools.SevenZipPath;
         var manifestLoader = new VRCNT.RuntimeCore.Manifest.ManifestLoader(new VRCNT.RuntimeCore.Security.MinisignVerifier(minisignPath));
         var signatureVerifier = new MinisignSetupSignatureVerifier(minisignPath);
-        var source = new HttpManagerRepairSource(capabilities, manifestLoader, signatureVerifier, new Uri(ReleaseEndpoint), managerDirectory);
+        var releaseBase = RuntimeReleaseChannel.AssetBaseUri;
+        var source = new HttpManagerRepairSource(capabilities, manifestLoader, signatureVerifier, releaseBase, managerDirectory);
         var selfCheck = new ManagerSelfCheck(capabilities, signatureVerifier);
         var handoff = new ManagerHandoff(
             managerPath,
@@ -65,7 +64,7 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
         return new SetupCommandOperations(
             new RuntimeInstallEngine(AppContext.BaseDirectory, cacheDirectory, minisignPath, sevenZipPath),
             new SetupManagerLifecycle(managerPath, null, selfCheck, new ManagerStateStore(localAppData, capabilities, managerPath), source, handoff),
-            new Uri(ReleaseEndpoint + "latest/download/latest.json"),
+            new Uri(releaseBase, "latest.json"),
             managerDirectory,
             managerPath,
             ensureManagerTools: () => SetupToolLayout.CopyToWorker(tools, managerDirectory));
@@ -105,7 +104,7 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
                 targetVariant,
                 ManagerCapabilities.Current.Version,
                 installPath,
-                RuntimeReleaseEndpoint,
+                RuntimeReleaseChannel.AssetBaseUri.ToString(),
                 string.Empty,
                 false,
                 shutdownHandoff),

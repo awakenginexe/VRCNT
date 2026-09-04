@@ -1,5 +1,6 @@
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use hmac::{Hmac, Mac};
+use minisign_verify::{PublicKey, Signature};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::env;
@@ -21,9 +22,12 @@ const RUNTIME_SWITCH_STATUS_FILE_NAME: &str = "runtime-switch-status.json";
 const RUNTIME_SWITCH_RETRY_CLEAR_FILE_NAME: &str = "runtime-switch-retry-clear.json";
 const MANAGER_STATE_FILE_NAME: &str = "manager-state.json";
 const MANAGER_SIGNATURE_FILE_NAME: &str = "VRCNT.Setup.exe.sig";
-const MINISIGN_FILE_NAME: &str = "minisign.exe";
-const MINISIGN_SHA256: &str = "5535be9e4e123831ebe6ef324aafe9dde507015c176191f9e20c3ad60567f9e1";
 const MINISIGN_PUBLIC_KEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY4NTYzNUI0QUI2RTI4RkMKUldUOEtHNnJ0RFZXYUt4L1cwOVhIL1NtZXJGQkxzZkVVYXMrWGJZQlZ5NFNPdldRMk9RdUkrVCsK";
+const RUNTIME_RELEASE_TAG: &str = match option_env!("VRCNT_RUNTIME_RELEASE_TAG") {
+    Some(value) => value,
+    None => "v5.15.0",
+};
+const RELEASE_DOWNLOAD_ROOT: &str = "https://github.com/awakenginexe/VRCNT/releases/download/";
 const RUNTIME_SWITCH_REQUESTED_EVENT: &str = "vrcnt://runtime-switch-requested";
 const MANAGER_VERSION: &str = "5.15.0";
 const MANAGER_PROTOCOL: u32 = 1;
@@ -358,7 +362,7 @@ struct RuntimeMarker {
     build_identity: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ManagerStateRecord {
     #[serde(alias = "ManagerPath")]
@@ -379,6 +383,28 @@ struct ManagerStateRecord {
     last_self_check_succeeded: bool,
     #[serde(alias = "UpdatedAtUtc")]
     updated_at_utc: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RecoveryPackageManifest {
+    schema: u32,
+    product: String,
+    version: String,
+    architecture: String,
+    bootstrapper: RecoveryBootstrapper,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RecoveryBootstrapper {
+    name: String,
+    size: u64,
+    sha256: String,
+    manager_protocol: u32,
+    manifest_schema: u32,
+    runtime_state_schema: u32,
+    activation_protocol: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1153,8 +1179,9 @@ pub fn persist_runtime_switch_receipt_binding(
 ) -> Result<RuntimeSwitchReceiptBinding, String> {
     let status_path = data_root.join(RUNTIME_SWITCH_STATUS_FILE_NAME);
     with_runtime_switch_lock(&status_path, || {
-        let canonical_app_path = fs::canonicalize(current_app_path)
-            .map_err(|_| "The runtime switch receipt application path is unavailable.".to_owned())?;
+        let canonical_app_path = fs::canonicalize(current_app_path).map_err(|_| {
+            "The runtime switch receipt application path is unavailable.".to_owned()
+        })?;
         persist_runtime_switch_receipt_binding_unlocked(
             data_root,
             nonce,
@@ -1715,6 +1742,9 @@ fn resolve_and_validate_stable_manager() -> Result<PathBuf, String> {
         .map(PathBuf::from)
         .ok_or_else(|| "The stable setup manager requires LOCALAPPDATA.".to_owned())?;
     let expected_manager = resolve_stable_manager_path(&local_app_data)?;
+    if !expected_manager.exists() {
+        recover_missing_manager(&local_app_data, &expected_manager)?;
+    }
     let local_root = fs::canonicalize(&local_app_data)
         .map_err(|_| "The local application data root is unavailable.".to_owned())?;
     let manager = fs::canonicalize(&expected_manager).map_err(|_| {
@@ -1778,61 +1808,248 @@ fn validate_promoted_manager(manager: &Path, manager_directory: &Path) -> Result
             "The setup manager signature is empty. Run Setup recovery and try again.".to_owned(),
         );
     }
-    validate_manager_signature(manager, manager_directory, &signature)?;
+    validate_manager_signature(manager, &signature)?;
     Ok(())
 }
 
-fn validate_manager_signature(
-    manager: &Path,
-    manager_directory: &Path,
-    signature: &str,
+fn validate_manager_signature(manager: &Path, signature: &str) -> Result<(), String> {
+    let manager_bytes =
+        fs::read(manager).map_err(|_| "The setup manager executable is unavailable.".to_owned())?;
+    verify_encoded_minisign(&manager_bytes, signature, MINISIGN_PUBLIC_KEY).map_err(|_| {
+        "The setup manager signature is invalid. Run Setup recovery and try again.".to_owned()
+    })
+}
+
+fn verify_encoded_minisign(
+    payload: &[u8],
+    encoded_signature: &str,
+    encoded_public_key: &str,
 ) -> Result<(), String> {
-    let minisign = manager_directory.join(MINISIGN_FILE_NAME);
-    let minisign_bytes = fs::read(&minisign).map_err(|_| {
-        "The authenticated signature verifier is missing. Run Setup recovery and try again."
-            .to_owned()
-    })?;
-    if hash_bytes(&minisign_bytes) != MINISIGN_SHA256 {
+    let key_bytes = BASE64
+        .decode(encoded_public_key.trim().trim_start_matches('\u{feff}'))
+        .map_err(|_| "The embedded setup manager key is malformed.".to_owned())?;
+    let key_text = std::str::from_utf8(&key_bytes)
+        .map_err(|_| "The embedded setup manager key is malformed.".to_owned())?;
+    let signature_bytes = BASE64
+        .decode(encoded_signature.trim().trim_start_matches('\u{feff}'))
+        .map_err(|_| "The setup manager signature is malformed.".to_owned())?;
+    let signature_text = std::str::from_utf8(&signature_bytes)
+        .map_err(|_| "The setup manager signature is malformed.".to_owned())?;
+    let public_key = PublicKey::decode(key_text)
+        .map_err(|_| "The embedded setup manager key is malformed.".to_owned())?;
+    let signature = Signature::decode(signature_text)
+        .map_err(|_| "The setup manager signature is malformed.".to_owned())?;
+    public_key
+        .verify(payload, &signature, false)
+        .map_err(|_| "The setup manager signature is invalid.".to_owned())
+}
+
+fn exact_release_asset_url(tag: &str, asset_name: &str) -> Result<String, String> {
+    let version = tag
+        .strip_prefix('v')
+        .ok_or_else(|| "The runtime release tag is invalid.".to_owned())?;
+    let has_prerelease = version.contains('-');
+    let (core, suffix) = version.split_once('-').unwrap_or((version, ""));
+    let components: Vec<_> = core.split('.').collect();
+    if components.len() != 3
+        || components
+            .iter()
+            .any(|part| part.is_empty() || !part.bytes().all(|value| value.is_ascii_digit()))
+        || (has_prerelease
+            && (suffix.is_empty()
+                || !suffix
+                    .bytes()
+                    .next()
+                    .is_some_and(|value| value.is_ascii_alphanumeric())
+                || !suffix
+                    .bytes()
+                    .all(|value| value.is_ascii_alphanumeric() || value == b'.' || value == b'-')))
+        || asset_name.is_empty()
+        || Path::new(asset_name)
+            .file_name()
+            .and_then(|value| value.to_str())
+            != Some(asset_name)
+    {
+        return Err("The runtime release asset identity is invalid.".to_owned());
+    }
+    Ok(format!("{RELEASE_DOWNLOAD_ROOT}{tag}/{asset_name}"))
+}
+
+fn recover_missing_manager(local_app_data: &Path, expected_manager: &Path) -> Result<(), String> {
+    let manager_directory = expected_manager
+        .parent()
+        .ok_or_else(|| "The setup manager recovery path is invalid.".to_owned())?;
+    fs::create_dir_all(manager_directory)
+        .map_err(|_| "The setup manager recovery directory could not be created.".to_owned())?;
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(15 * 60))
+        .build()
+        .map_err(|_| "The setup manager recovery client could not start.".to_owned())?;
+    let manifest_bytes = download_exact_release_asset(
+        &client,
+        RUNTIME_RELEASE_TAG,
+        "package-manifest.json",
+        4 * 1024 * 1024,
+    )?;
+    let manifest_signature = String::from_utf8(download_exact_release_asset(
+        &client,
+        RUNTIME_RELEASE_TAG,
+        "package-manifest.json.sig",
+        1024 * 1024,
+    )?)
+    .map_err(|_| "The recovered package manifest signature is malformed.".to_owned())?;
+    verify_encoded_minisign(&manifest_bytes, &manifest_signature, MINISIGN_PUBLIC_KEY)
+        .map_err(|_| "The recovered package manifest signature is invalid.".to_owned())?;
+    let manifest: RecoveryPackageManifest = serde_json::from_slice(&manifest_bytes)
+        .map_err(|_| "The recovered package manifest is malformed.".to_owned())?;
+    let expected_name = format!("VRCNT_{MANAGER_VERSION}_Setup.exe");
+    if manifest.schema != MANIFEST_SCHEMA
+        || manifest.product != "VRCNT"
+        || manifest.version != MANAGER_VERSION
+        || manifest.architecture != "x64"
+        || manifest.bootstrapper.name != expected_name
+        || manifest.bootstrapper.size == 0
+        || !is_sha256(&manifest.bootstrapper.sha256)
+        || manifest.bootstrapper.manager_protocol != MANAGER_PROTOCOL
+        || manifest.bootstrapper.manifest_schema != MANIFEST_SCHEMA
+        || manifest.bootstrapper.runtime_state_schema != RUNTIME_STATE_SCHEMA
+        || manifest.bootstrapper.activation_protocol != ACTIVATION_PROTOCOL
+    {
         return Err(
-            "The authenticated signature verifier is tampered. Run Setup recovery and try again."
+            "The recovered Setup manifest identity is incompatible with this application."
                 .to_owned(),
         );
     }
-    let check_directory =
-        manager_directory.join(format!(".manager-check-{}", new_secret("manager-check")));
-    fs::create_dir(&check_directory).map_err(|_| {
-        "The manager signature check could not start. Run Setup recovery and try again.".to_owned()
-    })?;
-    let signature_path = check_directory.join("manager.minisig");
-    let public_key_path = check_directory.join("manager.pub");
+    let manager_bytes = download_exact_release_asset(
+        &client,
+        RUNTIME_RELEASE_TAG,
+        &expected_name,
+        manifest.bootstrapper.size,
+    )?;
+    if manager_bytes.len() as u64 != manifest.bootstrapper.size
+        || hash_bytes(&manager_bytes) != manifest.bootstrapper.sha256.to_ascii_lowercase()
+    {
+        return Err(
+            "The recovered Setup manager failed its signed size or SHA-256 check.".to_owned(),
+        );
+    }
+    let manager_signature = String::from_utf8(download_exact_release_asset(
+        &client,
+        RUNTIME_RELEASE_TAG,
+        &format!("{expected_name}.sig"),
+        1024 * 1024,
+    )?)
+    .map_err(|_| "The recovered Setup manager signature is malformed.".to_owned())?;
+    verify_encoded_minisign(&manager_bytes, &manager_signature, MINISIGN_PUBLIC_KEY)
+        .map_err(|_| "The recovered Setup manager signature is invalid.".to_owned())?;
+
+    promote_recovered_manager(
+        local_app_data,
+        expected_manager,
+        &manager_bytes,
+        manager_signature.trim(),
+    )
+}
+
+fn download_exact_release_asset(
+    client: &reqwest::blocking::Client,
+    tag: &str,
+    asset_name: &str,
+    maximum_size: u64,
+) -> Result<Vec<u8>, String> {
+    let url = exact_release_asset_url(tag, asset_name)?;
+    let response = client
+        .get(url)
+        .send()
+        .and_then(reqwest::blocking::Response::error_for_status)
+        .map_err(|_| {
+            format!("The exact {tag} release asset {asset_name} could not be downloaded.")
+        })?;
+    if response
+        .content_length()
+        .is_some_and(|length| length > maximum_size)
+    {
+        return Err(format!(
+            "The exact {tag} release asset {asset_name} is oversized."
+        ));
+    }
+    let bytes = response
+        .bytes()
+        .map_err(|_| format!("The exact {tag} release asset {asset_name} could not be read."))?;
+    if bytes.is_empty() || bytes.len() as u64 > maximum_size {
+        return Err(format!(
+            "The exact {tag} release asset {asset_name} has an invalid size."
+        ));
+    }
+    Ok(bytes.to_vec())
+}
+
+fn promote_recovered_manager(
+    _local_app_data: &Path,
+    manager: &Path,
+    manager_bytes: &[u8],
+    signature: &str,
+) -> Result<(), String> {
+    let directory = manager
+        .parent()
+        .ok_or_else(|| "The setup manager recovery path is invalid.".to_owned())?;
+    let signature_path = directory.join(MANAGER_SIGNATURE_FILE_NAME);
+    let state_path = directory.join(MANAGER_STATE_FILE_NAME);
+    let old_signature = fs::read(&signature_path).ok();
+    let old_state = fs::read(&state_path).ok();
+    let state = ManagerStateRecord {
+        manager_path: manager.display().to_string(),
+        manager_sha256: hash_bytes(manager_bytes),
+        version: MANAGER_VERSION.to_owned(),
+        manager_protocol: MANAGER_PROTOCOL,
+        manifest_schema: MANIFEST_SCHEMA,
+        runtime_state_schema: RUNTIME_STATE_SCHEMA,
+        activation_protocol: ACTIVATION_PROTOCOL,
+        last_self_check_succeeded: true,
+        updated_at_utc: format_time(SystemTime::now()),
+    };
     let result = (|| {
-        let public_key = BASE64
-            .decode(MINISIGN_PUBLIC_KEY)
-            .map_err(|_| "The embedded setup manager key is malformed.".to_owned())?;
-        stage_manager_signature_for_verification(&check_directory, signature)?;
-        fs::write(&public_key_path, public_key)
-            .map_err(|_| "The embedded setup manager key could not be staged.".to_owned())?;
-        let status = Command::new(&minisign)
-            .arg("-Vm")
-            .arg(manager)
-            .arg("-x")
-            .arg(&signature_path)
-            .arg("-p")
-            .arg(&public_key_path)
-            .arg("-q")
-            .status()
-            .map_err(|_| "The setup manager signature verifier could not run.".to_owned())?;
-        if status.success() {
-            Ok(())
-        } else {
-            Err(
-                "The setup manager signature is invalid. Run Setup recovery and try again."
-                    .to_owned(),
-            )
-        }
+        replace_recovery_file(&signature_path, signature.as_bytes())?;
+        replace_recovery_file(manager, manager_bytes)?;
+        replace_recovery_file(
+            &state_path,
+            &serde_json::to_vec_pretty(&state)
+                .map_err(|_| "The recovered manager state could not be serialized.".to_owned())?,
+        )?;
+        let canonical = fs::canonicalize(manager)
+            .map_err(|_| "The recovered Setup manager could not be activated.".to_owned())?;
+        validate_promoted_manager(&canonical, directory)
     })();
-    let _ = fs::remove_dir_all(&check_directory);
+    if result.is_err() {
+        let _ = fs::remove_file(manager);
+        restore_recovery_file(&signature_path, old_signature.as_deref());
+        restore_recovery_file(&state_path, old_state.as_deref());
+    }
     result
+}
+
+fn replace_recovery_file(path: &Path, contents: &[u8]) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| "The recovered manager path is invalid.".to_owned())?;
+    let temporary = parent.join(format!(".recovery-{}.tmp", new_secret("manager")));
+    fs::write(&temporary, contents)
+        .map_err(|_| "The recovered manager file could not be staged.".to_owned())?;
+    if path.exists() {
+        fs::remove_file(path)
+            .map_err(|_| "The stale manager file could not be replaced.".to_owned())?;
+    }
+    fs::rename(&temporary, path).map_err(|_| {
+        let _ = fs::remove_file(&temporary);
+        "The recovered manager file could not be committed.".to_owned()
+    })
+}
+
+fn restore_recovery_file(path: &Path, previous: Option<&[u8]>) {
+    let _ = fs::remove_file(path);
+    if let Some(contents) = previous {
+        let _ = fs::write(path, contents);
+    }
 }
 
 pub fn stage_manager_signature_for_verification(
@@ -1840,10 +2057,16 @@ pub fn stage_manager_signature_for_verification(
     signature: &str,
 ) -> Result<PathBuf, String> {
     let signature_path = check_directory.join("manager.minisig");
-    let signature = BASE64
-        .decode(signature.trim().trim_start_matches('\u{feff}'))
-        .map_err(|_| "The setup manager signature is malformed. Run Setup recovery and try again.".to_owned())?;
-    fs::write(&signature_path, signature)
+    let without_bom = signature.trim_start_matches('\u{feff}');
+    let normalized = without_bom.trim();
+    let signature_bytes = if normalized.starts_with("untrusted comment:") {
+        without_bom.as_bytes().to_vec()
+    } else {
+        BASE64.decode(normalized).map_err(|_| {
+            "The setup manager signature is malformed. Run Setup recovery and try again.".to_owned()
+        })?
+    };
+    fs::write(&signature_path, signature_bytes)
         .map_err(|_| "The setup manager signature could not be staged.".to_owned())?;
     Ok(signature_path)
 }
@@ -2073,6 +2296,42 @@ mod retry_clear_tests {
             stage_manager_signature_for_verification(temporary.path(), &encoded).unwrap();
 
         assert_eq!(fs::read(signature_path).unwrap(), expected);
+    }
+
+    #[test]
+    fn recovery_urls_are_pinned_to_the_compiled_release_tag() {
+        assert_eq!(
+            exact_release_asset_url("v5.15.0-rc.1", "package-manifest.json").unwrap(),
+            "https://github.com/awakenginexe/VRCNT/releases/download/v5.15.0-rc.1/package-manifest.json"
+        );
+        assert!(exact_release_asset_url("latest", "package-manifest.json").is_err());
+        assert!(exact_release_asset_url("v5.15.0-", "package-manifest.json").is_err());
+        assert!(exact_release_asset_url("v5.15.0-rc.1", "../setup.exe").is_err());
+    }
+
+    #[test]
+    fn native_minisign_verification_accepts_encoded_signed_fixture() {
+        let public_key = "untrusted comment: minisign public key E7620F1842B4E81F\nRWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3";
+        let signature = "untrusted comment: signature from minisign secret key\nRUQf6LRCGA9i559r3g7V1qNyJDApGip8MfqcadIgT9CuhV3EMhHoN1mGTkUidF/z7SrlQgXdy8ofjb7bNJJylDOocrCo8KLzZwo=\ntrusted comment: timestamp:1556193335\tfile:test\ny/rUw2y8/hOUYjZU71eHp/Wo1KZ40fGy2VJEDl34XMJM+TX48Ss/17u3IvIfbVR1FkZZSNCisQbuQY+bHwhEBg==";
+        let encoded_key = BASE64.encode(public_key);
+        let encoded_signature = BASE64.encode(signature);
+
+        verify_encoded_minisign(b"test", &encoded_signature, &encoded_key).unwrap();
+        assert!(verify_encoded_minisign(b"tampered", &encoded_signature, &encoded_key).is_err());
+    }
+
+    #[test]
+    fn failed_recovery_promotion_removes_the_untrusted_manager() {
+        let temporary = tempdir().unwrap();
+        let manager = temporary.path().join(MANAGER_FILE_NAME);
+        let fixture_signature = "untrusted comment: signature from minisign secret key\nRUQf6LRCGA9i559r3g7V1qNyJDApGip8MfqcadIgT9CuhV3EMhHoN1mGTkUidF/z7SrlQgXdy8ofjb7bNJJylDOocrCo8KLzZwo=\ntrusted comment: timestamp:1556193335\tfile:test\ny/rUw2y8/hOUYjZU71eHp/Wo1KZ40fGy2VJEDl34XMJM+TX48Ss/17u3IvIfbVR1FkZZSNCisQbuQY+bHwhEBg==";
+        let encoded_signature = BASE64.encode(fixture_signature);
+
+        assert!(
+            promote_recovered_manager(temporary.path(), &manager, b"test", &encoded_signature,)
+                .is_err()
+        );
+        assert!(!manager.exists());
     }
 
     #[test]

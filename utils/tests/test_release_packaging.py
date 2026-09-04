@@ -13,7 +13,7 @@ UTILS_DIRECTORY = REPOSITORY_ROOT / "utils"
 sys.path.insert(0, str(UTILS_DIRECTORY))
 
 from release_config import ReleaseConfig, load_release_config
-from release import REQUIRED_PAYLOAD_DIRECTORIES, REQUIRED_PAYLOAD_FILES, validate_payload
+from release import REQUIRED_PAYLOAD_DIRECTORIES, REQUIRED_PAYLOAD_FILES, latest, validate_payload
 import update_version
 
 
@@ -69,6 +69,17 @@ class ReleaseNamingTests(unittest.TestCase):
         self.assertIn("run: npm ci", workflow)
         self.assertIn("python ./utils/release.py package", workflow)
 
+    def test_candidate_workflow_publishes_only_the_approved_exact_prerelease(self):
+        workflow = (
+            REPOSITORY_ROOT / ".github" / "workflows" / "test-candidate.yml"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("RELEASE_TAG: v5.15.0-rc.1", workflow)
+        self.assertIn("--release-tag $env:RELEASE_TAG", workflow)
+        self.assertIn("--draft --prerelease", workflow)
+        self.assertIn("--draft=false --prerelease", workflow)
+        self.assertNotIn("--draft=false --prerelease=false", workflow)
+
     def test_readme_discloses_queued_fallback_cooldown_issue(self):
         readme = (REPOSITORY_ROOT / "README.md").read_text(encoding="utf-8")
 
@@ -88,6 +99,21 @@ class ReleaseNamingTests(unittest.TestCase):
 
 
 class ReleasePayloadTests(unittest.TestCase):
+    def test_latest_metadata_can_target_an_exact_prerelease_tag(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            signature = root / "setup.sig"
+            output = root / "latest.json"
+            signature.write_text("signed", encoding="utf-8")
+
+            latest("5.15.0", "VRCNT_5.15.0_Setup.exe", signature, output, "2026-09-04T00:00:00Z", release_tag="v5.15.0-rc.1")
+
+            document = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(
+                "https://github.com/awakenginexe/VRCNT/releases/download/v5.15.0-rc.1/VRCNT_5.15.0_Setup.exe",
+                document["platforms"]["windows-x86_64"]["url"],
+            )
+
     def test_release_module_loads_without_optional_dependencies(self):
         script = f"""
 import sys
@@ -163,6 +189,11 @@ class VersionConsistencyTests(unittest.TestCase):
         self.assertEqual(target_version, tauri["version"])
         self.assertEqual(target_version, cargo_manifest["package"]["version"])
         self.assertEqual(target_version, vrcnt_package["version"])
+        runtime_manager = (
+            REPOSITORY_ROOT / "src-tauri" / "src" / "runtime_manager.rs"
+        ).read_text(encoding="utf-8")
+        self.assertIn(f'None => "v{target_version}",', runtime_manager)
+        self.assertIn(f'const MANAGER_VERSION: &str = "{target_version}";', runtime_manager)
 
         config = (REPOSITORY_ROOT / "src-python" / "config.py").read_text(encoding="utf-8")
         self.assertRegex(config, rf'self\._VERSION = "{re.escape(target_version)}"')

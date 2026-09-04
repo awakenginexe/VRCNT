@@ -514,7 +514,7 @@ public sealed class ManagerLifecycleTests : IDisposable
     public async Task Current_setup_source_without_a_bundle_fetches_the_exact_versioned_release()
     {
         var managerDirectory = Path.Combine(_root, "VRCNTInstaller");
-        var releaseEndpoint = new Uri("https://example.test/releases/");
+        var releaseEndpoint = new Uri("https://example.test/releases/download/v5.15.0/");
         var bootstrapperBytes = Encoding.UTF8.GetBytes("new-manager");
         var manifest = CreateManifest("new-manager");
         var latest = JsonSerializer.Serialize(new

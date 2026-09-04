@@ -93,6 +93,48 @@ public sealed class RuntimeInstallEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task ExecuteAsync_evicts_cached_metadata_after_manifest_identity_validation_fails()
+    {
+        var candidateDirectory = Path.Combine(_root, "candidate");
+        var cacheDirectory = Path.Combine(_root, "cache");
+        var versionCacheDirectory = Path.Combine(cacheDirectory, "5.15.0");
+        Directory.CreateDirectory(candidateDirectory);
+        Directory.CreateDirectory(versionCacheDirectory);
+        await File.WriteAllTextAsync(Path.Combine(versionCacheDirectory, "package-manifest.json"), "wrong-version manifest");
+        await File.WriteAllTextAsync(Path.Combine(versionCacheDirectory, "package-manifest.json.sig"), "valid signature for wrong version");
+
+        var handler = new RecordingHandler();
+        using var client = new HttpClient(handler);
+        var manifestLoader = new IdentityRejectingManifestLoader();
+        var engine = new RuntimeInstallEngine(
+            candidateDirectory,
+            cacheDirectory,
+            Path.Combine(_root, "missing-minisign.exe"),
+            Path.Combine(_root, "missing-7za.exe"),
+            client,
+            manifestLoader);
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => engine.ExecuteAsync(
+            new RuntimeInstallRequest(
+                RuntimeVariant.Cpu,
+                "5.15.0",
+                Path.Combine(_root, "install"),
+                "https://example.invalid/releases/download/v5.15.0-rc.1/",
+                string.Empty,
+                false),
+            null,
+            default));
+
+        Assert.Contains("identity", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(2, manifestLoader.Calls);
+        Assert.Collection(
+            handler.Requests,
+            request => Assert.Equal("https://example.invalid/releases/download/v5.15.0-rc.1/package-manifest.json", request.ToString()),
+            request => Assert.Equal("https://example.invalid/releases/download/v5.15.0-rc.1/package-manifest.json.sig", request.ToString()));
+        Assert.Equal("remote response", await File.ReadAllTextAsync(Path.Combine(versionCacheDirectory, "package-manifest.json")));
+    }
+
+    [Fact]
     public async Task ExecuteAsync_uses_complete_cpu_subfolder_candidate_without_contacting_the_release_endpoint()
     {
         var candidateDirectory = Path.Combine(_root, "candidate");
@@ -211,6 +253,21 @@ public sealed class RuntimeInstallEngineTests : IDisposable
             string signaturePath,
             string expectedVersion,
             CancellationToken cancellationToken) => Task.FromResult(new VerifiedManifest(manifest, manifestPath));
+    }
+
+    private sealed class IdentityRejectingManifestLoader : IManifestLoader
+    {
+        public int Calls { get; private set; }
+
+        public Task<VerifiedManifest> LoadAndVerifyAsync(
+            string manifestPath,
+            string signaturePath,
+            string expectedVersion,
+            CancellationToken cancellationToken)
+        {
+            Calls++;
+            throw new InvalidDataException("Package manifest identity does not match this installer.");
+        }
     }
 
     private sealed class FailingHandler : HttpMessageHandler

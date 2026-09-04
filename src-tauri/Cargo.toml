@@ -32,6 +32,7 @@ reqwest = { version = "=0.12.15", features = ["blocking"] }
 sha2 = "=0.10.9"
 hmac = "=0.12.1"
 getrandom = "=0.4.3"
+minisign-verify = "=0.2.5"
 tauri-plugin-process = "2"
 sysinfo = "=0.39.6"
 

@@ -21,6 +21,9 @@
     <InstallerLocalesOutput>$(BaseIntermediateOutputPath)Generated\InstallerLocales.json</InstallerLocalesOutput>
     <InstallerLocalesGenerator>$(MSBuildProjectDirectory)\..\..\scripts\generate_installer_locales.py</InstallerLocalesGenerator>
   </PropertyGroup>
+  <ItemGroup Condition="'$(RuntimeReleaseTag)' != ''">
+    <AssemblyMetadata Include="VRCNTRuntimeReleaseTag" Value="$(RuntimeReleaseTag)" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\VRCNT.RuntimeCore\VRCNT.RuntimeCore.csproj" />
     <Resource Include="..\..\src-tauri\icons\icon.png">
