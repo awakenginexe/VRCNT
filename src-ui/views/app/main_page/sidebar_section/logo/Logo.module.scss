@@ -10,7 +10,21 @@
     &.is_compact_mode {
         height: var(--main_page_topbar_height);
         justify-content: center;
-        padding: 0.8rem 1rem 0.4rem;
+        align-items: center;
+        padding: 0.4rem 0.6rem;
+    }
+}
+
+.brand_wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    flex-shrink: 0;
+
+    .container.is_compact_mode & {
+        gap: 0.25rem;
     }
 }
 
@@ -22,7 +36,7 @@
     filter: var(--filter_accent_glow);
 
     .container.is_compact_mode & {
-        width: 3.3rem;
+        width: 3.2rem;
     }
 }
 
@@ -41,17 +55,63 @@
 }
 
 .runtime_badge {
-    align-self: flex-start;
-    padding: 0.3rem 0.7rem;
-    border: 1px solid color-mix(in srgb, var(--dark_400_color) 55%, transparent);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    min-width: 5.4rem;
+    max-width: 10rem;
+    padding: 0.25rem 0.65rem;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--dark_800_color) 72%, transparent);
-    color: var(--primary_150_color);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     line-height: 1.2;
     font-weight: 800;
     letter-spacing: 0.05rem;
     white-space: nowrap;
+    text-align: center;
+    user-select: none;
+    transition: var(--transition_ui);
+
+    /* Neutral unknown fallback */
+    border: 1px solid color-mix(in srgb, var(--dark_400_color) 45%, transparent);
+    background: color-mix(in srgb, var(--dark_800_color) 75%, transparent);
+    color: var(--dark_350_color, #AEBBD0);
+
+    &.variant_cpu {
+        border-color: rgba(56, 189, 248, 0.45);
+        background: color-mix(in srgb, #0284C7 18%, var(--palette_surface_1_color, #0A0E1A));
+        color: #38BDF8;
+        box-shadow: 0 0 1rem rgba(56, 189, 248, 0.18);
+    }
+
+    &.variant_cuda {
+        border-color: rgba(16, 185, 129, 0.45);
+        background: color-mix(in srgb, #059669 18%, var(--palette_surface_1_color, #0A0E1A));
+        color: #34D399;
+        box-shadow: 0 0 1rem rgba(16, 185, 129, 0.18);
+    }
+
+    &.variant_unknown {
+        border-color: color-mix(in srgb, var(--dark_400_color) 45%, transparent);
+        background: color-mix(in srgb, var(--dark_800_color) 75%, transparent);
+        color: var(--dark_350_color, #AEBBD0);
+        box-shadow: none;
+    }
+
+    .container.is_compact_mode & {
+        min-width: 3.4rem;
+        max-width: 6.4rem;
+        padding: 0.12rem 0.45rem;
+        font-size: 0.72rem;
+        line-height: 1.1;
+        letter-spacing: 0.04rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
+
+:global(.performance_mode) .runtime_badge {
+    box-shadow: none;
 }
 
 .logo_subtitle {

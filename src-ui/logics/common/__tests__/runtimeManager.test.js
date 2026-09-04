@@ -59,6 +59,84 @@ test("main-page branding shows the unknown fallback until runtime verification c
     assert.doesNotMatch(source, /runtimeBadge\s*&&/);
 });
 
+test("runtime badge supports preferNvidiaCuda and compact options for active editions", () => {
+    // Active CPU state produces the CPU label
+    assert.equal(getRuntimeBadge(normalizeRuntimeState(activeCpu), { preferNvidiaCuda: true }), "CPU");
+    assert.equal(getRuntimeBadge(normalizeRuntimeState(activeCpu), { compact: true }), "CPU");
+    assert.equal(getRuntimeBadge(normalizeRuntimeState(activeCpu)), "CPU Runtime");
+
+    // Active CUDA state produces the CUDA label
+    assert.equal(
+        getRuntimeBadge(normalizeRuntimeState({ ...activeCpu, variant: "cuda" }), { preferNvidiaCuda: true }),
+        "NVIDIA CUDA",
+    );
+    assert.equal(
+        getRuntimeBadge(normalizeRuntimeState({ ...activeCpu, variant: "cuda" }), { compact: true }),
+        "CUDA",
+    );
+    assert.equal(
+        getRuntimeBadge(normalizeRuntimeState({ ...activeCpu, variant: "cuda" })),
+        "CUDA Runtime",
+    );
+
+    // Missing/invalid state produces Runtime unknown across all options
+    assert.equal(getRuntimeBadge(normalizeRuntimeState({ ...activeCpu, installPath: "" })), "Runtime unknown");
+    assert.equal(
+        getRuntimeBadge(normalizeRuntimeState({ ...activeCpu, installPath: "" }), { preferNvidiaCuda: true }),
+        "Runtime unknown",
+    );
+    assert.equal(
+        getRuntimeBadge(normalizeRuntimeState({ ...activeCpu, installPath: "" }), { compact: true }),
+        "Runtime unknown",
+    );
+    assert.equal(getRuntimeBadge(null), "Runtime unknown");
+    assert.equal(getRuntimeBadge(undefined), "Runtime unknown");
+    assert.equal(getRuntimeBadge({ status: "recovery" }), "Runtime unknown");
+});
+
+test("live-page logo branding preserves edition badge visibility across normal, compact, and performance layouts", () => {
+    const jsxSource = fs.readFileSync(
+        path.join(repoRoot, "src-ui", "views", "app", "main_page", "sidebar_section", "logo", "Logo.jsx"),
+        "utf8",
+    );
+    const scssSource = fs.readFileSync(
+        path.join(repoRoot, "src-ui", "views", "app", "main_page", "sidebar_section", "logo", "Logo.module.scss"),
+        "utf8",
+    );
+
+    // The badge exists in normal layout
+    assert.match(jsxSource, /useState\("Runtime unknown"\)/);
+    assert.match(jsxSource, /styles\.runtime_badge/);
+    assert.match(jsxSource, /title=\{`Installed edition: \$\{runtimeBadge\}`\}/);
+    assert.match(jsxSource, /styles\.logo_copy/);
+
+    // The compact-mode CSS cannot hide the only runtime indicator:
+    // runtime_badge must NOT be placed inside the logo_copy subtree which is hidden in compact mode
+    assert.doesNotMatch(
+        jsxSource,
+        /<div[^>]*styles\.logo_copy[^>]*>[\s\S]*styles\.runtime_badge[\s\S]*<\/div>/,
+        "runtime_badge must not be inside logo_copy subtree",
+    );
+    // SCSS must not set display: none on runtime_badge in compact mode
+    assert.doesNotMatch(
+        scssSource,
+        /\.runtime_badge\s*\{[^}]*display:\s*none/i,
+        "runtime_badge must never have display: none",
+    );
+    assert.doesNotMatch(
+        scssSource,
+        /is_compact_mode[\s\S]*?\.runtime_badge\s*\{[^}]*display:\s*none/i,
+        "compact mode must not hide runtime_badge",
+    );
+
+    // The badge remains visible in compact/performance layout
+    assert.match(scssSource, /is_compact_mode/);
+    assert.match(scssSource, /:global\(\.performance_mode\)/);
+    assert.match(jsxSource, /styles\.variant_cpu/);
+    assert.match(jsxSource, /styles\.variant_cuda/);
+    assert.match(jsxSource, /styles\.variant_unknown/);
+});
+
 test("invalid runtime state enters recovery instead of being displayed as active", () => {
     const invalid = normalizeRuntimeState({ ...activeCpu, status: "active", installPath: "" });
 
@@ -286,6 +364,28 @@ test("installer completion uses an immediate launch action while its checkbox ex
     const english = yaml.load(fs.readFileSync(path.join(repoRoot, "locales", "en.yml"), "utf8"));
     assert.equal(english.installer.launch_vrcnt, "Launch VRCNT");
     assert.equal(english.installer.launch_after_setup, "Launch VRCNT when setup finishes");
+});
+
+test("new installer localization keys exist in every supported locale", () => {
+    const newInstallerKeys = [
+        "activity_history",
+        "phase_preparing",
+        "phase_downloading",
+        "phase_verifying",
+        "phase_extracting",
+        "phase_installing",
+        "phase_finalizing",
+        "installed_edition",
+    ];
+
+    for (const localeFile of localeFiles) {
+        const locale = yaml.load(fs.readFileSync(path.join(repoRoot, "locales", localeFile), "utf8"));
+        const installer = locale?.installer ?? {};
+        for (const key of newInstallerKeys) {
+            assert.equal(typeof installer[key], "string", `${localeFile}: ${key} must be a string`);
+            assert.notEqual(installer[key].trim(), "", `${localeFile}: ${key} must not be empty`);
+        }
+    }
 });
 
 test("runtime switch confirmation is opaque and blurred only outside Performance Mode", () => {

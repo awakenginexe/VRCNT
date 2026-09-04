@@ -42,6 +42,10 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     private bool _isInstalling;
     private bool _advancedCudaOverrideEnabled;
     private double _progressValue;
+    private bool _isProgressIndeterminate = true;
+    private long _completedBytes;
+    private long _totalBytes;
+    private TransactionPhase _currentPhase = TransactionPhase.Preflight;
     private string _progressDetail = string.Empty;
     private string _errorDetail = string.Empty;
 
@@ -183,6 +187,47 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         }
     }
     public string ProgressPercentText => $"{Math.Round(ProgressValue):0}%";
+    public bool IsProgressIndeterminate
+    {
+        get => _isProgressIndeterminate;
+        private set => SetField(ref _isProgressIndeterminate, value);
+    }
+    public long CompletedBytes { get => _completedBytes; private set => SetField(ref _completedBytes, value); }
+    public long TotalBytes { get => _totalBytes; private set => SetField(ref _totalBytes, value); }
+    public string TransferSizeText => TotalBytes > 0
+        ? $"{FormatByteSize(CompletedBytes)} / {FormatByteSize(TotalBytes)}"
+        : string.Empty;
+    public bool HasTransferSize => TotalBytes > 0;
+    public TransactionPhase CurrentPhase
+    {
+        get => _currentPhase;
+        private set
+        {
+            if (SetField(ref _currentPhase, value))
+            {
+                OnPropertyChanged(nameof(CurrentPhaseText));
+                OnPropertyChanged(nameof(CurrentArchiveText));
+                OnPropertyChanged(nameof(HasCurrentArchive));
+            }
+        }
+    }
+    public string CurrentPhaseText => CurrentPhase switch
+    {
+        TransactionPhase.Preflight => T("phase_preparing"),
+        TransactionPhase.Acquire => T("phase_downloading"),
+        TransactionPhase.Verify => T("phase_verifying"),
+        TransactionPhase.Stage => T("phase_extracting"),
+        TransactionPhase.Quiesce or TransactionPhase.Replace or TransactionPhase.Activate => T("phase_installing"),
+        TransactionPhase.Commit or TransactionPhase.Cleanup => T("phase_finalizing"),
+        _ => ProgressTitle,
+    };
+    public string CurrentArchiveText => CurrentPhase == TransactionPhase.Acquire && !string.IsNullOrWhiteSpace(ProgressDetail)
+        ? ProgressDetail
+        : string.Empty;
+    public bool HasCurrentArchive => !string.IsNullOrWhiteSpace(CurrentArchiveText);
+    public string ActivityHistoryTitle => T("activity_history");
+    public string InstalledEditionLabel => T("installed_edition");
+    public string ActiveStatusText => T("active_status");
     public string ProgressDetail { get => _progressDetail; private set => SetField(ref _progressDetail, value); }
     public ReadOnlyObservableCollection<string> ProgressHistory { get; }
     public string ErrorDetail { get => _errorDetail; private set => SetField(ref _errorDetail, value); }
@@ -295,6 +340,10 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     public async Task InstallAsync()
     {
         ProgressValue = 0;
+        IsProgressIndeterminate = true;
+        CompletedBytes = 0;
+        TotalBytes = 0;
+        CurrentPhase = TransactionPhase.Preflight;
         ProgressDetail = string.Empty;
         _progressHistory.Clear();
         ErrorDetail = string.Empty;
@@ -305,11 +354,13 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
             var request = _options with { TargetVariant = IsSwitch ? TargetVariant : SelectedVariant, InstallPath = InstallPath, InstallerLanguage = SelectedLanguage.Id };
             await new SetupCommandDispatcher(_operations).DispatchAsync(request, CancellationToken.None, new InlineProgress<InstallProgress>(ReportProgress));
             ProgressValue = 100;
+            IsProgressIndeterminate = false;
             CurrentPage = InstallerPage.Complete;
             if (LaunchAfterSetup || IsSwitch) LaunchVrcnt(force: IsSwitch);
         }
         catch (Exception exception)
         {
+            IsProgressIndeterminate = false;
             ErrorDetail = exception.Message;
             CurrentPage = InstallerPage.Error;
         }
@@ -329,10 +380,36 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
 
     private void ReportProgress(InstallProgress progress)
     {
+        CurrentPhase = progress.Phase;
         ProgressDetail = progress.Message;
         ProgressValue = GetProgressValue(progress);
-        if (_progressHistory.LastOrDefault() != progress.Message)
+        CompletedBytes = progress.CompletedBytes;
+        TotalBytes = progress.TotalBytes;
+        OnPropertyChanged(nameof(TransferSizeText));
+        OnPropertyChanged(nameof(HasTransferSize));
+        OnPropertyChanged(nameof(CurrentArchiveText));
+        OnPropertyChanged(nameof(HasCurrentArchive));
+
+        if (progress.Phase == TransactionPhase.Acquire)
+        {
+            IsProgressIndeterminate = progress.TotalBytes <= 0;
+        }
+        else
+        {
+            IsProgressIndeterminate = false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(progress.Message) && _progressHistory.LastOrDefault() != progress.Message)
             _progressHistory.Add(progress.Message);
+    }
+
+    public static string FormatByteSize(long bytes)
+    {
+        if (bytes <= 0) return "0 B";
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F1} MB";
+        return $"{bytes / (1024.0 * 1024 * 1024):F2} GB";
     }
 
     private static double GetProgressValue(InstallProgress progress) => progress.Phase switch
@@ -362,7 +439,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
             nameof(CudaTime), nameof(CpuStatus), nameof(CudaStatus), nameof(CudaAdvisory), nameof(GpuDetectionState), nameof(AdvancedCudaWarning), nameof(EnableAdvancedCudaOverrideText), nameof(IsCudaNormallyAvailable), nameof(RequiresAdvancedCudaOverride), nameof(AdvancedCudaOverrideEnabled), nameof(CanSelectCuda), nameof(SelectedRuntimeTitle), nameof(SelectedRuntimeSize), nameof(SelectedRuntimeTime), nameof(CurrentPageTitle), nameof(InstallSizeLabel), nameof(InstallTimeLabel),
             nameof(OptionsTitle), nameof(OptionsBody), nameof(LaunchAfterSetupText), nameof(LaunchVrcntText), nameof(InstallText), nameof(ProgressTitle), nameof(CanChangeRuntimeSelection), nameof(CanSelectCudaRadio),
             nameof(InstallLocationLabel), nameof(BrowseInstallDirectoryText), nameof(ProgressBody), nameof(ErrorTitle), nameof(ErrorBody), nameof(RetryText), nameof(ErrorActionText), nameof(CompleteTitle),
-            nameof(CompleteBody), nameof(CloseText),
+            nameof(CompleteBody), nameof(CloseText), nameof(ActivityHistoryTitle), nameof(InstalledEditionLabel), nameof(ActiveStatusText), nameof(CurrentPhaseText),
         }) OnPropertyChanged(property);
     }
 

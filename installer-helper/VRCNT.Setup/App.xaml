@@ -23,6 +23,8 @@
         <SolidColorBrush x:Key="InstallerCudaSurfaceBrush" Color="#121C1C" />
         <SolidColorBrush x:Key="InstallerErrorBrush" Color="#EF4444" />
         <SolidColorBrush x:Key="InstallerWarningBrush" Color="#F59E0B" />
+        <SolidColorBrush x:Key="InstallerPurpleAccentBrush" Color="#8B5CF6" />
+        <SolidColorBrush x:Key="InstallerSurfaceElevatedBrush" Color="#182030" />
 
         <!-- Dimension Tokens -->
         <sys:Double x:Key="InstallerBodyFontSize">13</sys:Double>
@@ -260,13 +262,49 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ProgressBar">
-                        <Grid x:Name="TemplateRoot">
+                        <Grid x:Name="TemplateRoot" ClipToBounds="True">
                             <Border Background="{TemplateBinding Background}" CornerRadius="3" />
                             <Rectangle x:Name="PART_Track" />
                             <Grid x:Name="PART_Indicator" ClipToBounds="True" HorizontalAlignment="Left">
                                 <Border x:Name="Indicator" Background="{TemplateBinding Foreground}" CornerRadius="3" />
                             </Grid>
+                            <Border x:Name="IndeterminateGlow" HorizontalAlignment="Left" Width="140" CornerRadius="3" Visibility="Collapsed">
+                                <Border.RenderTransform>
+                                    <TranslateTransform x:Name="IndeterminateTransform" X="0" />
+                                </Border.RenderTransform>
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                        <GradientStop Color="#0000D2FF" Offset="0" />
+                                        <GradientStop Color="#E000D2FF" Offset="0.5" />
+                                        <GradientStop Color="#0000D2FF" Offset="1" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                            </Border>
                         </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsIndeterminate" Value="True">
+                                <Setter TargetName="PART_Indicator" Property="Visibility" Value="Collapsed" />
+                                <Setter TargetName="IndeterminateGlow" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding RelativeSource={RelativeSource Self}, Path=IsIndeterminate}" Value="True" />
+                                    <Condition Binding="{Binding DataContext.UseReducedMotion, RelativeSource={RelativeSource Self}}" Value="False" />
+                                </MultiDataTrigger.Conditions>
+                                <MultiDataTrigger.EnterActions>
+                                    <BeginStoryboard x:Name="IndeterminateStoryboard">
+                                        <Storyboard RepeatBehavior="Forever">
+                                            <DoubleAnimation Storyboard.TargetName="IndeterminateTransform"
+                                                             Storyboard.TargetProperty="X"
+                                                             From="-140" To="540" Duration="0:0:1.3" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </MultiDataTrigger.EnterActions>
+                                <MultiDataTrigger.ExitActions>
+                                    <StopStoryboard BeginStoryboardName="IndeterminateStoryboard" />
+                                </MultiDataTrigger.ExitActions>
+                            </MultiDataTrigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>

@@ -68,9 +68,15 @@ export const getRuntimePresentation = (runtime) => {
     };
 };
 
-export const getRuntimeBadge = (runtime) => {
+export const getRuntimeBadge = (runtime, options = {}) => {
     const presentation = getRuntimePresentation(runtime);
     if (presentation.status !== "active") return "Runtime unknown";
+    if (options?.compact) {
+        return presentation.currentVariant === "cuda" ? "CUDA" : "CPU";
+    }
+    if (options?.preferNvidiaCuda) {
+        return presentation.currentVariant === "cuda" ? "NVIDIA CUDA" : "CPU";
+    }
     return presentation.currentVariant === "cuda" ? "CUDA Runtime" : "CPU Runtime";
 };
 

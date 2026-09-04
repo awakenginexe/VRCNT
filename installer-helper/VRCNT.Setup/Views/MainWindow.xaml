@@ -45,16 +45,36 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
+        <!-- Ambient Decorative VRCNT Background (subtle, non-distracting, zero CPU overhead) -->
+        <Canvas Grid.RowSpan="3" IsHitTestVisible="False" ClipToBounds="True">
+            <Ellipse Width="450" Height="450" Canvas.Left="-150" Canvas.Top="-150" Opacity="0.04">
+                <Ellipse.Fill>
+                    <RadialGradientBrush>
+                        <GradientStop Color="#00D2FF" Offset="0" />
+                        <GradientStop Color="Transparent" Offset="1" />
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+            </Ellipse>
+            <Ellipse Width="420" Height="420" Canvas.Right="-130" Canvas.Bottom="-130" Opacity="0.035">
+                <Ellipse.Fill>
+                    <RadialGradientBrush>
+                        <GradientStop Color="#8B5CF6" Offset="0" />
+                        <GradientStop Color="Transparent" Offset="1" />
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+            </Ellipse>
+        </Canvas>
+
         <!-- ==================== HEADER / TITLEBAR ==================== -->
         <Border Grid.Row="0" Background="{DynamicResource InstallerSurfaceBrush}" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="0,0,0,1" Padding="14,0,8,0">
             <Grid>
                 <!-- Left: Branding & App Title -->
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
-                    <Border Width="22" Height="22" Background="#1A334D" BorderBrush="{DynamicResource InstallerAccentBrush}" BorderThickness="1" CornerRadius="4" Margin="0,0,8,0">
+                    <Border Width="24" Height="24" Background="#142334" BorderBrush="{DynamicResource InstallerAccentBrush}" BorderThickness="1" CornerRadius="5" Margin="0,0,8,0">
                         <Image Source="pack://application:,,,/VRCNT.Setup;component/Assets/icon.png" Width="18" Height="18" Stretch="Uniform" />
                     </Border>
                     <TextBlock Text="{Binding AppTitle}" FontWeight="SemiBold" FontSize="13" Foreground="{DynamicResource InstallerTextBrush}" VerticalAlignment="Center" />
-                    <Border Background="{DynamicResource InstallerSurfaceMutedBrush}" CornerRadius="4" Padding="6,2" Margin="8,0,0,0" VerticalAlignment="Center">
+                    <Border Background="{DynamicResource InstallerSurfaceMutedBrush}" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center">
                         <TextBlock Text="v5.15.0" Foreground="{DynamicResource InstallerTextMutedBrush}" FontSize="10" FontWeight="SemiBold" />
                     </Border>
                 </StackPanel>
@@ -81,7 +101,7 @@
             <!-- VIEW: Welcome -->
             <StackPanel x:Name="Welcome" VerticalAlignment="Center" MaxWidth="580" HorizontalAlignment="Center">
                 <StackPanel.Style>
-                    <Style TargetType="StackPanel">
+                    <Style TargetType="StackPanel" BasedOn="{StaticResource InstallerPageTransitionStyle}">
                         <Setter Property="Visibility" Value="Collapsed" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Welcome}">
@@ -90,8 +110,8 @@
                         </Style.Triggers>
                     </Style>
                 </StackPanel.Style>
-                <Border Width="48" Height="48" Background="#142838" BorderBrush="{DynamicResource InstallerAccentBrush}" BorderThickness="1.5" CornerRadius="10" Margin="0,0,0,16" HorizontalAlignment="Left">
-                    <Image Source="pack://application:,,,/VRCNT.Setup;component/Assets/icon.png" Width="40" Height="40" Stretch="Uniform" />
+                <Border Width="52" Height="52" Background="#142838" BorderBrush="{DynamicResource InstallerAccentBrush}" BorderThickness="1.5" CornerRadius="12" Margin="0,0,0,18" HorizontalAlignment="Left">
+                    <Image Source="pack://application:,,,/VRCNT.Setup;component/Assets/icon.png" Width="42" Height="42" Stretch="Uniform" />
                 </Border>
                 <TextBlock Text="{Binding WelcomeTitle}" FontSize="{DynamicResource InstallerHeadingFontSize}" FontWeight="Bold" Foreground="{DynamicResource InstallerTextBrush}" TextWrapping="Wrap" />
                 <TextBlock Text="{Binding WelcomeBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,10,0,0" TextWrapping="Wrap" LineHeight="20" FontSize="13" />
@@ -100,7 +120,7 @@
             <!-- VIEW: Language Step -->
             <StackPanel x:Name="LanguageStep" VerticalAlignment="Center" MaxWidth="580" HorizontalAlignment="Center">
                 <StackPanel.Style>
-                    <Style TargetType="StackPanel">
+                    <Style TargetType="StackPanel" BasedOn="{StaticResource InstallerPageTransitionStyle}">
                         <Setter Property="Visibility" Value="Collapsed" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Language}">
@@ -278,7 +298,7 @@
             </StackPanel>
 
             <!-- VIEW: Installation Progress -->
-            <StackPanel x:Name="Progress" VerticalAlignment="Center" MaxWidth="520" HorizontalAlignment="Center">
+            <StackPanel x:Name="Progress" VerticalAlignment="Center" MaxWidth="540" HorizontalAlignment="Center">
                 <StackPanel.Style>
                     <Style TargetType="StackPanel" BasedOn="{StaticResource InstallerPageTransitionStyle}">
                         <Setter Property="Visibility" Value="Collapsed" />
@@ -290,22 +310,58 @@
                     </Style>
                 </StackPanel.Style>
                 <TextBlock Text="{Binding ProgressTitle}" FontSize="{DynamicResource InstallerHeadingFontSize}" FontWeight="Bold" Foreground="{DynamicResource InstallerTextBrush}" HorizontalAlignment="Center" />
-                <TextBlock Text="{Binding SelectedRuntimeTitle}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,4,0,20" HorizontalAlignment="Center" FontSize="12" />
-                <Grid Margin="0,0,0,8">
-                    <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressValue, Mode=OneWay}" Height="{DynamicResource InstallerProgressHeight}" IsIndeterminate="False" />
-                    <TextBlock Text="{Binding ProgressPercentText}" Foreground="{DynamicResource InstallerTextBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="10" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding SelectedRuntimeTitle}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,4,0,16" HorizontalAlignment="Center" FontSize="12" />
+
+                <!-- Phase & Progress Details Card -->
+                <Border Background="{DynamicResource InstallerSurfaceBrush}" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="14,10" Margin="0,0,0,12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="{Binding CurrentPhaseText}" Foreground="{DynamicResource InstallerAccentBrush}" FontSize="12" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding ProgressDetail}" Foreground="{DynamicResource InstallerTextMutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="1" Text="{Binding TransferSizeText}" Foreground="{DynamicResource InstallerTextDimBrush}" FontSize="11" FontWeight="Medium" VerticalAlignment="Center" Margin="12,0,0,0" />
+                    </Grid>
+                </Border>
+
+                <!-- Progress Bar & Percentage -->
+                <Grid Margin="0,0,0,12">
+                    <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressValue, Mode=OneWay}" Height="{DynamicResource InstallerProgressHeight}" IsIndeterminate="{Binding IsProgressIndeterminate}" />
+                    <TextBlock Text="{Binding ProgressPercentText}" Foreground="{DynamicResource InstallerTextBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="10" FontWeight="SemiBold">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsProgressIndeterminate}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                 </Grid>
-                <TextBlock Text="{Binding ProgressDetail}" Foreground="{DynamicResource InstallerTextMutedBrush}" TextWrapping="Wrap" HorizontalAlignment="Center" FontSize="12" Margin="0,0,0,10" />
-                <Border Background="{DynamicResource InstallerSurfaceBrush}" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="10">
-                    <ScrollViewer Height="112" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                        <ItemsControl ItemsSource="{Binding ProgressHistory}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding}" Foreground="{DynamicResource InstallerTextDimBrush}" FontFamily="Consolas, Cascadia Mono, monospace" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,5" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
+
+                <!-- Real-time Activity History Panel -->
+                <Border Background="{DynamicResource InstallerSurfaceBrush}" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12,10">
+                    <StackPanel>
+                        <DockPanel Margin="0,0,0,6">
+                            <TextBlock Text="{Binding ActivityHistoryTitle}" Foreground="{DynamicResource InstallerTextMutedBrush}" FontSize="11" FontWeight="SemiBold" DockPanel.Dock="Left" />
+                        </DockPanel>
+                        <ScrollViewer x:Name="ProgressScrollViewer" Height="112" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" ScrollChanged="ProgressScrollViewer_ScrollChanged">
+                            <ItemsControl ItemsSource="{Binding ProgressHistory}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <DockPanel Margin="0,0,0,5">
+                                            <TextBlock Text="› " Foreground="{DynamicResource InstallerAccentBrush}" FontFamily="Consolas, Cascadia Mono, monospace" FontSize="11" DockPanel.Dock="Left" />
+                                            <TextBlock Text="{Binding}" Foreground="{DynamicResource InstallerTextDimBrush}" FontFamily="Consolas, Cascadia Mono, monospace" FontSize="11" TextWrapping="Wrap" />
+                                        </DockPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </StackPanel>
                 </Border>
             </StackPanel>
 
@@ -321,15 +377,15 @@
                         </Style.Triggers>
                     </Style>
                 </StackPanel.Style>
-                <Border Width="40" Height="40" Background="#261318" BorderBrush="{DynamicResource InstallerErrorBrush}" BorderThickness="1.5" CornerRadius="8" Margin="0,0,0,14" HorizontalAlignment="Left">
-                    <TextBlock Text="!" Foreground="{DynamicResource InstallerErrorBrush}" FontWeight="Bold" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <Border Width="46" Height="46" Background="#261318" BorderBrush="{DynamicResource InstallerErrorBrush}" BorderThickness="1.5" CornerRadius="10" Margin="0,0,0,16" HorizontalAlignment="Left">
+                    <TextBlock Text="!" Foreground="{DynamicResource InstallerErrorBrush}" FontWeight="Bold" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
                 <TextBlock Text="{Binding ErrorTitle}" FontSize="{DynamicResource InstallerHeadingFontSize}" FontWeight="Bold" Foreground="{DynamicResource InstallerTextBrush}" />
                 <TextBlock Text="{Binding ErrorBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,8,0,12" TextWrapping="Wrap" />
                 <Border Background="{DynamicResource InstallerSurfaceBrush}" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,16">
                     <TextBlock Text="{Binding ErrorDetail}" Foreground="{DynamicResource InstallerErrorBrush}" TextWrapping="Wrap" FontFamily="Consolas, Cascadia Mono, monospace" FontSize="11" />
                 </Border>
-                <Button Content="{Binding ErrorActionText}" Command="{Binding ErrorActionCommand}" Style="{StaticResource PrimaryButtonStyle}" HorizontalAlignment="Left" />
+                <Button Content="{Binding ErrorActionText}" Command="{Binding ErrorActionCommand}" Style="{StaticResource PrimaryButtonStyle}" HorizontalAlignment="Left" MinWidth="130" />
             </StackPanel>
 
             <!-- VIEW: Complete / Success -->
@@ -344,12 +400,31 @@
                         </Style.Triggers>
                     </Style>
                 </StackPanel.Style>
-                <Border Width="48" Height="48" Background="#143328" BorderBrush="{DynamicResource InstallerSuccessBrush}" BorderThickness="1.5" CornerRadius="10" Margin="0,0,0,16" HorizontalAlignment="Left">
-                    <TextBlock Text="✓" Foreground="{DynamicResource InstallerSuccessBrush}" FontWeight="Bold" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <Border Width="50" Height="50" Background="#143328" BorderBrush="{DynamicResource InstallerSuccessBrush}" BorderThickness="1.5" CornerRadius="12" Margin="0,0,0,16" HorizontalAlignment="Left">
+                    <TextBlock Text="✓" Foreground="{DynamicResource InstallerSuccessBrush}" FontWeight="Bold" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
                 <TextBlock Text="{Binding CompleteTitle}" FontSize="{DynamicResource InstallerHeadingFontSize}" FontWeight="Bold" Foreground="{DynamicResource InstallerTextBrush}" />
-                <TextBlock Text="{Binding CompleteBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,10,0,24" TextWrapping="Wrap" LineHeight="20" FontSize="13" />
-                <Button Content="{Binding LaunchVrcntText}" Command="{Binding LaunchCommand}" Style="{StaticResource PrimaryButtonStyle}" HorizontalAlignment="Left" />
+                <TextBlock Text="{Binding CompleteBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,8,0,18" TextWrapping="Wrap" LineHeight="20" FontSize="13" />
+
+                <!-- Installed Edition Card -->
+                <Border Background="{DynamicResource InstallerSurfaceBrush}" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource InstallerCardRadius}" Padding="16,12" Margin="0,0,0,22">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="{Binding InstalledEditionLabel}" Foreground="{DynamicResource InstallerTextMutedBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4" />
+                            <TextBlock Text="{Binding SelectedRuntimeTitle}" Foreground="{DynamicResource InstallerTextBrush}" FontSize="14" FontWeight="Bold" />
+                            <TextBlock Text="{Binding InstallPath}" Foreground="{DynamicResource InstallerTextDimBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0" />
+                        </StackPanel>
+                        <Border Grid.Column="1" Background="#16382A" BorderBrush="{DynamicResource InstallerSuccessBrush}" BorderThickness="1" CornerRadius="4" Padding="8,4" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding ActiveStatusText}" Foreground="{DynamicResource InstallerSuccessBrush}" FontSize="11" FontWeight="Bold" />
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <Button Content="{Binding LaunchVrcntText}" Command="{Binding LaunchCommand}" Style="{StaticResource PrimaryButtonStyle}" HorizontalAlignment="Left" MinWidth="140" />
             </StackPanel>
         </Grid>
 
@@ -380,6 +455,20 @@
 
                 <!-- Primary Action Buttons (Right) -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <!-- Secondary Close button on Complete page -->
+                    <Button Content="{Binding CloseText}" Command="{Binding CloseCommand}" Margin="0,0,8,0">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Complete}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
                     <Button Content="{Binding InstallText}" Command="{Binding InstallCommand}">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">

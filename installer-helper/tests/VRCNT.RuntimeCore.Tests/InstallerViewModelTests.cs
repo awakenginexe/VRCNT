@@ -173,7 +173,7 @@ public sealed class InstallerViewModelTests
         var progressBar = xaml.Descendants(presentation + "ProgressBar").Single();
 
         Assert.Equal("{Binding ProgressValue, Mode=OneWay}", progressBar.Attribute("Value")?.Value);
-        Assert.Equal("False", progressBar.Attribute("IsIndeterminate")?.Value);
+        Assert.Equal("{Binding IsProgressIndeterminate}", progressBar.Attribute("IsIndeterminate")?.Value);
         var progressHistory = xaml.Descendants(presentation + "ItemsControl").Single();
         Assert.Equal("{Binding ProgressHistory}", progressHistory.Attribute("ItemsSource")?.Value);
     }
@@ -234,6 +234,37 @@ public sealed class InstallerViewModelTests
         Assert.Equal(2, transition.Descendants(presentation + "DoubleAnimation").Count());
     }
 
+    [Fact]
+    public void Indeterminate_progress_animation_is_disabled_when_reduced_motion_is_requested()
+    {
+        var appXamlPath = Path.Combine(AppContext.BaseDirectory, "App.xaml");
+        var appXaml = XDocument.Load(appXamlPath);
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+
+        var storyboard = appXaml.Descendants(presentation + "BeginStoryboard")
+            .Single(element => element.Attribute(x + "Name")?.Value == "IndeterminateStoryboard");
+        var trigger = storyboard.Ancestors(presentation + "MultiDataTrigger").Single();
+        var conditions = trigger.Descendants(presentation + "Condition").ToArray();
+
+        Assert.Contains(conditions, condition => condition.Attribute("Binding")?.Value == "{Binding RelativeSource={RelativeSource Self}, Path=IsIndeterminate}" && condition.Attribute("Value")?.Value == "True");
+        Assert.Contains(conditions, condition => condition.Attribute("Binding")?.Value == "{Binding DataContext.UseReducedMotion, RelativeSource={RelativeSource Self}}" && condition.Attribute("Value")?.Value == "False");
+    }
+
+    [Fact]
+    public void Completion_status_uses_localized_view_model_text()
+    {
+        var viewModel = CreateViewModel(new DeferredProgressOperations());
+        Assert.Equal("Active", viewModel.ActiveStatusText);
+
+        var xamlPath = Path.Combine(AppContext.BaseDirectory, "Views", "MainWindow.xaml");
+        var xaml = XDocument.Load(xamlPath);
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        Assert.Contains(
+            xaml.Descendants(presentation + "TextBlock"),
+            element => element.Attribute("Text")?.Value == "{Binding ActiveStatusText}");
+    }
+
     [Theory]
     [InlineData(RuntimeVariant.Cpu, RuntimeVariant.Cuda)]
     [InlineData(RuntimeVariant.Cuda, RuntimeVariant.Cpu)]
@@ -289,6 +320,54 @@ public sealed class InstallerViewModelTests
         Assert.Equal(InstallerPage.Error, viewModel.CurrentPage);
     }
 
+    [Fact]
+    public async Task Real_byte_progress_maps_correctly_to_percentage_and_formats_transfer_size()
+    {
+        var operations = new DeferredProgressOperations
+        {
+            ReportedProgress =
+            [
+                new InstallProgress(TransactionPhase.Acquire, 500, 1000, "package.7z"),
+            ],
+        };
+        var viewModel = CreateViewModel(operations);
+        var install = viewModel.InstallAsync();
+        await operations.ProgressReported.Task;
+
+        Assert.False(viewModel.IsProgressIndeterminate);
+        Assert.Equal(32.5, viewModel.ProgressValue);
+        Assert.Equal("32%", viewModel.ProgressPercentText);
+        Assert.Equal("500 B / 1000 B", viewModel.TransferSizeText);
+        Assert.True(viewModel.HasTransferSize);
+        Assert.Equal("package.7z", viewModel.CurrentArchiveText);
+        Assert.True(viewModel.HasCurrentArchive);
+
+        operations.Fail(new InvalidOperationException("Done."));
+        await install;
+    }
+
+    [Fact]
+    public async Task Unknown_totals_use_indeterminate_state()
+    {
+        var operations = new DeferredProgressOperations
+        {
+            ReportedProgress =
+            [
+                new InstallProgress(TransactionPhase.Acquire, 0, 0, "Acquiring package metadata."),
+            ],
+        };
+        var viewModel = CreateViewModel(operations);
+        var install = viewModel.InstallAsync();
+        await operations.ProgressReported.Task;
+
+        Assert.True(viewModel.IsProgressIndeterminate);
+        Assert.Equal(string.Empty, viewModel.TransferSizeText);
+        Assert.False(viewModel.HasTransferSize);
+
+        operations.Fail(new InvalidOperationException("Done."));
+        await install;
+    }
+
     private static InstallerViewModel CreateViewModel(DeferredProgressOperations operations, IApplicationLauncher? launcher = null, IGpuAdvisoryPolicy? gpuAdvisoryPolicy = null)
         => CreateViewModel(operations, new SetupCommandLineOptions(false, false, false, false, false, RuntimeVariant.Cpu, "C:\\VRCNT", null, [], "en"), new FixedGpuSelectionPolicy(RuntimeVariant.Cpu), launcher, gpuAdvisoryPolicy);
 
@@ -305,6 +384,7 @@ public sealed class InstallerViewModelTests
                 ["recommended"] = "Recommended", ["compatible"] = "Compatible", ["cuda_requires_nvidia"] = "Requires a compatible NVIDIA GPU", ["cuda_advisory_inconclusive"] = "CUDA is checked locally after download and before VRCNT is replaced.", ["gpu_detection_nvidia"] = "NVIDIA GPU detected.", ["gpu_detection_no_nvidia"] = "No NVIDIA GPU detected.", ["gpu_detection_inconclusive"] = "GPU detection is inconclusive.", ["cuda_advanced_warning"] = "CUDA is not verified before download.", ["cuda_advanced_override"] = "I understand and enable CUDA",
                 ["install_size"] = "Install size", ["install_time"] = "Install time", ["options_title"] = "Options", ["options_body"] = "Options body", ["install_location"] = "Install location", ["browse_install_directory"] = "Browse...", ["launch_after_setup"] = "Launch VRCNT when setup finishes", ["launch_vrcnt"] = "Launch VRCNT", ["install"] = "Install",
                 ["progress_title"] = "Installing", ["progress_body"] = "Please wait", ["error_title"] = "Error", ["error_body"] = "We could not install", ["retry"] = "Retry", ["close_return_to_vrcnt"] = "Close and return to VRCNT", ["complete_title"] = "Complete", ["complete_body"] = "Done", ["close"] = "Close",
+                ["activity_history"] = "Activity history", ["phase_preparing"] = "Preparing installation", ["phase_downloading"] = "Downloading packages", ["phase_verifying"] = "Verifying packages", ["phase_extracting"] = "Extracting files", ["phase_installing"] = "Applying runtime update", ["phase_finalizing"] = "Finalizing installation", ["installed_edition"] = "Installed edition", ["active_status"] = "Active",
             }, StringComparer.Ordinal);
         return new InstallerViewModel(operations, options, InstallerLocalizer.FromCatalog(languages, translations), launcher, gpuAdvisoryPolicy, gpuSelectionPolicy: gpuSelectionPolicy);
     }

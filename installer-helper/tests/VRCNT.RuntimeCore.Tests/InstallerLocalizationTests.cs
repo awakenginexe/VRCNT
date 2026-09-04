@@ -42,4 +42,50 @@ public sealed class InstallerLocalizationTests
         Assert.All(SupportedLanguages, language => Assert.Equal(language, SetupCommandLine.Parse(["--installer-language", language]).InstallerLanguage));
     }
 
+    [Theory]
+    [InlineData("activity_history")]
+    [InlineData("phase_preparing")]
+    [InlineData("phase_downloading")]
+    [InlineData("phase_verifying")]
+    [InlineData("phase_extracting")]
+    [InlineData("phase_installing")]
+    [InlineData("phase_finalizing")]
+    [InlineData("installed_edition")]
+    [InlineData("active_status")]
+    public void New_installer_localization_keys_exist_in_every_supported_locale(string key)
+    {
+        var repoRoot = FindRepoRoot();
+        var jsonPath = Path.Combine(repoRoot, "installer-helper", "VRCNT.Setup", "obj", "Generated", "InstallerLocales.json");
+        if (File.Exists(jsonPath))
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(jsonPath));
+            var translations = doc.RootElement.GetProperty("translations");
+            foreach (var language in SupportedLanguages)
+            {
+                Assert.True(translations.TryGetProperty(language, out var langObj), $"Language {language} missing in catalog");
+                Assert.True(langObj.TryGetProperty(key, out var val), $"Key {key} missing in {language}");
+                Assert.False(string.IsNullOrWhiteSpace(val.GetString()), $"Key {key} empty in {language}");
+            }
+        }
+        else
+        {
+            foreach (var language in SupportedLanguages)
+            {
+                var ymlPath = Path.Combine(repoRoot, "locales", $"{language}.yml");
+                var lines = File.ReadAllLines(ymlPath);
+                Assert.Contains(lines, l => l.TrimStart().StartsWith(key + ":", StringComparison.Ordinal));
+            }
+        }
+    }
+
+    private static string FindRepoRoot()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current != null && !File.Exists(Path.Combine(current.FullName, "package.json")))
+        {
+            current = current.Parent;
+        }
+
+        return current?.FullName ?? throw new InvalidOperationException("Could not find repository root.");
+    }
 }

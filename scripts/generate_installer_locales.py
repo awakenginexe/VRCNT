@@ -20,7 +20,8 @@ REQUIRED_INSTALLER_KEYS = frozenset(
         "gpu_detection_inconclusive", "cuda_advanced_warning", "cuda_advanced_override", "install_size", "install_time", "options_title",
         "options_body", "install_location", "browse_install_directory", "launch_after_setup", "launch_vrcnt", "install", "progress_title",
         "progress_body", "error_title", "error_body", "retry", "close_return_to_vrcnt", "complete_title",
-        "complete_body", "close",
+        "complete_body", "close", "activity_history", "phase_preparing", "phase_downloading", "phase_verifying",
+        "phase_extracting", "phase_installing", "phase_finalizing", "installed_edition", "active_status",
     }
 )
 
