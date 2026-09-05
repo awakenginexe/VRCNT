@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 env:
-  RELEASE_TAG: v5.15.0-rc.4
+  RELEASE_TAG: v5.15.0-rc.5
 
 jobs:
   validate:
@@ -155,7 +155,7 @@ jobs:
     needs: [validate, backend-cpu]
     runs-on: windows-latest
     env:
-      VRCNT_RUNTIME_RELEASE_TAG: v5.15.0-rc.4
+      VRCNT_RUNTIME_RELEASE_TAG: v5.15.0-rc.5
     steps:
       - name: Checkout candidate source
         uses: actions/checkout@v6
@@ -423,7 +423,7 @@ jobs:
           retention-days: 14
           compression-level: 0
 
-      - name: Publish immutable v5.15.0-rc.4 prerelease
+      - name: Publish immutable v5.15.0-rc.5 prerelease
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
@@ -431,11 +431,11 @@ jobs:
           gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) { throw "Prerelease $env:RELEASE_TAG already exists; refusing to overwrite tested assets." }
           $notes = @"
-          VRCNT 5.15.0 release candidate 4.
+          VRCNT 5.15.0 release candidate 5.
 
           This is a prerelease for installer and in-app CPU/CUDA switching tests. It is not the stable v5.15.0 release.
           "@
-          gh release create $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'VRCNT 5.15.0 RC 4' --notes $notes --draft --prerelease
+          gh release create $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'VRCNT 5.15.0 RC 5' --notes $notes --draft --prerelease
           if ($LASTEXITCODE -ne 0) { throw 'Could not create the draft prerelease.' }
           $assets = @(Get-ChildItem ./release-assets -File -Recurse -Exclude package-metadata.json | Sort-Object Name | ForEach-Object FullName)
           gh release upload $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY $assets

@@ -261,7 +261,7 @@ public sealed class RuntimeTransactionEngine(
                 var stagingExists = Directory.Exists(journal.StagingPath);
                 if (backupExists && !targetExists)
                 {
-                    directoryMover.Move(journal.BackupPath, installPath);
+                    directoryMover.Move(PathIdentity.Normalize(journal.BackupPath), PathIdentity.Normalize(installPath));
                 }
                 else if (backupExists && targetExists)
                     return Task.FromResult(new RuntimeOperationResult(false, false, true, "recovery_required", "Both runtime candidates exist; preserving the backup for recovery."));
@@ -345,11 +345,11 @@ public sealed class RuntimeTransactionEngine(
 
     private static bool IsWithin(string parent, string candidate)
     {
-        var relative = Path.GetRelativePath(parent, candidate);
+        var relative = Path.GetRelativePath(PathIdentity.Normalize(parent), PathIdentity.Normalize(candidate));
         return relative == "." || (!relative.StartsWith("..", StringComparison.Ordinal) && !Path.IsPathRooted(relative));
     }
 
-    private static bool PathsEqual(string left, string right) => string.Equals(Path.GetFullPath(left), Path.GetFullPath(right), StringComparison.OrdinalIgnoreCase);
+    private static bool PathsEqual(string left, string right) => PathIdentity.Equals(left, right);
     private static bool ShutdownWasAcknowledged(RuntimeShutdownHandoff? handoff)
     {
         if (handoff is null) return false;

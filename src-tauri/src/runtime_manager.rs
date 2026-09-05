@@ -35,6 +35,22 @@ const MANIFEST_SCHEMA: u32 = 2;
 const RUNTIME_STATE_SCHEMA: u32 = 1;
 const ACTIVATION_PROTOCOL: u32 = 1;
 
+#[cfg(test)]
+mod abandoned_status_tests {
+    use super::*;
+
+    #[test]
+    fn expired_dead_manager_does_not_keep_controls_busy_after_shutdown() {
+        for status in ["pending", "accepted", "running", "shutdown_requested", "shutdown_acknowledged"] {
+            assert!(abandoned_switch_status(status, Some("2020-01-01T00:00:00Z"), false, SystemTime::now()));
+            assert!(!abandoned_switch_status(status, Some("2020-01-01T00:00:00Z"), true, SystemTime::now()));
+            assert!(!abandoned_switch_status(status, Some("2099-01-01T00:00:00Z"), false, SystemTime::now()));
+            assert!(!abandoned_switch_status(status, None, false, SystemTime::now()));
+        }
+        assert!(!abandoned_switch_status("succeeded", Some("2020-01-01T00:00:00Z"), false, SystemTime::now()));
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeSwitchEvent {
@@ -660,6 +676,16 @@ pub fn get_runtime_switch_status(
     ) {
         return Ok(stale_switch_status("unknown_switch_status"));
     }
+    // Presentation only: keep the durable journal and receipts intact. A retry
+    // still goes through Setup's identity validation and transaction recovery.
+    if abandoned_switch_status(
+        &status.status,
+        status.handoff_expires_at_utc.as_deref(),
+        status.manager_process_id.map(is_process_alive).unwrap_or(false),
+        SystemTime::now(),
+    ) {
+        return Ok(stale_switch_status("manager_unavailable"));
+    }
     if status.status == "shutdown_requested" {
         let event = match switch_state.deliver_shutdown_request(&status) {
             Ok(event) => event,
@@ -717,6 +743,14 @@ fn idle_switch_status() -> RuntimeSwitchStatusDto {
         message: None,
         updated_at_utc: None,
     }
+}
+
+fn abandoned_switch_status(status: &str, expires: Option<&str>, manager_alive: bool, now: SystemTime) -> bool {
+    matches!(status, "pending" | "accepted" | "running" | "shutdown_requested" | "shutdown_acknowledged")
+        && !manager_alive
+        && expires.and_then(parse_unix_millis)
+            .map(|deadline| system_time_millis(now) > deadline)
+            .unwrap_or(false)
 }
 
 fn stale_switch_status(code: &str) -> RuntimeSwitchStatusDto {

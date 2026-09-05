@@ -270,6 +270,45 @@ public sealed class TransactionEngineTests : IDisposable
         Assert.False(File.Exists(paths.JournalPath));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RecoverPendingAsync_recognizes_extended_paths_without_discarding_ambiguous_backups(bool activeExists)
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        var request = CreateRequest("extended-recovery", "runtime");
+        WriteActiveRuntime(request);
+        var paths = RuntimeTransactionPaths.For(request.InstallPath, "interrupted");
+        Directory.CreateDirectory(paths.TransactionRoot);
+        Directory.Move(request.InstallPath, paths.BackupPath);
+        if (activeExists)
+        {
+            Directory.CreateDirectory(request.InstallPath);
+            File.WriteAllText(Path.Combine(request.InstallPath, "VRCNT.exe"), "unactivated-app");
+        }
+        new TransactionJournalStore().WriteAtomic(paths.JournalPath, new RuntimeTransactionJournal(
+            "interrupted", TransactionPhase.Activate, @"\\?\" + request.InstallPath,
+            @"\\?\" + paths.StagingPath, @"\\?\" + paths.BackupPath,
+            request.ExpectedIdentity, true, true, activeExists, activeExists));
+
+        var result = await CreateEngine().RecoverPendingAsync(request.InstallPath, default);
+
+        if (activeExists)
+        {
+            Assert.Equal("recovery_required", result.ErrorCode);
+            Assert.True(result.RecoveryRequired);
+            Assert.Equal("unactivated-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
+            Assert.Equal("old-app", File.ReadAllText(Path.Combine(paths.BackupPath, "VRCNT.exe")));
+            Assert.True(File.Exists(paths.JournalPath));
+        }
+        else
+        {
+            Assert.True(result.Succeeded, result.ErrorMessage);
+            Assert.Equal("old-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
+            Assert.False(File.Exists(paths.JournalPath));
+        }
+    }
+
     [Fact]
     public async Task RecoverPendingAsync_restores_the_backup_when_the_durable_move_intent_precedes_a_crash()
     {

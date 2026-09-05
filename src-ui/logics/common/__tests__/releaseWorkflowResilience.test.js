@@ -54,7 +54,7 @@ test("test candidate workflow uploads a complete artifact and publishes only an 
     assert.match(candidateWorkflow, /shared-shell:[\s\S]*needs: \[validate, backend-cpu\]/);
     assert.match(candidateWorkflow, /Download CPU backend[\s\S]*name: backend-cpu[\s\S]*path: src-tauri\/bin/);
     assert.match(candidateWorkflow, /Upload signed test candidate[\s\S]*actions\/upload-artifact@v6[\s\S]*path: release-assets/);
-    assert.match(candidateWorkflow, /RELEASE_TAG: v5\.15\.0-rc\.4/);
+    assert.match(candidateWorkflow, /RELEASE_TAG: v5\.15\.0-rc\.5/);
     assert.match(candidateWorkflow, /Prerelease \$env:RELEASE_TAG already exists; refusing to overwrite tested assets/);
     assert.match(candidateWorkflow, /gh release create[\s\S]*--draft --prerelease/);
     assert.match(candidateWorkflow, /gh release upload[\s\S]*gh release edit[\s\S]*--prerelease/);
