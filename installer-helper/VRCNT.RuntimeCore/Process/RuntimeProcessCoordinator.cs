@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using VRCNT.RuntimeCore.Manager;
 using VRCNT.RuntimeCore.Models;
+using VRCNT.RuntimeCore.Paths;
 
 namespace VRCNT.RuntimeCore.Process;
 
@@ -132,8 +133,9 @@ public sealed class RuntimeProcessCoordinator(TimeSpan? gracefulShutdownTimeout 
         try
         {
             var executable = process.MainModule?.FileName;
-            return executable is not null && string.Equals(Path.GetFullPath(executable), Path.Combine(Path.GetFullPath(_lastInstallPath!), "VRCNT.exe"), StringComparison.OrdinalIgnoreCase)
-                || executable is not null && string.Equals(Path.GetDirectoryName(Path.GetFullPath(executable)), Path.GetFullPath(_lastInstallPath!), StringComparison.OrdinalIgnoreCase);
+            return executable is not null
+                && Path.GetDirectoryName(Path.GetFullPath(executable)) is string directory
+                && PathIdentity.Equals(directory, _lastInstallPath!);
         }
         catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception) { return false; }
     }

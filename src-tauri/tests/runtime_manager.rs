@@ -339,6 +339,8 @@ fn a_terminal_receipt_is_authenticated_consumed_once_and_rejects_forged_or_expir
         std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_millis(1_787_875_260_000),
     )
     .unwrap();
+    // Setup validates the schema inside the DPAPI envelope as well as outside it.
+    assert_eq!(serde_json::to_value(&binding).unwrap()["schema"], 1);
     let issued = 1_787_875_200_000i64;
     let expires = issued + 60_000;
     let mut record = serde_json::json!({

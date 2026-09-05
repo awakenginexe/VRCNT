@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:VRCNT.Setup.Views"
-        Title="{Binding AppTitle}" Icon="pack://application:,,,/VRCNT.Setup;component/Assets/icon.png" Width="780" Height="520" MinWidth="680" MinHeight="480"
+        Title="{Binding AppTitle}" Icon="pack://application:,,,/VRCNT.Setup;component/Assets/icon.png" Width="780" Height="560" MinWidth="680" MinHeight="520"
         WindowStartupLocation="CenterScreen" ResizeMode="CanMinimize" WindowStyle="None"
         Background="{DynamicResource InstallerCanvasBrush}" Foreground="{DynamicResource InstallerTextBrush}"
         BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="1">
@@ -22,8 +22,12 @@
                     <MultiDataTrigger.EnterActions>
                         <BeginStoryboard>
                             <Storyboard>
-                                <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.18" />
-                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)" From="10" To="0" Duration="0:0:0.18" />
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.22" />
+                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)" From="12" To="0" Duration="0:0:0.22">
+                                    <DoubleAnimation.EasingFunction>
+                                        <CubicEase EasingMode="EaseOut" />
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
                             </Storyboard>
                         </BeginStoryboard>
                     </MultiDataTrigger.EnterActions>
@@ -39,26 +43,41 @@
         <Grid.RowDefinitions>
             <!-- Row 0: Custom Dark Titlebar -->
             <RowDefinition Height="42" />
-            <!-- Row 1: Main Content View -->
+            <!-- Row 1: Wizard Step Progress Indicator -->
+            <RowDefinition Height="Auto" />
+            <!-- Row 2: Main Content View -->
             <RowDefinition Height="*" />
-            <!-- Row 2: Action Footer -->
+            <!-- Row 3: Action Footer -->
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Ambient Decorative VRCNT Background (subtle, non-distracting, zero CPU overhead) -->
-        <Canvas Grid.RowSpan="3" IsHitTestVisible="False" ClipToBounds="True">
-            <Ellipse Width="450" Height="450" Canvas.Left="-150" Canvas.Top="-150" Opacity="0.04">
+        <!-- Ambient Decorative VRCNT Background Lighting -->
+        <Canvas Grid.RowSpan="4" IsHitTestVisible="False" ClipToBounds="True">
+            <!-- Top-Left Electric Cyan Ambient Glow -->
+            <Ellipse Width="480" Height="360" Canvas.Left="-120" Canvas.Top="-100" Opacity="0.22">
                 <Ellipse.Fill>
-                    <RadialGradientBrush>
+                    <RadialGradientBrush GradientOrigin="0.4,0.4">
                         <GradientStop Color="#00D2FF" Offset="0" />
+                        <GradientStop Color="#0284C7" Offset="0.45" />
                         <GradientStop Color="Transparent" Offset="1" />
                     </RadialGradientBrush>
                 </Ellipse.Fill>
             </Ellipse>
-            <Ellipse Width="420" Height="420" Canvas.Right="-130" Canvas.Bottom="-130" Opacity="0.035">
+            <!-- Bottom-Right Deep Purple Ambient Glow -->
+            <Ellipse Width="440" Height="340" Canvas.Right="-100" Canvas.Bottom="-80" Opacity="0.18">
+                <Ellipse.Fill>
+                    <RadialGradientBrush GradientOrigin="0.6,0.6">
+                        <GradientStop Color="#8B5CF6" Offset="0" />
+                        <GradientStop Color="#4338CA" Offset="0.5" />
+                        <GradientStop Color="Transparent" Offset="1" />
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+            </Ellipse>
+            <!-- Center Subtle Accent Aura -->
+            <Ellipse Width="360" Height="240" Canvas.Left="200" Canvas.Top="140" Opacity="0.08">
                 <Ellipse.Fill>
                     <RadialGradientBrush>
-                        <GradientStop Color="#8B5CF6" Offset="0" />
+                        <GradientStop Color="#38BDF8" Offset="0" />
                         <GradientStop Color="Transparent" Offset="1" />
                     </RadialGradientBrush>
                 </Ellipse.Fill>
@@ -95,8 +114,278 @@
             </Grid>
         </Border>
 
+        <!-- ==================== WIZARD STEP INDICATOR ==================== -->
+        <Border Grid.Row="1" Background="#0A0E18" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="0,0,0,1" Padding="24,8">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Error}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <Grid HorizontalAlignment="Center" MaxWidth="560">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" MinWidth="20" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" MinWidth="20" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" MinWidth="20" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" MinWidth="20" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- STEP 1: Welcome -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="20" Height="20" CornerRadius="10" Margin="0,0,6,0">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="{DynamicResource InstallerSurfaceMutedBrush}" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource InstallerBorderBrush}" />
+                                <Setter Property="BorderThickness" Value="1" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Welcome}">
+                                        <Setter Property="Background" Value="{DynamicResource InstallerAccentBrush}" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource InstallerAccentBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Language}">
+                                        <Setter Property="Background" Value="{DynamicResource InstallerAccentBrush}" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource InstallerAccentBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Text="1" FontSize="10" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource InstallerTextMutedBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Welcome}">
+                                            <Setter Property="Foreground" Value="#050B14" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Language}">
+                                            <Setter Property="Foreground" Value="#050B14" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Border>
+                    <TextBlock Text="{Binding WelcomeTitle}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{DynamicResource InstallerTextMutedBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Welcome}">
+                                        <Setter Property="Foreground" Value="{DynamicResource InstallerTextBrush}" />
+                                        <Setter Property="FontWeight" Value="Bold" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Language}">
+                                        <Setter Property="Foreground" Value="{DynamicResource InstallerTextBrush}" />
+                                        <Setter Property="FontWeight" Value="Bold" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+
+                <!-- CONNECTOR 1-2 -->
+                <Border Grid.Column="1" Height="1" Margin="8,0" VerticalAlignment="Center" Background="{DynamicResource InstallerBorderBrush}" />
+
+                <!-- STEP 2: Runtime Selection -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="20" Height="20" CornerRadius="10" Margin="0,0,6,0">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="{DynamicResource InstallerSurfaceMutedBrush}" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource InstallerBorderBrush}" />
+                                <Setter Property="BorderThickness" Value="1" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Runtime}">
+                                        <Setter Property="Background" Value="{DynamicResource InstallerAccentBrush}" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource InstallerAccentBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Text="2" FontSize="10" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource InstallerTextMutedBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Runtime}">
+                                            <Setter Property="Foreground" Value="#050B14" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Border>
+                    <TextBlock Text="{Binding RuntimeTitle}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{DynamicResource InstallerTextMutedBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Runtime}">
+                                        <Setter Property="Foreground" Value="{DynamicResource InstallerTextBrush}" />
+                                        <Setter Property="FontWeight" Value="Bold" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+
+                <!-- CONNECTOR 2-3 -->
+                <Border Grid.Column="3" Height="1" Margin="8,0" VerticalAlignment="Center" Background="{DynamicResource InstallerBorderBrush}" />
+
+                <!-- STEP 3: Options -->
+                <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="20" Height="20" CornerRadius="10" Margin="0,0,6,0">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="{DynamicResource InstallerSurfaceMutedBrush}" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource InstallerBorderBrush}" />
+                                <Setter Property="BorderThickness" Value="1" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Options}">
+                                        <Setter Property="Background" Value="{DynamicResource InstallerAccentBrush}" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource InstallerAccentBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Text="3" FontSize="10" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource InstallerTextMutedBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Options}">
+                                            <Setter Property="Foreground" Value="#050B14" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Border>
+                    <TextBlock Text="{Binding OptionsTitle}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{DynamicResource InstallerTextMutedBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Options}">
+                                        <Setter Property="Foreground" Value="{DynamicResource InstallerTextBrush}" />
+                                        <Setter Property="FontWeight" Value="Bold" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+
+                <!-- CONNECTOR 3-4 -->
+                <Border Grid.Column="5" Height="1" Margin="8,0" VerticalAlignment="Center" Background="{DynamicResource InstallerBorderBrush}" />
+
+                <!-- STEP 4: Install -->
+                <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="20" Height="20" CornerRadius="10" Margin="0,0,6,0">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="{DynamicResource InstallerSurfaceMutedBrush}" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource InstallerBorderBrush}" />
+                                <Setter Property="BorderThickness" Value="1" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Progress}">
+                                        <Setter Property="Background" Value="{DynamicResource InstallerAccentBrush}" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource InstallerAccentBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Text="4" FontSize="10" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource InstallerTextMutedBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Progress}">
+                                            <Setter Property="Foreground" Value="#050B14" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Border>
+                    <TextBlock Text="{Binding ProgressTitle}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{DynamicResource InstallerTextMutedBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Progress}">
+                                        <Setter Property="Foreground" Value="{DynamicResource InstallerTextBrush}" />
+                                        <Setter Property="FontWeight" Value="Bold" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+
+                <!-- CONNECTOR 4-5 -->
+                <Border Grid.Column="7" Height="1" Margin="8,0" VerticalAlignment="Center" Background="{DynamicResource InstallerBorderBrush}" />
+
+                <!-- STEP 5: Complete -->
+                <StackPanel Grid.Column="8" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="20" Height="20" CornerRadius="10" Margin="0,0,6,0">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="{DynamicResource InstallerSurfaceMutedBrush}" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource InstallerBorderBrush}" />
+                                <Setter Property="BorderThickness" Value="1" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Complete}">
+                                        <Setter Property="Background" Value="{DynamicResource InstallerSuccessBrush}" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource InstallerSuccessBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Text="✓" FontSize="10" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource InstallerTextMutedBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Complete}">
+                                            <Setter Property="Foreground" Value="#050B14" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Border>
+                    <TextBlock Text="{Binding CompleteTitle}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{DynamicResource InstallerTextMutedBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CurrentPage}" Value="{x:Static local:InstallerPage.Complete}">
+                                        <Setter Property="Foreground" Value="{DynamicResource InstallerSuccessBrush}" />
+                                        <Setter Property="FontWeight" Value="Bold" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+            </Grid>
+        </Border>
+
         <!-- ==================== MAIN CONTENT AREA ==================== -->
-        <Grid Grid.Row="1" Margin="{DynamicResource InstallerPageMargin}" KeyboardNavigation.TabNavigation="Cycle">
+        <Grid Grid.Row="2" Margin="{DynamicResource InstallerPageMargin}" KeyboardNavigation.TabNavigation="Cycle">
 
             <!-- VIEW: Welcome -->
             <StackPanel x:Name="Welcome" VerticalAlignment="Center" MaxWidth="580" HorizontalAlignment="Center">
@@ -110,8 +399,8 @@
                         </Style.Triggers>
                     </Style>
                 </StackPanel.Style>
-                <Border Width="52" Height="52" Background="#142838" BorderBrush="{DynamicResource InstallerAccentBrush}" BorderThickness="1.5" CornerRadius="12" Margin="0,0,0,18" HorizontalAlignment="Left">
-                    <Image Source="pack://application:,,,/VRCNT.Setup;component/Assets/icon.png" Width="42" Height="42" Stretch="Uniform" />
+                <Border Width="56" Height="56" Background="#142838" BorderBrush="{DynamicResource InstallerAccentBrush}" BorderThickness="1.5" CornerRadius="14" Margin="0,0,0,20" HorizontalAlignment="Left">
+                    <Image Source="pack://application:,,,/VRCNT.Setup;component/Assets/icon.png" Width="44" Height="44" Stretch="Uniform" />
                 </Border>
                 <TextBlock Text="{Binding WelcomeTitle}" FontSize="{DynamicResource InstallerHeadingFontSize}" FontWeight="Bold" Foreground="{DynamicResource InstallerTextBrush}" TextWrapping="Wrap" />
                 <TextBlock Text="{Binding WelcomeBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,10,0,0" TextWrapping="Wrap" LineHeight="20" FontSize="13" />
@@ -130,12 +419,17 @@
                     </Style>
                 </StackPanel.Style>
                 <TextBlock Text="{Binding LanguageTitle}" FontSize="{DynamicResource InstallerHeadingFontSize}" FontWeight="Bold" Foreground="{DynamicResource InstallerTextBrush}" />
-                <TextBlock Text="{Binding LanguageBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,8,0,20" TextWrapping="Wrap" LineHeight="20" />
-                <ComboBox ItemsSource="{Binding Languages}" SelectedItem="{Binding SelectedLanguage}" DisplayMemberPath="Name" MinHeight="36" MaxWidth="320" HorizontalAlignment="Left" AutomationProperties.Name="{Binding LanguageTitle}" />
+                <TextBlock Text="{Binding LanguageBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" Margin="0,8,0,16" TextWrapping="Wrap" />
+                <Border Background="{DynamicResource InstallerSurfaceBrush}" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource InstallerCardRadius}" Padding="{DynamicResource InstallerCardPadding}">
+                    <ComboBox ItemsSource="{Binding Languages}" SelectedItem="{Binding SelectedLanguage}" DisplayMemberPath="Name" AutomationProperties.Name="{Binding LanguageTitle}" />
+                </Border>
             </StackPanel>
 
-            <!-- VIEW: Runtime Selection -->
-            <Grid x:Name="Runtime" VerticalAlignment="Center">
+            <!-- VIEW: Runtime Selection (CPU vs CUDA) -->
+            <Grid x:Name="RuntimeSelection">
+                <Grid.RenderTransform>
+                    <TranslateTransform X="0" Y="0" />
+                </Grid.RenderTransform>
                 <Grid.Style>
                     <Style TargetType="Grid">
                         <Setter Property="Visibility" Value="Collapsed" />
@@ -154,7 +448,7 @@
                 </Grid.RowDefinitions>
 
                 <!-- Top: GPU Detection Intelligence Banner -->
-                <Border Grid.Row="0" Background="#121F24" BorderBrush="#1C3835" BorderThickness="1" CornerRadius="6" Padding="12,8" Margin="0,0,0,14">
+                <Border Grid.Row="0" Background="#121F24" BorderBrush="#1C3835" BorderThickness="1" CornerRadius="6" Padding="12,8" Margin="0,0,0,12">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -185,13 +479,51 @@
                             </Grid.RowDefinitions>
                             <!-- Card Header -->
                             <DockPanel Grid.Row="0" Margin="0,0,0,8">
-                                <TextBlock Text="{Binding CpuTitle}" FontSize="{DynamicResource InstallerCardTitleFontSize}" FontWeight="Bold" Foreground="{DynamicResource InstallerTextBrush}" DockPanel.Dock="Left" />
-                                <Border Background="{DynamicResource InstallerSurfaceMutedBrush}" CornerRadius="4" Padding="6,2" HorizontalAlignment="Right" DockPanel.Dock="Right">
-                                    <TextBlock Text="{Binding CpuStatus}" Foreground="{DynamicResource InstallerTextMutedBrush}" FontSize="10" FontWeight="SemiBold" />
-                                </Border>
+                                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
+                                    <!-- Intel Logo Badge -->
+                                    <Border Width="24" Height="24" Background="#0C2036" BorderBrush="{DynamicResource InstallerAccentBrush}" BorderThickness="1" CornerRadius="5" Margin="0,0,4,0" VerticalAlignment="Center" ToolTip="Intel">
+                                        <Path Data="M20.42 7.345v9.18h1.651v-9.18zM0 7.475v1.737h1.737V7.474zm9.78.352v6.053c0 .513.044.945.13 1.292.087.34.235.618.44.828.203.21.475.359.803.451.334.093.754.136 1.255.136h.216v-1.533c-.24 0-.445-.012-.593-.037a.672.672 0 0 1-.39-.173.693.693 0 0 1-.173-.377 4.002 4.002 0 0 1-.037-.606v-2.182h1.193v-1.416h-1.193V7.827zm-3.505 2.312c-.396 0-.76.08-1.082.241-.327.161-.6.384-.822.668l-.087.117v-.902H2.658v6.256h1.639v-3.214c.018-.588.16-1.02.433-1.299.29-.297.642-.445 1.044-.445.476 0 .841.149 1.082.433.235.284.359.686.359 1.2v3.324h1.663V12.97c.006-.89-.229-1.595-.686-2.09-.458-.495-1.1-.742-1.917-.742zm10.065.006a3.252 3.252 0 0 0-2.306.946c-.29.29-.525.637-.692 1.033a3.145 3.145 0 0 0-.254 1.273c0 .452.08.878.241 1.274.161.395.39.742.674 1.032.284.29.637.526 1.045.693.408.173.86.26 1.342.26 1.397 0 2.262-.637 2.782-1.23l-1.187-.904c-.248.297-.841.699-1.583.699-.464 0-.847-.105-1.138-.321a1.588 1.588 0 0 1-.593-.872l-.019-.056h4.915v-.587c0-.451-.08-.872-.235-1.267a3.393 3.393 0 0 0-.661-1.033 3.013 3.013 0 0 0-1.02-.692 3.345 3.345 0 0 0-1.311-.248zm-16.297.118v6.256h1.651v-6.256zm16.278 1.286c1.132 0 1.664.797 1.664 1.255l-3.32.006c0-.458.525-1.255 1.656-1.261zm7.073 3.814a.606.606 0 0 0-.606.606.606.606 0 0 0 .606.606.606.606 0 0 0 .606-.606.606.606 0 0 0-.606-.606zm-.008.105a.5.5 0 0 1 .002 0 .5.5 0 0 1 .5.501.5.5 0 0 1-.5.5.5.5 0 0 1-.5-.5.5.5 0 0 1 .498-.5zm-.233.155v.699h.13v-.285h.093l.173.285h.136l-.18-.297a.191.191 0 0 0 .118-.056c.03-.03.05-.074.05-.136 0-.068-.02-.117-.063-.154-.037-.038-.105-.056-.185-.056zm.13.099h.154c.019 0 .037.006.056.012a.064.064 0 0 1 .037.031c.013.013.012.031.012.056a.124.124 0 0 1-.012.055.164.164 0 0 1-.037.031c-.019.006-.037.013-.056.013h-.154Z"
+                                              Fill="{DynamicResource InstallerAccentBrush}" Stretch="Uniform" Width="16" Height="10" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <!-- AMD Logo Badge -->
+                                    <Border Width="24" Height="24" Background="#261214" BorderBrush="#EF4444" BorderThickness="1" CornerRadius="5" Margin="0,0,8,0" VerticalAlignment="Center" ToolTip="AMD">
+                                        <Path Data="M18.324 9.137l1.559 1.56h2.556v2.557L24 14.814V9.137zM2 9.52l-2 4.96h1.309l.37-.982H3.9l.408.982h1.338L3.432 9.52zm4.209 0v4.955h1.238v-3.092l1.338 1.562h.188l1.338-1.556v3.091h1.238V9.52H10.47l-1.592 1.845L7.287 9.52zm6.283 0v4.96h2.057c1.979 0 2.88-1.046 2.88-2.472 0-1.36-.937-2.488-2.747-2.488zm1.237.91h.792c1.17 0 1.63.711 1.63 1.57 0 .728-.372 1.572-1.616 1.572h-.806zm-10.985.273l.791 1.932H2.008zm17.137.307l-1.604 1.603v2.25h2.246l1.604-1.607h-2.246z"
+                                              Fill="#EF4444" Stretch="Uniform" Width="15" Height="8" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Text="{Binding CpuTitle}" FontSize="{DynamicResource InstallerCardTitleFontSize}" FontWeight="Bold" Foreground="{DynamicResource InstallerTextBrush}" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
+                                    <Border Background="{DynamicResource InstallerSurfaceMutedBrush}" CornerRadius="4" Padding="6,2" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding CpuStatus}" Foreground="{DynamicResource InstallerTextMutedBrush}" FontSize="10" FontWeight="SemiBold" />
+                                    </Border>
+                                    <!-- Selected Indicator Chip -->
+                                    <Border CornerRadius="4" Padding="6,2" Margin="6,0,0,0" VerticalAlignment="Center">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsCpuSelected}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Setter Property="Background" Value="#1A3B54" />
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource InstallerAccentBrush}" />
+                                                        <Setter Property="BorderThickness" Value="1" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock Text="✓ Selected" Foreground="{DynamicResource InstallerAccentBrush}" FontSize="9" FontWeight="Bold" />
+                                    </Border>
+                                </StackPanel>
                             </DockPanel>
                             <!-- Card Body -->
-                            <TextBlock Grid.Row="1" Text="{Binding CpuBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" TextWrapping="Wrap" FontSize="12" LineHeight="18" Margin="0,0,0,12" />
+                            <StackPanel Grid.Row="1" Margin="0,0,0,10">
+                                <Border Height="130" CornerRadius="6" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="1" Margin="0,0,0,8" SnapsToDevicePixels="True">
+                                    <Border.Background>
+                                        <ImageBrush ImageSource="pack://application:,,,/VRCNT.Setup;component/Assets/cpu_ceos.png" Stretch="UniformToFill" AlignmentY="Top" />
+                                    </Border.Background>
+                                </Border>
+                                <TextBlock Text="{Binding CpuBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" TextWrapping="Wrap" FontSize="12" LineHeight="18" />
+                            </StackPanel>
                             <!-- Specs Row -->
                             <Border Grid.Row="2" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="0,1,0,0" Padding="0,8,0,0">
                                 <DockPanel>
@@ -212,13 +544,44 @@
                             </Grid.RowDefinitions>
                             <!-- Card Header -->
                             <DockPanel Grid.Row="0" Margin="0,0,0,8">
-                                <TextBlock Text="{Binding CudaTitle}" FontSize="{DynamicResource InstallerCardTitleFontSize}" FontWeight="Bold" Foreground="{DynamicResource InstallerTextBrush}" DockPanel.Dock="Left" />
-                                <Border Background="#16382A" BorderBrush="{DynamicResource InstallerCudaAccentBrush}" BorderThickness="1" CornerRadius="4" Padding="6,2" HorizontalAlignment="Right" DockPanel.Dock="Right">
-                                    <TextBlock Text="{Binding CudaStatus}" Foreground="{DynamicResource InstallerCudaAccentBrush}" FontSize="10" FontWeight="Bold" />
-                                </Border>
+                                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
+                                    <!-- NVIDIA Logo Badge -->
+                                    <Border Width="24" Height="24" Background="#123324" BorderBrush="{DynamicResource InstallerCudaAccentBrush}" BorderThickness="1" CornerRadius="5" Margin="0,0,8,0" VerticalAlignment="Center" ToolTip="NVIDIA">
+                                        <Path Data="M8.948 8.798v-1.43a6.7 6.7 0 0 1 .424-.018c3.922-.124 6.493 3.374 6.493 3.374s-2.774 3.851-5.75 3.851c-.398 0-.787-.062-1.158-.185v-4.346c1.528.185 1.837.857 2.747 2.385l2.04-1.714s-1.492-1.952-4-1.952a6.016 6.016 0 0 0-.796.035m0-4.735v2.138l.424-.027c5.45-.185 9.01 4.47 9.01 4.47s-4.08 4.964-8.33 4.964c-.37 0-.733-.035-1.095-.097v1.325c.3.035.61.062.91.062 3.957 0 6.82-2.023 9.593-4.408.459.371 2.34 1.263 2.73 1.652-2.633 2.208-8.772 3.984-12.253 3.984-.335 0-.653-.018-.971-.053v1.864H24V4.063zm0 10.326v1.131c-3.657-.654-4.673-4.46-4.673-4.46s1.758-1.944 4.673-2.262v1.237H8.94c-1.528-.186-2.73 1.245-2.73 1.245s.68 2.412 2.739 3.11M2.456 10.9s2.164-3.197 6.5-3.533V6.201C4.153 6.59 0 10.653 0 10.653s2.35 6.802 8.948 7.42v-1.237c-4.84-.6-6.492-5.936-6.492-5.936z"
+                                              Fill="{DynamicResource InstallerCudaAccentBrush}" Stretch="Uniform" Width="15" Height="15" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Text="{Binding CudaTitle}" FontSize="{DynamicResource InstallerCardTitleFontSize}" FontWeight="Bold" Foreground="{DynamicResource InstallerTextBrush}" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
+                                    <Border Background="#16382A" BorderBrush="{DynamicResource InstallerCudaAccentBrush}" BorderThickness="1" CornerRadius="4" Padding="6,2" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding CudaStatus}" Foreground="{DynamicResource InstallerCudaAccentBrush}" FontSize="10" FontWeight="Bold" />
+                                    </Border>
+                                    <!-- Selected Indicator Chip -->
+                                    <Border CornerRadius="4" Padding="6,2" Margin="6,0,0,0" VerticalAlignment="Center">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsCudaSelected}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Setter Property="Background" Value="#143D28" />
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource InstallerCudaAccentBrush}" />
+                                                        <Setter Property="BorderThickness" Value="1" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock Text="✓ Selected" Foreground="{DynamicResource InstallerCudaAccentBrush}" FontSize="9" FontWeight="Bold" />
+                                    </Border>
+                                </StackPanel>
                             </DockPanel>
                             <!-- Card Body -->
-                            <StackPanel Grid.Row="1" Margin="0,0,0,12">
+                            <StackPanel Grid.Row="1" Margin="0,0,0,10">
+                                <Border Height="130" CornerRadius="6" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="1" Margin="0,0,0,8" SnapsToDevicePixels="True">
+                                    <Border.Background>
+                                        <ImageBrush ImageSource="pack://application:,,,/VRCNT.Setup;component/Assets/cuda_ceo.jpg" Stretch="UniformToFill" AlignmentY="Top" />
+                                    </Border.Background>
+                                </Border>
                                 <TextBlock Text="{Binding CudaBody}" Foreground="{DynamicResource InstallerTextMutedBrush}" TextWrapping="Wrap" FontSize="12" LineHeight="18" />
                                 <TextBlock Text="{Binding CudaAdvisory}" Foreground="{DynamicResource InstallerWarningBrush}" TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0" />
                             </StackPanel>
@@ -344,10 +707,13 @@
                 </Grid>
 
                 <!-- Real-time Activity History Panel -->
-                <Border Background="{DynamicResource InstallerSurfaceBrush}" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12,10">
+                <Border Background="#070A10" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12,10">
                     <StackPanel>
                         <DockPanel Margin="0,0,0,6">
                             <TextBlock Text="{Binding ActivityHistoryTitle}" Foreground="{DynamicResource InstallerTextMutedBrush}" FontSize="11" FontWeight="SemiBold" DockPanel.Dock="Left" />
+                            <Border Background="#0F3824" BorderBrush="{DynamicResource InstallerSuccessBrush}" BorderThickness="1" CornerRadius="4" Padding="6,1" HorizontalAlignment="Right" DockPanel.Dock="Right">
+                                <TextBlock Text="● LIVE" Foreground="{DynamicResource InstallerSuccessBrush}" FontSize="9" FontWeight="Bold" />
+                            </Border>
                         </DockPanel>
                         <ScrollViewer x:Name="ProgressScrollViewer" Height="112" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" ScrollChanged="ProgressScrollViewer_ScrollChanged">
                             <ItemsControl ItemsSource="{Binding ProgressHistory}">
@@ -366,7 +732,7 @@
             </StackPanel>
 
             <!-- VIEW: Error State -->
-            <StackPanel x:Name="Error" VerticalAlignment="Center" MaxWidth="560" HorizontalAlignment="Center">
+            <StackPanel x:Name="Error" VerticalAlignment="Center" MaxWidth="540" HorizontalAlignment="Center">
                 <StackPanel.Style>
                     <Style TargetType="StackPanel" BasedOn="{StaticResource InstallerPageTransitionStyle}">
                         <Setter Property="Visibility" Value="Collapsed" />
@@ -389,7 +755,7 @@
             </StackPanel>
 
             <!-- VIEW: Complete / Success -->
-            <StackPanel x:Name="Complete" VerticalAlignment="Center" MaxWidth="540" HorizontalAlignment="Center">
+            <StackPanel x:Name="Complete" VerticalAlignment="Center" MaxWidth="580" HorizontalAlignment="Center">
                 <StackPanel.Style>
                     <Style TargetType="StackPanel" BasedOn="{StaticResource InstallerPageTransitionStyle}">
                         <Setter Property="Visibility" Value="Collapsed" />
@@ -400,7 +766,7 @@
                         </Style.Triggers>
                     </Style>
                 </StackPanel.Style>
-                <Border Width="50" Height="50" Background="#143328" BorderBrush="{DynamicResource InstallerSuccessBrush}" BorderThickness="1.5" CornerRadius="12" Margin="0,0,0,16" HorizontalAlignment="Left">
+                <Border Width="52" Height="52" Background="#143328" BorderBrush="{DynamicResource InstallerSuccessBrush}" BorderThickness="1.5" CornerRadius="12" Margin="0,0,0,16" HorizontalAlignment="Left">
                     <TextBlock Text="✓" Foreground="{DynamicResource InstallerSuccessBrush}" FontWeight="Bold" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
                 <TextBlock Text="{Binding CompleteTitle}" FontSize="{DynamicResource InstallerHeadingFontSize}" FontWeight="Bold" Foreground="{DynamicResource InstallerTextBrush}" />
@@ -429,10 +795,10 @@
         </Grid>
 
         <!-- ==================== ACTION FOOTER ==================== -->
-        <Border Grid.Row="2" Background="{DynamicResource InstallerSurfaceBrush}" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="0,1,0,0" Padding="20,12">
-            <DockPanel>
-                <!-- Back Button (Left) -->
-                <Button Content="{Binding BackText}" Command="{Binding BackCommand}" DockPanel.Dock="Left">
+        <Border Grid.Row="3" Background="{DynamicResource InstallerSurfaceBrush}" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="0,1,0,0" Padding="20,14,20,16">
+            <DockPanel LastChildFill="False">
+                <!-- Secondary Back Button (Left) -->
+                <Button Content="{Binding BackText}" Command="{Binding BackCommand}" DockPanel.Dock="Left" Height="36" VerticalAlignment="Center">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                             <Style.Triggers>
@@ -454,9 +820,9 @@
                 </Button>
 
                 <!-- Primary Action Buttons (Right) -->
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Center">
                     <!-- Secondary Close button on Complete page -->
-                    <Button Content="{Binding CloseText}" Command="{Binding CloseCommand}" Margin="0,0,8,0">
+                    <Button Content="{Binding CloseText}" Command="{Binding CloseCommand}" Margin="0,0,8,0" Height="36" VerticalAlignment="Center">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                 <Setter Property="Visibility" Value="Collapsed" />
@@ -469,7 +835,7 @@
                         </Button.Style>
                     </Button>
 
-                    <Button Content="{Binding InstallText}" Command="{Binding InstallCommand}">
+                    <Button Content="{Binding InstallText}" Command="{Binding InstallCommand}" Height="36" VerticalAlignment="Center">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
                                 <Setter Property="Visibility" Value="Collapsed" />
@@ -481,7 +847,7 @@
                             </Style>
                         </Button.Style>
                     </Button>
-                    <Button Content="{Binding ContinueText}" Command="{Binding ContinueCommand}">
+                    <Button Content="{Binding ContinueText}" Command="{Binding ContinueCommand}" Height="36" VerticalAlignment="Center">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
                                 <Setter Property="Visibility" Value="Collapsed" />

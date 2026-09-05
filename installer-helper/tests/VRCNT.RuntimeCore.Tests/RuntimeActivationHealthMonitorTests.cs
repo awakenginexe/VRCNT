@@ -33,6 +33,17 @@ public sealed class RuntimeActivationHealthMonitorTests : IDisposable
     }
 
     [Fact]
+    public async Task WaitForReadyAsync_accepts_extended_install_path_for_the_same_backend()
+    {
+        var request = Request();
+        var monitor = new NamedPipeRuntimeActivationHealthMonitor(TimeSpan.FromSeconds(2), _ => StagedBackendPath());
+        var waiting = monitor.WaitForReadyAsync(@"\\?\" + _installPath, Identity, request, default);
+        await SendProofAsync(request, new RuntimeActivationProof(1, "ready", request.SingleUseToken, request.Nonce, Environment.ProcessId, "5.15.0", "cpu"));
+        var result = await waiting;
+        Assert.True(result.Ready, result.ErrorCode);
+    }
+
+    [Fact]
     public async Task WaitForReadyAsync_accepts_the_snake_case_proof_emitted_by_the_python_backend()
     {
         var request = Request();

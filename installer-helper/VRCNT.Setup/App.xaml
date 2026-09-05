@@ -156,7 +156,7 @@
                         <Setter Property="Template">
                             <Setter.Value>
                                 <ControlTemplate TargetType="Control">
-                                    <Border BorderBrush="{DynamicResource InstallerAccentBrush}" BorderThickness="1" CornerRadius="{DynamicResource InstallerCardRadius}" Margin="-2" />
+                                    <Border BorderBrush="{DynamicResource InstallerAccentBrush}" BorderThickness="1.5" CornerRadius="{DynamicResource InstallerCardRadius}" Margin="-2" />
                                 </ControlTemplate>
                             </Setter.Value>
                         </Setter>
@@ -167,20 +167,34 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
                         <Border x:Name="Border" Background="{DynamicResource InstallerSurfaceBrush}" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource InstallerCardRadius}" Padding="{TemplateBinding Padding}">
+                            <Border.RenderTransform>
+                                <TranslateTransform Y="0" />
+                            </Border.RenderTransform>
                             <ContentPresenter />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource InstallerAccentBrush}" />
-                                <Setter TargetName="Border" Property="Background" Value="#111A29" />
+                                <Setter TargetName="Border" Property="BorderThickness" Value="1.5" />
+                                <Setter TargetName="Border" Property="Background" Value="#0F1F32" />
+                                <Setter TargetName="Border" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <TranslateTransform Y="-1" />
+                                    </Setter.Value>
+                                </Setter>
                             </Trigger>
                             <MultiTrigger>
                                 <MultiTrigger.Conditions>
                                     <Condition Property="IsMouseOver" Value="True" />
                                     <Condition Property="IsChecked" Value="False" />
                                 </MultiTrigger.Conditions>
-                                <Setter TargetName="Border" Property="Background" Value="#181E2B" />
+                                <Setter TargetName="Border" Property="Background" Value="#172233" />
                                 <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource InstallerBorderHoverBrush}" />
+                                <Setter TargetName="Border" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <TranslateTransform Y="-2" />
+                                    </Setter.Value>
+                                </Setter>
                             </MultiTrigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Border" Property="Opacity" Value="0.45" />
@@ -198,20 +212,34 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
                         <Border x:Name="Border" Background="{DynamicResource InstallerSurfaceBrush}" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource InstallerCardRadius}" Padding="{TemplateBinding Padding}">
+                            <Border.RenderTransform>
+                                <TranslateTransform Y="0" />
+                            </Border.RenderTransform>
                             <ContentPresenter />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource InstallerCudaAccentBrush}" />
-                                <Setter TargetName="Border" Property="Background" Value="{DynamicResource InstallerCudaSurfaceBrush}" />
+                                <Setter TargetName="Border" Property="BorderThickness" Value="1.5" />
+                                <Setter TargetName="Border" Property="Background" Value="#0D2319" />
+                                <Setter TargetName="Border" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <TranslateTransform Y="-1" />
+                                    </Setter.Value>
+                                </Setter>
                             </Trigger>
                             <MultiTrigger>
                                 <MultiTrigger.Conditions>
                                     <Condition Property="IsMouseOver" Value="True" />
                                     <Condition Property="IsChecked" Value="False" />
                                 </MultiTrigger.Conditions>
-                                <Setter TargetName="Border" Property="Background" Value="#181E2B" />
+                                <Setter TargetName="Border" Property="Background" Value="#162520" />
                                 <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource InstallerBorderHoverBrush}" />
+                                <Setter TargetName="Border" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <TranslateTransform Y="-2" />
+                                    </Setter.Value>
+                                </Setter>
                             </MultiTrigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Border" Property="Opacity" Value="0.45" />

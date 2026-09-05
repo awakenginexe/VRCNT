@@ -239,6 +239,21 @@ public sealed class InstallerOperationTests : IDisposable
     }
 
     [Fact]
+    public async Task Switch_rejects_missing_protected_receipt_before_running_the_engine()
+    {
+        var installPath = Path.Combine(_root, "VRCNT");
+        var dataRoot = Path.Combine(_root, "VRCNTData");
+        var appPath = Path.Combine(installPath, "VRCNT.exe");
+        var statusPath = WritePendingSwitch(dataRoot, appPath, "missing-receipt", "token");
+        File.Delete(Path.Combine(dataRoot, "runtime-switch-receipt-missing-receipt.json"));
+        var engine = new RecordingRuntimeEngine();
+        var operations = CreateOperations(engine, dataRoot);
+        var options = new SetupCommandLineOptions(false, false, true, false, false, RuntimeVariant.Cuda, installPath, appPath, [], null, "token", statusPath);
+        await Assert.ThrowsAsync<InvalidDataException>(() => operations.ExecuteRuntimeAsync(options, null, default));
+        Assert.False(engine.WasCalled);
+    }
+
+    [Fact]
     public async Task A_pre_quiesce_switch_failure_is_consumed_by_the_live_owner_before_retry()
     {
         var installPath = Path.Combine(_root, "VRCNT");

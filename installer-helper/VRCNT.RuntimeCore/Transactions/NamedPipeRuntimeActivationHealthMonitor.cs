@@ -7,6 +7,7 @@ using System.Text.Json.Serialization;
 using Microsoft.Win32.SafeHandles;
 using VRCNT.RuntimeCore.Models;
 using VRCNT.RuntimeCore.Process;
+using VRCNT.RuntimeCore.Paths;
 
 namespace VRCNT.RuntimeCore.Transactions;
 
@@ -132,7 +133,7 @@ public sealed class NamedPipeRuntimeActivationHealthMonitor : IRuntimeActivation
             var expectedPath = Path.GetFullPath(Path.Combine(installPath, "VRCNT-backend.exe"));
             return !string.IsNullOrWhiteSpace(clientPath)
                 && File.Exists(expectedPath)
-                && string.Equals(Path.GetFullPath(clientPath), expectedPath, StringComparison.OrdinalIgnoreCase);
+                && PathIdentity.Equals(clientPath, expectedPath);
         }
         catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or InvalidOperationException)
         {

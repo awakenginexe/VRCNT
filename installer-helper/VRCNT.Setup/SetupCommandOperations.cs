@@ -92,6 +92,8 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
                 installPath,
                 options.CurrentAppPath,
                 options.SwitchToken);
+            // Validate the protected completion credential before any destructive work.
+            _ = statusStore.ReadReceiptBinding(shutdownHandoff);
             statusStore.WriteAccepted(targetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu", shutdownHandoff);
         }
 

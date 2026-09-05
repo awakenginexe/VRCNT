@@ -1,4 +1,6 @@
-import { useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import clsx from "clsx";
+import { getRuntimeBadge, getRuntimePresentation, getRuntimeState } from "@logics_common/runtimeManager.js";
 import { useI18n } from "@useI18n";
 import { useOnboarding } from "@logics_configs";
 import {
@@ -51,6 +53,32 @@ export const LiveWeaveNavigation = () => {
         () => selectPipelineStatusSummary(currentPipelineStatus.data, Date.now()),
         [currentPipelineStatus.data],
     );
+    const [runtimeBadge, setRuntimeBadge] = useState("Runtime unknown");
+    const [runtimeVariant, setRuntimeVariant] = useState(null);
+
+    useEffect(() => {
+        let isCurrent = true;
+        getRuntimeState()
+            .then((runtime) => {
+                if (isCurrent) {
+                    const presentation = getRuntimePresentation(runtime);
+                    const variant = presentation.status === "active" ? presentation.currentVariant : null;
+                    setRuntimeVariant(variant);
+                    setRuntimeBadge(getRuntimeBadge(runtime, { preferNvidiaCuda: true }));
+                }
+            })
+            .catch(() => {
+                if (isCurrent) {
+                    setRuntimeVariant(null);
+                    setRuntimeBadge("Runtime unknown");
+                }
+            });
+        return () => {
+            isCurrent = false;
+        };
+    }, []);
+
+    const displayedBadge = runtimeVariant === "cuda" ? "CUDA" : (runtimeVariant === "cpu" ? "CPU" : null);
 
     const openItem = (item) => {
         if (!canManualNavigate) return;
@@ -87,6 +115,17 @@ export const LiveWeaveNavigation = () => {
             >
                 <img className={styles.wordmark_badge} src={logoBadge} alt="" />
                 <span>VRCNT</span>
+                {displayedBadge && (
+                    <span
+                        className={clsx(styles.runtime_badge, {
+                            [styles.variant_cpu]: runtimeVariant === "cpu",
+                            [styles.variant_cuda]: runtimeVariant === "cuda",
+                        })}
+                        title={`Installed edition: ${runtimeBadge}`}
+                    >
+                        {displayedBadge}
+                    </span>
+                )}
             </button>
             <nav className={styles.navigation} aria-label={t("main_page.live_weave.navigation.live")}>
                 {NAVIGATION_ITEMS.map((item) => {

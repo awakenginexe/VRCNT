@@ -72,6 +72,34 @@ public sealed class EndToEndTransactionTests : IDisposable
     }
 
     [Fact]
+    public async Task Switch_with_extended_path_commits_after_real_pipe_proof_and_preserves_older_backup()
+    {
+        foreach (var target in new[] { RuntimeVariant.Cpu, RuntimeVariant.Cuda })
+        {
+            var request = CreateRequest($"pipe-{target}", target);
+            var normalPath = request.InstallPath;
+            WriteExistingRuntime(normalPath, target == RuntimeVariant.Cpu ? RuntimeVariant.Cuda : RuntimeVariant.Cpu);
+            var oldBackup = Path.Combine(_root, "preserved-5.13.0", "VRCNT.exe");
+            Write(oldBackup, "5.13.0-backup");
+            request = request with { InstallPath = @"\\?\" + normalPath };
+            var state = new RecordingStateTransition();
+            var processes = new RecordingProcessCoordinator(async activation =>
+            {
+                using var client = new System.IO.Pipes.NamedPipeClientStream(".", activation.PipeName, System.IO.Pipes.PipeDirection.Out, System.IO.Pipes.PipeOptions.Asynchronous);
+                await client.ConnectAsync(2000);
+                await using var writer = new StreamWriter(client) { AutoFlush = true };
+                await writer.WriteLineAsync(JsonSerializer.Serialize(new RuntimeActivationProof(1, "ready", activation.SingleUseToken, activation.Nonce, Environment.ProcessId, "5.15.0", target == RuntimeVariant.Cpu ? "cpu" : "cuda")));
+            });
+            var health = new NamedPipeRuntimeActivationHealthMonitor(TimeSpan.FromSeconds(3), _ => Path.Combine(normalPath, "VRCNT-backend.exe"));
+            var result = await CreateEngine(processes: processes, health: health, state: state, progressVariant: target).ExecuteAsync(request, null, default);
+            Assert.True(result.Succeeded, result.ErrorMessage);
+            Assert.Equal(target, state.ActiveIdentity!.Variant);
+            Assert.Equal("new-app", File.ReadAllText(Path.Combine(normalPath, "VRCNT.exe")));
+            Assert.Equal("5.13.0-backup", File.ReadAllText(oldBackup));
+        }
+    }
+
+    [Fact]
     public async Task Failed_standalone_activation_restores_the_old_runtime_without_relaunching_it()
     {
         var request = CreateRequest("activation-failure", RuntimeVariant.Cuda);
@@ -265,7 +293,7 @@ public sealed class EndToEndTransactionTests : IDisposable
         }
     }
 
-    private sealed class RecordingProcessCoordinator : IRuntimeProcessCoordinator, IRuntimeSwitchProcessCoordinator
+    private sealed class RecordingProcessCoordinator(Func<ActivationRequest, Task>? onLaunch = null) : IRuntimeProcessCoordinator, IRuntimeSwitchProcessCoordinator
     {
         public RuntimeShutdownHandoff? ShutdownHandoff { get; private set; }
         public bool RelaunchCalled { get; private set; }
@@ -284,7 +312,7 @@ public sealed class EndToEndTransactionTests : IDisposable
         public Task LaunchForActivationAsync(string installPath, RuntimeIdentity expectedIdentity, ActivationRequest request, CancellationToken cancellationToken)
         {
             LaunchCalled = true;
-            return Task.CompletedTask;
+            return onLaunch?.Invoke(request) ?? Task.CompletedTask;
         }
 
         public Task RelaunchActiveRuntimeAsync(CancellationToken cancellationToken)

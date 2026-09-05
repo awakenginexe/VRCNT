@@ -453,6 +453,7 @@ const cssModulePlugin = {
     name: "live-selector-placement-test-modules",
     enforce: "pre",
     resolveId(source, importer) {
+        if (source.endsWith(".svg?url")) return `${stubPrefix}asset:${encodeURIComponent(source)}`;
         if (source === "@useI18n" || source === "@utils" || source === "@store"
             || source === "@logics_configs" || source === "@logics_common"
             || source === "@logics_common/transcriptionEngineMetadata.js"
@@ -589,7 +590,7 @@ before(async () => {
         logLevel: "error",
         optimizeDeps: { noDiscovery: true },
         plugins: [cssModulePlugin, react()],
-        server: { middlewareMode: true, hmr: false },
+        server: { middlewareMode: true, hmr: false, watch: null },
     });
     ({ TranscriptionEngineSelector } = await viteServer.ssrLoadModule(engineSelectorPath));
     ({ TranslatorSelector } = await viteServer.ssrLoadModule(translatorSelectorPath));

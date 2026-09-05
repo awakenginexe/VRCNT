@@ -29,6 +29,8 @@
     <Resource Include="..\..\src-tauri\icons\icon.png">
       <Link>Assets\icon.png</Link>
     </Resource>
+    <Resource Include="Assets\cpu_ceos.png" />
+    <Resource Include="Assets\cuda_ceo.jpg" />
     <EmbeddedResource Include="$(InstallerLocalesOutput)" LogicalName="VRCNT.Setup.InstallerLocales.json" />
   </ItemGroup>
   <Target Name="GenerateInstallerLocales" BeforeTargets="PrepareResources">

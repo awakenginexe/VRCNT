@@ -501,6 +501,7 @@ struct RuntimeSwitchRetryClearRecordForWrite<'a> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeSwitchReceiptBinding {
+    pub schema: u32,
     pub nonce: String,
     pub target_variant: String,
     pub install_path: PathBuf,
@@ -1230,6 +1231,7 @@ fn persist_runtime_switch_receipt_binding_unlocked(
         return Err("The runtime switch receipt binding identity is invalid.".to_owned());
     }
     let binding = RuntimeSwitchReceiptBinding {
+        schema: 1,
         nonce: nonce.to_owned(),
         target_variant: target_variant.to_owned(),
         install_path: canonical_install_path,

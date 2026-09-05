@@ -137,6 +137,39 @@ test("live-page logo branding preserves edition badge visibility across normal, 
     assert.match(jsxSource, /styles\.variant_unknown/);
 });
 
+test("top navigation wordmark and window title bar render the active CPU or CUDA runtime edition badge", () => {
+    const navJsx = fs.readFileSync(
+        path.join(repoRoot, "src-ui", "views", "app", "main_page", "main_section", "live_weave_navigation", "LiveWeaveNavigation.jsx"),
+        "utf8",
+    );
+    const navScss = fs.readFileSync(
+        path.join(repoRoot, "src-ui", "views", "app", "main_page", "main_section", "live_weave_navigation", "LiveWeaveNavigation.module.scss"),
+        "utf8",
+    );
+    const titleBarJsx = fs.readFileSync(
+        path.join(repoRoot, "src-ui", "views", "app", "others", "window_title_bar", "WindowTitleBar.jsx"),
+        "utf8",
+    );
+    const titleBarScss = fs.readFileSync(
+        path.join(repoRoot, "src-ui", "views", "app", "others", "window_title_bar", "WindowTitleBar.module.scss"),
+        "utf8",
+    );
+
+    // LiveWeaveNavigation wordmark has runtime_badge with CPU/CUDA variants
+    assert.match(navJsx, /styles\.runtime_badge/);
+    assert.match(navJsx, /styles\.variant_cpu/);
+    assert.match(navJsx, /styles\.variant_cuda/);
+    assert.match(navScss, /\.runtime_badge/);
+    assert.doesNotMatch(navScss, /\.runtime_badge\s*\{[^}]*display:\s*none/i);
+
+    // WindowTitleBar title wrapper has runtime_badge with CPU/CUDA variants
+    assert.match(titleBarJsx, /styles\.runtime_badge/);
+    assert.match(titleBarJsx, /styles\.variant_cpu/);
+    assert.match(titleBarJsx, /styles\.variant_cuda/);
+    assert.match(titleBarScss, /\.runtime_badge/);
+    assert.doesNotMatch(titleBarScss, /\.runtime_badge\s*\{[^}]*display:\s*none/i);
+});
+
 test("invalid runtime state enters recovery instead of being displayed as active", () => {
     const invalid = normalizeRuntimeState({ ...activeCpu, status: "active", installPath: "" });
 
