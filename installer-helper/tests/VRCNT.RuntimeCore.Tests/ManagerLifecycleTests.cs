@@ -305,6 +305,32 @@ public sealed class ManagerLifecycleTests : IDisposable
         Assert.Equal(vrcntArguments, options.CurrentAppArguments);
     }
 
+    [Theory]
+    [InlineData("/P")]
+    [InlineData("/S")]
+    [InlineData("")]
+    public void Legacy_tauri_update_opens_interactive_migration_without_setup_authority(string mode)
+    {
+        string[] prefix = mode.Length == 0 ? [] : [mode, "/R"];
+        var options = SetupCommandLine.Parse([.. prefix, "/UPDATE", "/ARGS",
+            "--switch", "--variant", "cuda", "--install-path", "C:\\untrusted"]);
+        Assert.True(SetupCommandLine.ShouldShowUi(options));
+        Assert.False(options.IsUpdate);
+        Assert.False(options.IsSwitch);
+        Assert.False(options.IsRepairManager);
+        Assert.Null(options.InstallPath);
+        Assert.Null(options.CurrentAppPath);
+        Assert.Null(options.TargetVariant);
+    }
+
+    [Fact]
+    public void Legacy_compatibility_does_not_accept_unknown_flags_or_broken_modern_contracts()
+    {
+        Assert.Throws<ArgumentException>(() => SetupCommandLine.Parse(["/P"]));
+        Assert.Throws<ArgumentException>(() => SetupCommandLine.Parse(["/BOGUS", "/UPDATE", "/ARGS"]));
+        Assert.Throws<ArgumentException>(() => SetupCommandLine.Parse(["/UPDATE", "/ARGS", "--tauri-update-contract-v1"]));
+    }
+
     [Fact]
     public void Command_line_parser_rejects_untrusted_normal_update_path_overrides_and_tauri_arg_contracts_without_update_mode()
     {
@@ -428,7 +454,7 @@ public sealed class ManagerLifecycleTests : IDisposable
             ["https://example.test/releases/VRCNT.Setup.exe"] = bootstrapperBytes,
         }));
         var source = new HttpManagerRepairSource(
-            ManagerCapabilities.Current,
+            new ManagerCapabilities("5.15.0", 1, 2, 1, 1),
             new FixedManifestLoader(manifest),
             new FixedSignatureVerifier(true),
             releaseEndpoint,
@@ -495,7 +521,7 @@ public sealed class ManagerLifecycleTests : IDisposable
         var managerDirectory = Path.Combine(_root, "VRCNTInstaller");
         var manifest = CreateManifest("new-manager");
         IManagerRepairSource source = new HttpManagerRepairSource(
-            ManagerCapabilities.Current,
+            new ManagerCapabilities("5.15.0", 1, 2, 1, 1),
             new FixedManifestLoader(manifest),
             new FixedSignatureVerifier(true),
             new Uri("https://example.test/releases/"),
@@ -530,7 +556,7 @@ public sealed class ManagerLifecycleTests : IDisposable
             },
         });
         IManagerRepairSource source = new HttpManagerRepairSource(
-            ManagerCapabilities.Current,
+            new ManagerCapabilities("5.15.0", 1, 2, 1, 1),
             new FixedManifestLoader(manifest),
             new FixedSignatureVerifier(true),
             releaseEndpoint,
