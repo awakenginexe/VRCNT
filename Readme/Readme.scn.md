@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-5.15.0-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-5.15.1-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>
@@ -176,7 +176,7 @@ npm run stage-runtime:cpu
 npm run stage-runtime:cuda
 ```
 
-暂存的运行时位于 `build/release/cpu` 和 `build/release/cuda`。公开发布使用小型 WPF 引导安装程序 `VRCNT_5.15.0_Setup.exe` 以及两个运行时包。
+暂存的运行时位于 `build/release/cpu` 和 `build/release/cuda`。公开发布使用小型 WPF 引导安装程序 `VRCNT_5.15.1_Setup.exe` 以及两个运行时包。
 
 官方构建版本发布于 [GitHub Releases](https://github.com/awakenginexe/VRCNT/releases)。
 安装程序会检测兼容的 NVIDIA 硬件并推荐 CUDA，同时允许用户主动选择 CPU。签名清单决定 CPU 或 CUDA 所需的准确分卷数量，因此两个版本的分卷数量不必相同。便携运行时，请将清单选定的分卷和签名清单放在一起，用 7-Zip 解压 `.7z.001`，再从解压目录运行 `VRCNT.exe`。

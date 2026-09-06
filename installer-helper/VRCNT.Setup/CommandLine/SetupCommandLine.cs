@@ -31,6 +31,11 @@ public static class SetupCommandLine
 
     public static SetupCommandLineOptions Parse(IReadOnlyList<string> args)
     {
+        // Older Tauri clients use NSIS flags and have no VRCNT contract suffix.
+        // Open the ordinary interactive migration flow; never interpret forwarded
+        // application arguments as privileged installer options or auto-restart them.
+        if (IsLegacyTauriHandoff(args)) return Parse(Array.Empty<string>());
+
         var isUpdate = false;
         var isPassive = false;
         var isSwitch = false;
@@ -118,6 +123,18 @@ public static class SetupCommandLine
     }
 
     public static bool ShouldShowUi(SetupCommandLineOptions options) => !options.IsPassive;
+
+    private static bool IsLegacyTauriHandoff(IReadOnlyList<string> args)
+    {
+        var offset = 0;
+        if (args.Count >= 2 &&
+            (args[0].Equals("/P", StringComparison.OrdinalIgnoreCase) || args[0].Equals("/S", StringComparison.OrdinalIgnoreCase)) &&
+            args[1].Equals("/R", StringComparison.OrdinalIgnoreCase)) offset = 2;
+        return args.Count >= offset + 2 &&
+            args[offset].Equals("/UPDATE", StringComparison.OrdinalIgnoreCase) &&
+            args[offset + 1].Equals("/ARGS", StringComparison.OrdinalIgnoreCase) &&
+            !args.Any(argument => argument.StartsWith("--tauri-update-contract", StringComparison.OrdinalIgnoreCase));
+    }
 
     private static string NextValue(IReadOnlyList<string> args, ref int index, string option)
     {
