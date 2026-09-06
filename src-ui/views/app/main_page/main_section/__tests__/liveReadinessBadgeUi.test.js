@@ -98,7 +98,32 @@ test.before(async () => {
     viteServer = await createServer({
         root,
         configFile: path.join(root, "vite.config.js"),
-        server: { middlewareMode: true },
+        plugins: [{
+            name: "readiness-test-css",
+            enforce: "pre",
+            resolveId(source) {
+                if (source.endsWith(".module.scss")) return `\0readiness-css:${source.slice(0, -12)}`;
+                if (source.endsWith(".svg?react")) return "\0readiness-icon";
+            },
+            load(id) {
+                if (id === "\0readiness-icon") return "export default function Icon() { return null; }";
+                if (id.startsWith("\0readiness-css:"))
+                    return "export default new Proxy({}, { get: (_, key) => String(key) });";
+                const file = id.replaceAll("\\", "/");
+                // Render the real presentation with a fixed store; do not initialize
+                // the desktop controller graph in this server-rendered component test.
+                if (file.endsWith("/src-ui/logics/main/index.js"))
+                    return "export const useIsMainPageCompactMode = () => ({ currentIsMainPageCompactMode: { data: false } }); export const useMainFunction = () => ({});";
+                if (file.endsWith("/src-ui/logics/common/index.js"))
+                    return "export const useIsBackendReady = () => ({ currentIsBackendReady: { data: true } });";
+                if (file.endsWith("/src-ui/logics/configs/index.js"))
+                    return "export const useTranscription = () => ({}); export const useTranslation = () => ({});";
+                if (file.endsWith("/src-ui/views/common_components/index.js"))
+                    return 'export { Tooltip } from "./tooltip/Tooltip.jsx";';
+            },
+        }],
+        server: { middlewareMode: true, hmr: false, watch: null },
+        optimizeDeps: { noDiscovery: true },
         appType: "custom",
     });
     const badgeModule = await viteServer.ssrLoadModule(

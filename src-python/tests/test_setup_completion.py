@@ -11,8 +11,18 @@ sys.path.insert(
 )
 
 if "requests" not in sys.modules:
+    class _RequestException(Exception):
+        pass
+
     requests_stub = types.ModuleType("requests")
     requests_stub.post = lambda *args, **kwargs: None
+    requests_stub.get = lambda *args, **kwargs: None
+    requests_stub.RequestException = _RequestException
+    requests_stub.exceptions = types.SimpleNamespace(
+        Timeout=_RequestException,
+        HTTPError=_RequestException,
+        ConnectionError=_RequestException,
+    )
     sys.modules["requests"] = requests_stub
 
 
@@ -40,6 +50,15 @@ class SetupCompletionTests(unittest.TestCase):
         self.assertIs(
             _resolve_setup_completion(True, config_data={"UI_LANGUAGE": "en"}),
             False,
+        )
+
+    def test_language_plus_existing_user_settings_is_not_mistaken_for_installer_seed_data(self):
+        self.assertIs(
+            _resolve_setup_completion(
+                True,
+                config_data={"UI_LANGUAGE": "th", "API_PROVIDER": "local"},
+            ),
+            True,
         )
 
     def test_explicit_false_survives_resume(self):

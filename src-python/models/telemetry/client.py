@@ -12,14 +12,14 @@ except ImportError:
 
 
 class AptabaseWrapper:
-    APP_KEY = "A-US-6044063021"
+    APP_KEY = "A-EU-1797028245"
     
     def __init__(self):
         self.client = None
         # Suppress noisy logs from the Aptabase SDK (only CRITICAL allowed)
         logging.getLogger("aptabase").setLevel(logging.CRITICAL)
     
-    async def start(self, app_version: str = "5.14.0"):
+    async def start(self, app_version: str = "5.15.0"):
         """Aptabase クライアント開始"""
         if Aptabase is None:
             raise ImportError("aptabase library not installed")

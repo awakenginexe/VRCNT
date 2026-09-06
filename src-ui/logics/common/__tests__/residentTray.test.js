@@ -23,10 +23,13 @@ test("resident lifecycle keeps the native and frontend event names aligned", asy
 
 test("resident startup defers the backend until activation and close preserves it before hiding", () => {
     const source = readSource("src-ui/views/app/_app_controllers/StartPythonController.jsx");
+    const closeStart = source.indexOf("const handleResidentClose = async () => {");
+    const switchStart = source.indexOf("const handleRuntimeSwitch = async");
+    const residentClose = source.slice(closeStart, switchStart);
 
     assert.match(source, /invoke\("is_background_startup"\)/);
     assert.match(source, /invoke\("consume_resident_activation"\)/);
-    assert.doesNotMatch(source, /await stopPythonRef\.current\(\)/);
+    assert.doesNotMatch(residentClose, /await stopPythonRef\.current\(\)/);
     assert.match(source, /await invoke\("enter_background_mode"\)/);
     assert.match(source, /spawnBackendWithTimeout/);
 });
@@ -63,6 +66,22 @@ test("resident close keeps the backend available for the next activation", () =>
     const closeHandlerSource = source.slice(closeHandlerStart, closeHandlerEnd);
 
     assert.doesNotMatch(closeHandlerSource, /updateIsBackendReady\(false\)/);
+});
+
+test("runtime switch closes the backend before acknowledging the native handoff", () => {
+    const source = readSource("src-ui/views/app/_app_controllers/StartPythonController.jsx");
+    const switchHandlerStart = source.indexOf("const handleRuntimeSwitch = async (event) => {");
+    const switchHandlerEnd = source.indexOf("const setup = async () => {", switchHandlerStart);
+    const switchHandler = source.slice(switchHandlerStart, switchHandlerEnd);
+
+    assert.ok(switchHandlerStart >= 0);
+    assert.ok(switchHandlerEnd > switchHandlerStart);
+    assert.match(switchHandler, /await stopPythonRef\.current\(\)/);
+    assert.match(switchHandler, /complete_runtime_switch_shutdown/);
+    assert.ok(
+        switchHandler.indexOf("await stopPythonRef.current()") <
+            switchHandler.indexOf('invoke("complete_runtime_switch_shutdown"'),
+    );
 });
 
 test("the title-bar close path lets native resident mode intercept enabled startup", () => {

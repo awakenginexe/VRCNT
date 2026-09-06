@@ -18,8 +18,7 @@ test("Windows release names are explicit and the backend sidecar is VRCNT-brande
     assert.deepEqual(tauriConfig.bundle.externalBin, ["bin/VRCNT-backend"]);
     assert.match(capability, /bin\/VRCNT-backend/);
     assert.match(startPython, /Command\.sidecar\("bin\/VRCNT-backend"\)/);
-    assert.match(releaseScript, /target\/release\/VRCNT\.exe/);
-    assert.match(releaseScript, /target\/release\/VRCNT-backend\.exe/);
+    assert.match(releaseScript, /REQUIRED_PAYLOAD_FILES = \("VRCNT\.exe", "VRCNT-backend\.exe", "VRCNT\.runtime\.json"\)/);
     assert.match(navigation, /updateOpenedQuickSetting\("update_software"\)/);
     assert.match(navigation, /className=\{styles\.update_button\}/);
     assert.match(navigation, /main_page\.quick_setting_latest/);
@@ -55,4 +54,25 @@ test("the update action uses the signed Tauri updater and relaunches after insta
     assert.match(modal, /role="progressbar"/);
     assert.match(modal, /update_modal\.download_latest_button/);
     assert.match(modal, /update_modal\.open_releases/);
+});
+
+test("normal updater launches repair mode without selecting a runtime, while switches retain their explicit target contract", () => {
+    const hook = read("src-ui/logics/common/useUpdateSoftware.js");
+    const tauri = read("src-tauri/tauri.conf.json");
+    const commandLine = read("installer-helper/VRCNT.Setup/CommandLine/SetupCommandLine.cs");
+    const operations = read("installer-helper/VRCNT.Setup/SetupCommandOperations.cs");
+
+    assert.match(tauri, /"installerArgs": \[\s*"--tauri-update-contract-v1",\s*"\/passive",\s*"--repair-manager"\s*\]/);
+    assert.doesNotMatch(tauri, /"installerArgs"[\s\S]*--variant/);
+    assert.doesNotMatch(hook, /downloadAndInstall\([^)]*--variant/);
+    assert.match(commandLine, /argument\.Equals\("\/UPDATE"/);
+    assert.match(commandLine, /argument\.Equals\("\/ARGS"/);
+    assert.match(commandLine, /--tauri-update-contract-v1/);
+    assert.match(commandLine, /argument\.Equals\("\/passive"/);
+    assert.match(commandLine, /argument\.Equals\("--current-app"/);
+    assert.match(commandLine, /argument\.Equals\("--current-app-arg"/);
+    assert.match(commandLine, /if \(isSwitch && variant is null\)/);
+    assert.match(operations, /options\.IsSwitch[\s\S]*options\.TargetVariant/);
+    assert.match(operations, /options\.TargetVariant \?\? RuntimeVariant\.Cpu/);
+    assert.match(operations, /foreach \(var argument in options\.CurrentAppArguments\)/);
 });

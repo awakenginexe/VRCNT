@@ -1,5 +1,6 @@
 export { KeyEventController } from "./KeyEventController";
 export { StartPythonController } from "./StartPythonController";
+export { RuntimeSwitchReceiptController } from "./RuntimeSwitchReceiptController";
 export { FirstRunSetupController } from "./FirstRunSetupController";
 export { GlobalHotKeyController } from "./GlobalHotKeyController";
 export { UiLanguageController } from "./UiLanguageController";

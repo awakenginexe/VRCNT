@@ -97,11 +97,11 @@ def _getUserDataPath(app_name: str = "VRCNT") -> str:
 
 
 def _migrateRenamedUserData(legacy_path: str, target_path: str) -> bool:
-    """Move the 4.0 data directory only when the new destination is absent."""
-    if os_path.isdir(legacy_path) is False or os_path.exists(target_path):
+    """Copy legacy data into the current root without deleting or overwriting."""
+    if os_path.isdir(legacy_path) is False:
         return False
     try:
-        shutil.move(legacy_path, target_path)
+        _copytree_merge(legacy_path, target_path)
         return True
     except Exception:
         errorLogging()
@@ -151,8 +151,10 @@ def _copytree_merge(src: str, dst: str) -> None:
         for filename in filenames:
             source_file = os_path.join(current_root, filename)
             target_file = os_path.join(target_root, filename)
+            if os_path.exists(target_file):
+                continue
             try:
-                if os_path.exists(target_file) and os_path.samefile(source_file, target_file):
+                if os_path.samefile(source_file, target_file):
                     continue
             except Exception:
                 pass
@@ -1233,7 +1235,7 @@ class Config:
 
     def init_config(self):
         # Read Only
-        self._VERSION = "5.14.0"
+        self._VERSION = "5.15.0"
         if getattr(sys, 'frozen', False):
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
@@ -1631,10 +1633,7 @@ class Config:
             if os_path.isdir(legacy_path) is False:
                 continue
             try:
-                if os_path.exists(target_path) is False:
-                    shutil.move(legacy_path, target_path)
-                else:
-                    _copytree_merge(legacy_path, target_path)
+                _copytree_merge(legacy_path, target_path)
             except Exception:
                 errorLogging()
 

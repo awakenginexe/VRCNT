@@ -42,6 +42,42 @@
     filter: drop-shadow(0 0 0.9rem rgba(var(--accent_color_rgb), 0.42));
 }
 
+.runtime_badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    line-height: 1.1;
+    font-weight: 800;
+    letter-spacing: 0.04rem;
+    white-space: nowrap;
+    user-select: none;
+    transition: var(--transition_ui);
+    border: 1px solid color-mix(in srgb, var(--dark_400_color) 45%, transparent);
+    background: color-mix(in srgb, var(--dark_800_color) 75%, transparent);
+    color: var(--dark_350_color, #AEBBD0);
+
+    &.variant_cpu {
+        border-color: rgba(56, 189, 248, 0.45);
+        background: color-mix(in srgb, #0284C7 18%, var(--palette_surface_1_color, #0A0E1A));
+        color: #38BDF8;
+        box-shadow: 0 0 0.8rem rgba(56, 189, 248, 0.18);
+    }
+
+    &.variant_cuda {
+        border-color: rgba(16, 185, 129, 0.45);
+        background: color-mix(in srgb, #059669 18%, var(--palette_surface_1_color, #0A0E1A));
+        color: #34D399;
+        box-shadow: 0 0 0.8rem rgba(16, 185, 129, 0.18);
+    }
+}
+
+:global(.performance_mode) .runtime_badge {
+    box-shadow: none;
+}
+
 .wordmark:disabled,
 .navigation_item:disabled {
     cursor: not-allowed;

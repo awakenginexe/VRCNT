@@ -1,5 +1,6 @@
 export const RESIDENT_ACTIVATE_EVENT = "vrcnt://resident-activate";
 export const RESIDENT_CLOSE_REQUESTED_EVENT = "vrcnt://resident-close-requested";
+export const RUNTIME_SWITCH_REQUESTED_EVENT = "vrcnt://runtime-switch-requested";
 
 export const RESIDENT_BACKEND_SHUTDOWN_DELAY_MS = 2000;
 export const RESIDENT_STARTUP_CHECK_TIMEOUT_MS = 2000;

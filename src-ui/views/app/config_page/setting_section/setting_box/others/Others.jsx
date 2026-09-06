@@ -44,6 +44,7 @@ import {
 import { Checkbox } from "@common_components";
 
 import OpenFolderSvg from "@images/open_folder.svg?react";
+import { RuntimeSettings } from "./RuntimeSettings";
 
 export const Others = () => {
     const { t } = useI18n();
@@ -79,6 +80,9 @@ export const Others = () => {
                 <SectionLabelComponent label={t("config_page.others.section_label_startup")} />
                 <QuickWakeUpContainer />
                 <StartWithVrchatContainer />
+            </div>
+            <div>
+                <RuntimeSettings />
             </div>
             <div>
                 <TelemetryContainer />

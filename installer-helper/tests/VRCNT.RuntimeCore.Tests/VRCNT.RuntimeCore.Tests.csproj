@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\VRCNT.RuntimeCore\VRCNT.RuntimeCore.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\VRCNT.Setup\CommandLine\SetupCommandLine.cs" Link="CommandLine\SetupCommandLine.cs" />
+    <Compile Include="..\..\VRCNT.Setup\CommandLine\SetupCommandDispatcher.cs" Link="CommandLine\SetupCommandDispatcher.cs" />
+    <Compile Include="..\..\VRCNT.Setup\SetupCommandOperations.cs" Link="Setup\SetupCommandOperations.cs" />
+    <Compile Include="..\..\VRCNT.Setup\RuntimeReleaseChannel.cs" Link="Setup\RuntimeReleaseChannel.cs" />
+    <Compile Include="..\..\VRCNT.Setup\SetupToolLayout.cs" Link="Setup\SetupToolLayout.cs" />
+    <Compile Include="..\..\VRCNT.Setup\Localization\InstallerLocalizer.cs" Link="Localization\InstallerLocalizer.cs" />
+    <Compile Include="..\..\VRCNT.Setup\Views\InstallerViewModel.cs" Link="Views\InstallerViewModel.cs" />
+    <Compile Include="..\..\VRCNT.Setup\Views\IInstallDirectoryPicker.cs" Link="Views\IInstallDirectoryPicker.cs" />
+    <Compile Include="..\..\VRCNT.Setup\Views\InstallerGpuAdvisory.cs" Link="Views\InstallerGpuAdvisory.cs" />
+    <Compile Include="..\..\VRCNT.Setup\Views\IApplicationLauncher.cs" Link="Views\IApplicationLauncher.cs" />
+    <None Include="..\..\VRCNT.Setup\App.xaml" Link="App.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\VRCNT.Setup\Views\MainWindow.xaml" Link="Views\MainWindow.xaml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

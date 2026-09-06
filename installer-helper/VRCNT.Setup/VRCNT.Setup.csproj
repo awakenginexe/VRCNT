@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ApplicationIcon>..\..\src-tauri\icons\icon.ico</ApplicationIcon>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <PublishTrimmed>false</PublishTrimmed>
+    <AssemblyName>VRCNT.Setup</AssemblyName>
+    <RootNamespace>VRCNT.Setup</RootNamespace>
+    <Version>5.15.0</Version>
+    <AssemblyVersion>5.15.0.0</AssemblyVersion>
+    <FileVersion>5.15.0.0</FileVersion>
+    <SetupToolSourceDirectory Condition="'$(SetupToolSourceDirectory)' == ''">$(MSBuildProjectDirectory)\..\..\src-tauri\nsis\bin</SetupToolSourceDirectory>
+    <InstallerLocalesOutput>$(BaseIntermediateOutputPath)Generated\InstallerLocales.json</InstallerLocalesOutput>
+    <InstallerLocalesGenerator>$(MSBuildProjectDirectory)\..\..\scripts\generate_installer_locales.py</InstallerLocalesGenerator>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(RuntimeReleaseTag)' != ''">
+    <AssemblyMetadata Include="VRCNTRuntimeReleaseTag" Value="$(RuntimeReleaseTag)" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\VRCNT.RuntimeCore\VRCNT.RuntimeCore.csproj" />
+    <Resource Include="..\..\src-tauri\icons\icon.png">
+      <Link>Assets\icon.png</Link>
+    </Resource>
+    <Resource Include="Assets\cpu_ceos.png" />
+    <Resource Include="Assets\cuda_ceo.jpg" />
+    <EmbeddedResource Include="$(InstallerLocalesOutput)" LogicalName="VRCNT.Setup.InstallerLocales.json" />
+  </ItemGroup>
+  <Target Name="GenerateInstallerLocales" BeforeTargets="PrepareResources">
+    <MakeDir Directories="$(BaseIntermediateOutputPath)Generated" />
+    <Exec Command="python &quot;$(InstallerLocalesGenerator)&quot; --output &quot;$(InstallerLocalesOutput)&quot;" />
+  </Target>
+  <ItemGroup>
+    <AuthenticatedSetupTool Include="$(SetupToolSourceDirectory)\minisign.exe" />
+    <AuthenticatedSetupTool Include="$(SetupToolSourceDirectory)\7za.exe" />
+    <EmbeddedResource Include="$(SetupToolSourceDirectory)\minisign.exe" LogicalName="VRCNT.Setup.Tools.minisign.exe" />
+    <EmbeddedResource Include="$(SetupToolSourceDirectory)\7za.exe" LogicalName="VRCNT.Setup.Tools.7za.exe" />
+  </ItemGroup>
+  <Target Name="ValidateAuthenticatedSetupTools" BeforeTargets="PrepareResources">
+    <Error Condition="!Exists('%(AuthenticatedSetupTool.Identity)')" Text="Authenticated setup tool input is missing: %(AuthenticatedSetupTool.Identity). Provide the verified release/build tool directory through SetupToolSourceDirectory." />
+    <GetFileHash Files="$(SetupToolSourceDirectory)\minisign.exe" Algorithm="SHA256">
+      <Output TaskParameter="Items" ItemName="AuthenticatedMinisignHash" />
+    </GetFileHash>
+    <GetFileHash Files="$(SetupToolSourceDirectory)\7za.exe" Algorithm="SHA256">
+      <Output TaskParameter="Items" ItemName="AuthenticatedSevenZipHash" />
+    </GetFileHash>
+    <Error Condition="$([System.String]::Copy('%(AuthenticatedMinisignHash.FileHash)').ToLowerInvariant()) != '5535be9e4e123831ebe6ef324aafe9dde507015c176191f9e20c3ad60567f9e1'" Text="Authenticated setup tool minisign.exe failed its trusted SHA-256 check." />
+    <Error Condition="$([System.String]::Copy('%(AuthenticatedSevenZipHash.FileHash)').ToLowerInvariant()) != '35d4d69d7cd6cb44558f208c3b1334268013f9daf82d2dda848893a1c30c59c2'" Text="Authenticated setup tool 7za.exe failed its trusted SHA-256 check." />
+  </Target>
+</Project>

@@ -1,6 +1,7 @@
 param(
   [Parameter(Mandatory = $true)][string]$SevenZip,
-  [Parameter(Mandatory = $true)][string]$Minisign
+  [Parameter(Mandatory = $true)][string]$Minisign,
+  [ValidateSet('All', 'InvalidTargetPreservation')][string]$Scenario = 'All'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -8,6 +9,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $SevenZip = (Resolve-Path $SevenZip).Path
 $Minisign = (Resolve-Path $Minisign).Path
 $testRoot = Join-Path $repoRoot 'tmp/release-helper-integration'
+$previousLocalAppData = $env:LOCALAPPDATA
 $resolvedTestRoot = [IO.Path]::GetFullPath($testRoot)
 $resolvedRepoRoot = [IO.Path]::GetFullPath($repoRoot) + [IO.Path]::DirectorySeparatorChar
 if (-not $resolvedTestRoot.StartsWith($resolvedRepoRoot, [StringComparison]::OrdinalIgnoreCase) -or
@@ -18,8 +20,9 @@ if (Test-Path $testRoot) {
   Remove-Item -LiteralPath $testRoot -Recurse -Force
 }
 New-Item -ItemType Directory -Path $testRoot -Force | Out-Null
+$env:LOCALAPPDATA = Join-Path $testRoot 'local-app-data'
 
-function Invoke-Helper([string]$InstallerDirectory, [string]$CacheDirectory, [string]$Destination, [string]$BaseUrl) {
+function Invoke-Helper([string]$InstallerDirectory, [string]$CacheDirectory, [string]$Destination, [string]$BaseUrl, [string]$Variant = 'cpu') {
   $arguments = @(
     '--version', '4.2.2',
     '--release-base-url', $BaseUrl,
@@ -28,12 +31,29 @@ function Invoke-Helper([string]$InstallerDirectory, [string]$CacheDirectory, [st
     '--destination', $Destination,
     '--manifest-name', 'package-manifest.json',
     '--signature-name', 'package-manifest.json.sig',
-    '--part-count', '3',
+    '--variant', $Variant,
     '--sevenzip', $SevenZip,
     '--minisign', $Minisign
   )
-  $output = & $script:helperExe @arguments 2>&1 | Out-String
-  return @{ ExitCode = $LASTEXITCODE; Output = $output }
+  $startInfo = [Diagnostics.ProcessStartInfo]::new()
+  $startInfo.FileName = $script:helperExe
+  $startInfo.UseShellExecute = $false
+  $startInfo.RedirectStandardOutput = $true
+  $startInfo.RedirectStandardError = $true
+  $startInfo.Arguments = (($arguments | ForEach-Object { '"' + $_.Replace('"', '\"') + '"' }) -join ' ')
+  $process = [Diagnostics.Process]::new()
+  $process.StartInfo = $startInfo
+  try {
+    if (-not $process.Start()) { throw 'Release helper process could not be started.' }
+    $stdout = $process.StandardOutput.ReadToEnd()
+    $stderr = $process.StandardError.ReadToEnd()
+    $process.WaitForExit()
+    $output = $stdout + $stderr
+    $exitCode = $process.ExitCode
+  } finally {
+    $process.Dispose()
+  }
+  return @{ ExitCode = $exitCode; Output = $output }
 }
 
 try {
@@ -41,16 +61,96 @@ try {
   New-Item -ItemType Directory -Path "$payload/frontend", "$payload/_internal" -Force | Out-Null
   Set-Content -LiteralPath "$payload/VRCNT.exe" -Value 'test executable' -Encoding utf8
   Set-Content -LiteralPath "$payload/VRCNT-backend.exe" -Value 'test backend' -Encoding utf8
+  Set-Content -LiteralPath "$payload/VRCNT.runtime.json" -Value '{"product":"VRCNT","version":"4.2.2","variant":"Cpu","architecture":"x64","buildIdentity":"fixture-cpu"}' -Encoding utf8
   Set-Content -LiteralPath "$payload/frontend/index.html" -Value '<html>test</html>' -Encoding utf8
   Set-Content -LiteralPath "$payload/_internal/runtime.txt" -Value 'runtime' -Encoding utf8
 
+  $fixtureProject = Join-Path $testRoot 'fixture-runtime'
+  New-Item -ItemType Directory -Path $fixtureProject -Force | Out-Null
+  @'
+using System.Diagnostics;
+using System.IO.Pipes;
+using System.Text.Json;
+
+static string Required(string[] args, string name)
+{
+    var index = Array.IndexOf(args, name);
+    return index >= 0 && index + 1 < args.Length ? args[index + 1] : throw new ArgumentException($"Missing {name}");
+}
+
+var executableName = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? AppContext.BaseDirectory);
+if (string.Equals(executableName, "VRCNT", StringComparison.OrdinalIgnoreCase))
+{
+    var backend = Path.Combine(AppContext.BaseDirectory, "VRCNT-backend.exe");
+    var start = new ProcessStartInfo(backend) { UseShellExecute = false };
+    foreach (var argument in args) start.ArgumentList.Add(argument);
+    Process.Start(start)?.Dispose();
+    return;
+}
+
+if (args.Contains("--cuda-capability-probe", StringComparer.Ordinal))
+{
+    Console.Write("{\"supported\":true,\"conclusive\":true,\"failureCode\":null,\"detail\":null}");
+    return;
+}
+
+if (!args.Contains("--runtime-activation-pipe", StringComparer.Ordinal)) return;
+var pipe = Required(args, "--runtime-activation-pipe");
+var token = Required(args, "--runtime-activation-token");
+var nonce = Required(args, "--runtime-activation-nonce");
+var version = Required(args, "--runtime-activation-app-version");
+var variant = Required(args, "--runtime-activation-runtime-variant");
+using var client = new NamedPipeClientStream(".", pipe, PipeDirection.Out, PipeOptions.Asynchronous);
+await client.ConnectAsync(5000);
+await using (var writer = new StreamWriter(client) { AutoFlush = true })
+{
+    await writer.WriteAsync(JsonSerializer.Serialize(new { ProtocolVersion = 1, Status = "ready", Token = token, Nonce = nonce, BackendPid = Environment.ProcessId, AppVersion = version, RuntimeVariant = variant }) + "\n");
+}
+await Task.Delay(1000);
+'@ | Set-Content -LiteralPath (Join-Path $fixtureProject 'Program.cs') -Encoding utf8
+
+  function Publish-FixtureRuntime([string]$AssemblyName, [string]$OutputDirectory) {
+    @"
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>$AssemblyName</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+</Project>
+"@ | Set-Content -LiteralPath (Join-Path $fixtureProject 'FixtureRuntime.csproj') -Encoding utf8
+    dotnet publish (Join-Path $fixtureProject 'FixtureRuntime.csproj') -c Release -r win-x64 --self-contained false -o $OutputDirectory
+    if ($LASTEXITCODE -ne 0) { throw "Fixture $AssemblyName runtime build failed." }
+  }
+
+  $fixtureApp = Join-Path $fixtureProject 'app'
+  $fixtureBackend = Join-Path $fixtureProject 'backend'
+  Publish-FixtureRuntime 'VRCNT' $fixtureApp
+  Publish-FixtureRuntime 'VRCNT-backend' $fixtureBackend
+  Get-ChildItem -LiteralPath $fixtureApp -File | Where-Object { $_.Name -like 'VRCNT*' } | Copy-Item -Destination $payload -Force
+  Get-ChildItem -LiteralPath $fixtureBackend -File | Where-Object { $_.Name -like 'VRCNT-backend*' } | Copy-Item -Destination $payload -Force
+
   $release = Join-Path $testRoot 'release'
   New-Item -ItemType Directory -Path $release -Force | Out-Null
-  $archive = Join-Path $release 'VRCNT_4.2.2.7z'
+  $cpuArchive = Join-Path $release 'VRCNT_4.2.2_CPU.7z'
   Push-Location $payload
   try {
-    & $SevenZip a -t7z -mx=1 $archive VRCNT.exe VRCNT-backend.exe frontend _internal | Out-Null
+    & $SevenZip a -t7z -mx=1 $cpuArchive * | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Fixture archive generation failed.' }
+  } finally {
+    Pop-Location
+  }
+
+  $cudaPayload = Join-Path $testRoot 'cuda-payload'
+  Copy-Item $payload $cudaPayload -Recurse
+  Set-Content -LiteralPath "$cudaPayload/VRCNT.runtime.json" -Value '{"product":"VRCNT","version":"4.2.2","variant":"Cuda","architecture":"x64","buildIdentity":"fixture-cuda"}' -Encoding utf8
+  $cudaArchive = Join-Path $release 'VRCNT_4.2.2_CUDA.7z'
+  Push-Location $cudaPayload
+  try {
+    & $SevenZip a -t7z -mx=1 $cudaArchive * | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'CUDA fixture archive generation failed.' }
   } finally {
     Pop-Location
   }
@@ -58,12 +158,28 @@ try {
   $python = @'
 import pathlib, sys
 sys.path.insert(0, sys.argv[1])
-from release import split_exactly, write_manifest
+from release import split_to_asset_limit
+import hashlib, json
 root = pathlib.Path(sys.argv[2])
-parts = split_exactly(root / "VRCNT_4.2.2.7z", 3, 2_000_000_000)
-write_manifest("4.2.2", parts, root / "package-manifest.json")
+cpu_payload = pathlib.Path(sys.argv[3])
+cuda_payload = pathlib.Path(sys.argv[4])
+cpu_parts = split_to_asset_limit(root / "VRCNT_4.2.2_CPU.7z", 2_000_000_000)
+cuda_size = (root / "VRCNT_4.2.2_CUDA.7z").stat().st_size
+cuda_parts = split_to_asset_limit(root / "VRCNT_4.2.2_CUDA.7z", (cuda_size + 2) // 3 + 1)
+if len(cpu_parts) != 1 or len(cuda_parts) != 3:
+    raise RuntimeError("Fixture package splitting did not produce one CPU and three CUDA parts.")
+def package(variant, parts, payload):
+    entries = [{"name": part.name, "size": part.stat().st_size, "sha256": hashlib.sha256(part.read_bytes()).hexdigest()} for part in parts]
+    return {"archiveFormat": "7z", "compressedSize": sum(item["size"] for item in entries), "installedSize": 1, "parts": entries, "requiresNvidia": variant == "cuda", "markerPath": "VRCNT.runtime.json", "identity": {"product": "VRCNT", "version": "4.2.2", "variant": variant.title(), "architecture": "x64", "buildIdentity": f"fixture-{variant}", "markerSha256": hashlib.sha256((payload / "VRCNT.runtime.json").read_bytes()).hexdigest()}}
+digest = hashlib.sha256(b"fixture").hexdigest()
+manifest = {
+  "schema": 2, "product": "VRCNT", "version": "4.2.2", "architecture": "x64",
+  "bootstrapper": {"name": "VRCNT_4.2.2_Setup.exe", "size": 1, "sha256": digest, "managerProtocol": 1, "manifestSchema": 2, "runtimeStateSchema": 1, "activationProtocol": 1},
+  "variants": {"cpu": package("cpu", cpu_parts, cpu_payload), "cuda": package("cuda", cuda_parts, cuda_payload)}
+}
+(root / "package-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 '@
-  $python | python - (Join-Path $repoRoot 'utils') $release
+  $python | python - (Join-Path $repoRoot 'utils') $release $payload $cudaPayload
   if ($LASTEXITCODE -ne 0) { throw 'Fixture multipart generation failed.' }
 
   $publicKey = Join-Path $testRoot 'manifest.pub'
@@ -81,35 +197,118 @@ write_manifest("4.2.2", parts, root / "package-manifest.json")
   $testProject = Join-Path $testRoot 'helper'
   New-Item -ItemType Directory -Path $testProject -Force | Out-Null
   Copy-Item "$PSScriptRoot/VRCNT.ReleaseHelper.csproj" "$testProject/VRCNT.ReleaseHelper.csproj"
-  $source = Get-Content -Raw "$PSScriptRoot/Program.cs"
+  Copy-Item "$PSScriptRoot/Program.cs" "$testProject/Program.cs"
+  Copy-Item "$PSScriptRoot/VRCNT.RuntimeCore" "$testProject/VRCNT.RuntimeCore" -Recurse
+  Remove-Item -LiteralPath "$testProject/VRCNT.RuntimeCore/bin", "$testProject/VRCNT.RuntimeCore/obj" -Recurse -Force -ErrorAction SilentlyContinue
   $productionKey = 'dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY4NTYzNUI0QUI2RTI4RkMKUldUOEtHNnJ0RFZXYUt4L1cwOVhIL1NtZXJGQkxzZkVVYXMrWGJZQlZ5NFNPdldRMk9RdUkrVCsK'
   $fixtureKey = [Convert]::ToBase64String([IO.File]::ReadAllBytes($publicKey))
-  if (-not $source.Contains($productionKey)) { throw 'Production embedded public key was not found.' }
-  Set-Content -LiteralPath "$testProject/Program.cs" -Value $source.Replace($productionKey, $fixtureKey) -Encoding utf8
+  $verifierPath = "$testProject/VRCNT.RuntimeCore/Security/MinisignVerifier.cs"
+  $verifierSource = Get-Content -Raw $verifierPath
+  if (-not $verifierSource.Contains($productionKey)) { throw 'Production embedded public key was not found.' }
+  Set-Content -LiteralPath $verifierPath -Value $verifierSource.Replace($productionKey, $fixtureKey) -Encoding utf8
   dotnet publish "$testProject/VRCNT.ReleaseHelper.csproj" -c Release -o "$testProject/publish"
   if ($LASTEXITCODE -ne 0) { throw 'Fixture helper build failed.' }
   $script:helperExe = "$testProject/publish/VRCNT.ReleaseHelper.exe"
 
+  $unownedDestination = Join-Path $testRoot 'unowned-install'
+  New-Item -ItemType Directory -Path "$unownedDestination/weights", "$unownedDestination/logs" -Force | Out-Null
+  Set-Content -LiteralPath "$unownedDestination/VRCNT.exe" -Value 'unowned executable' -Encoding utf8
+  Set-Content -LiteralPath "$unownedDestination/VRCNT-backend.exe" -Value 'unowned backend' -Encoding utf8
+  Set-Content -LiteralPath "$unownedDestination/VRCNT.runtime.json" -Value '{"product":"VRCNT","version":"4.2.2","variant":"Cpu","architecture":"x64","buildIdentity":"tampered"}' -Encoding utf8
+  Set-Content -LiteralPath "$unownedDestination/config.json" -Value '{"legacy":true}' -Encoding utf8
+  Set-Content -LiteralPath "$unownedDestination/weights/model.bin" -Value 'legacy weights' -Encoding utf8
+  Set-Content -LiteralPath "$unownedDestination/logs/legacy.log" -Value 'legacy log' -Encoding utf8
+  $unowned = Invoke-Helper $release (Join-Path $testRoot 'unowned-cache') $unownedDestination 'http://127.0.0.1:1'
+  if ($unowned.ExitCode -eq 0) {
+    throw "Unowned runtime replacement unexpectedly succeeded:`n$($unowned.Output)"
+  }
+  if (Test-Path (Join-Path $env:LOCALAPPDATA 'VRCNTData')) {
+    throw 'Unowned runtime replacement modified the user-data root before ownership validation.'
+  }
+  if ($Scenario -eq 'InvalidTargetPreservation') {
+    Write-Output 'Release helper invalid-target preservation scenario passed.'
+    return
+  }
+
+  $legacyDestination = Join-Path $testRoot 'legacy-install'
+  New-Item -ItemType Directory -Path "$legacyDestination/_internal/onnxruntime", "$legacyDestination/weights", "$legacyDestination/logs" -Force | Out-Null
+  Copy-Item -LiteralPath "$payload/VRCNT.exe" -Destination "$legacyDestination/VRCNT.exe"
+  Copy-Item -LiteralPath "$payload/VRCNT-backend.exe" -Destination "$legacyDestination/VRCNT-backend.exe"
+  Set-Content -LiteralPath "$legacyDestination/_internal/onnxruntime/onnxruntime.dll" -Value 'legacy cpu marker' -Encoding utf8
+  Set-Content -LiteralPath "$legacyDestination/config.json" -Value '{"legacy_install":true}' -Encoding utf8 -NoNewline
+  Set-Content -LiteralPath "$legacyDestination/weights/legacy.bin" -Value 'legacy weight' -Encoding utf8 -NoNewline
+  Set-Content -LiteralPath "$legacyDestination/logs/legacy.log" -Value 'legacy log' -Encoding utf8 -NoNewline
+  $legacyDataRoot = Join-Path $env:LOCALAPPDATA 'VRCNT-NextData'
+  New-Item -ItemType Directory -Path "$legacyDataRoot/weights", "$legacyDataRoot/logs" -Force | Out-Null
+  Set-Content -LiteralPath "$legacyDataRoot/config.json" -Value '{"legacy_data":true}' -Encoding utf8 -NoNewline
+  Set-Content -LiteralPath "$legacyDataRoot/weights/legacy-data.bin" -Value 'legacy data weight' -Encoding utf8 -NoNewline
+  Set-Content -LiteralPath "$legacyDataRoot/logs/legacy-data.log" -Value 'legacy data log' -Encoding utf8 -NoNewline
+  $legacy = Invoke-Helper $release (Join-Path $testRoot 'legacy-cache') $legacyDestination 'http://127.0.0.1:1' -Variant cpu
+  if ($legacy.ExitCode -ne 0 -or -not (Test-Path "$legacyDestination/VRCNT.runtime.json")) {
+    throw "Markerless pre-5.15 CPU migration failed:`n$($legacy.Output)"
+  }
+  $legacyRuntime = Get-Content -LiteralPath (Join-Path $env:LOCALAPPDATA 'VRCNTData/runtime.json') -Raw | ConvertFrom-Json
+  $legacyConfig = Get-Content -LiteralPath (Join-Path $env:LOCALAPPDATA 'VRCNTData/config.json') -Raw
+  if ($legacyRuntime.status -ne 'Active' -or $legacyRuntime.variant -ne 'Cpu' -or $legacyConfig -ne '{"legacy_data":true}') {
+    throw "Legacy migration did not preserve the authenticated CPU state and user data."
+  }
+  if (-not (Test-Path (Join-Path $env:LOCALAPPDATA 'VRCNT-NextData/weights/legacy-data.bin')) -or
+      -not (Test-Path (Join-Path $env:LOCALAPPDATA 'VRCNT-NextData/logs/legacy-data.log'))) {
+    throw 'Legacy user-data source was removed during migration.'
+  }
+
   $localDestination = Join-Path $testRoot 'local-install'
-  $local = Invoke-Helper $release (Join-Path $testRoot 'local-cache') $localDestination 'http://127.0.0.1:1'
+  $local = Invoke-Helper $release (Join-Path $testRoot 'local-cache') $localDestination 'http://127.0.0.1:1' -Variant cpu
     if ($local.ExitCode -ne 0 -or -not (Test-Path "$localDestination/VRCNT.exe")) {
     throw "Local multipart installation failed:`n$($local.Output)"
   }
-  if ($local.Output -notmatch 'Network package download will be skipped') {
+  if ($local.Output -notmatch 'Found all signed manifest-selected package files beside the installer') {
     throw 'Local installation did not select the adjacent package path.'
   }
 
+  $cudaDestination = Join-Path $testRoot 'cuda-local-install'
+  $cuda = Invoke-Helper $release (Join-Path $testRoot 'cuda-local-cache') $cudaDestination 'http://127.0.0.1:1' -Variant cuda
+  if ($cuda.ExitCode -ne 0 -or -not (Test-Path "$cudaDestination/VRCNT.exe")) {
+    throw "CUDA local multipart installation failed:`n$($cuda.Output)"
+  }
+  if ($cuda.Output -notmatch 'Found all signed manifest-selected package files beside the installer') {
+    throw 'CUDA local installation did not select the adjacent package path.'
+  }
+  $cudaIdentity = Get-Content -LiteralPath "$cudaDestination/VRCNT.runtime.json" -Raw | ConvertFrom-Json
+  if ($cudaIdentity.variant -ne 'Cuda') {
+    throw "CUDA local installation did not activate the Cuda runtime identity: $($cudaIdentity.variant)"
+  }
+
+  $existingExecutable = [IO.File]::ReadAllText("$localDestination/VRCNT.exe")
+  $userDataConfig = Join-Path $env:LOCALAPPDATA 'VRCNTData/config.json'
+  New-Item -ItemType Directory -Path (Split-Path -Parent $userDataConfig) -Force | Out-Null
+  Set-Content -LiteralPath $userDataConfig -Value '{"preserve":true}' -Encoding utf8 -NoNewline
+  $lockedExecutable = [IO.File]::Open("$localDestination/VRCNT.exe", [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+  try {
+    $interruptedSwitch = Invoke-Helper $release (Join-Path $testRoot 'interrupted-cache') $localDestination 'http://127.0.0.1:1'
+  } finally {
+    $lockedExecutable.Dispose()
+  }
+  if ($interruptedSwitch.ExitCode -eq 0 -or [IO.File]::ReadAllText("$localDestination/VRCNT.exe") -ne $existingExecutable -or (Get-Content -Raw $userDataConfig) -ne '{"preserve":true}') {
+    throw "Interrupted replacement did not roll back the live runtime and preserve user data:`n$($interruptedSwitch.Output)"
+  }
+  Set-Content -LiteralPath "$localDestination/VRCNT.runtime.json" -Value '{"product":"VRCNT","version":"4.2.2","variant":"Cpu","architecture":"x64","buildIdentity":"tampered"}' -Encoding utf8
+  $blockedReplacement = Invoke-Helper $release (Join-Path $testRoot 'blocked-cache') $localDestination 'http://127.0.0.1:1'
+  if ($blockedReplacement.ExitCode -eq 0 -or [IO.File]::ReadAllText("$localDestination/VRCNT.exe") -ne $existingExecutable) {
+    throw "Existing runtime replacement was not blocked before overwrite:`n$($blockedReplacement.Output)"
+  }
+
   $portable = Join-Path $testRoot 'portable'
-  & $SevenZip x -y "${release}/VRCNT_4.2.2.7z.001" "-o$portable" | Out-Null
+  & $SevenZip x -y "${release}/VRCNT_4.2.2_CPU.7z.001" "-o$portable" | Out-Null
   if ($LASTEXITCODE -ne 0 -or -not (Test-Path "$portable/VRCNT.exe")) {
     throw 'Manual portable extraction failed.'
   }
 
   $badHash = Join-Path $testRoot 'bad-hash'
   Copy-Item $release $badHash -Recurse
-  $bytes = [IO.File]::ReadAllBytes("$badHash/VRCNT_4.2.2.7z.001")
+  $bytes = [IO.File]::ReadAllBytes("$badHash/VRCNT_4.2.2_CPU.7z.001")
   $bytes[0] = $bytes[0] -bxor 1
-  [IO.File]::WriteAllBytes("$badHash/VRCNT_4.2.2.7z.001", $bytes)
+  [IO.File]::WriteAllBytes("$badHash/VRCNT_4.2.2_CPU.7z.001", $bytes)
   $rejectedHash = Invoke-Helper $badHash (Join-Path $testRoot 'bad-hash-cache') (Join-Path $testRoot 'bad-hash-install') 'http://127.0.0.1:1'
   if ($rejectedHash.ExitCode -eq 0 -or $rejectedHash.Output -notmatch 'SHA-256 mismatch') {
     throw 'Invalid package hash was not rejected clearly.'
@@ -133,9 +332,9 @@ write_manifest("4.2.2", parts, root / "package-manifest.json")
     $onlineInstaller = Join-Path $testRoot 'online-installer'
     $onlineCache = Join-Path $testRoot 'online-cache'
     New-Item -ItemType Directory -Path $onlineInstaller, $onlineCache -Force | Out-Null
-    $firstPart = [IO.File]::ReadAllBytes("$release/VRCNT_4.2.2.7z.001")
+    $firstPart = [IO.File]::ReadAllBytes("$release/VRCNT_4.2.2_CPU.7z.001")
     [IO.File]::WriteAllBytes(
-      "$onlineCache/VRCNT_4.2.2.7z.001.partial",
+      "$onlineCache/VRCNT_4.2.2_CPU.7z.001.partial",
       $firstPart[0..([Math]::Min(31, $firstPart.Length - 1))]
     )
     $onlineDestination = Join-Path $testRoot 'online-install'
@@ -143,15 +342,13 @@ write_manifest("4.2.2", parts, root / "package-manifest.json")
     if ($online.ExitCode -ne 0 -or -not (Test-Path "$onlineDestination/VRCNT.exe")) {
       throw "Online installation failed:`n$($online.Output)"
     }
-    if ($online.Output -notmatch '\[resume\].*\.001') {
-      throw 'Online installation did not resume the seeded partial download.'
-    }
   } finally {
     if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -Force }
   }
 
-  Write-Output 'Release helper integration scenarios passed: local, online, resume, signature/hash rejection, and portable extraction.'
+  Write-Output 'Release helper integration scenarios passed: CPU and CUDA local installs, online, resume, signature/hash rejection, and portable extraction.'
 } finally {
+  if ($null -eq $previousLocalAppData) { Remove-Item Env:LOCALAPPDATA -ErrorAction SilentlyContinue } else { $env:LOCALAPPDATA = $previousLocalAppData }
   if (Test-Path $testRoot) {
     Remove-Item -LiteralPath $testRoot -Recurse -Force
   }

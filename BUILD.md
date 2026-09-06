@@ -1,180 +1,125 @@
-# Build VRCT (Windows x64) with Parakeet + Vosk additions
+# Build VRCNT 5.15.0 (Windows x64)
 
-This document covers building the modified VRCT (with Parakeet ONNX and Vosk ONNX engines added) into a Windows x64 installer.
+This repository builds one VRCNT application with two replaceable runtime
+distributions. The frontend and Tauri shell are shared; only the backend and
+its runtime dependencies differ between the CPU and NVIDIA CUDA payloads.
+
+## Release architecture
+
+- `cpu` contains the CPU-only backend and excludes CUDA-only dependencies.
+- `cuda` contains the NVIDIA CUDA backend and its GPU dependencies.
+- `VRCNT_5.15.0_Setup.exe` is the small public WPF bootstrapper.
+- `package-manifest.json` and its `.sig` authenticate both variants. Each
+  variant has its own manifest-selected number of `.7z.001`, `.002`, ... parts.
+- `%LOCALAPPDATA%\VRCNTInstaller\VRCNT.Setup.exe` is the stable setup manager
+  used for repairs, updates, and runtime switching. `%LOCALAPPDATA%\VRCNTData`
+  remains user data and is never treated as disposable runtime payload.
+
+The signed manifest, not a fixed part count or a filename convention, is the
+source of truth for payload acquisition. The setup manager stages and backs up
+runtime directories on the same volume as the target before replacement, then
+requires the Tauri/backend local readiness handshake before committing.
 
 ## Prerequisites
 
-### 1. Visual Studio Build Tools
-Download: https://visualstudio.microsoft.com/visual-cpp-build-tools/
+Install the following on Windows:
 
-Install with workload **"Desktop development with C++"**:
-- MSVC v143 (or latest) - VS 2022 C++ x64/x86 build tools
-- Windows 11 SDK (or 10 SDK)
-- C++ CMake tools for Windows
+1. Visual Studio Build Tools with **Desktop development with C++**, MSVC, and
+   the Windows SDK.
+2. Rust stable for `x86_64-pc-windows-msvc`.
+3. Python **3.11**. The pinned native packages are not guaranteed to provide
+   compatible wheels for newer Python releases.
+4. Node.js 18 or newer.
+5. NVIDIA CUDA tooling only when building the CUDA backend. End users do not
+   need the CUDA SDK; they need a compatible NVIDIA driver and hardware.
 
-### 2. Rust toolchain (for Tauri)
+## Local build
 
-```powershell
-winget install Rustlang.Rustup
-rustup default stable-x86_64-pc-windows-msvc
-rustc --version  # confirm
-```
-
-### 3. Python 3.11 (DO NOT use 3.13)
-
-Pinned packages such as `torch==2.7.0`, `numpy==1.26.4`, `ctranslate2==4.6.0`, `PyAudioWPatch==0.2.12.6` ship wheels only up to Python 3.12. Python 3.13 will break the install step.
+Run these commands from the repository root. They build staged artifacts under
+`build/`; they do not install or launch VRCNT from `%LOCALAPPDATA%\VRCNT`.
 
 ```powershell
-winget install Python.Python.3.11
-py -3.11 --version  # confirm
-```
-
-### 4. Node.js 18+ (already have v24)
-
-```powershell
-node --version  # >= 18
-```
-
-### 5. (CUDA build only) NVIDIA CUDA 12.x + cuDNN
-
-Required only if you build the GPU variant (`build-cuda`).
-
----
-
-## Build steps
-
-All commands run from the VRCT repo root in PowerShell.
-
-### Step 1 — Install Node dependencies
-
-```powershell
-npm install
-```
-
-Pulls in Tauri CLI as a dev dependency.
-
-### Step 2 — Force install.bat to use Python 3.11
-
-Edit `bat/install.bat` and replace every `python -m venv` line with:
-
-```bat
-py -3.11 -m venv .venv
-...
-py -3.11 -m venv .venv_cuda
-```
-
-(or temporarily put a `python.exe` 3.11 first on PATH)
-
-### Step 3 — Create venvs and install Python deps
-
-```powershell
+npm ci
 npm run setup-python
+
+# Build the shared frontend and Tauri shell.
+npm run build-runtime-shell
+
+# Build both backend payloads from their separate environments.
+npm run build-backend:cpu
+npm run build-backend:cuda
+
+# Combine the shared shell with each backend and create authenticated markers.
+npm run stage-runtime:cpu
+npm run stage-runtime:cuda
 ```
 
-This creates `.venv\` (CPU) and `.venv_cuda\` (GPU) and runs `pip install -r requirements.txt` / `requirements_cuda.txt` into each.
+The staged payloads are written to `build/release/cpu` and
+`build/release/cuda`. Inspect them with
+`scripts/validate_runtime_payload.ps1` before packaging. The older
+`npm run build` and `npm run build-cuda` commands remain compatibility paths for
+the legacy Tauri/NSIS build; they are not the public 5.15.0 release path.
 
-**New dependencies added in this build:**
-- `onnxruntime==1.19.2` (CPU) / `onnxruntime-gpu==1.19.2` (CUDA)
-- `sherpa-onnx==1.10.30`
-- `vosk==0.3.45`
+## Package and verify a release
 
-⚠️ If `sherpa-onnx` wheel is missing for Python 3.11, fall back to:
+The authoritative release flow is `.github/workflows/release.yml`. For a
+`vMAJOR.MINOR.PATCH` tag it:
+
+1. builds the shared shell once;
+2. builds CPU and CUDA backends in parallel;
+3. stages both runtime payloads;
+4. publishes `VRCNT_<version>_Setup.exe`, variable-length CPU/CUDA archives,
+   the combined signed manifest, `SHA256SUMS.txt`, and signed `latest.json`;
+5. verifies every manifest-selected part, the bootstrapper hash, signatures,
+   portable extraction, and release asset sizes before publication.
+
+The workflow requires `TAURI_SIGNING_PRIVATE_KEY` and the pinned, hash-checked
+7-Zip/minisign inputs. Do not store signing material in the repository. A
+production dry run should be performed only when Python 3.11 environments,
+the pinned tools, and signing configuration are available.
+
+## Runtime switching and migration
+
+The application displays the active runtime in **Settings → Others → Runtime**
+and requests the stable setup manager for a switch. The manager validates
+`%LOCALAPPDATA%\VRCNTData\runtime.json` against the authenticated
+`VRCNT.runtime.json` marker in the physical installation, preserves user data,
+and keeps only the selected runtime after a successful activation. Failed or
+cancelled replacement restores the previous runtime or leaves it untouched at
+the last safe transaction checkpoint.
+
+An installation from before 5.15.0 has no authoritative runtime state. During
+the first 5.15.0 update, known CPU/CUDA payload boundaries are detected and
+user data is migrated into `VRCNTData`; ambiguous or stale installations stop
+in recovery and require an explicit runtime choice.
+
+## Source-only verification
+
+Use these checks for changes that do not require the native release
+environments:
+
 ```powershell
-.venv\Scripts\pip install sherpa-onnx==1.10.20
+python -m unittest discover -s utils/tests -p "test_*.py"
+npm run test:ui
+dotnet test installer-helper/tests/VRCNT.RuntimeCore.Tests/VRCNT.RuntimeCore.Tests.csproj
+cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-### Step 4 — Build CPU variant
-
-```powershell
-npm run build
-```
-
-Pipeline:
-1. `task-kill` — kill stale VRCT processes
-2. `clean` — wipe `src-tauri/bin` and `dist`
-3. `update-version` — bump version in `tauri.conf.json`
-4. `build-python` → `pyinstaller spec/backend.spec` — bundles the Python backend to `src-tauri/bin/VRCNT-backend-x86_64-pc-windows-msvc.exe`
-5. `vite-build` — builds JS UI to `dist/`
-6. `prepare-installer-tools` — publishes the release helper and stages `7za.exe` and `minisign.exe` in the ignored `src-tauri/nsis/bin/` directory
-7. `tauri build` — Cargo compiles Rust shell, then NSIS packages everything
-
-Output: `src-tauri/target/release/bundle/nsis/VRCNT_<version>_x64-setup.exe`
-
-### Step 5 — (Optional) Build CUDA variant
-
-```powershell
-npm run build-cuda
-```
-
-Same pipeline but uses `.venv_cuda` and `spec/backend_cuda.spec`. The installer-tool preparation runs automatically before Tauri packaging and produces a GPU-accelerated build.
-
-### Step 6 — GitHub Release packaging
-
-The `.github/workflows/release.yml` workflow is the authoritative release path.
-For a `vMAJOR.MINOR.PATCH` tag it builds the CUDA payload and thin NSIS
-installer, creates exactly three `VRCNT_<version>.7z.00N` portable parts,
-signs the package manifest and Tauri updater artifact, generates
-`SHA256SUMS.txt` and `latest.json`, verifies them, and uploads all assets to the
-matching GitHub Release. The workflow requires the existing
-`TAURI_SIGNING_PRIVATE_KEY` GitHub Actions Secret. Configure
-`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` only when the existing key is encrypted;
-never store signing material in the repository.
-
----
-
-## Post-build verification checklist
-
-After the installer runs, check:
-
-- [ ] App launches without console errors
-- [ ] Settings → Transcription shows **4 engine options**: Google, Whisper, Parakeet, Vosk
-- [ ] Selecting **Whisper** still works as before (regression check)
-- [ ] Selecting **Vosk** shows model picker with `small-en`, `large-en`, `small-ja`, etc., each with capacity badge (e.g. `80 MB / ~200 MB RAM`)
-- [ ] Selecting **Parakeet** shows model picker with VRAM badges (e.g. `~2 GB VRAM`)
-- [ ] Downloading a Vosk model writes to `weights/vosk/<key>/`
-- [ ] Downloading a Parakeet model writes to `weights/parakeet/<key>/`
-- [ ] After download, switching to Vosk/Parakeet and speaking produces transcripts in VRChat chatbox
-- [ ] Network OSC packets still emitted (check Wireshark `udp.port == 9000`)
-
----
-
-## Known gaps in this build
-
-1. **Frontend hooks incomplete** — `useTranscription` (in `src-ui/logics/configs/useTranscription`) lacks setters for `setSelectedVoskWeightType`, `setSelectedParakeetWeightType`, and the corresponding status hooks. Existing Whisper hooks are the template to copy.
-
-2. **Backend ↔ frontend routing** — `src-ui/logics/useReceiveRoutes.js` needs entries for:
-   - `download_progress_vosk_weight`
-   - `downloaded_vosk_weight`
-   - `download_progress_parakeet_weight`
-   - `downloaded_parakeet_weight`
-
-3. **i18n strings** — UI labels for Vosk/Parakeet boxes are hardcoded English. Add to `locales/en.yml`, `ja.yml`, `ko.yml`, `zh-Hant.yml`, `zh-Hans.yml`.
-
-4. **Parakeet decoder is minimal** — `transcription_parakeet.py::ParakeetRecognizer.transcribe` does a generic argmax+CTC-style merge. For best accuracy, tune against the specific ONNX export's output graph (TDT vs RNNT vs CTC heads).
-
-5. **Compute device locking** — UI should auto-lock CPU when Vosk is selected, lock GPU when Parakeet is selected. Currently no enforcement.
-
-6. **Pre-existing spec bug fixed** — `spec/backend_cuda.spec` previously referenced `.venv/Lib/site-packages/hf_xet`; corrected to `.venv_cuda/` in this build.
-
----
+The automated suites use temporary directories and staged fixtures. They must
+not be pointed at an installed VRCNT directory. For a real release, also test
+fresh CPU/CUDA install, GPU-positive/negative/inconclusive selection, both
+runtime switches, same-variant update, interrupted/corrupt/invalid-signature
+failure, insufficient space, legacy migration, and preservation of settings,
+presets, API configuration, logs, and downloaded weights.
 
 ## Troubleshooting
 
-### `pip install sherpa-onnx` fails
-Fall back to an older version that has Python 3.11 wheels:
-```powershell
-.venv\Scripts\pip install sherpa-onnx==1.10.20
-```
-Then update `requirements.txt` accordingly.
-
-### `pyinstaller` fails with "module not found: sherpa_onnx"
-Verify the venv is activated, then check `.venv\Lib\site-packages\sherpa_onnx\` exists. The spec adds it as both `datas` and `hiddenimports`.
-
-### `tauri build` fails with "linker `link.exe` not found"
-MSVC Build Tools not installed correctly. Reinstall VS Build Tools with the C++ workload.
-
-### NSIS installer build hangs
-Tauri downloads NSIS plugins on first build. Ensure internet access and rerun.
-
-### Final exe is huge (>500 MB)
-Expected — bundling PyTorch + ONNX Runtime + CUDA libs (for CUDA build) easily reaches 1+ GB. UPX is enabled in spec but only compresses parts. For smaller bundles, switch Parakeet to CPU ONNX Runtime or drop unused engines.
+- If `setup-python` selects the wrong interpreter, recreate `.venv` and
+  `.venv_cuda` with Python 3.11 and rerun it.
+- If a backend build fails, verify the selected environment contains the
+  requirements for that variant and that PyInstaller is available there.
+- If packaging fails, verify that the shared shell has no backend and each
+  backend directory has exactly one backend executable.
+- If a manifest or hash check fails, discard the affected package and rerun the
+  authenticated acquisition. Do not bypass verification or install a partial
+  payload.

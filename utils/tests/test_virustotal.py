@@ -191,6 +191,8 @@ class VirusTotalReportTests(unittest.TestCase):
 
     def test_writes_per_file_badges_and_updates_readme_links(self):
         results = [
+            ScanResult(name="VRCNT.Setup.exe", sha256="c" * 64, size=30,
+                       analysis_id="analysis-setup", stats={"malicious": 0, "undetected": 75}),
             ScanResult(
                 name="VRCNT.exe",
                 sha256="a" * 64,
@@ -213,7 +215,8 @@ class VirusTotalReportTests(unittest.TestCase):
             readme = root / "README.md"
             readme.write_text(
                 '<a data-virustotal-file="VRCNT.exe" href="old-app">app</a>\n'
-                '<a data-virustotal-file="VRCNT-backend.exe" href="old-backend">backend</a>\n',
+                '<a data-virustotal-file="VRCNT-backend.exe" href="old-backend">backend</a>\n'
+                '<a data-virustotal-file="VRCNT.Setup.exe" href="old-setup">setup</a>\n',
                 encoding="utf-8",
             )
 
@@ -222,6 +225,8 @@ class VirusTotalReportTests(unittest.TestCase):
             content = readme.read_text(encoding="utf-8")
             self.assertIn("https://www.virustotal.com/gui/file/" + "a" * 64, content)
             self.assertIn("https://www.virustotal.com/gui/file/" + "b" * 64, content)
+            self.assertIn("https://www.virustotal.com/gui/file/" + "c" * 64, content)
+            self.assertTrue((root / "Readme" / "VirusTotal-Setup.svg").exists())
             self.assertNotIn('href="old-app"', content)
             self.assertNotIn('href="old-backend"', content)
             app_badge = (root / "Readme" / FILE_BADGE_FILENAMES["VRCNT.exe"]).read_text(

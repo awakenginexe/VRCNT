@@ -58,12 +58,27 @@ test("resident close transitions to background without stopping the backend", ()
     const closeHandler = extractControllerBlock(
         source,
         "const handleResidentClose = async () => {",
+        "const handleRuntimeSwitch = async",
+    );
+
+    assert.doesNotMatch(closeHandler, /updateIsBackendReady\(false\)/);
+    assert.match(closeHandler, /await invoke\("enter_background_mode"\)/);
+});
+
+test("runtime replacement acknowledges shutdown only after the backend stop completes", () => {
+    const source = fs.readFileSync(controllerPath, "utf8");
+    const switchHandler = extractControllerBlock(
+        source,
+        "const handleRuntimeSwitch = async (event) => {",
         "const setup = async () => {",
     );
 
-    assert.doesNotMatch(closeHandler, /stopPythonRef\.current\(\)/);
-    assert.doesNotMatch(closeHandler, /updateIsBackendReady\(false\)/);
-    assert.match(closeHandler, /await invoke\("enter_background_mode"\)/);
+    const stopIndex = switchHandler.indexOf("await stopPythonRef.current()");
+    const acknowledgementIndex = switchHandler.indexOf(
+        'invoke("complete_runtime_switch_shutdown"',
+    );
+    assert.ok(stopIndex >= 0);
+    assert.ok(acknowledgementIndex > stopIndex);
 });
 
 test("activation reuses a live backend and new generations preserve truthful startup state", () => {

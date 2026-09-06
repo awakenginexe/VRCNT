@@ -46,7 +46,8 @@ ${StrLoc}
 !define SOFTWARE_RELEASE_URL "https://github.com/awakenginexe/VRCNT/releases/download/v${VERSION}"
 !define PACKAGE_MANIFEST_NAME "package-manifest.json"
 !define PACKAGE_MANIFEST_SIGNATURE_NAME "package-manifest.json.sig"
-!define PACKAGE_PART_COUNT 3
+; Legacy Tauri packaging path only. The signed manifest selects a variable number
+; of parts; the public VRCNT 5.15.0 bootstrapper is the WPF setup manager.
 ; The app payload is downloaded at install time, so Tauri's generated estimate is 0.
 ; Installed size tracks the release payload's uncompressed size in KiB.
 ; Required size also includes the temporary multipart package during extraction.
@@ -636,8 +637,8 @@ Section Install
   File "/oname=$PLUGINSDIR\minisign.exe" "..\..\..\..\nsis\bin\minisign.exe"
 
   CreateDirectory "$LOCALAPPDATA\VRCNTInstallerCache\v${VERSION}"
-  DetailPrint "Checking for VRCNT_${VERSION}.7z.001 through .003 beside the installer..."
-  nsExec::ExecToLog '"$PLUGINSDIR\VRCNT.ReleaseHelper.exe" --version "${VERSION}" --release-base-url "${SOFTWARE_RELEASE_URL}" --installer-directory "$EXEDIR" --cache-directory "$LOCALAPPDATA\VRCNTInstallerCache\v${VERSION}" --destination "$INSTDIR" --manifest-name "${PACKAGE_MANIFEST_NAME}" --signature-name "${PACKAGE_MANIFEST_SIGNATURE_NAME}" --part-count "${PACKAGE_PART_COUNT}" --sevenzip "$PLUGINSDIR\7za.exe" --minisign "$PLUGINSDIR\minisign.exe"'
+  DetailPrint "Checking signed manifest-selected CPU package parts beside the installer..."
+  nsExec::ExecToLog '"$PLUGINSDIR\VRCNT.ReleaseHelper.exe" --version "${VERSION}" --variant "cpu" --release-base-url "${SOFTWARE_RELEASE_URL}" --installer-directory "$EXEDIR" --cache-directory "$LOCALAPPDATA\VRCNTInstallerCache\v${VERSION}" --destination "$INSTDIR" --manifest-name "${PACKAGE_MANIFEST_NAME}" --signature-name "${PACKAGE_MANIFEST_SIGNATURE_NAME}" --sevenzip "$PLUGINSDIR\7za.exe" --minisign "$PLUGINSDIR\minisign.exe"'
   Pop $0
   ${If} $0 != 0
     DetailPrint "Install failed with exit code $0. Partial downloads were retained safely for resume."

@@ -5,7 +5,12 @@ from typing import Any, Tuple
 from threading import Thread, Event, Lock
 from queue import Queue, Empty
 import logging
-from controller import Controller  # noqa: E402
+from cuda_capability_probe import run_cuda_capability_probe  # noqa: E402
+
+if "--cuda-capability-probe" in sys.argv:
+    raise SystemExit(run_cuda_capability_probe(offline="--offline" in sys.argv))
+
+from controller import Controller, parseRuntimeActivationLaunchArgs  # noqa: E402
 from utils import printLog, printResponse, errorLogging, encodeBase64 # noqa: E402
 
 logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
@@ -121,6 +126,7 @@ def run(status:int, endpoint:str, result:Any) -> None:
 controller = Controller()
 controller.setRunMapping(run_mapping)
 controller.setRun(run)
+runtime_activation_context = parseRuntimeActivationLaunchArgs(sys.argv)
 
 mapping = {
     # Main Window
@@ -207,6 +213,7 @@ mapping = {
     # Config Window
     # Appearance
     "/get/data/version": {"status": True, "variable":controller.getVersion},
+    "/get/health/readiness": {"status": True, "variable":lambda data: controller.getRuntimeReadiness(data, runtime_activation_context)},
 
     "/get/data/transparency": {"status": True, "variable":controller.getTransparency},
     "/set/data/transparency": {"status": True, "variable":controller.setTransparency},

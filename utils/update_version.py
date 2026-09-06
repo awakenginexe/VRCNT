@@ -37,6 +37,11 @@ def update_readme_versions(root, version):
             rf'\g<1>{version}\g<2>',
             1,
         ),
+        (
+            r'(VRCNT_)[0-9]+\.[0-9]+\.[0-9]+(_Setup\.exe)',
+            rf'\g<1>{version}\g<2>',
+            1,
+        ),
     ]
     for readme_path in readme_paths:
         replace_in_file(readme_path, replacements)
@@ -75,6 +80,7 @@ def update_versions():
 
     with open(tauri_conf_path, "w", encoding="utf-8", newline="\n") as f:
         json.dump(tauri_conf, f, indent=4, ensure_ascii=False)
+        f.write("\n")
 
     # config.pyを更新
     replace_in_file(
@@ -100,6 +106,14 @@ def update_versions():
             [(r'(\[\[package\]\]\nname = "vrcnt"\nversion = ")[^"]+(")', rf'\g<1>{version}\g<2>', 1)]
         )
 
+    replace_in_file(
+        os.path.join(root, "src-tauri", "src", "runtime_manager.rs"),
+        [
+            (r'(None => "v)[0-9]+\.[0-9]+\.[0-9]+(",)', rf'\g<1>{version}\g<2>', 1),
+            (r'(const MANAGER_VERSION: &str = ")[0-9]+\.[0-9]+\.[0-9]+(";)', rf'\g<1>{version}\g<2>', 1),
+        ],
+    )
+
     update_readme_versions(root, version)
 
     replace_in_file(
@@ -120,11 +134,6 @@ def update_versions():
             (
                 r'(!define PACKAGE_MANIFEST_NAME ")[^"]*(")',
                 rf'\g<1>{release_config.package_manifest_asset_name}\g<2>',
-                1,
-            ),
-            (
-                r'(!define PACKAGE_PART_COUNT )[0-9]+',
-                rf'\g<1>{release_config.package_part_count}',
                 1,
             ),
         ]

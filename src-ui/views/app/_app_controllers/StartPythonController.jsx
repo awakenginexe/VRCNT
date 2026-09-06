@@ -21,13 +21,16 @@ import { isBenignSidecarStderr } from "@logics_common/sidecarStderrUtils.js";
 import { buildFontFamilyOptions } from "@logics_common";
 import {
     createBackendProcessLifecycle,
+    createRuntimeActivationHandshake,
+    RUNTIME_ACTIVATION_READINESS_ENDPOINT,
     spawnBackendWithTimeout,
 } from "@logics_common/backendLifecycle.js";
 import { createBackendSessionGuard } from "@logics_common/backendSessionGuard.js";
 import {
     RESIDENT_ACTIVATE_EVENT,
     RESIDENT_BACKEND_SHUTDOWN_DELAY_MS,
-    RESIDENT_CLOSE_REQUESTED_EVENT,
+        RESIDENT_CLOSE_REQUESTED_EVENT,
+        RUNTIME_SWITCH_REQUESTED_EVENT,
     resolveResidentStartup,
 } from "@logics_common/residentTray.js";
 
@@ -35,15 +38,18 @@ export const StartPythonController = () => {
     const { updateInitStatus } = useInitStatus();
     const {
         asyncStartPython,
+        asyncStopPython,
         startWatchdog,
     } = useStartPython();
     const { asyncFetchFonts } = useAsyncFetchFonts();
     const startPythonRef = useRef(asyncStartPython);
+    const stopPythonRef = useRef(asyncStopPython);
     const startWatchdogRef = useRef(startWatchdog);
     const fetchFontsRef = useRef(asyncFetchFonts);
     const closeInProgressRef = useRef(false);
 
     startPythonRef.current = asyncStartPython;
+    stopPythonRef.current = asyncStopPython;
     startWatchdogRef.current = startWatchdog;
     fetchFontsRef.current = asyncFetchFonts;
 
@@ -51,6 +57,7 @@ export const StartPythonController = () => {
         let isDisposed = false;
         let unlistenActivate;
         let unlistenClose;
+        let unlistenRuntimeSwitch;
 
         const startBackend = async () => {
             if (isDisposed) return;
@@ -86,21 +93,38 @@ export const StartPythonController = () => {
                 closeInProgressRef.current = false;
             }
         };
+        const handleRuntimeSwitch = async (event) => {
+            const { nonce, token } = event.payload ?? {};
+            if (!nonce || !token) return;
+            if (closeInProgressRef.current) return;
+            closeInProgressRef.current = true;
+            try {
+                await stopPythonRef.current();
+                await invoke("complete_runtime_switch_shutdown", { nonce, token });
+            } catch (error) {
+                console.error("Unable to complete runtime switch shutdown:", error);
+            } finally {
+                closeInProgressRef.current = false;
+            }
+        };
 
         const setup = async () => {
             const setupListeners = async () => {
                 try {
-                    const [activateUnlisten, closeUnlisten] = await Promise.all([
+                    const [activateUnlisten, closeUnlisten, runtimeSwitchUnlisten] = await Promise.all([
                         listen(RESIDENT_ACTIVATE_EVENT, handleResidentActivation),
                         listen(RESIDENT_CLOSE_REQUESTED_EVENT, handleResidentClose),
+                        listen(RUNTIME_SWITCH_REQUESTED_EVENT, handleRuntimeSwitch),
                     ]);
                     if (isDisposed) {
                         activateUnlisten();
                         closeUnlisten();
+                        runtimeSwitchUnlisten();
                         return;
                     }
                     unlistenActivate = activateUnlisten;
                     unlistenClose = closeUnlisten;
+                    unlistenRuntimeSwitch = runtimeSwitchUnlisten;
                 } catch (error) {
                     console.error("Unable to initialize VRCNT resident listeners:", error);
                 }
@@ -130,6 +154,7 @@ export const StartPythonController = () => {
             isDisposed = true;
             unlistenActivate?.();
             unlistenClose?.();
+            unlistenRuntimeSwitch?.();
         };
     }, []);
 
@@ -197,7 +222,27 @@ const useStartPython = () => {
                 message_key: "blocking_operation.startup_operation",
                 detail: "Preparing the backend process.",
             });
-            const command = Command.sidecar("bin/VRCNT-backend");
+            const runtimeActivationContext = await invoke("get_runtime_activation_context");
+            const runtimeActivationArgs = runtimeActivationContext
+                ? [
+                    "--runtime-activation-pipe",
+                    runtimeActivationContext.pipeName,
+                    "--runtime-activation-token",
+                    runtimeActivationContext.activationToken,
+                    "--runtime-activation-nonce",
+                    runtimeActivationContext.nonce,
+                    "--runtime-activation-app-version",
+                    runtimeActivationContext.appVersion,
+                    "--runtime-activation-runtime-variant",
+                    runtimeActivationContext.runtimeVariant,
+                    "--runtime-activation-generation",
+                    String(sessionId),
+                ]
+                : [];
+            let runtimeActivationHandshake = null;
+            const command = runtimeActivationArgs.length === 0
+                ? Command.sidecar("bin/VRCNT-backend")
+                : Command.sidecar("bin/VRCNT-backend", runtimeActivationArgs);
             updateInitStatus({
                 visible: true,
                 phase: "starting",
@@ -241,6 +286,9 @@ const useStartPython = () => {
                 try {
                     parsed_data = JSON.parse(line);
                     receiveRoutes(parsed_data);
+                    if (runtimeActivationHandshake) {
+                        runtimeActivationHandshake.accept(parsed_data);
+                    }
                 } catch (error) {
                     console.log(error, line);
                 }
@@ -270,6 +318,25 @@ const useStartPython = () => {
                 backend_subprocess_ref = backend_subprocess;
                 backendRecord.subprocess = backend_subprocess;
                 store.backend_subprocess = backend_subprocess;
+                if (runtimeActivationContext) {
+                    runtimeActivationHandshake = createRuntimeActivationHandshake({
+                        activationToken: runtimeActivationContext.activationToken,
+                        generation: sessionId,
+                        backendPid: backend_subprocess.pid,
+                    });
+                    const readinessResponse = runtimeActivationHandshake.waitForResponse();
+                    const readinessRequest = await asyncStdoutToPython(
+                        RUNTIME_ACTIVATION_READINESS_ENDPOINT,
+                        {
+                            activation_token: runtimeActivationContext.activationToken,
+                            generation: sessionId,
+                        },
+                    );
+                    if (!readinessRequest.ok) {
+                        throw readinessRequest.error;
+                    }
+                    await readinessResponse;
+                }
                 return backend_subprocess;
             } catch (error) {
                 if (sessionGuardRef.current.isCurrent(sessionId)) {

@@ -46,6 +46,41 @@
     letter-spacing: 0.04em;
 }
 
+.runtime_badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    line-height: 1.1;
+    font-weight: 800;
+    letter-spacing: 0.04rem;
+    white-space: nowrap;
+    user-select: none;
+    border: 1px solid color-mix(in srgb, #94a3b8 45%, transparent);
+    background: rgba(15, 23, 42, 0.6);
+    color: #94a3b8;
+
+    &.variant_cpu {
+        border-color: rgba(56, 189, 248, 0.55);
+        background: rgba(2, 132, 199, 0.18);
+        color: #38BDF8;
+        box-shadow: 0 0 0.6rem rgba(56, 189, 248, 0.25);
+    }
+
+    &.variant_cuda {
+        border-color: rgba(16, 185, 129, 0.55);
+        background: rgba(5, 150, 105, 0.18);
+        color: #34D399;
+        box-shadow: 0 0 0.6rem rgba(16, 185, 129, 0.25);
+    }
+}
+
+:global(.performance_mode) .runtime_badge {
+    box-shadow: none;
+}
+
 .title_subtitle {
     color: #94a3b8;
     font-size: 0.9rem;

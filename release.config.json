@@ -1,11 +1,10 @@
 {
   "githubOwner": "awakenginexe",
   "githubRepo": "VRCNT",
-  "packageNamePattern": "VRCNT_${version}.7z",
-  "packagePartCount": 3,
+  "packageNamePattern": "VRCNT_${version}_${variant}.7z",
   "maxAssetSizeBytes": 2000000000,
   "packageManifestAssetName": "package-manifest.json",
   "hashesAssetName": "SHA256SUMS.txt",
   "latestJsonAssetName": "latest.json",
-  "installerNamePattern": "VRCNT_${version}_x64-setup.exe"
+  "installerNamePattern": "VRCNT_${version}_Setup.exe"
 }

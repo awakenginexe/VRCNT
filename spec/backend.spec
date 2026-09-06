@@ -1,54 +1,17 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
+import os
+import sys
+from pathlib import Path
 
+spec_root = Path(SPECPATH)
+sys.path.insert(0, str(spec_root))
+from backend_common import create_backend_analysis
 
-a = Analysis(
-    ['..\\src-python\\mainloop.py'],
-    pathex=[],
-    binaries=[],
-    datas=[
-        ('./../src-python/models/overlay/fonts', 'fonts/'),
-        ('./../src-python/models/translation/translation_settings/prompt', 'translation_settings/prompt/'),
-        ('./../src-python/models/translation/translation_settings/languages', 'translation_settings/languages/'),
-        ('./../.venv/Lib/site-packages/zeroconf', 'zeroconf/'),
-        ('./../.venv/Lib/site-packages/openvr', 'openvr/'),
-        ('./../.venv/Lib/site-packages/faster_whisper', 'faster_whisper/'),
-        ('./../.venv/Lib/site-packages/hf_xet', 'hf_xet/'),
-        ('./../.venv/Lib/site-packages/sherpa_onnx', 'sherpa_onnx/'),
-        ('./../.venv/Lib/site-packages/vosk', 'vosk/'),
-        ('./../.venv/Lib/site-packages/onnx_asr', 'onnx_asr/'),
-        ('./../.venv/Lib/site-packages/onnxruntime', 'onnxruntime/'),
-        *collect_data_files('translators'),
-        *copy_metadata('sherpa-onnx'),
-        *copy_metadata('onnx-asr'),
-        *copy_metadata('translators'),
-        ],
-    hiddenimports=[
-        'ctranslate2',
-        'translators',
-        'models.translation.translation_plamo',
-        'models.translation.translation_gemini',
-        'models.translation.translation_openai',
-        'models.translation.translation_deepseek',
-        'models.translation.translation_groq',
-        'models.translation.translation_openrouter',
-        'models.translation.translation_lmstudio',
-        'models.translation.translation_ollama',
-        'sherpa_onnx',
-        'vosk',
-        'onnx_asr',
-        'onnxruntime',
-        'onnxruntime.capi._pybind_state',
-        *collect_submodules('translators'),
-    ],
-    hookspath=[],
-    hooksconfig={},
-    runtime_hooks=[],
-    excludes=['pandas', 'matplotlib', 'PyQt5'],
-    module_collection_mode={'transformers.models': 'py'},
-    noarchive=False,
-    optimize=0,
+if os.environ.get("VRCNT_BACKEND_VARIANT") != "cpu":
+    raise RuntimeError("backend.spec requires VRCNT_BACKEND_VARIANT=cpu")
+a = create_backend_analysis(
+    Analysis, "cpu", spec_root.parent, os.environ["VRCNT_BACKEND_VENV"], ['torch']
 )
 pyz = PYZ(a.pure)
 

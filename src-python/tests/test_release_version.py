@@ -120,6 +120,7 @@ class ReleaseVersionTests(unittest.TestCase):
                             f"localized marker {index}",
                             "https://img.shields.io/badge/version-0.1.2-purple",
                             "VRCNT_0.1.2_x64-setup.exe",
+                            "VRCNT_0.1.2_Setup.exe",
                         )
                     ),
                     encoding="utf-8",
@@ -136,6 +137,7 @@ class ReleaseVersionTests(unittest.TestCase):
                     self.assertIn(f"localized marker {index}", content)
                     self.assertIn("badge/version-9.8.7-", content)
                     self.assertIn("VRCNT_9.8.7_x64-setup.exe", content)
+                    self.assertIn("VRCNT_9.8.7_Setup.exe", content)
 
     def test_whisper_dependency_uses_vad_upgrade(self):
         for filename in ("requirements.txt", "requirements_cuda.txt"):

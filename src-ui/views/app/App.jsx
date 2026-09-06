@@ -9,6 +9,7 @@ import { useStore_QuickWakeUpRestoreState } from "@store";
 import {
     KeyEventController,
     StartPythonController,
+    RuntimeSwitchReceiptController,
     FirstRunSetupController,
     GlobalHotKeyController,
     UiLanguageController,
@@ -84,6 +85,7 @@ export const App = () => {
             />
             <AppErrorBoundary >
                 <KeyEventController />
+                {isTauri && <RuntimeSwitchReceiptController />}
                 {isTauri && <StartPythonController />}
                 {isTauri && <FirstRunSetupController />}
                 <QuickWakeUpRestoreController />

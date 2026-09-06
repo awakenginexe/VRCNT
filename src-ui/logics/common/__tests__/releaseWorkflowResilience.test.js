@@ -9,8 +9,12 @@ import path from "node:path";
 const repoRoot = path.resolve(import.meta.dirname, "../../../..");
 const read = (relativePath) => fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
 const workflow = read(".github/workflows/release.yml");
+const candidateWorkflow = read(".github/workflows/test-candidate.yml");
+const setupPublishValidator = read("scripts/validate_setup_publish.ps1");
 const nsis = read("src-tauri/nsis/template.nsi");
 const helper = read("installer-helper/Program.cs");
+const manifestLoader = read("installer-helper/VRCNT.RuntimeCore/Manifest/ManifestLoader.cs");
+const minisignVerifier = read("installer-helper/VRCNT.RuntimeCore/Security/MinisignVerifier.cs");
 const tauriConfig = JSON.parse(read("src-tauri/tauri.conf.json"));
 const releaseConfig = JSON.parse(read("release.config.json"));
 
@@ -18,37 +22,130 @@ const releaseConfig = JSON.parse(read("release.config.json"));
 test("release distribution uses GitHub Releases without Hugging Face pipeline dependencies", () => {
     assert.equal(releaseConfig.githubOwner, "awakenginexe");
     assert.equal(releaseConfig.githubRepo, "VRCNT");
-    assert.equal(releaseConfig.packagePartCount, 3);
+    assert.equal(Object.hasOwn(releaseConfig, "packagePartCount"), false);
+    assert.equal(releaseConfig.packageNamePattern, "VRCNT_${version}_${variant}.7z");
+    assert.equal(releaseConfig.installerNamePattern, "VRCNT_${version}_Setup.exe");
     assert.ok(releaseConfig.maxAssetSizeBytes < 2 * 1024 ** 3);
     assert.doesNotMatch(workflow, /huggingface|HF_TOKEN|hf_hub_download|hf-xet/i);
     assert.doesNotMatch(nsis, /huggingface|Invoke-WebRequest|Expand-Archive/i);
     assert.match(workflow, /gh release upload/);
 });
 
-test("workflow places the installer first while keeping its public display name", () => {
-    const installerUpload = workflow.indexOf(
-        "gh release upload $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --clobber $installerUpload",
-    );
-    const signatureUpload = workflow.indexOf(
-        "gh release upload $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --clobber $installerSignatureUpload",
-    );
-    const supportingUpload = workflow.indexOf(
-        "gh release upload $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --clobber $supportingAssets",
-    );
+test("release workflow builds one shared shell, packages CPU and CUDA independently, then publishes one WPF setup", () => {
+    assert.match(workflow, /^  shared-shell:/m);
+    assert.match(workflow, /^  backend-cpu:/m);
+    assert.match(workflow, /^  backend-cuda:/m);
+    assert.match(workflow, /^  package-and-publish:/m);
+    assert.match(workflow, /needs:\s*\[validate, installer-tools, shared-shell, backend-cpu, backend-cuda\]/);
+    assert.match(workflow, /npm run build-runtime-shell/);
+    assert.match(workflow, /npm run build-backend:cpu/);
+    assert.match(workflow, /npm run build-backend:cuda/);
+    assert.match(workflow, /release\.py package[\s\S]*--variant cpu[\s\S]*--source-dir/);
+    assert.match(workflow, /release\.py package[\s\S]*--variant cuda[\s\S]*--source-dir/);
+    assert.match(workflow, /release\.py manifest[\s\S]*--cpu-dir[\s\S]*--cuda-dir[\s\S]*--setup/);
+    assert.match(workflow, /installerName = \$config\.installerNamePattern\.Replace/);
+    assert.match(workflow, /dotnet publish \.\/installer-helper\/VRCNT\.Setup\/VRCNT\.Setup\.csproj/);
+    assert.doesNotMatch(workflow, /packagePartCount|exactly three|Create three-part portable package|npm run build-cuda|bundle\/nsis/i);
+});
 
-    assert.match(workflow, /\$installerReleaseAssetName = "00_\$installerName"/);
-    assert.match(workflow, /INSTALLER_RELEASE_ASSET_NAME=\$installerReleaseAssetName/);
-    assert.match(workflow, /--updater-name \$env:INSTALLER_RELEASE_ASSET_NAME/);
-    assert.match(workflow, /\$installerAsset = Join-Path \$env:ASSET_DIR \$env:INSTALLER_RELEASE_ASSET_NAME/);
-    assert.match(workflow, /\$installerUpload = "\$installerAsset#\$env:INSTALLER_NAME"/);
-    assert.match(workflow, /\$installerSignatureUpload = "\$installerSignatureAsset#\$env:INSTALLER_NAME\.sig"/);
-    assert.match(workflow, /\$supportingAssets = @\(/);
-    assert.match(workflow, /Sort-Object Name/);
-    assert.ok(installerUpload >= 0, "installer upload must be present");
-    assert.ok(signatureUpload > installerUpload, "signature must upload after installer");
-    assert.ok(supportingUpload > signatureUpload, "supporting assets must upload last");
-    assert.match(workflow, /The installer is not the first release asset/);
-    assert.match(workflow, /The installer display label is incorrect/);
+test("test candidate workflow uploads a complete artifact and publishes only an immutable prerelease", () => {
+    assert.match(candidateWorkflow, /branches:\s*[\s\S]*test\/5\.15\.0-runtime-installer/);
+    assert.match(candidateWorkflow, /workflow_dispatch:/);
+    assert.match(candidateWorkflow, /shared-shell:[\s\S]*needs: \[validate, backend-cpu\]/);
+    assert.match(candidateWorkflow, /Download CPU backend[\s\S]*name: backend-cpu[\s\S]*path: src-tauri\/bin/);
+    assert.match(candidateWorkflow, /Upload signed test candidate[\s\S]*actions\/upload-artifact@v6[\s\S]*path: release-assets/);
+    assert.match(candidateWorkflow, /RELEASE_TAG: v5\.15\.0-rc\.8/);
+    assert.match(candidateWorkflow, /Prerelease \$env:RELEASE_TAG already exists; refusing to overwrite tested assets/);
+    assert.match(candidateWorkflow, /gh release create[\s\S]*--draft --prerelease/);
+    assert.match(candidateWorkflow, /gh release upload[\s\S]*gh release edit[\s\S]*--prerelease/);
+    assert.doesNotMatch(candidateWorkflow, /RELEASE_TAG: v5\.15\.0(?:\s|$)/m);
+});
+
+test("release and candidate artifact actions use Node.js 24-capable releases", () => {
+    const expectedVersions = {
+        "actions/upload-artifact": "v6",
+        "actions/download-artifact": "v7",
+    };
+
+    for (const [workflowName, content] of [["release", workflow], ["test candidate", candidateWorkflow]]) {
+        const references = [...content.matchAll(/uses:\s*(actions\/(?:upload|download)-artifact)@(v\d+)/g)];
+        assert.ok(references.length > 0, `${workflowName} workflow must use artifact actions`);
+        for (const [, action, version] of references) {
+            assert.equal(version, expectedVersions[action], `${workflowName} workflow uses ${action}@${version}`);
+        }
+    }
+});
+
+test("signing workflows map secrets to the environment names used by the pinned Tauri signer", () => {
+    const command = process.platform === "win32"
+        ? [process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", "npm run tauri -- signer sign --help"]]
+        : ["npm", ["run", "tauri", "--", "signer", "sign", "--help"]];
+    const help = spawnSync(
+        command[0],
+        command[1],
+        { cwd: repoRoot, encoding: "utf8" },
+    );
+    assert.equal(help.status, 0, help.error?.message ?? help.stderr);
+    const signerHelp = `${help.stdout}\n${help.stderr}`;
+    assert.match(signerHelp, /\[env: TAURI_PRIVATE_KEY=\]/);
+    assert.match(signerHelp, /\[env: TAURI_PRIVATE_KEY_PASSWORD=\]/);
+
+    for (const candidate of [workflow, candidateWorkflow]) {
+        const signingStep = candidate.slice(candidate.indexOf("Sign and verify setup and combined manifest"));
+        assert.match(signingStep, /TAURI_PRIVATE_KEY:\s*\$\{\{ secrets\.TAURI_SIGNING_PRIVATE_KEY \}\}/);
+        assert.match(signingStep, /TAURI_PRIVATE_KEY_PASSWORD:\s*\$\{\{ secrets\.TAURI_SIGNING_PRIVATE_KEY_PASSWORD \}\}/);
+        assert.doesNotMatch(signingStep, /TAURI_SIGNING_PRIVATE_KEY:\s*\$\{\{/);
+        assert.doesNotMatch(signingStep, /TAURI_SIGNING_PRIVATE_KEY_PASSWORD:\s*\$\{\{/);
+    }
+});
+
+test("release workflow rejects WPF setup publishes that leave native runtime sidecars", () => {
+    assert.match(workflow, /scripts[\\/]validate_setup_publish\.ps1/);
+    assert.match(workflow, /-ProjectPath \.\/installer-helper[\\/]VRCNT\.Setup[\\/]VRCNT\.Setup\.csproj/);
+    assert.match(workflow, /-PublishOutputPath \.\/build[\\/]setup/);
+    for (const nativeLibrary of [
+        "PresentationNative_cor3.dll",
+        "wpfgfx_cor3.dll",
+        "PenImc_cor3.dll",
+        "D3DCompiler_47_cor3.dll",
+        "vcruntime140_cor3.dll",
+    ]) {
+        assert.match(setupPublishValidator, new RegExp(nativeLibrary.replaceAll(".", "\\.")));
+    }
+});
+
+test("combined release validation accepts every signed variant part without fixed counts", () => {
+    assert.match(workflow, /foreach \(\$variant in \$manifest\.variants\.PSObject\.Properties\)/);
+    assert.match(workflow, /foreach \(\$entry in \$variant\.Value\.parts\)/);
+    assert.match(workflow, /Signed package manifest could not be verified/);
+    assert.match(workflow, /WPF updater setup signing failed/);
+    assert.doesNotMatch(workflow, /\.files\.Count\s*-ne\s*3|packagePartCount|all three VRCNT_/i);
+});
+
+test("published release assets exclude duplicate per-variant package metadata", () => {
+    const releaseAssetEnumerations = workflow.match(/Get-ChildItem (?:\.\/)?release-assets -File -Recurse[^\r\n]*/g) || [];
+
+    assert.equal(releaseAssetEnumerations.length, 2, "hashing and publication must enumerate the same release assets");
+    assert.ok(
+        releaseAssetEnumerations.every((enumeration) => /-Exclude ['"]?package-metadata\.json['"]?/i.test(enumeration)),
+        "per-variant package metadata has duplicate leaf names and must remain internal to combined-manifest creation",
+    );
+    assert.match(workflow, /\$expected = Get-ChildItem \.\/release-assets -File -Recurse -Exclude package-metadata\.json/);
+});
+
+test("release hashes are generated after VirusTotal adds its public report", () => {
+    const virusTotalScan = workflow.indexOf("python ./utils/virustotal.py scan");
+    const generateHashes = workflow.lastIndexOf("python ./utils/release.py hashes");
+
+    assert.ok(virusTotalScan >= 0, "the release must scan the approved portable executables");
+    assert.ok(generateHashes > virusTotalScan, "SHA256SUMS.txt must include the public VirusTotal report as well as payload and signature artifacts");
+});
+
+test("workflow publishes the WPF setup under its exact updater filename without NSIS labels", () => {
+    assert.match(workflow, /--updater-name \$env:INSTALLER_NAME/);
+    assert.match(workflow, /\$setup = Join-Path \$assetDir \$env:INSTALLER_NAME/);
+    assert.match(workflow, /gh release upload \$env:RELEASE_TAG --repo \$env:RELEASE_REPOSITORY --clobber \$releaseAssets/);
+    assert.doesNotMatch(workflow, /INSTALLER_RELEASE_ASSET_NAME|00_\$installerName|installerUpload|installerSignatureUpload/);
 });
 
 
@@ -60,39 +157,43 @@ test("updater endpoint moved to GitHub while the existing public key remains unc
         tauriConfig.plugins.updater.pubkey,
         "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY4NTYzNUI0QUI2RTI4RkMKUldUOEtHNnJ0RFZXYUt4L1cwOVhIL1NtZXJGQkxzZkVVYXMrWGJZQlZ5NFNPdldRMk9RdUkrVCsK",
     );
-    assert.match(helper, new RegExp(tauriConfig.plugins.updater.pubkey));
-    assert.equal(tauriConfig.bundle.createUpdaterArtifacts, true);
+    assert.match(minisignVerifier, new RegExp(tauriConfig.plugins.updater.pubkey));
+    assert.equal(tauriConfig.bundle.active, false);
+    assert.equal(tauriConfig.bundle.createUpdaterArtifacts, false);
+    assert.deepEqual(tauriConfig.plugins.updater.windows.installerArgs, ["--tauri-update-contract-v1", "/passive", "--repair-manager"]);
 });
 
 
-test("thin installer authenticates metadata before hashes and uses bundled 7za", () => {
+test("release helper uses the shared signed manifest loader before selecting variable parts", () => {
     assert.match(nsis, /VRCNT\.ReleaseHelper\.exe/);
     assert.match(nsis, /7za\.exe/);
     assert.match(nsis, /minisign\.exe/);
     assert.match(nsis, /\$EXEDIR/);
     assert.match(nsis, /VRCNTInstallerCache/);
-    assert.match(helper, /VerifyManifestSignature\(options, manifestPath, signaturePath\)/);
+    assert.match(helper, /new ManifestLoader\(new MinisignVerifier\(options\.MinisignPath\)\)\.LoadAndVerifyAsync/);
     assert.ok(
-        helper.indexOf("VerifyManifestSignature(options, manifestPath, signaturePath)") <
-        helper.indexOf("VerifyFileAsync(path, part)"),
-        "the manifest signature must be verified before package hashes",
+        helper.indexOf("LoadAndVerifyAsync") < helper.indexOf("verified.Manifest.Variants"),
+        "the manifest signature must be verified before selecting a package",
     );
-    assert.match(helper, /Task\.WhenAll\(tasks\)/);
-    assert.match(helper, /RangeHeaderValue/);
-    assert.match(helper, /\[download\].*total/s);
-    assert.match(helper, /SHA-256 mismatch/);
+    assert.match(helper, /package\.Parts\.All\(part => File\.Exists/);
+    assert.match(helper, /new RuntimeTransactionEngine\(/);
+    assert.doesNotMatch(helper, /ExtractToDirectory|Directory\.Delete\(options\.Destination/);
+    assert.match(manifestLoader, /manifest\.Schema != 2/);
 });
 
 
 test("workflow signs and verifies both package and Tauri updater artifacts", () => {
     assert.match(workflow, /TAURI_SIGNING_PRIVATE_KEY/);
     assert.match(workflow, /TAURI_SIGNING_PRIVATE_KEY_PASSWORD/);
+    assert.match(workflow, /Sign and verify setup and combined manifest[\s\S]*TAURI_PRIVATE_KEY:\s*\$\{\{ secrets\.TAURI_SIGNING_PRIVATE_KEY \}\}[\s\S]*TAURI_PRIVATE_KEY_PASSWORD:\s*\$\{\{ secrets\.TAURI_SIGNING_PRIVATE_KEY_PASSWORD \}\}/);
+    assert.doesNotMatch(workflow, /Sign and verify setup and combined manifest[\s\S]*TAURI_SIGNING_PRIVATE_KEY:\s*\$\{\{/);
+    assert.doesNotMatch(workflow, /Sign and verify setup and combined manifest[\s\S]*TAURI_SIGNING_PRIVATE_KEY_PASSWORD:\s*\$\{\{/);
     assert.doesNotMatch(workflow, /TAURI_SIGNING_PRIVATE_KEY_PASSWORD is required/);
     assert.match(workflow, /tauri signer sign/);
     assert.match(workflow, /minisign.*-Vm/s);
-    assert.match(workflow, /Tauri updater signature does not match/);
+    assert.match(workflow, /WPF updater setup signing failed/);
     assert.match(workflow, /latest\.json has an invalid GitHub updater URL or empty signature/);
-    assert.match(workflow, /signed Tauri updater artifact is missing/i);
+    assert.match(workflow, /Signed artifact .* could not be verified/);
     assert.doesNotMatch(workflow, /continue-on-error:\s*true/);
     assert.match(workflow, /minisign-0\.12-win64\.zip/);
     assert.match(workflow, /37b600344e20c19314b2e82813db2bfdcc408b77b876f7727889dbd46d539479/);
@@ -110,13 +211,37 @@ test("workflow bootstraps x64 7-Zip from pinned official archives", () => {
 });
 
 
+test("published WPF setup embeds verified helper inputs instead of releasing helper sidecars", () => {
+    const setupProject = read("installer-helper/VRCNT.Setup/VRCNT.Setup.csproj");
+
+    assert.match(setupProject, /EmbeddedResource Include="\$\(SetupToolSourceDirectory\)\\minisign\.exe" LogicalName="VRCNT\.Setup\.Tools\.minisign\.exe"/);
+    assert.match(setupProject, /EmbeddedResource Include="\$\(SetupToolSourceDirectory\)\\7za\.exe" LogicalName="VRCNT\.Setup\.Tools\.7za\.exe"/);
+    assert.doesNotMatch(setupProject, /Copy SourceFiles="@\(AuthenticatedSetupTool\)"/);
+    assert.match(workflow, /'7za\.exe' = '35d4d69d7cd6cb44558f208c3b1334268013f9daf82d2dda848893a1c30c59c2'/);
+    assert.match(workflow, /'minisign\.exe' = '5535be9e4e123831ebe6ef324aafe9dde507015c176191f9e20c3ad60567f9e1'/);
+    assert.match(workflow, /Published WPF setup must embed \$tool instead of shipping it as a sidecar/);
+    assert.match(workflow, /bootstrapper SHA-256 does not match the exact published WPF setup/);
+});
+
+test("WPF setup uses the VRCNT logo for the executable and visible window branding", () => {
+    const setupProject = read("installer-helper/VRCNT.Setup/VRCNT.Setup.csproj");
+    const mainWindow = read("installer-helper/VRCNT.Setup/Views/MainWindow.xaml");
+    assert.ok(fs.existsSync(path.join(repoRoot, "src-tauri/icons/icon.ico")));
+    assert.ok(fs.existsSync(path.join(repoRoot, "src-tauri/icons/icon.png")));
+    assert.match(setupProject, /<ApplicationIcon>\.\.\\\.\.\\src-tauri\\icons\\icon\.ico<\/ApplicationIcon>/);
+    assert.match(setupProject, /<Resource Include="\.\.\\\.\.\\src-tauri\\icons\\icon\.png"/);
+    assert.match(mainWindow, /Icon="pack:\/\/application:,,,\/VRCNT\.Setup;component\/Assets\/icon\.png"/);
+    assert.match(mainWindow, /Source="pack:\/\/application:,,,\/VRCNT\.Setup;component\/Assets\/icon\.png"/);
+    assert.doesNotMatch(mainWindow, /<TextBlock Text="VR"/);
+});
+
+
 test("workflow fails on missing, oversized, or mismatched release files", () => {
-    assert.match(workflow, /files\.Count -ne 3/);
     assert.match(workflow, /Length -ge \[long\]\$env:MAX_ASSET_SIZE/);
     assert.match(workflow, /Get-FileHash .* -Algorithm SHA256/);
     assert.match(workflow, /failed SHA-256 verification/);
-    assert.match(workflow, /7zip.* t /is);
-    assert.match(workflow, /appears to contain the application payload/);
+    assert.match(workflow, /7za\.exe'\) t \$firstPart/);
+    assert.match(workflow, /Combined manifest does not identify the exact WPF setup/);
 });
 
 
@@ -168,23 +293,29 @@ test("every PowerShell release workflow block parses successfully", () => {
 });
 
 
-test("multipart splitter creates exactly three recombinable parts and a complete manifest", () => {
+test("variant multipart splitter creates variable parts and a schema-two combined manifest", () => {
     const tempDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "vrcnt-release-test-"));
     try {
         const script = [
             "import json, pathlib, sys",
             `sys.path.insert(0, ${JSON.stringify(path.join(repoRoot, "utils"))})`,
-            "from release import split_exactly, write_manifest",
+            "from release import split_to_asset_limit, write_combined_manifest",
             `root = pathlib.Path(${JSON.stringify(tempDirectory)})`,
-            "archive = root / 'VRCNT_4.2.2.7z'",
-            "original = bytes(range(251)) * 4096",
-            "archive.write_bytes(original)",
-            "parts = split_exactly(archive, 3, 2_000_000_000)",
-            "assert len(parts) == 3",
-            "assert b''.join(part.read_bytes() for part in parts) == original",
-            "manifest = write_manifest('4.2.2', parts, root / 'package-manifest.json')",
-            "assert [part['name'] for part in manifest['files']] == ['VRCNT_4.2.2.7z.001', 'VRCNT_4.2.2.7z.002', 'VRCNT_4.2.2.7z.003']",
-            "assert all(len(part['sha256']) == 64 for part in manifest['files'])",
+            "def metadata(directory, variant, parts):",
+            "  entries = [{'name': part.name, 'size': part.stat().st_size, 'sha256': __import__('hashlib').sha256(part.read_bytes()).hexdigest()} for part in parts]",
+            "  (directory / 'package-metadata.json').write_text(json.dumps({'variant': variant, 'archiveFormat': '7z', 'compressedSize': sum(item['size'] for item in entries), 'installedSize': 42, 'parts': entries, 'requiresNvidia': variant == 'cuda', 'markerPath': 'VRCNT.runtime.json', 'identity': {'product': 'VRCNT', 'version': '4.2.2', 'variant': variant.title(), 'architecture': 'x64', 'buildIdentity': variant + '-fixture', 'markerSha256': 'a' * 64}}))",
+            "cpu = root / 'cpu'; cuda = root / 'cuda'; cpu.mkdir(); cuda.mkdir()",
+            "cpu_archive = cpu / 'VRCNT_4.2.2_CPU.7z'; cuda_archive = cuda / 'VRCNT_4.2.2_CUDA.7z'",
+            "cpu_archive.write_bytes(b'cpu'); cuda_archive.write_bytes(b'cuda-payload')",
+            "cpu_parts = split_to_asset_limit(cpu_archive, 4); cuda_parts = split_to_asset_limit(cuda_archive, 5)",
+            "assert len(cpu_parts) == 1; assert len(cuda_parts) == 3",
+            "metadata(cpu, 'cpu', cpu_parts); metadata(cuda, 'cuda', cuda_parts)",
+            "setup = root / 'VRCNT_4.2.2_Setup.exe'; setup.write_bytes(b'setup')",
+            "manifest = write_combined_manifest('4.2.2', cpu, cuda, setup, root / 'package-manifest.json')",
+            "assert manifest['schema'] == 2",
+            "assert manifest['bootstrapper']['name'] == 'VRCNT_4.2.2_Setup.exe'",
+            "assert len(manifest['variants']['cpu']['parts']) == 1",
+            "assert len(manifest['variants']['cuda']['parts']) == 3",
         ].join("\n");
         const result = spawnSync("python", ["-c", script], { encoding: "utf8" });
         assert.equal(result.status, 0, result.stderr);

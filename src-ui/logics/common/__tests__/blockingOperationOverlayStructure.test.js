@@ -77,6 +77,13 @@ test("determinate and indeterminate progress expose distinct ARIA contracts", ()
     assert.match(source, /--progress-percent/);
 });
 
+test("terminal errors do not render a progress bar as active work", () => {
+    const source = readSource(componentPath);
+
+    assert.match(source, /const showProgress = progress\.kind !== "error";/);
+    assert.match(source, /\{showProgress \? \(/);
+});
+
 test("the overlay has no user dismissal path", () => {
     const source = readSource(componentPath);
 

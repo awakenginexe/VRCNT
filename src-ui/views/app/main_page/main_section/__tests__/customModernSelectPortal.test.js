@@ -3,6 +3,7 @@ import test, { after, before } from "node:test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer } from "vite";
+import react from "@vitejs/plugin-react";
 
 class MiniEvent {
     constructor(type, options = {}) {
@@ -487,11 +488,13 @@ const cssModulePlugin = {
     name: "custom-modern-select-test-css-module",
     enforce: "pre",
     resolveId(source, importer) {
+        if (source.endsWith(".svg?url")) return `\0select-test-asset:${encodeURIComponent(source)}`;
         if (!importer || !source.endsWith(".module.scss")) return undefined;
         const resolvedPath = path.resolve(path.dirname(importer), source);
         return `${virtualCssModulePrefix}${resolvedPath.slice(0, -".module.scss".length)}`;
     },
     load(id) {
+        if (id.startsWith("\0select-test-asset:")) return `export default ${JSON.stringify(id.slice(1))};`;
         if (!id.startsWith(virtualCssModulePrefix)) return undefined;
         return `
             const styles = new Proxy({}, { get: (_, name) => String(name) });
@@ -517,12 +520,13 @@ before(async () => {
     ({ act } = ReactRuntime);
     ({ createRoot } = await import("react-dom/client"));
     viteServer = await createServer({
+        configFile: false,
         root: repositoryRoot,
         appType: "custom",
         logLevel: "error",
         optimizeDeps: { noDiscovery: true },
-        plugins: [cssModulePlugin],
-        server: { middlewareMode: true, hmr: false },
+        plugins: [cssModulePlugin, react()],
+        server: { middlewareMode: true, hmr: false, watch: null },
     });
     ({ CustomModernSelect } = await viteServer.ssrLoadModule(componentModulePath));
 });
