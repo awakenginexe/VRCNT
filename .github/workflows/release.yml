@@ -246,7 +246,6 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      pull-requests: write
     env:
       RELEASE_TAG: ${{ needs.validate.outputs.release_tag }}
       VERSION: ${{ needs.validate.outputs.version }}
