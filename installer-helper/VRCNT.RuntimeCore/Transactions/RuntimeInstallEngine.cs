@@ -110,7 +110,10 @@ public sealed class RuntimeInstallEngine : IRuntimeTransactionEngine
                 : new ActivationRequest($"vrcnt-activation-{Convert.ToHexString(RandomNumberGenerator.GetBytes(16))}", Convert.ToHexString(RandomNumberGenerator.GetBytes(32)), Convert.ToHexString(RandomNumberGenerator.GetBytes(32))),
             request.ForceCloseConfirmed,
             request.ShutdownHandoff);
-        return await engine.ExecuteAsync(replacement, progress, cancellationToken);
+        var result = await engine.ExecuteAsync(replacement, progress, cancellationToken);
+        if (adjacentPackageDirectory is null)
+            RuntimeDownloadCleanup.AfterSuccess(result.Succeeded, cacheDirectory, package.Parts.Select(part => part.Name));
+        return result;
     }
 
     private static bool IsRefreshableMetadataFailure(Exception exception) =>

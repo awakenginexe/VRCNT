@@ -30,6 +30,7 @@ MAX_UPLOAD_BYTES = 650_000_000
 REPORT_FILENAME = "VirusTotal-report.json"
 BADGE_FILENAME = "VirusTotal-status.svg"
 FILE_BADGE_FILENAMES = {
+    "VRCNT.Setup.exe": "VirusTotal-Setup.svg",
     "VRCNT.exe": "VirusTotal-VRCNT.svg",
     "VRCNT-backend.exe": "VirusTotal-backend.svg",
 }

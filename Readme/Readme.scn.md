@@ -13,6 +13,9 @@
 </p>
 
 <p align="center">
+  <a data-virustotal-file="VRCNT.Setup.exe" href="https://github.com/awakenginexe/VRCNT/releases/latest/download/VirusTotal-report.json">
+    <img alt="VirusTotal scan for VRCNT.Setup.exe (latest stable release)" src="https://github.com/awakenginexe/VRCNT/releases/latest/download/VirusTotal-Setup.svg" />
+  </a>
   <a data-virustotal-file="VRCNT.exe" href="https://www.virustotal.com/gui/file/d0fdb2ad78e3262500a0e0632b6d29001618ff7c92984f03a676756f40d2f1f8">
     <img alt="VRCNT.exe 的 VirusTotal 扫描结果" src="VirusTotal-VRCNT.svg" />
   </a>

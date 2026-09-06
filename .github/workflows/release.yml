@@ -390,12 +390,12 @@ jobs:
           $expectedUrl = "https://github.com/$env:RELEASE_REPOSITORY/releases/download/$env:RELEASE_TAG/$env:INSTALLER_NAME"
           if ($latestDocument.platforms.'windows-x86_64'.url -ne $expectedUrl -or [string]::IsNullOrWhiteSpace($latestDocument.platforms.'windows-x86_64'.signature)) { throw 'latest.json has an invalid GitHub updater URL or empty signature.' }
 
-      - name: Scan portable executables with VirusTotal
+      - name: Scan signed Setup and portable executables with VirusTotal
         env:
           VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
         shell: pwsh
         run: |
-          python ./utils/virustotal.py scan --version $env:VERSION --output-dir ./release-assets --file ./build/release/cpu/VRCNT.exe --file ./build/release/cpu/VRCNT-backend.exe
+          python ./utils/virustotal.py scan --version $env:VERSION --output-dir ./release-assets --file ./build/release/cpu/VRCNT.exe --file ./build/release/cpu/VRCNT-backend.exe --file (Join-Path ./release-assets $env:INSTALLER_NAME)
           if ($LASTEXITCODE -ne 0) { throw 'VirusTotal scanning failed; the release will not publish an unverified status.' }
 
       - name: Generate hashes for every published release artifact
@@ -418,7 +418,7 @@ jobs:
 
           Package integrity is authenticated by $env:PACKAGE_MANIFEST_NAME.sig and documented in $env:HASHES_NAME. Tauri updates use the signed WPF setup and latest.json.
 
-          VirusTotal results for VRCNT.exe and VRCNT-backend.exe are included in VirusTotal-report.json.
+          VirusTotal results for VRCNT.Setup.exe, VRCNT.exe and VRCNT-backend.exe are included in VirusTotal-report.json.
           "@
           gh release view $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) {
