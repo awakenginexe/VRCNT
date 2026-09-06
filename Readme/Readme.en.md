@@ -13,13 +13,13 @@
 </p>
 
 <p align="center">
-  <a data-virustotal-file="VRCNT.Setup.exe" href="https://www.virustotal.com/gui/file/a7213dd7056220fa8fe5e38c3395700db06d7e49278565401c1c3fe5bedc113c">
+  <a data-virustotal-file="VRCNT.Setup.exe" href="https://www.virustotal.com/gui/file/b51cb99014c0ddb9ff53560e7d26989dc2855b0869c2a6a7bbf778f23d97813a">
     <img alt="VirusTotal scan for VRCNT.Setup.exe" src="VirusTotal-Setup.svg" />
   </a>
-  <a data-virustotal-file="VRCNT.exe" href="https://www.virustotal.com/gui/file/72de15a7b332eb63edd4bce0e545a37f8375f84d2a8bf647274d50db4f39f330">
+  <a data-virustotal-file="VRCNT.exe" href="https://www.virustotal.com/gui/file/c93662ecae869cb98947b1309e4c3d62205c5e855c394ccc4c712df26fe1b843">
     <img alt="VirusTotal scan for VRCNT.exe" src="VirusTotal-VRCNT.svg" />
   </a>
-  <a data-virustotal-file="VRCNT-backend.exe" href="https://www.virustotal.com/gui/file/efc37e8ee17d173d478a2335cb758ec80ae2ba06d936566992b829b4a419df96">
+  <a data-virustotal-file="VRCNT-backend.exe" href="https://www.virustotal.com/gui/file/1b540816a2f9b11bddfc95a43355b15acfadc0d1a45fb83e6df5501ab4c1d9cf">
     <img alt="VirusTotal scan for VRCNT-backend.exe" src="VirusTotal-backend.svg" />
   </a>
 </p>
