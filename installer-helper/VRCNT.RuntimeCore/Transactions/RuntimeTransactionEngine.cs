@@ -144,6 +144,11 @@ public sealed class RuntimeTransactionEngine(
                 : await processCoordinator.RequestGracefulStopAsync(cancellationToken);
             if (!stop.Stopped)
             {
+                if (stop.ErrorCode == "shutdown_acknowledgement_timeout")
+                {
+                    DeleteTransaction(paths.TransactionRoot);
+                    return Fail(stop.ErrorCode, "VRCNT did not acknowledge the runtime switch shutdown in time. No runtime files were replaced.");
+                }
                 var shutdownAcknowledged = ShutdownWasAcknowledged(request.ShutdownHandoff);
                 if (!request.ForceCloseConfirmed || processCoordinator is not IRuntimeProcessForceCloser forceCloser)
                 {

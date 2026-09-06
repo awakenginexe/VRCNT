@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime};
-use tauri::{Emitter, Manager};
+use tauri::Emitter;
 
 const DATA_ROOT_NAME: &str = "VRCNTData";
 const MANAGER_DIRECTORY_NAME: &str = "VRCNTInstaller";
@@ -612,17 +612,25 @@ pub fn complete_runtime_switch_shutdown(
     nonce: String,
     token: String,
 ) -> Result<(), String> {
-    let handoff = switch_state.verify_shutdown_acknowledgement(&nonce, &token)?;
+    finish_runtime_switch_shutdown(&switch_state, &nonce, &token, || app.exit(0))
+}
+
+fn finish_runtime_switch_shutdown(
+    switch_state: &RuntimeSwitchState,
+    nonce: &str,
+    token: &str,
+    exit_application: impl FnOnce(),
+) -> Result<(), String> {
+    let handoff = switch_state.verify_shutdown_acknowledgement(nonce, token)?;
     if let Err(error) = validate_shutdown_request_status(&handoff) {
         let _ = switch_state.clear_if_matches(&handoff);
         return Err(error);
     }
     write_handoff_status(&handoff, "shutdown_acknowledged", None, None)?;
     switch_state.authorize_shutdown();
-    app.get_webview_window("main")
-        .ok_or_else(|| "VRCNT main window is unavailable.".to_owned())?
-        .close()
-        .map_err(|error| error.to_string())
+    // A runtime replacement requires process exit, not merely window closure.
+    exit_application();
+    Ok(())
 }
 
 #[tauri::command]
@@ -2458,6 +2466,33 @@ mod retry_clear_tests {
 
     fn write_status(handoff: &RuntimeSwitchHandoff, value: &str) {
         write_runtime_switch_status_record(&handoff.status_path, &status(handoff, value)).unwrap();
+    }
+
+    #[test]
+    fn authenticated_shutdown_acknowledges_before_exiting_the_application() {
+        let temporary = tempdir().unwrap();
+        let initial = handoff(temporary.path(), "exit-nonce", "exit-token", 1);
+        let state = RuntimeSwitchState::new();
+        state.begin(initial.clone()).unwrap();
+        let mut requested = status(&initial, "shutdown_requested");
+        requested.handoff_expires_at_utc = Some(format_time(SystemTime::now() + Duration::from_secs(60)));
+        write_runtime_switch_status_record(&initial.status_path, &requested).unwrap();
+        state.deliver_shutdown_request(&requested).unwrap();
+        let mut exited = false;
+        finish_runtime_switch_shutdown(&state, &initial.nonce, &initial.token, || {
+            assert!(state.is_shutdown_authorized());
+            assert_eq!(read_runtime_switch_status(&initial.status_path).unwrap().status, "shutdown_acknowledged");
+            exited = true;
+        }).unwrap();
+        assert!(exited);
+    }
+
+    #[test]
+    fn invalid_shutdown_credentials_cannot_exit_the_application() {
+        let state = RuntimeSwitchState::new();
+        let mut exited = false;
+        assert!(finish_runtime_switch_shutdown(&state, "invalid", "invalid", || exited = true).is_err());
+        assert!(!exited);
     }
 
     #[test]

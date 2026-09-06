@@ -79,6 +79,18 @@ public sealed class TransactionEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task ExecuteAsync_reports_missing_acknowledgement_without_claiming_processes_remain()
+    {
+        var request = CreateRequest("ack-timeout", "runtime");
+        WriteActiveRuntime(request);
+        var processes = new TestProcessCoordinator(new(false, [], false, "shutdown_acknowledgement_timeout"));
+        var result = await CreateEngine(processes: processes).ExecuteAsync(request, null, default);
+        Assert.Equal("shutdown_acknowledgement_timeout", result.ErrorCode);
+        Assert.False(processes.ForceCloseCalled);
+        Assert.Equal("old-app", File.ReadAllText(Path.Combine(request.InstallPath, "VRCNT.exe")));
+    }
+
+    [Fact]
     public async Task ExecuteAsync_relaunches_the_old_runtime_when_a_process_lock_remains_after_authenticated_shutdown()
     {
         var request = CreateRequest("switch-acknowledged-lock", "runtime") with { ShutdownHandoff = CreateSwitchHandoff(Path.Combine(_root, "switch-acknowledged-lock", "runtime")) };
