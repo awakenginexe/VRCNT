@@ -246,6 +246,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      pull-requests: write
     env:
       RELEASE_TAG: ${{ needs.validate.outputs.release_tag }}
       VERSION: ${{ needs.validate.outputs.version }}
@@ -412,6 +413,8 @@ jobs:
         shell: pwsh
         run: |
           $notes = @"
+          ## [Download VRCNT Setup for Windows](https://github.com/$env:RELEASE_REPOSITORY/releases/download/$env:RELEASE_TAG/$env:INSTALLER_NAME)
+
           VRCNT $env:VERSION
 
           Install with $env:INSTALLER_NAME. The setup manager preserves the selected CPU or CUDA runtime on normal updates. Each variant archive has its own variable number of parts and can be used for portable or offline installation.
@@ -445,3 +448,39 @@ jobs:
           }
           $installer = $published.assets | Where-Object name -eq $env:INSTALLER_NAME
           if (-not $installer) { throw "Published GitHub Release is missing the exact WPF setup $env:INSTALLER_NAME." }
+
+      - name: Checkout default branch for scan documentation
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: scan-documentation
+          persist-credentials: false
+
+      - name: Propose current VirusTotal README results
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $latest = gh api "repos/$env:RELEASE_REPOSITORY/releases/latest" --jq '.tag_name'
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve latest stable release.' }
+          if ($latest -ne $env:RELEASE_TAG) { Write-Host 'Skipping README update for a superseded release.'; exit 0 }
+          python ./utils/virustotal.py update-readme --report ./release-assets/VirusTotal-report.json --repository-root ./scan-documentation
+          if ($LASTEXITCODE -ne 0) { throw 'VirusTotal README generation failed.' }
+          Set-Location ./scan-documentation
+          if (-not (git status --porcelain -- README.md Readme)) { exit 0 }
+          $branch = "automation/virustotal-links-$env:RELEASE_TAG-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          git switch -c $branch
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot create documentation branch.' }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- README.md Readme/Readme.*.md Readme/VirusTotal-*.svg
+          git commit -m "docs: update VirusTotal results for $env:RELEASE_TAG"
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot commit scan documentation.' }
+          gh auth setup-git
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot configure GitHub authentication.' }
+          git push origin $branch
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot push scan documentation.' }
+          gh pr create --repo $env:RELEASE_REPOSITORY --base $env:DEFAULT_BRANCH --head $branch --title "Update VirusTotal results for $env:RELEASE_TAG" --body 'Updates Setup, app, and backend badges and exact scan links from the completed published release report. No binaries are rebuilt.'
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot open scan documentation PR.' }

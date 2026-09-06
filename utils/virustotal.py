@@ -422,6 +422,13 @@ def create_status_badge_svg(label: str, message: str, color: str) -> str:
     )
 
 
+def badge_target_name(file_report: Mapping, report: Mapping) -> str:
+    name = file_report.get("name")
+    if name == f"VRCNT_{report.get('version')}_Setup.exe":
+        return "VRCNT.Setup.exe"
+    return name
+
+
 def write_report_artifacts(output_directory: Path, report: Mapping) -> None:
     output_directory.mkdir(parents=True, exist_ok=True)
     (output_directory / REPORT_FILENAME).write_text(
@@ -431,7 +438,7 @@ def write_report_artifacts(output_directory: Path, report: Mapping) -> None:
     for file_report in report.get("files", []):
         if not isinstance(file_report, Mapping):
             continue
-        badge_name = FILE_BADGE_FILENAMES.get(file_report.get("name"))
+        badge_name = FILE_BADGE_FILENAMES.get(badge_target_name(file_report, report))
         if badge_name:
             (output_directory / badge_name).write_text(
                 create_file_badge_svg(file_report, status=report.get("status", "failed")),
@@ -448,7 +455,7 @@ def update_readme_artifacts(
         raise VirusTotalError("Cannot update README links from an incomplete VirusTotal report.")
 
     file_reports = {
-        file_report.get("name"): file_report
+        badge_target_name(file_report, report): file_report
         for file_report in report.get("files", [])
         if isinstance(file_report, Mapping)
     }
