@@ -191,7 +191,7 @@ class VirusTotalReportTests(unittest.TestCase):
 
     def test_writes_per_file_badges_and_updates_readme_links(self):
         results = [
-            ScanResult(name="VRCNT.Setup.exe", sha256="c" * 64, size=30,
+            ScanResult(name="VRCNT_5.13.0_Setup.exe", sha256="c" * 64, size=30,
                        analysis_id="analysis-setup", stats={"malicious": 0, "undetected": 75}),
             ScanResult(
                 name="VRCNT.exe",
@@ -221,6 +221,8 @@ class VirusTotalReportTests(unittest.TestCase):
             )
 
             update_readme_artifacts(report, root, [readme])
+            write_report_artifacts(root / "assets", report)
+            self.assertTrue((root / "assets" / "VirusTotal-Setup.svg").exists())
 
             content = readme.read_text(encoding="utf-8")
             self.assertIn("https://www.virustotal.com/gui/file/" + "a" * 64, content)

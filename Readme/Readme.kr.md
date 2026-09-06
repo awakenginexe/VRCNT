@@ -13,13 +13,13 @@
 </p>
 
 <p align="center">
-  <a data-virustotal-file="VRCNT.Setup.exe" href="https://github.com/awakenginexe/VRCNT/releases/latest/download/VirusTotal-report.json">
-    <img alt="VirusTotal scan for VRCNT.Setup.exe (latest stable release)" src="https://github.com/awakenginexe/VRCNT/releases/latest/download/VirusTotal-Setup.svg" />
+  <a data-virustotal-file="VRCNT.Setup.exe" href="https://www.virustotal.com/gui/file/a7213dd7056220fa8fe5e38c3395700db06d7e49278565401c1c3fe5bedc113c">
+    <img alt="VirusTotal scan for VRCNT.Setup.exe" src="VirusTotal-Setup.svg" />
   </a>
-  <a data-virustotal-file="VRCNT.exe" href="https://www.virustotal.com/gui/file/d722316b329d09468ada7d460010b4f662031261f3b5a8207218d956cff1203a">
+  <a data-virustotal-file="VRCNT.exe" href="https://www.virustotal.com/gui/file/72de15a7b332eb63edd4bce0e545a37f8375f84d2a8bf647274d50db4f39f330">
     <img alt="VRCNT.exe VirusTotal 검사 결과" src="VirusTotal-VRCNT.svg" />
   </a>
-  <a data-virustotal-file="VRCNT-backend.exe" href="https://www.virustotal.com/gui/file/b31845acede1c4d12f8e7c98992c1a0020ecc39904649f4956841e98af1a6137">
+  <a data-virustotal-file="VRCNT-backend.exe" href="https://www.virustotal.com/gui/file/efc37e8ee17d173d478a2335cb758ec80ae2ba06d936566992b829b4a419df96">
     <img alt="VRCNT-backend.exe VirusTotal 검사 결과" src="VirusTotal-backend.svg" />
   </a>
 </p>
