@@ -356,7 +356,10 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
             ProgressValue = 100;
             IsProgressIndeterminate = false;
             CurrentPage = InstallerPage.Complete;
-            if (LaunchAfterSetup || IsSwitch) LaunchVrcnt(force: IsSwitch);
+            // A successful switch already launched and health-checked the app.
+            // Launching again here creates a second backend competing with it.
+            if (IsSwitch) CloseRequested?.Invoke(this, EventArgs.Empty);
+            else if (LaunchAfterSetup) LaunchVrcnt(force: false);
         }
         catch (Exception exception)
         {

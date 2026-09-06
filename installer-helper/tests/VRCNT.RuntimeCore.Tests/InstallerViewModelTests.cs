@@ -274,12 +274,15 @@ public sealed class InstallerViewModelTests
         var options = SetupCommandLine.Parse(["--switch", "--variant", target == RuntimeVariant.Cuda ? "cuda" : "cpu"]);
         var launcher = new RecordingLauncher();
         var viewModel = CreateViewModel(operations, options, new FixedGpuSelectionPolicy(recommended), launcher);
+        var closed = false;
+        viewModel.CloseRequested += (_, _) => closed = true;
 
         Assert.Equal(target, viewModel.SelectedVariant);
         await viewModel.InstallAsync();
 
         Assert.Equal(target, operations.ReceivedOptions!.Variant);
-        Assert.Equal(1, launcher.Count);
+        Assert.Equal(0, launcher.Count); // The transaction already launched and verified VRCNT.
+        Assert.True(closed);
     }
 
     [Fact]
