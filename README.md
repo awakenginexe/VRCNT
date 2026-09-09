@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-5.15.2-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-5.15.3-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>
@@ -183,7 +183,7 @@ npm run stage-runtime:cuda
 
 The staged payloads are generated under `build/release/cpu` and
 `build/release/cuda`. The authoritative public release workflow builds the
-small WPF bootstrapper `VRCNT_5.15.2_Setup.exe` and publishes both payloads.
+small WPF bootstrapper `VRCNT_5.15.3_Setup.exe` and publishes both payloads.
 The legacy Tauri/NSIS build commands remain available for compatibility but are
 not the primary 5.15.0 installer.
 

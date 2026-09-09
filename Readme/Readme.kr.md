@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-5.15.2-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-5.15.3-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>
@@ -176,7 +176,7 @@ npm run stage-runtime:cpu
 npm run stage-runtime:cuda
 ```
 
-스테이징된 페이로드는 `build/release/cpu` 및 `build/release/cuda`에 생성됩니다. 공개 릴리스는 소형 WPF 부트스트래퍼 `VRCNT_5.15.2_Setup.exe`와 두 페이로드를 사용합니다.
+스테이징된 페이로드는 `build/release/cpu` 및 `build/release/cuda`에 생성됩니다. 공개 릴리스는 소형 WPF 부트스트래퍼 `VRCNT_5.15.3_Setup.exe`와 두 페이로드를 사용합니다.
 
 공식 빌드는 [GitHub Releases](https://github.com/awakenginexe/VRCNT/releases)에 게시됩니다.
 설치 프로그램은 호환되는 NVIDIA 하드웨어를 감지하면 CUDA를 권장하지만 CPU를 직접 선택할 수 있습니다. 서명된 매니페스트가 CPU 또는 CUDA의 정확한 파트 수를 결정하므로 두 변형의 파트 수는 같을 필요가 없습니다. 포터블 실행 시 선택한 파트와 서명된 매니페스트를 함께 두고 `.7z.001`을 7-Zip으로 압축 해제한 후 `VRCNT.exe`를 실행하세요.
