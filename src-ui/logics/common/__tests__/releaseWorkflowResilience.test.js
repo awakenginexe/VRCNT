@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import yaml from "js-yaml";
 
 
 const repoRoot = path.resolve(import.meta.dirname, "../../../..");
@@ -17,6 +18,11 @@ const manifestLoader = read("installer-helper/VRCNT.RuntimeCore/Manifest/Manifes
 const minisignVerifier = read("installer-helper/VRCNT.RuntimeCore/Security/MinisignVerifier.cs");
 const tauriConfig = JSON.parse(read("src-tauri/tauri.conf.json"));
 const releaseConfig = JSON.parse(read("release.config.json"));
+
+test("release workflows are valid YAML with unique mapping keys", () => {
+    assert.doesNotThrow(() => yaml.load(workflow));
+    assert.doesNotThrow(() => yaml.load(candidateWorkflow));
+});
 
 
 test("release distribution uses GitHub Releases without Hugging Face pipeline dependencies", () => {
