@@ -94,7 +94,7 @@
                     </Border>
                     <TextBlock Text="{Binding AppTitle}" FontWeight="SemiBold" FontSize="13" Foreground="{DynamicResource InstallerTextBrush}" VerticalAlignment="Center" />
                     <Border Background="{DynamicResource InstallerSurfaceMutedBrush}" BorderBrush="{DynamicResource InstallerBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="v5.15.1" Foreground="{DynamicResource InstallerTextMutedBrush}" FontSize="10" FontWeight="SemiBold" />
+                        <TextBlock Text="v5.15.2" Foreground="{DynamicResource InstallerTextMutedBrush}" FontSize="10" FontWeight="SemiBold" />
                     </Border>
                 </StackPanel>
 

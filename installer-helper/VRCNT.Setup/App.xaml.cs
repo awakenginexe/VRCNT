@@ -15,9 +15,10 @@ public partial class App : Application
     {
         base.OnStartup(e);
         ApplyAccessibilityTokens();
+        SetupCommandLineOptions? options = null;
         try
         {
-            var options = SetupCommandLine.Parse(e.Args);
+            options = SetupCommandLine.Parse(e.Args);
             var operations = SetupCommandOperations.CreateProduction(Capabilities);
             if (!SetupCommandLine.ShouldShowUi(options))
             {
@@ -29,20 +30,23 @@ public partial class App : Application
             MainWindow = new MainWindow(viewModel);
             MainWindow.Show();
             if (options.IsSwitch) await viewModel.BeginSwitchAsync();
+            else if (options.IsUpdate && !options.IsRepairManager)
+            {
+                await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
+                await viewModel.InstallAsync();
+            }
         }
         catch (ArgumentException exception)
         {
-            if (!TryIsPassive(e.Args)) MessageBox.Show(exception.Message, "VRCNT Setup", MessageBoxButton.OK, MessageBoxImage.Error);
+            if (options is null || SetupCommandLine.ShouldShowUi(options)) MessageBox.Show(exception.Message, "VRCNT Setup", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(2);
         }
         catch (Exception exception)
         {
-            if (!TryIsPassive(e.Args)) MessageBox.Show(exception.Message, "VRCNT Setup", MessageBoxButton.OK, MessageBoxImage.Error);
+            if (options is null || SetupCommandLine.ShouldShowUi(options)) MessageBox.Show(exception.Message, "VRCNT Setup", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
         }
     }
-
-    private static bool TryIsPassive(IReadOnlyList<string> args) => args.Any(argument => argument.Equals("/passive", StringComparison.OrdinalIgnoreCase));
 
     private void ApplyAccessibilityTokens()
     {
