@@ -25,11 +25,11 @@ const MANAGER_SIGNATURE_FILE_NAME: &str = "VRCNT.Setup.exe.sig";
 const MINISIGN_PUBLIC_KEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY4NTYzNUI0QUI2RTI4RkMKUldUOEtHNnJ0RFZXYUt4L1cwOVhIL1NtZXJGQkxzZkVVYXMrWGJZQlZ5NFNPdldRMk9RdUkrVCsK";
 const RUNTIME_RELEASE_TAG: &str = match option_env!("VRCNT_RUNTIME_RELEASE_TAG") {
     Some(value) => value,
-    None => "v5.15.2",
+    None => "v5.15.3",
 };
 const RELEASE_DOWNLOAD_ROOT: &str = "https://github.com/awakenginexe/VRCNT/releases/download/";
 const RUNTIME_SWITCH_REQUESTED_EVENT: &str = "vrcnt://runtime-switch-requested";
-const MANAGER_VERSION: &str = "5.15.2";
+const MANAGER_VERSION: &str = "5.15.3";
 const MANAGER_PROTOCOL: u32 = 1;
 const MANIFEST_SCHEMA: u32 = 2;
 const RUNTIME_STATE_SCHEMA: u32 = 1;

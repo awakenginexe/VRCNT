@@ -19,6 +19,8 @@ public partial class App : Application
         try
         {
             options = SetupCommandLine.Parse(e.Args);
+            // Resolve relative command-line paths before releasing the inherited directory.
+            SetupWorkingDirectory.ReleaseInheritedDirectory();
             var operations = SetupCommandOperations.CreateProduction(Capabilities);
             if (!SetupCommandLine.ShouldShowUi(options))
             {

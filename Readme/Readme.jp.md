@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-5.15.2-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-5.15.3-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>
@@ -176,7 +176,7 @@ npm run stage-runtime:cpu
 npm run stage-runtime:cuda
 ```
 
-ステージ済みのペイロードは `build/release/cpu` と `build/release/cuda` に生成されます。公開リリースでは小容量のWPFブートストラッパー `VRCNT_5.15.2_Setup.exe` と両方のペイロードを使用します。
+ステージ済みのペイロードは `build/release/cpu` と `build/release/cuda` に生成されます。公開リリースでは小容量のWPFブートストラッパー `VRCNT_5.15.3_Setup.exe` と両方のペイロードを使用します。
 
 公式ビルドは [GitHub Releases](https://github.com/awakenginexe/VRCNT/releases) で公開されています。
 インストーラーは互換性のあるNVIDIA GPUを検出し、CUDAを推奨します。署名済みマニフェストがCPUまたはCUDAのパーツ数を決定するため、両バリアントのパーツ数は同じである必要はありません。ポータブル実行では、選択したパーツと署名済みマニフェストを同じフォルダに置き、`.7z.001` を7-Zipで解凍して `VRCNT.exe` を起動してください。
