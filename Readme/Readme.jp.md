@@ -13,13 +13,13 @@
 </p>
 
 <p align="center">
-  <a data-virustotal-file="VRCNT.Setup.exe" href="https://www.virustotal.com/gui/file/aac836908ed5874c4217c99c0f056842bc8030a35c419b6543d68e41885ac08c">
+  <a data-virustotal-file="VRCNT.Setup.exe" href="https://www.virustotal.com/gui/file/d03036fae7aea26d3b67b9dcdc267dc6aeb9f0e6015ed1e9b1a753938e453af2">
     <img alt="VirusTotal scan for VRCNT.Setup.exe" src="VirusTotal-Setup.svg" />
   </a>
-  <a data-virustotal-file="VRCNT.exe" href="https://www.virustotal.com/gui/file/24b4f61ce328c830c4d8154f768a98bb3a2884048c7c0caeade4f941ca8a55c0">
+  <a data-virustotal-file="VRCNT.exe" href="https://www.virustotal.com/gui/file/e43728002cbcaa907dc35a0b85a2c7cb70589198b1d8d414937d90e096f01ee5">
     <img alt="VirusTotal における VRCNT.exe のスキャン結果" src="VirusTotal-VRCNT.svg" />
   </a>
-  <a data-virustotal-file="VRCNT-backend.exe" href="https://www.virustotal.com/gui/file/89a5d7a0e607e8fe2f156339a85572ffaa11db72069033cf3e0c57cbe0ba3235">
+  <a data-virustotal-file="VRCNT-backend.exe" href="https://www.virustotal.com/gui/file/ca3dd784fdcb6cbb745147c20a21f5684aa44b789c70de914cbbe88c09de52f5">
     <img alt="VirusTotal における VRCNT-backend.exe のスキャン結果" src="VirusTotal-backend.svg" />
   </a>
 </p>
