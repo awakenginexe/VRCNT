@@ -11,6 +11,47 @@ namespace VRCNT.RuntimeCore.Tests;
 public sealed class InstallerViewModelTests
 {
     [Fact]
+    public async Task Visible_update_preserves_runtime_resolution_and_reports_download_failure()
+    {
+        var operations = new DeferredProgressOperations();
+        var options = SetupCommandLine.Parse(["/UPDATE", "/ARGS", "--resume",
+            "--tauri-update-contract-v1", "/passive", "--repair-manager"]);
+        var viewModel = CreateViewModel(operations, options, new FixedGpuSelectionPolicy(RuntimeVariant.Cpu));
+
+        var install = viewModel.InstallAsync();
+        await operations.ProgressReported.Task;
+        Assert.Equal(InstallerPage.Progress, viewModel.CurrentPage);
+        Assert.Null(operations.ReceivedOptions!.TargetVariant);
+        Assert.Null(operations.ReceivedOptions.InstallPath);
+        Assert.Null(operations.ReceivedOptions.InstallerLanguage);
+        Assert.Equal(["--resume"], operations.ReceivedOptions.CurrentAppArguments);
+        Assert.False(viewModel.CanChooseInstallDirectory);
+        Assert.False(viewModel.CanChangeRuntimeSelection);
+        Assert.Empty(viewModel.SelectedRuntimeTitle);
+
+        operations.Fail(new InvalidOperationException("Download interrupted."));
+        await install;
+        Assert.Equal(InstallerPage.Error, viewModel.CurrentPage);
+        Assert.Equal("Download interrupted.", viewModel.ErrorDetail);
+    }
+
+    [Fact]
+    public async Task Visible_update_closes_after_dispatcher_handoff_without_launching_twice()
+    {
+        var launcher = new RecordingLauncher();
+        var viewModel = CreateViewModel(new DeferredProgressOperations { CompleteImmediately = true },
+            SetupCommandLine.Parse(["/UPDATE"]), new FixedGpuSelectionPolicy(RuntimeVariant.Cpu), launcher);
+        viewModel.LaunchAfterSetup = true;
+        var closed = 0;
+        viewModel.CloseRequested += (_, _) => closed++;
+
+        await viewModel.InstallAsync();
+
+        Assert.Equal(1, closed);
+        Assert.Equal(0, launcher.Count);
+    }
+
+    [Fact]
     public async Task Install_binds_actual_transaction_progress_and_error_detail()
     {
         var operations = new DeferredProgressOperations();

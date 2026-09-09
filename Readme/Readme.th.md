@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-5.15.1-9B6DFF?style=for-the-badge&labelColor=08070B" />
+  <img alt="Version" src="https://img.shields.io/badge/version-5.15.2-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-9B6DFF?style=for-the-badge&labelColor=08070B" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-5DE2B5?style=for-the-badge&labelColor=08070B" />
 </p>
@@ -176,7 +176,7 @@ npm run stage-runtime:cpu
 npm run stage-runtime:cuda
 ```
 
-ไฟล์ runtime ที่ stage แล้วจะอยู่ที่ `build/release/cpu` และ `build/release/cuda` ส่วน release สาธารณะใช้ WPF bootstrapper ขนาดเล็ก `VRCNT_5.15.1_Setup.exe` และ payload ทั้งสองแบบ
+ไฟล์ runtime ที่ stage แล้วจะอยู่ที่ `build/release/cpu` และ `build/release/cuda` ส่วน release สาธารณะใช้ WPF bootstrapper ขนาดเล็ก `VRCNT_5.15.2_Setup.exe` และ payload ทั้งสองแบบ
 
 บิลด์อย่างเป็นทางการจะถูกเผยแพร่บน [GitHub Releases](https://github.com/awakenginexe/VRCNT/releases)
 ตัวติดตั้งจะตรวจหาอุปกรณ์ NVIDIA ที่เข้ากันได้และแนะนำ CUDA แต่ผู้ใช้ยังเลือก CPU ได้เอง โดย signed manifest จะกำหนดจำนวนส่วนของแพ็กเกจ CPU หรือ CUDA ที่ต้องใช้จริง ซึ่งจำนวนส่วนของแต่ละแบบไม่จำเป็นต้องเท่ากัน หากต้องการรันแบบพกพา ให้วางส่วนที่ manifest เลือกไว้ในโฟลเดอร์เดียวกัน ตรวจสอบ manifest ที่ลงลายเซ็น แตกไฟล์ `.7z.001` ด้วย 7-Zip แล้วเปิด `VRCNT.exe` จากโฟลเดอร์ที่แตกออกมา

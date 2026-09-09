@@ -94,7 +94,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     public ICommand BackCommand { get; }
     public ICommand InstallCommand { get; }
     public ICommand RetryCommand { get; }
-    public ICommand ErrorActionCommand => IsSwitch ? CloseCommand : RetryCommand;
+    public ICommand ErrorActionCommand => IsSwitch ? CloseCommand : _options.IsUpdate ? InstallCommand : RetryCommand;
     public ICommand LaunchCommand { get; }
     public ICommand CloseCommand { get; }
     public ICommand EnableAdvancedCudaOverrideCommand { get; }
@@ -127,9 +127,9 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     }
     public bool IsSwitch => _options.IsSwitch;
     public RuntimeVariant TargetVariant => _options.TargetVariant ?? throw new InvalidOperationException("The switch target is unavailable.");
-    public bool IsRuntimeSelectionLocked => IsSwitch;
-    public bool CanChangeRuntimeSelection => !IsSwitch;
-    public bool CanSelectCudaRadio => !IsSwitch && CanSelectCuda;
+    public bool IsRuntimeSelectionLocked => IsSwitch || _options.IsUpdate;
+    public bool CanChangeRuntimeSelection => !IsRuntimeSelectionLocked;
+    public bool CanSelectCudaRadio => CanChangeRuntimeSelection && CanSelectCuda;
     public RuntimeVariant SelectedVariant
     {
         get => _selectedVariant;
@@ -164,7 +164,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     }
     public bool CanSelectCuda => IsSwitch ? TargetVariant == RuntimeVariant.Cuda : IsCudaNormallyAvailable || (RequiresAdvancedCudaOverride && AdvancedCudaOverrideEnabled);
     public bool LaunchAfterSetup { get => _launchAfterSetup; set => SetField(ref _launchAfterSetup, value); }
-    public bool CanChooseInstallDirectory => !IsSwitch;
+    public bool CanChooseInstallDirectory => !IsSwitch && !_options.IsUpdate;
     public string InstallPath { get => _installPath; set => SetField(ref _installPath, value); }
     public bool IsInstalling
     {
@@ -261,7 +261,9 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         InstallerPage.Complete => CompleteTitle,
         _ => AppTitle,
     };
-    public string SelectedRuntimeTitle => SelectedVariant == RuntimeVariant.Cpu ? CpuTitle : CudaTitle;
+    public string SelectedRuntimeTitle => _options.IsUpdate && !IsSwitch
+        ? string.Empty // The GPU recommendation does not identify the installed update variant.
+        : SelectedVariant == RuntimeVariant.Cpu ? CpuTitle : CudaTitle;
     public string SelectedRuntimeSize => SelectedVariant == RuntimeVariant.Cpu ? CpuSize : CudaSize;
     public string SelectedRuntimeTime => SelectedVariant == RuntimeVariant.Cpu ? CpuTime : CudaTime;
     public string CpuStatus => _gpuSelection.RecommendedVariant == RuntimeVariant.Cpu ? T("recommended") : T("compatible");
@@ -351,14 +353,18 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         CurrentPage = InstallerPage.Progress;
         try
         {
-            var request = _options with { TargetVariant = IsSwitch ? TargetVariant : SelectedVariant, InstallPath = InstallPath, InstallerLanguage = SelectedLanguage.Id };
+            // An update resolves the installed variant and path from runtime.json.
+            // Wizard defaults must not turn a CUDA/custom-path update into a new CPU install.
+            var request = _options.IsUpdate && !IsSwitch
+                ? _options
+                : _options with { TargetVariant = IsSwitch ? TargetVariant : SelectedVariant, InstallPath = InstallPath, InstallerLanguage = SelectedLanguage.Id };
             await new SetupCommandDispatcher(_operations).DispatchAsync(request, CancellationToken.None, new InlineProgress<InstallProgress>(ReportProgress));
             ProgressValue = 100;
             IsProgressIndeterminate = false;
             CurrentPage = InstallerPage.Complete;
             // A successful switch already launched and health-checked the app.
             // Launching again here creates a second backend competing with it.
-            if (IsSwitch) CloseRequested?.Invoke(this, EventArgs.Empty);
+            if (IsSwitch || _options.IsUpdate) CloseRequested?.Invoke(this, EventArgs.Empty);
             else if (LaunchAfterSetup) LaunchVrcnt(force: false);
         }
         catch (Exception exception)

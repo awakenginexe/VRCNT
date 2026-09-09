@@ -166,8 +166,11 @@ public static class SetupCommandLine
 
         for (var payloadIndex = index + 1; payloadIndex < suffixIndex; payloadIndex++)
             currentAppArguments.Add(args[payloadIndex]);
-        isPassive = true;
-        isRepairManager = true;
+        // 5.15.0/5.15.1 clients send this suffix. It identifies the handoff,
+        // but updates must display runtime download progress and failures.
+        // ExecuteRuntimeAsync promotes the signed manager after installation.
+        isPassive = false;
+        isRepairManager = false;
         index = args.Count - 1;
     }
 }

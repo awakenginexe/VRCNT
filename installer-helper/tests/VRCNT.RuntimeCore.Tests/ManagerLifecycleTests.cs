@@ -297,8 +297,8 @@ public sealed class ManagerLifecycleTests : IDisposable
         ]);
 
         Assert.True(options.IsUpdate);
-        Assert.True(options.IsPassive);
-        Assert.True(options.IsRepairManager);
+        Assert.True(SetupCommandLine.ShouldShowUi(options));
+        Assert.False(options.IsRepairManager);
         Assert.False(options.IsSwitch);
         Assert.Null(options.TargetVariant);
         Assert.Null(options.CurrentAppPath);
