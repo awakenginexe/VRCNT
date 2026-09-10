@@ -13,13 +13,13 @@
 </p>
 
 <p align="center">
-  <a data-virustotal-file="VRCNT.Setup.exe" href="https://www.virustotal.com/gui/file/d03036fae7aea26d3b67b9dcdc267dc6aeb9f0e6015ed1e9b1a753938e453af2">
+  <a data-virustotal-file="VRCNT.Setup.exe" href="https://www.virustotal.com/gui/file/ed00ed851cee8d4f2abd4d58c379371c6e9b6087cd626d7c9f227ef5dac3fddb">
     <img alt="VirusTotal scan for VRCNT.Setup.exe" src="VirusTotal-Setup.svg" />
   </a>
-  <a data-virustotal-file="VRCNT.exe" href="https://www.virustotal.com/gui/file/e43728002cbcaa907dc35a0b85a2c7cb70589198b1d8d414937d90e096f01ee5">
+  <a data-virustotal-file="VRCNT.exe" href="https://www.virustotal.com/gui/file/9ad01eb26f064c0ae0e0da41ab3387197e674329b590b8dcc0cb3388fc8534de">
     <img alt="VRCNT.exe 的 VirusTotal 掃描結果" src="VirusTotal-VRCNT.svg" />
   </a>
-  <a data-virustotal-file="VRCNT-backend.exe" href="https://www.virustotal.com/gui/file/ca3dd784fdcb6cbb745147c20a21f5684aa44b789c70de914cbbe88c09de52f5">
+  <a data-virustotal-file="VRCNT-backend.exe" href="https://www.virustotal.com/gui/file/a634db2f5671220ede6113d043c8114901be637d5d5c68cf0afd79ee1cfd0d3e">
     <img alt="VRCNT-backend.exe 的 VirusTotal 掃描結果" src="VirusTotal-backend.svg" />
   </a>
 </p>
