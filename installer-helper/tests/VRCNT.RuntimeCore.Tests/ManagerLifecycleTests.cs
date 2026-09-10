@@ -13,7 +13,113 @@ namespace VRCNT.RuntimeCore.Tests;
 
 public sealed class ManagerLifecycleTests : IDisposable
 {
+    [Fact]
+    public async Task Renamed_updater_package_is_verified_without_redownloading_the_executable_or_latest_json()
+    {
+        var incoming = WriteFile(Path.Combine("updater", "VRCNT-5.15.0-installer.exe"), "new-manager");
+        var manifest = CreateManifest("new-manager");
+        var source = new HttpManagerRepairSource(new ManagerCapabilities("5.15.0", 1, 2, 1, 1),
+            new FixedManifestLoader(manifest), new FixedSignatureVerifier(true),
+            new Uri("https://example.test/releases/download/v5.15.0/"), Path.Combine(_root, "manager"),
+            new HttpClient(new FixtureHttpHandler(new Dictionary<string, byte[]>
+            {
+                ["https://example.test/releases/download/v5.15.0/package-manifest.json"] = Encoding.UTF8.GetBytes("manifest"),
+                ["https://example.test/releases/download/v5.15.0/package-manifest.json.sig"] = Encoding.UTF8.GetBytes("manifest-signature"),
+                ["https://example.test/releases/download/v5.15.0/VRCNT.Setup.exe.sig"] = Encoding.UTF8.GetBytes("signature"),
+            })));
+        var update = await source.AcquireCurrentAsync(incoming, default);
+        Assert.Equal("new-manager", await File.ReadAllTextAsync(update.SetupPath));
+        Assert.Equal(manifest.Bootstrapper.Name, Path.GetFileName(update.SetupPath));
+    }
+
     private readonly string _root = Path.Combine(Path.GetTempPath(), "vrcnt-manager", Guid.NewGuid().ToString("N"));
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Prepared_manager_finishes_without_network_and_rejects_changed_staged_bytes(bool tamper)
+    {
+        var candidate = WriteFile(Path.Combine("VRCNTInstaller", "staging", "VRCNT.Setup.exe"), "new-manager");
+        WriteFile(Path.Combine("VRCNTInstaller", "staging", "VRCNT.Setup.exe.sig"), "signature");
+        var stable = WriteFile(Path.Combine("VRCNTInstaller", "VRCNT.Setup.exe"), "old-manager");
+        var source = new OneShotCurrentSource(candidate);
+        var state = CreateStateStore(stable);
+        var lifecycle = CreateLifecycle(stable, CreateManifest("new-manager"), state, source);
+        await lifecycle.PreparePromotionAsync(candidate, default);
+        if (tamper) File.WriteAllText(candidate, "bad-manager");
+        if (tamper)
+        {
+            await Assert.ThrowsAsync<ManagerHandoffException>(() => lifecycle.PromoteAsync(candidate, default));
+            Assert.Equal("old-manager", File.ReadAllText(stable));
+        }
+        else
+        {
+            await lifecycle.PromoteAsync(candidate, default);
+            Assert.Equal("new-manager", File.ReadAllText(stable));
+            Assert.Equal(Hash("new-manager"), state.Read()!.ManagerSha256);
+        }
+        Assert.Equal(1, source.Requests);
+    }
+
+    [Fact]
+    public async Task Invalid_prepared_bytes_are_discarded_and_retry_reacquires_the_current_setup()
+    {
+        var candidate = WriteFile(Path.Combine("VRCNTInstaller", "staging", "VRCNT.Setup.exe"), "new-manager");
+        WriteFile(Path.Combine("VRCNTInstaller", "staging", "VRCNT.Setup.exe.sig"), "signature");
+        var stable = WriteFile(Path.Combine("VRCNTInstaller", "VRCNT.Setup.exe"), "old-manager");
+        var source = new OneShotCurrentSource(candidate) { AllowReacquire = true };
+        var lifecycle = CreateLifecycle(stable, CreateManifest("new-manager"), CreateStateStore(stable), source);
+        await lifecycle.PreparePromotionAsync(candidate, default);
+        File.WriteAllText(candidate, "bad-manager");
+        await Assert.ThrowsAsync<ManagerHandoffException>(() => lifecycle.PromoteAsync(candidate, default));
+        File.WriteAllText(candidate, "new-manager");
+        await lifecycle.PromoteAsync(candidate, default);
+        Assert.Equal(2, source.Requests);
+        Assert.Equal("new-manager", File.ReadAllText(stable));
+    }
+
+    private sealed class OneShotCurrentSource(string candidate) : IManagerRepairSource
+    {
+        public int Requests { get; private set; }
+        public bool AllowReacquire { get; init; }
+        public Task<VerifiedManagerUpdate> AcquireAsync(Uri uri, CancellationToken ct) => throw new NotSupportedException();
+        public Task<VerifiedManagerUpdate> AcquireCurrentAsync(string path, CancellationToken ct)
+        {
+            if (++Requests > 1 && !AllowReacquire) throw new IOException("Network disconnected after preparation.");
+            return Task.FromResult(new VerifiedManagerUpdate(candidate, candidate + ".sig"));
+        }
+    }
+
+    [Theory]
+    [InlineData("signature")]
+    [InlineData("state")]
+    [InlineData("lease")]
+    public async Task Promotion_rolls_back_the_manager_and_proofs_when_required_sidecars_are_locked(string locked)
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        var stable = WriteFile(Path.Combine("VRCNTInstaller", "VRCNT.Setup.exe"), "old-manager");
+        WriteFile(Path.Combine("VRCNTInstaller", "VRCNT.Setup.exe.sig"), "old-signature");
+        var candidate = WriteFile(Path.Combine("VRCNTInstaller", "staging", "VRCNT.Setup.exe"), "new-manager");
+        WriteFile(Path.Combine("VRCNTInstaller", "staging", "VRCNT.Setup.exe.sig"), "new-signature");
+        var store = CreateStateStore(stable);
+        store.Write(new ManagerState(stable, Hash("old-manager"), "5.15.0", 1, 2, 1, 1, true, null, DateTimeOffset.UtcNow));
+        var previousState = File.ReadAllText(store.StatePath);
+        var source = new OneShotCurrentSource(candidate);
+        var lifecycle = CreateLifecycle(stable, CreateManifest("new-manager"), store, source);
+        await lifecycle.PreparePromotionAsync(candidate, default);
+        using (var fileLock = new FileStream(locked == "lease" ? stable + ".promotion.lock" : locked == "signature" ? store.SignaturePath : store.StatePath, FileMode.OpenOrCreate, FileAccess.Read, FileShare.Read))
+        {
+            await Assert.ThrowsAsync<ManagerHandoffException>(() => lifecycle.PromoteAsync(candidate, default));
+        }
+        Assert.Equal("old-manager", File.ReadAllText(stable));
+        Assert.Equal("old-signature", File.ReadAllText(store.SignaturePath));
+        Assert.Equal(previousState, File.ReadAllText(store.StatePath));
+        await lifecycle.PromoteAsync(candidate, default);
+        Assert.Equal("new-manager", File.ReadAllText(stable));
+        Assert.Equal("new-signature", File.ReadAllText(store.SignaturePath));
+        Assert.Equal(Hash("new-manager"), store.Read()!.ManagerSha256);
+        Assert.Equal(1, source.Requests);
+    }
 
     [Fact]
     public void Current_capabilities_accept_the_signed_schema_two_manager_contract()
@@ -248,7 +354,7 @@ public sealed class ManagerLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task RepairAsync_succeeds_when_diagnostic_persistence_fails_after_verified_promotion()
+    public async Task RepairAsync_rolls_back_when_required_persistence_fails_after_verified_promotion()
     {
         var managerPath = WriteFile(Path.Combine("VRCNTInstaller", "VRCNT.Setup.exe"), "old-manager");
         var candidatePath = WriteFile(Path.Combine("VRCNTInstaller", "repair", "VRCNT.Setup.exe"), "new-manager");
@@ -261,8 +367,8 @@ public sealed class ManagerLifecycleTests : IDisposable
 
         var result = await lifecycle.RepairAsync(new Uri("https://example.test/latest.json"), default);
 
-        Assert.True(result.Succeeded);
-        Assert.Equal("new-manager", await File.ReadAllTextAsync(managerPath));
+        Assert.False(result.Succeeded);
+        Assert.Equal("old-manager", await File.ReadAllTextAsync(managerPath));
         Assert.False(File.Exists(managerPath + ".last-known-good"));
     }
 
@@ -537,24 +643,11 @@ public sealed class ManagerLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task Current_setup_source_without_a_bundle_fetches_the_exact_versioned_release()
+    public async Task Current_setup_source_without_a_bundle_fetches_only_exact_versioned_proofs()
     {
         var managerDirectory = Path.Combine(_root, "VRCNTInstaller");
         var releaseEndpoint = new Uri("https://example.test/releases/download/v5.15.0/");
-        var bootstrapperBytes = Encoding.UTF8.GetBytes("new-manager");
         var manifest = CreateManifest("new-manager");
-        var latest = JsonSerializer.Serialize(new
-        {
-            version = "5.15.0",
-            platforms = new Dictionary<string, object>
-            {
-                ["windows-x86_64"] = new
-                {
-                    url = "https://example.test/releases/download/v5.15.0/VRCNT.Setup.exe",
-                    signature = "signature",
-                },
-            },
-        });
         IManagerRepairSource source = new HttpManagerRepairSource(
             new ManagerCapabilities("5.15.0", 1, 2, 1, 1),
             new FixedManifestLoader(manifest),
@@ -563,13 +656,13 @@ public sealed class ManagerLifecycleTests : IDisposable
             managerDirectory,
             new HttpClient(new FixtureHttpHandler(new Dictionary<string, byte[]>
             {
-                ["https://example.test/releases/download/v5.15.0/latest.json"] = Encoding.UTF8.GetBytes(latest),
                 ["https://example.test/releases/download/v5.15.0/package-manifest.json"] = Encoding.UTF8.GetBytes("manifest"),
                 ["https://example.test/releases/download/v5.15.0/package-manifest.json.sig"] = Encoding.UTF8.GetBytes("manifest-signature"),
-                ["https://example.test/releases/download/v5.15.0/VRCNT.Setup.exe"] = bootstrapperBytes,
+                ["https://example.test/releases/download/v5.15.0/VRCNT.Setup.exe.sig"] = Encoding.UTF8.GetBytes("signature"),
             })));
 
-        var update = await source.AcquireCurrentAsync(Path.Combine(_root, "incoming", "VRCNT.Setup.exe"), default);
+        var incoming = WriteFile(Path.Combine("incoming", "VRCNT.Setup.exe"), "new-manager");
+        var update = await source.AcquireCurrentAsync(incoming, default);
 
         Assert.Equal("new-manager", await File.ReadAllTextAsync(update.SetupPath));
     }

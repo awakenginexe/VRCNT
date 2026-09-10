@@ -11,6 +11,30 @@ namespace VRCNT.RuntimeCore.Tests;
 
 public sealed class InstallerOperationTests : IDisposable
 {
+    [Fact]
+    public async Task Manager_verification_failure_leaves_the_runtime_untouched()
+    {
+        var engine = new RecordingRuntimeEngine();
+        var lifecycle = new RetryManagerLifecycle { FailPreparation = true };
+        var operations = CreateOperations(engine, Path.Combine(_root, "VRCNTData"), lifecycle);
+        var options = SetupCommandLine.Parse([]) with { InstallPath = Path.Combine(_root, "VRCNT") };
+        await Assert.ThrowsAsync<IOException>(() => operations.ExecuteRuntimeAsync(options, null, default));
+        Assert.False(engine.WasCalled);
+    }
+
+    [Fact]
+    public async Task Retrying_manager_finalization_does_not_reinstall_the_committed_runtime()
+    {
+        var engine = new RecordingRuntimeEngine();
+        var lifecycle = new RetryManagerLifecycle();
+        var operations = CreateOperations(engine, Path.Combine(_root, "VRCNTData"), lifecycle);
+        var options = SetupCommandLine.Parse([]) with { InstallPath = Path.Combine(_root, "VRCNT") };
+        await Assert.ThrowsAsync<IOException>(() => operations.ExecuteRuntimeAsync(options, null, default));
+        await operations.ExecuteRuntimeAsync(options, null, default);
+        Assert.Equal(1, engine.Calls);
+        Assert.True(lifecycle.Registered);
+    }
+
     private readonly string _root = Path.Combine(Path.GetTempPath(), "vrcnt-installer-operation-tests", Guid.NewGuid().ToString("N"));
 
     [Theory]
@@ -26,9 +50,8 @@ public sealed class InstallerOperationTests : IDisposable
 
         await operations.ExecuteRuntimeAsync(options, new CollectingProgress(progressValues), default);
 
-        Assert.Single(progressValues);
-        Assert.Equal(TransactionPhase.Acquire, progressValues[0].Phase);
-        Assert.Equal(250, progressValues[0].CompletedBytes);
+        var transfer = Assert.Single(progressValues, value => value.Phase == TransactionPhase.Acquire);
+        Assert.Equal(250, transfer.CompletedBytes);
         var config = JsonDocument.Parse(File.ReadAllText(Path.Combine(dataRoot, "config.json")));
         Assert.Equal("th", config.RootElement.GetProperty("UI_LANGUAGE").GetString());
     }
@@ -358,12 +381,14 @@ public sealed class InstallerOperationTests : IDisposable
 
     private sealed class RecordingRuntimeEngine : IRuntimeTransactionEngine
     {
+        public int Calls { get; private set; }
         public bool WasCalled { get; private set; }
         public RuntimeInstallRequest? LastRequest { get; private set; }
 
         public Task<RuntimeOperationResult> ExecuteAsync(RuntimeInstallRequest request, IProgress<InstallProgress>? progress, CancellationToken cancellationToken)
         {
             WasCalled = true;
+            Calls++;
             LastRequest = request;
             progress?.Report(new InstallProgress(TransactionPhase.Acquire, 250, 1000, "runtime.7z"));
             return Task.FromResult(new RuntimeOperationResult(true, false, false, null, null));
@@ -409,6 +434,23 @@ public sealed class InstallerOperationTests : IDisposable
         public Task<ManagerSelfCheckResult> CheckAsync(CancellationToken cancellationToken) => Task.FromResult(new ManagerSelfCheckResult(true, false, null));
         public Task<ManagerRepairResult> RepairAsync(Uri latestJsonUri, CancellationToken cancellationToken) => Task.FromResult(new ManagerRepairResult(true, null, null));
         public Task PromoteAsync(string verifiedSetupPath, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class RetryManagerLifecycle : IManagerLifecycle
+    {
+        public bool FailPreparation { get; init; }
+        public bool Registered { get; private set; }
+        private int _attempts;
+        public Task PreparePromotionAsync(string path, CancellationToken ct) => FailPreparation
+            ? Task.FromException(new IOException("Release metadata unavailable.")) : Task.CompletedTask;
+        public Task<ManagerSelfCheckResult> CheckAsync(CancellationToken ct) => throw new NotSupportedException();
+        public Task<ManagerRepairResult> RepairAsync(Uri uri, CancellationToken ct) => throw new NotSupportedException();
+        public Task PromoteAsync(string path, CancellationToken ct)
+        {
+            if (++_attempts == 1) throw new IOException("Manager is locked.");
+            Registered = true;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class ManagerRegistrationLifecycle(string readyPath) : IManagerLifecycle

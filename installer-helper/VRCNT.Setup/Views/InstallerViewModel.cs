@@ -32,6 +32,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
     private readonly bool _usesInjectedGpuAdvisoryPolicy;
     private readonly GpuSelectionRecommendation _gpuSelection;
     private readonly bool _useReducedMotion;
+    private readonly Func<Exception, string> _describeFailure;
     private readonly DelegateCommand _launchCommand;
     private readonly ObservableCollection<string> _progressHistory = [];
     private InstallerPage _currentPage = InstallerPage.Welcome;
@@ -57,9 +58,11 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         IGpuAdvisoryPolicy? gpuAdvisoryPolicy = null,
         bool useReducedMotion = false,
         IGpuSelectionPolicy? gpuSelectionPolicy = null,
-        IInstallDirectoryPicker? installDirectoryPicker = null)
+        IInstallDirectoryPicker? installDirectoryPicker = null,
+        Func<Exception, string>? describeFailure = null)
     {
         _operations = operations ?? throw new ArgumentNullException(nameof(operations));
+        _describeFailure = describeFailure ?? (exception => exception.Message);
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _localizer = localizer ?? throw new ArgumentNullException(nameof(localizer));
         _applicationLauncher = applicationLauncher ?? new ApplicationLauncher();
@@ -370,7 +373,7 @@ public sealed class InstallerViewModel : INotifyPropertyChanged
         catch (Exception exception)
         {
             IsProgressIndeterminate = false;
-            ErrorDetail = exception.Message;
+            ErrorDetail = _describeFailure(exception);
             CurrentPage = InstallerPage.Error;
         }
         finally

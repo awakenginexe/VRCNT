@@ -28,7 +28,7 @@ public partial class App : Application
                 Shutdown(exitCode);
                 return;
             }
-            var viewModel = new InstallerViewModel(operations, options, InstallerLocalizer.FromEmbedded(), useReducedMotion: !SystemParameters.ClientAreaAnimation, installDirectoryPicker: new InstallDirectoryPicker());
+            var viewModel = new InstallerViewModel(operations, options, InstallerLocalizer.FromEmbedded(), useReducedMotion: !SystemParameters.ClientAreaAnimation, installDirectoryPicker: new InstallDirectoryPicker(), describeFailure: SetupDiagnostics.DescribeFailure);
             MainWindow = new MainWindow(viewModel);
             MainWindow.Show();
             if (options.IsSwitch) await viewModel.BeginSwitchAsync();
@@ -40,12 +40,14 @@ public partial class App : Application
         }
         catch (ArgumentException exception)
         {
-            if (options is null || SetupCommandLine.ShouldShowUi(options)) MessageBox.Show(exception.Message, "VRCNT Setup", MessageBoxButton.OK, MessageBoxImage.Error);
+            var message = SetupDiagnostics.DescribeFailure(exception);
+            if (options is null || SetupCommandLine.ShouldShowUi(options)) MessageBox.Show(message, "VRCNT Setup", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(2);
         }
         catch (Exception exception)
         {
-            if (options is null || SetupCommandLine.ShouldShowUi(options)) MessageBox.Show(exception.Message, "VRCNT Setup", MessageBoxButton.OK, MessageBoxImage.Error);
+            var message = SetupDiagnostics.DescribeFailure(exception);
+            if (options is null || SetupCommandLine.ShouldShowUi(options)) MessageBox.Show(message, "VRCNT Setup", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
         }
     }
