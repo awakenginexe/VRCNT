@@ -21,6 +21,7 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
     private readonly Func<string, UserDataPaths> _resolveUserDataPaths;
     private readonly IActiveRuntimeLocator _activeRuntimeLocator;
     private readonly Action _ensureManagerTools;
+    private (string InstallPath, RuntimeVariant Variant, string Version)? _completedRuntime;
 
     public SetupCommandOperations(
         IRuntimeTransactionEngine runtimeEngine,
@@ -101,8 +102,19 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
         var retryableOutcomeCleared = false;
         try
         {
+            var currentSetupPath = options.IsSwitch ? null : ResolveCurrentSetupPath();
+            var needsPromotion = currentSetupPath is not null && !string.Equals(currentSetupPath, _managerPath, StringComparison.OrdinalIgnoreCase);
+            if (needsPromotion)
+            {
+                progress?.Report(new InstallProgress(TransactionPhase.Preflight, 0, 0, "Verifying the setup manager before runtime installation."));
+                await _managerLifecycle.PreparePromotionAsync(currentSetupPath!, cancellationToken);
+            }
             if (statusStore is not null) statusStore.WriteRunning(targetVariant == RuntimeVariant.Cuda ? "cuda" : "cpu", shutdownHandoff!);
-            var result = await _runtimeEngine.ExecuteAsync(new RuntimeInstallRequest(
+            var completed = _completedRuntime;
+            var canResume = !options.IsSwitch && completed is { } prior &&
+                string.Equals(prior.InstallPath, Path.GetFullPath(installPath), StringComparison.OrdinalIgnoreCase) &&
+                prior.Variant == targetVariant && prior.Version == ManagerCapabilities.Current.Version;
+            var result = canResume ? new RuntimeOperationResult(true, false, false, null, null) : await _runtimeEngine.ExecuteAsync(new RuntimeInstallRequest(
                 targetVariant,
                 ManagerCapabilities.Current.Version,
                 installPath,
@@ -128,10 +140,11 @@ public sealed class SetupCommandOperations : ISetupCommandOperations
             }
             if (!options.IsSwitch)
             {
-                var currentSetupPath = ResolveCurrentSetupPath();
-                if (!string.Equals(currentSetupPath, _managerPath, StringComparison.OrdinalIgnoreCase))
+                _completedRuntime = (Path.GetFullPath(installPath), targetVariant, ManagerCapabilities.Current.Version);
+                if (needsPromotion)
                 {
-                    await _managerLifecycle.PromoteAsync(currentSetupPath, cancellationToken);
+                    progress?.Report(new InstallProgress(TransactionPhase.Commit, 0, 0, "Registering the verified setup manager."));
+                    await _managerLifecycle.PromoteAsync(currentSetupPath!, cancellationToken);
                     _ensureManagerTools();
                 }
             }

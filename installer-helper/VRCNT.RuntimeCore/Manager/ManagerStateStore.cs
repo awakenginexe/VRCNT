@@ -76,12 +76,36 @@ public sealed class ManagerStateStore
     {
         if (string.IsNullOrWhiteSpace(signedManagerPath) || !File.Exists(signedManagerPath))
             throw new FileNotFoundException("The authenticated manager signature is missing.", signedManagerPath);
-        Write(state);
+        Directory.CreateDirectory(ManagerDirectory);
+        var previousSignature = File.Exists(SignaturePath) ? File.ReadAllBytes(SignaturePath) : null;
+        var signatureMoved = false;
         var temporaryPath = SignaturePath + $".{Guid.NewGuid():N}.tmp";
         try
         {
             File.Copy(signedManagerPath, temporaryPath, true);
             File.Move(temporaryPath, SignaturePath, true);
+            signatureMoved = true;
+            Write(state); // Publish state only after its signature is in place.
+        }
+        catch (Exception failure)
+        {
+            if (signatureMoved)
+            {
+                try
+                {
+                    if (previousSignature is null) File.Delete(SignaturePath);
+                    else
+                    {
+                        File.WriteAllBytes(temporaryPath, previousSignature);
+                        File.Move(temporaryPath, SignaturePath, true);
+                    }
+                }
+                catch (Exception rollbackFailure)
+                {
+                    throw new AggregateException("Manager signature rollback failed.", failure, rollbackFailure);
+                }
+            }
+            throw;
         }
         finally
         {

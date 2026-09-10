@@ -11,12 +11,14 @@ public interface IManagerLifecycle
     Task<ManagerSelfCheckResult> CheckAsync(CancellationToken cancellationToken);
     Task<ManagerRepairResult> RepairAsync(Uri latestJsonUri, CancellationToken cancellationToken);
     Task PromoteAsync(string verifiedSetupPath, CancellationToken cancellationToken);
+    Task PreparePromotionAsync(string setupPath, CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
 public sealed record ManagerRepairResult(
     bool Succeeded,
     string? PromotedPath,
-    string? FailureCode);
+    string? FailureCode,
+    string? FailureDetail = null);
 
 public sealed record VerifiedManagerUpdate(
     string SetupPath,
@@ -82,7 +84,8 @@ public sealed class ManagerHandoff
         VerifiedManagerArtifact artifact,
         Func<string, CancellationToken, Task<ManagerSelfCheckResult>> candidateSelfCheck,
         Func<string, CancellationToken, Task<ManagerSelfCheckResult>> promotedSelfCheck,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action? finalize = null)
     {
         ArgumentNullException.ThrowIfNull(artifact);
         if (string.IsNullOrWhiteSpace(artifact.SignaturePath))
@@ -99,6 +102,10 @@ public sealed class ManagerHandoff
         await EnsureSelfCheckAsync(candidatePath, candidateSelfCheck, cancellationToken);
         await VerifyArtifactAsync(candidatePath, expectedArtifact, cancellationToken);
 
+        Directory.CreateDirectory(Path.GetDirectoryName(_stableManagerPath)!);
+        // A file lease survives awaits and is released by the OS if Setup exits.
+        using var promotionLease = new FileStream(_stableManagerPath + ".promotion.lock",
+            FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
         var backupPath = _stableManagerPath + ".last-known-good";
         var hadPrevious = File.Exists(_stableManagerPath);
         await _exitOldManager(cancellationToken);
@@ -118,6 +125,7 @@ public sealed class ManagerHandoff
 
             await VerifyArtifactAsync(_stableManagerPath, expectedArtifact, cancellationToken);
             await EnsureSelfCheckAsync(_stableManagerPath, promotedSelfCheck, cancellationToken);
+            finalize?.Invoke();
             TryDeleteBackup(backupPath);
         }
         catch (ManagerHandoffException)
@@ -276,6 +284,7 @@ public sealed class ProcessManagerExitCoordinator(string stableManagerPath)
 
 public sealed class SetupManagerLifecycle : IManagerLifecycle
 {
+    private (string SourcePath, VerifiedManagerUpdate Update)? _preparedPromotion;
     private readonly string _managerPath;
     private readonly PackageManifest? _manifest;
     private readonly ManagerSelfCheck _selfCheck;
@@ -328,15 +337,48 @@ public sealed class SetupManagerLifecycle : IManagerLifecycle
         }
     }
 
+    public async Task PreparePromotionAsync(string setupPath, CancellationToken cancellationToken)
+    {
+        var sourcePath = Path.GetFullPath(setupPath);
+        try
+        {
+            var prepared = _preparedPromotion;
+            var update = prepared is { } cached &&
+                string.Equals(cached.SourcePath, sourcePath, StringComparison.OrdinalIgnoreCase) &&
+                File.Exists(cached.Update.SetupPath) && File.Exists(cached.Update.SignaturePath)
+                ? cached.Update
+                : await _repairSource.AcquireCurrentAsync(sourcePath, cancellationToken);
+            var manifest = update.Manifest ?? _manifest
+                ?? throw new InvalidDataException("Signed manager metadata is required for promotion.");
+            var check = await _selfCheck.CheckAsync(update.SetupPath, update.Bootstrapper ?? manifest.Bootstrapper,
+                update.SignaturePath, cancellationToken);
+            if (string.IsNullOrWhiteSpace(update.SignaturePath) || !check.IsIntact || !check.IsCompatible)
+                throw new ManagerHandoffException("The staged setup manager failed verification.", check.FailureCode ?? "manager_signature_missing");
+            _preparedPromotion = (sourcePath, update);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception exception)
+        {
+            var invalid = _preparedPromotion;
+            _preparedPromotion = null;
+            TryDeleteStagingDirectory(invalid?.Update.StagingDirectory);
+            throw new ManagerHandoffException(
+                $"Setup manager verification failed before runtime installation: {exception.Message}",
+                exception is ManagerHandoffException failure ? failure.FailureCode : "manager_preparation_failed", exception);
+        }
+    }
+
     public async Task PromoteAsync(string verifiedSetupPath, CancellationToken cancellationToken)
     {
         try
         {
+            await PreparePromotionAsync(verifiedSetupPath, cancellationToken);
             var result = await PromoteVerifiedAsync(
-                await _repairSource.AcquireCurrentAsync(verifiedSetupPath, cancellationToken),
+                _preparedPromotion!.Value.Update,
                 cancellationToken);
             if (!result.Succeeded)
-                throw new ManagerHandoffException("The running setup package could not be promoted as the trusted manager.", result.FailureCode ?? "manager_promotion_failed");
+                throw new ManagerHandoffException($"Setup manager registration failed ({result.FailureCode ?? "manager_promotion_failed"}): {result.FailureDetail ?? "Close other Setup windows and try again."}", result.FailureCode ?? "manager_promotion_failed");
+            _preparedPromotion = null;
         }
         catch (ManagerHandoffException)
         {
@@ -348,7 +390,7 @@ public sealed class SetupManagerLifecycle : IManagerLifecycle
         }
         catch (Exception exception)
         {
-            throw new ManagerHandoffException("The running setup package could not be promoted as the trusted manager.", "manager_promotion_failed", exception);
+            throw new ManagerHandoffException($"Setup manager registration failed: {exception.Message}", "manager_promotion_failed", exception);
         }
     }
 
@@ -364,47 +406,48 @@ public sealed class SetupManagerLifecycle : IManagerLifecycle
             if (!candidateCheck.IsIntact || !candidateCheck.IsCompatible)
                 return new ManagerRepairResult(false, null, candidateCheck.FailureCode);
 
-            await _handoff.PromoteAsync(
-                new VerifiedManagerArtifact(update.SetupPath, expectedBootstrapper, update.SignaturePath, _selfCheck),
-                (path, _) => _selfCheck.CheckAsync(path, expectedBootstrapper, update.SignaturePath, cancellationToken),
-                (path, _) => _selfCheck.CheckAsync(path, expectedBootstrapper, update.SignaturePath, cancellationToken),
-                cancellationToken);
-            // The promoted image was just verified against this signed hash. Reuse it for
-            // diagnostics so a post-promotion read failure cannot turn success into failure.
-            var hash = expectedBootstrapper.Sha256;
+            // Keep the verified source intact so finalization can be retried offline after rollback.
+            var promotionDirectory = Path.Combine(Path.GetDirectoryName(_managerPath)!, "promotion-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(promotionDirectory);
             try
             {
-                _stateStore.WriteAuthenticated(new ManagerState(
-                    _managerPath,
-                    hash,
-                    expectedManifest.Version,
-                    expectedBootstrapper.ManagerProtocol,
-                    expectedBootstrapper.ManifestSchema,
-                    expectedBootstrapper.RuntimeStateSchema,
-                    expectedBootstrapper.ActivationProtocol,
-                    true,
-                    null,
-                    DateTimeOffset.UtcNow), update.SignaturePath);
+                var candidatePath = Path.Combine(promotionDirectory, Path.GetFileName(update.SetupPath));
+                File.Copy(update.SetupPath, candidatePath);
+                await _handoff.PromoteAsync(
+                    new VerifiedManagerArtifact(candidatePath, expectedBootstrapper, update.SignaturePath, _selfCheck),
+                    (path, _) => _selfCheck.CheckAsync(path, expectedBootstrapper, update.SignaturePath, cancellationToken),
+                    (path, _) => _selfCheck.CheckAsync(path, expectedBootstrapper, update.SignaturePath, cancellationToken),
+                    cancellationToken,
+                    () => _stateStore.WriteAuthenticated(new ManagerState(
+                        _managerPath,
+                        expectedBootstrapper.Sha256,
+                        expectedManifest.Version,
+                        expectedBootstrapper.ManagerProtocol,
+                        expectedBootstrapper.ManifestSchema,
+                        expectedBootstrapper.RuntimeStateSchema,
+                        expectedBootstrapper.ActivationProtocol,
+                        true,
+                        null,
+                        DateTimeOffset.UtcNow), update.SignaturePath));
             }
-            catch
+            finally
             {
-                // Promotion and its post-promotion self-check already succeeded. A diagnostic
-                // sidecar failure must not report repair failure or remove the verified manager.
+                TryDeleteStagingDirectory(promotionDirectory);
             }
             TryDeleteStagingDirectory(update.StagingDirectory);
             return new ManagerRepairResult(true, _managerPath, null);
         }
         catch (ManagerHandoffException exception)
         {
-            return new ManagerRepairResult(false, null, exception.FailureCode);
+            return new ManagerRepairResult(false, null, exception.FailureCode, exception.GetBaseException().Message);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }
-        catch (Exception)
+        catch (Exception exception)
         {
-            return new ManagerRepairResult(false, null, "repair_failed");
+            return new ManagerRepairResult(false, null, "repair_failed", exception.Message);
         }
     }
 
@@ -448,27 +491,37 @@ public sealed class HttpManagerRepairSource : IManagerRepairSource
         EnsureReleaseUri(latestJsonUri);
         var root = Path.Combine(_managerDirectory, "repair", $"repair-{Guid.NewGuid():N}");
         Directory.CreateDirectory(root);
-        var latest = await ReadJsonAsync(latestJsonUri, cancellationToken);
-        var version = latest.RootElement.GetProperty("version").GetString();
-        if (!string.Equals(version, _capabilities.Version, StringComparison.Ordinal)) throw new InvalidDataException("Latest manager metadata version is incompatible.");
-        var platform = latest.RootElement.GetProperty("platforms").GetProperty("windows-x86_64");
-        var setupUri = new Uri(platform.GetProperty("url").GetString() ?? throw new InvalidDataException("Latest manager metadata has no setup URL."));
-        EnsureReleaseUri(setupUri);
-        var signature = platform.GetProperty("signature").GetString();
-        if (string.IsNullOrWhiteSpace(signature)) throw new CryptographicException("Latest manager metadata has no setup signature.");
+        try
+        {
+            using var latest = await ReadJsonAsync(latestJsonUri, cancellationToken);
+            var version = latest.RootElement.GetProperty("version").GetString();
+            if (!string.Equals(version, _capabilities.Version, StringComparison.Ordinal)) throw new InvalidDataException("Latest manager metadata version is incompatible.");
+            var platform = latest.RootElement.GetProperty("platforms").GetProperty("windows-x86_64");
+            var setupUri = new Uri(platform.GetProperty("url").GetString() ?? throw new InvalidDataException("Latest manager metadata has no setup URL."));
+            EnsureReleaseUri(setupUri);
+            var signature = platform.GetProperty("signature").GetString();
+            if (string.IsNullOrWhiteSpace(signature)) throw new CryptographicException("Latest manager metadata has no setup signature.");
 
-        var setupName = Path.GetFileName(setupUri.LocalPath);
-        if (string.IsNullOrWhiteSpace(setupName) || setupName is "." or "..") throw new InvalidDataException("Latest manager metadata has an unsafe setup name.");
-        var setupPath = Path.Combine(root, setupName);
-        var signaturePath = setupPath + ".sig";
-        await DownloadAsync(setupUri, setupPath, cancellationToken);
-        await File.WriteAllTextAsync(signaturePath, signature, cancellationToken);
+            var setupName = Path.GetFileName(setupUri.LocalPath);
+            if (string.IsNullOrWhiteSpace(setupName) || setupName is "." or "..") throw new InvalidDataException("Latest manager metadata has an unsafe setup name.");
+            var setupPath = Path.Combine(root, setupName);
+            var signaturePath = setupPath + ".sig";
+            await DownloadAsync(setupUri, setupPath, cancellationToken);
+            await File.WriteAllTextAsync(signaturePath, signature, cancellationToken);
 
-        var manifestPath = Path.Combine(root, "package-manifest.json");
-        var manifestSignaturePath = manifestPath + ".sig";
-        await DownloadAsync(new Uri(new Uri(latestJsonUri, "."), "package-manifest.json"), manifestPath, cancellationToken);
-        await DownloadAsync(new Uri(new Uri(latestJsonUri, "."), "package-manifest.json.sig"), manifestSignaturePath, cancellationToken);
-        return await VerifyCandidateAsync(setupPath, signaturePath, manifestPath, manifestSignaturePath, root, cancellationToken);
+            var manifestPath = Path.Combine(root, "package-manifest.json");
+            var manifestSignaturePath = manifestPath + ".sig";
+            await DownloadAsync(new Uri(new Uri(latestJsonUri, "."), "package-manifest.json"), manifestPath, cancellationToken);
+            await DownloadAsync(new Uri(new Uri(latestJsonUri, "."), "package-manifest.json.sig"), manifestSignaturePath, cancellationToken);
+            return await VerifyCandidateAsync(setupPath, signaturePath, manifestPath, manifestSignaturePath, root, cancellationToken);
+        }
+        catch
+        {
+            try { Directory.Delete(root, true); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+            throw;
+        }
     }
 
     public async Task<VerifiedManagerUpdate> AcquireCurrentAsync(string currentSetupPath, CancellationToken cancellationToken)
@@ -479,7 +532,7 @@ public sealed class HttpManagerRepairSource : IManagerRepairSource
         var manifestSourcePath = Path.Combine(sourceDirectory, "package-manifest.json");
         var manifestSignatureSourcePath = manifestSourcePath + ".sig";
         if (!File.Exists(sourcePath) || !File.Exists(signatureSourcePath) || !File.Exists(manifestSourcePath) || !File.Exists(manifestSignatureSourcePath))
-            return await AcquireAsync(new Uri(_releaseEndpoint, "latest.json"), cancellationToken);
+            return await StageRunningPackageAsync(sourcePath, cancellationToken);
 
         var setupName = Path.GetFileName(sourcePath);
         if (string.IsNullOrWhiteSpace(setupName) || setupName is "." or "..")
@@ -497,6 +550,36 @@ public sealed class HttpManagerRepairSource : IManagerRepairSource
             File.Copy(signatureSourcePath, signaturePath);
             File.Copy(manifestSourcePath, manifestPath);
             File.Copy(manifestSignatureSourcePath, manifestSignaturePath);
+            return await VerifyCandidateAsync(setupPath, signaturePath, manifestPath, manifestSignaturePath, root, cancellationToken);
+        }
+        catch
+        {
+            TryDeleteDirectory(root);
+            throw;
+        }
+    }
+
+    private async Task<VerifiedManagerUpdate> StageRunningPackageAsync(string sourcePath, CancellationToken cancellationToken)
+    {
+        if (!File.Exists(sourcePath)) throw new FileNotFoundException("The running setup package is missing.", sourcePath);
+        var root = Path.Combine(_managerDirectory, "staging", $"bootstrap-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var manifestPath = Path.Combine(root, "package-manifest.json");
+            var manifestSignaturePath = manifestPath + ".sig";
+            await DownloadAsync(new Uri(_releaseEndpoint, "package-manifest.json"), manifestPath, cancellationToken);
+            await DownloadAsync(new Uri(_releaseEndpoint, "package-manifest.json.sig"), manifestSignaturePath, cancellationToken);
+            var verified = await _manifestLoader.LoadAndVerifyAsync(manifestPath, manifestSignaturePath, _capabilities.Version, cancellationToken);
+            var name = verified.Manifest.Bootstrapper.Name;
+            if (string.IsNullOrWhiteSpace(name) || Path.GetFileName(name) != name || name is "." or "..")
+                throw new InvalidDataException("The signed setup file name is invalid.");
+            // Tauri renames its downloaded executable. Trust the signed bytes and
+            // stage under the manifest's canonical name, never the temporary name.
+            var setupPath = Path.Combine(root, name);
+            File.Copy(sourcePath, setupPath);
+            var signaturePath = setupPath + ".sig";
+            await DownloadAsync(new Uri(_releaseEndpoint, name + ".sig"), signaturePath, cancellationToken);
             return await VerifyCandidateAsync(setupPath, signaturePath, manifestPath, manifestSignaturePath, root, cancellationToken);
         }
         catch
