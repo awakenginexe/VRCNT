@@ -39,6 +39,8 @@ MAX_PHRASES = 10
 MAX_AUDIO_BUFFER_SECONDS = 30
 MAX_WHISPER_LIVE_AUDIO_SECONDS = 6
 GOOGLE_RECOGNITION_TIMEOUT_SECONDS = 15
+GOOGLE_PRE_PAD_MS = 300
+GOOGLE_POST_PAD_MS = 500
 ENGINE_RECOVERY_FAILURE_THRESHOLD = 3
 
 
@@ -409,6 +411,16 @@ class AudioTranscriber:
         languages: List[str],
         countries: List[str],
     ) -> tuple[List[Dict[str, Any]], int, int]:
+        # Give Google's endpoint context at clip boundaries (VRCT's missing-
+        # content mitigation). Pad only the request, never the growing capture
+        # buffer, so repeated requests cannot accumulate silence or lose PCM.
+        audio_data = AudioData(
+            bytes(audio_data.sample_rate * GOOGLE_PRE_PAD_MS // 1000 * audio_data.sample_width)
+            + audio_data.frame_data
+            + bytes(audio_data.sample_rate * GOOGLE_POST_PAD_MS // 1000 * audio_data.sample_width),
+            audio_data.sample_rate,
+            audio_data.sample_width,
+        )
         candidates = []
         configured = []
         for index, (language, country) in enumerate(

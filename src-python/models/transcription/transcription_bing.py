@@ -81,9 +81,11 @@ class BingSTTClient:
         self._connection: Any = None
         self._running = False
         self._generation = 0
+        # Reserve one slot for the worker's in-flight/failed send.
         self._audio_queue: Queue[tuple[bytes, Optional[float]]] = Queue(
-            self.MAX_PENDING_AUDIO_CHUNKS
+            self.MAX_PENDING_AUDIO_CHUNKS - 1
         )
+        self._pending_audio: Optional[tuple[bytes, Optional[float]]] = None
         self._request_id = ""
         self._stream_id = 1
         self._service_tag: Optional[str] = None
@@ -111,6 +113,7 @@ class BingSTTClient:
             generation = self._generation
             self._stop_event = Event()
             self._clear_audio_queue_locked()
+            self._pending_audio = None
             self._running = True
             worker = Thread(
                 target=self._run,
@@ -192,6 +195,7 @@ class BingSTTClient:
             if worker.is_alive():
                 worker.join()
         with self._lock:
+            self._pending_audio = None
             if self._worker_thread is worker and worker is not None and not worker.is_alive():
                 self._worker_thread = None
 
@@ -251,7 +255,9 @@ class BingSTTClient:
                     generation,
                     "bing_connection_closed" if connected_once else "bing_connection_failed",
                 )
-                self._clear_audio_queue()
+                # Capture continues during connection setup/recovery. Keep the
+                # bounded queue and failed send so reconnect does not discard
+                # the beginning of speech captured during the handshake.
                 if self._stop_event.wait(self.reconnect_delay):
                     return
             finally:
@@ -320,10 +326,12 @@ class BingSTTClient:
         for _ in range(16):
             if not self._is_current(generation):
                 return
-            try:
-                queued = self._audio_queue.get_nowait()
-            except Empty:
-                return
+            if self._pending_audio is None:
+                try:
+                    self._pending_audio = self._audio_queue.get_nowait()
+                except Empty:
+                    return
+            queued = self._pending_audio
             if isinstance(queued, tuple):
                 payload, captured_at_monotonic = queued
             else:  # pragma: no cover - compatibility with an older queue entry
@@ -337,6 +345,7 @@ class BingSTTClient:
                     stream_id=str(self._stream_id),
                 )
             )
+            self._pending_audio = None
             self._bytes_sent += len(payload)
             details = {"sent_bytes": len(payload)}
             if captured_at_monotonic is not None:
@@ -382,7 +391,8 @@ class BingSTTClient:
             self._send_continuation(connection)
 
     def _send_continuation(self, connection: Any) -> None:
-        self._stream_id += 1
+        # This is a continuation of the same audio stream, not a new channel.
+        # speech.context declares stream 1; WAV and PCM must use that same ID.
         self._request_id = uuid.uuid4().hex
         bytes_per_second = self.sample_rate * self.channels * (self.bits_per_sample / 8)
         offset_100ns = int((self._bytes_sent / bytes_per_second) * 10_000_000)

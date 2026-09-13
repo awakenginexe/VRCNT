@@ -24,7 +24,7 @@ class TelemetryCore:
         except Exception:
             self.client = None
     
-    async def start(self, app_version: str = "5.15.4"):
+    async def start(self, app_version: str = "5.16.0"):
         """Aptabase クライアント開始"""
         if self.client is None:
             return
