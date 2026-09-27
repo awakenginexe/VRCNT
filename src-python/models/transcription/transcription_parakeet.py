@@ -182,19 +182,45 @@ class ParakeetRecognizer:
     def __init__(self, model_dir: str, device: str = "cuda", device_index: int = 0) -> None:
         if not _ONNX_ASR_AVAILABLE:
             raise RuntimeError("onnx-asr is not installed")
+        self.requested_device = device
+        self.device_index = device_index
         providers: List = []
         if device == "cuda":
             providers.append(("CUDAExecutionProvider", {"device_id": device_index}))
         providers.append("CPUExecutionProvider")
         self.model = onnx_asr.load_model("nemo-parakeet-tdt-0.6b-v3", path=model_dir, providers=providers)
+        asr = getattr(self.model, "asr", None)
+        core_sessions = {
+            name: getattr(asr, name, None)
+            for name in ("_encoder", "_decoder_joint")
+        }
+        self.core_providers = {
+            name: tuple(session.get_providers())
+            for name, session in core_sessions.items()
+            if callable(getattr(session, "get_providers", None))
+        }
+        if device == "cuda" and self.core_providers:
+            missing = [
+                name for name, active in self.core_providers.items()
+                if "CUDAExecutionProvider" not in active
+            ]
+            if missing:
+                raise RuntimeError(
+                    "Parakeet CPU fallback on core session(s): " + ", ".join(missing)
+                )
+            self.provider_status = (
+                "cuda_attached" if len(self.core_providers) == len(core_sessions)
+                else "unverified"
+            )
+        elif device == "cuda":
+            self.provider_status = "unverified"
+        else:
+            self.provider_status = "cpu_attached" if self.core_providers else "unverified"
 
     def transcribe(self, audio: np.ndarray, sample_rate: int = 16000) -> str:
         """Run inference over a 1-D float32 PCM array."""
-        try:
-            waveform = audio.astype(np.float32, copy=False).flatten()
-            return str(self.model.recognize(waveform, sample_rate=sample_rate)).strip()
-        except Exception:
-            return ""
+        waveform = audio.astype(np.float32, copy=False).flatten()
+        return str(self.model.recognize(waveform, sample_rate=sample_rate)).strip()
 
 
 def getParakeetModel(
@@ -210,6 +236,12 @@ def getParakeetModel(
         return ParakeetRecognizer(path, device=device, device_index=device_index)
     except RuntimeError as e:
         msg = str(e)
-        if "CUDA" in msg or "out of memory" in msg.lower():
+        lower = msg.lower()
+        if any(signature in lower for signature in (
+            "cuda out of memory",
+            "cuda_error_out_of_memory",
+            "cudaerrormemoryallocation",
+            "cublas_status_alloc_failed",
+        )):
             raise ValueError("VRAM_OUT_OF_MEMORY", msg)
         raise

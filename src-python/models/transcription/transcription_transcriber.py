@@ -787,6 +787,10 @@ class AudioTranscriber:
                         if result_text:
                             primary = languages[0] if languages else None
                             confidences.append({"confidence": 1.0, "text": result_text, "language": primary})
+                        else:
+                            self.clearLiveAudioSample()
+                            emit_terminal_metric("skipped", "transcription_no_speech")
+                            return False
                 case "SenseVoice":
                     if self.sensevoice_model is None:
                         pass

@@ -911,6 +911,25 @@ class TranscriberPipelineTests(unittest.TestCase):
             [("error", "transcription_languages_unavailable")],
         )
 
+    def test_parakeet_empty_result_is_no_speech(self):
+        events = []
+        transcriber = make_non_whisper_transcriber("Parakeet", events, [])
+        transcriber.parakeet_model = SimpleNamespace(
+            transcribe=lambda *_args, **_kwargs: ""
+        )
+        result = transcriber.transcribeAudioQueue(
+            queue_with(
+                AudioChunk(pcm(100), datetime.now(timezone.utc), time.perf_counter())
+            ),
+            ["English"],
+            ["United States"],
+        )
+        self.assertFalse(result)
+        self.assertEqual(
+            [(event.outcome, event.error_code) for event in events if event.stage == "transcription" and event.outcome != "running"],
+            [("skipped", "transcription_no_speech")],
+        )
+
     def test_each_non_whisper_engine_exception_is_terminal_error(self):
         cases = (
             (
