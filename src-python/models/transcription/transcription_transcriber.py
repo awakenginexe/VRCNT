@@ -62,8 +62,9 @@ def _getVoskHelpers():
 
 
 def _getParakeetHelpers():
-    module = importlib.import_module(".transcription_parakeet", __package__)
-    return module.getParakeetModel, module.checkParakeetWeight
+    catalog = importlib.import_module(".transcription_parakeet", __package__)
+    runtime = importlib.import_module(".parakeet_runtime", __package__)
+    return runtime.acquireParakeetModel, catalog.checkParakeetWeight
 
 
 def _getSenseVoiceHelpers():
@@ -203,6 +204,7 @@ class AudioTranscriber:
                 self.transcription_engine = "Parakeet"
             except Exception:
                 errorLogging()
+                raise
         elif transcription_engine == "SenseVoice" and sensevoice_weight_type and checkSenseVoiceWeight(root, sensevoice_weight_type) is True:
             try:
                 self.sensevoice_model = getSenseVoiceModel(
@@ -1001,3 +1003,10 @@ class AudioTranscriber:
         self.audio_sources["last_audio_received_monotonic"] = None
         self.audio_sources["new_phrase"] = True
         self.audio_sources["phrase_started_at_monotonic"] = None
+
+    def close(self) -> None:
+        parakeet_model = self.parakeet_model
+        self.parakeet_model = None
+        close = getattr(parakeet_model, "close", None)
+        if callable(close):
+            close()

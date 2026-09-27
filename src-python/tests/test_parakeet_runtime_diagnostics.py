@@ -10,6 +10,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from models.transcription import transcription_parakeet as parakeet
+from models.transcription import transcription_transcriber as transcriber_module
 
 
 class Session:
@@ -63,6 +64,22 @@ class ParakeetRuntimeDiagnosticsTests(unittest.TestCase):
             recognizer = parakeet.ParakeetRecognizer("model", device="cpu")
         with self.assertRaisesRegex(RuntimeError, "inference failed"):
             recognizer.transcribe(np.zeros(160, dtype=np.float32))
+
+    def test_transcriber_reports_parakeet_load_failure(self):
+        source = types.SimpleNamespace(SAMPLE_RATE=16000, SAMPLE_WIDTH=2, channels=1)
+        def fail_load(*_args, **_kwargs):
+            raise RuntimeError("CUDA DLL initialization failed")
+
+        with patch.object(
+            transcriber_module, "_getParakeetHelpers",
+            return_value=(fail_load, lambda *_args: True),
+        ), patch.object(transcriber_module, "errorLogging"):
+            with self.assertRaisesRegex(RuntimeError, "CUDA DLL initialization failed"):
+                transcriber_module.AudioTranscriber(
+                    speaker=False, source=source, phrase_timeout=3, max_phrases=10,
+                    transcription_engine="Parakeet", root="root",
+                    parakeet_weight_type="parakeet-v3", device="cuda",
+                )
 
 
 if __name__ == "__main__":
