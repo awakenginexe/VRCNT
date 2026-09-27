@@ -9,7 +9,7 @@ from datetime import datetime
 from queue import Empty, Full
 import audioop
 import logging
-from threading import Event, Lock, Thread, current_thread
+from threading import BoundedSemaphore, Condition, Event, Lock, Thread, current_thread
 import time
 from typing import Any
 
@@ -26,6 +26,8 @@ from models.pipeline.pipeline_types import AudioChunk
 
 
 logger = logging.getLogger(__name__)
+AUDIO_OPEN_TIMEOUT_SECONDS = 8.0
+_audio_open_slot = BoundedSemaphore(1)
 
 
 class _LockedPortAudioStream:
@@ -33,10 +35,25 @@ class _LockedPortAudioStream:
 
     def __init__(self, stream: Any) -> None:
         self._stream = stream
+        self._condition = Condition()
+        self._stop_lock = Lock()
+        self._close_lock = Lock()
+        self._active_reads = 0
+        self._stop_requested = False
+        self._native_stopped = False
+        self._closed = False
 
     def read(self, *args: Any, **kwargs: Any) -> Any:
-        with audio_api_lock:
+        with self._condition:
+            if self._stop_requested or self._closed:
+                raise OSError("Audio stream is stopping")
+            self._active_reads += 1
+        try:
             return self._stream.read(*args, **kwargs)
+        finally:
+            with self._condition:
+                self._active_reads -= 1
+                self._condition.notify_all()
 
     def get_read_available(self) -> Any:
         with audio_api_lock:
@@ -47,12 +64,26 @@ class _LockedPortAudioStream:
             return self._stream.is_stopped()
 
     def stop_stream(self) -> Any:
-        with audio_api_lock:
-            return self._stream.stop_stream()
+        with self._stop_lock:
+            with self._condition:
+                self._stop_requested = True
+            if not self._native_stopped:
+                result = self._stream.stop_stream()
+                self._native_stopped = True
+                return result
 
     def close(self) -> Any:
-        with audio_api_lock:
-            return self._stream.close()
+        with self._close_lock:
+            if self._closed:
+                return None
+            self.stop_stream()
+            with self._condition:
+                while self._active_reads:
+                    self._condition.wait()
+            with audio_api_lock:
+                result = self._stream.close()
+            self._closed = True
+            return result
 
 
 class SharedMicrophone(_SpeechRecognitionMicrophone):
@@ -108,6 +139,8 @@ class SharedMicrophone(_SpeechRecognitionMicrophone):
         self.channels = channels
         self.audio = None
         self.stream = None
+        self._stream_closed = Event()
+        self._stream_closed.set()
 
     def __enter__(self):
         assert self.stream is None, (
@@ -137,6 +170,7 @@ class SharedMicrophone(_SpeechRecognitionMicrophone):
                 self.stream = _SpeechRecognitionMicrophone.MicrophoneStream(
                     _LockedPortAudioStream(raw_stream)
                 )
+                self._stream_closed.clear()
         except Exception:
             self.audio = None
             self.stream = None
@@ -149,6 +183,15 @@ class SharedMicrophone(_SpeechRecognitionMicrophone):
         finally:
             self.stream = None
             self.audio = None
+            self._stream_closed.set()
+
+    def request_stop_stream(self) -> None:
+        stream = self.stream
+        if stream is not None:
+            stream.pyaudio_stream.stop_stream()
+
+    def wait_for_stream_close(self, timeout: float) -> bool:
+        return self._stream_closed.wait(timeout)
 
 
 # Keep the existing constructor seam used by tests and all recorder classes.
@@ -165,10 +208,13 @@ def _validate_audio_source(source: Any) -> Any:
     error. Probe the source before handing it to that listener, and never call
     ``__exit__`` for a source that did not open.
     """
-    source.__enter__()
-    if getattr(source, "stream", None) is None:
-        raise OSError("Audio device could not be opened")
-    source.__exit__(None, None, None)
+    try:
+        source.__enter__()
+        if getattr(source, "stream", None) is None:
+            raise OSError("Audio device could not be opened")
+    finally:
+        if getattr(source, "stream", None) is not None:
+            source.__exit__(None, None, None)
     return source
 
 
@@ -177,15 +223,42 @@ def _create_microphone(
     **device_kwargs: Any,
 ) -> Any:
     """Create a validated selected source, then try its safe fallback."""
-    try:
-        return _validate_audio_source(Microphone(**device_kwargs))
-    except Exception:
+    deadline = time.monotonic() + AUDIO_OPEN_TIMEOUT_SECONDS
+    if not _audio_open_slot.acquire(timeout=AUDIO_OPEN_TIMEOUT_SECONDS):
+        raise TimeoutError("Audio device open is still pending")
+    done = Event()
+    abandoned = Event()
+    result: dict[str, Any] = {}
+
+    def open_source() -> None:
         try:
-            return _validate_audio_source(Microphone(**fallback_kwargs))
-        except Exception as fallback_error:
-            raise OSError(
-                "Selected and default audio devices could not be opened"
-            ) from fallback_error
+            try:
+                source = _validate_audio_source(Microphone(**device_kwargs))
+            except Exception:
+                if abandoned.is_set():
+                    return
+                try:
+                    source = _validate_audio_source(Microphone(**fallback_kwargs))
+                except Exception as fallback_error:
+                    result["error"] = OSError(
+                        "Selected and default audio devices could not be opened"
+                    )
+                    result["error"].__cause__ = fallback_error
+                else:
+                    result["source"] = source
+            else:
+                result["source"] = source
+        finally:
+            _audio_open_slot.release()
+            done.set()
+
+    Thread(target=open_source, name="audio-device-open", daemon=True).start()
+    if not done.wait(max(0, deadline - time.monotonic())):
+        abandoned.set()
+        raise TimeoutError("Audio device open timed out")
+    if "error" in result:
+        raise result["error"]
+    return result["source"]
 
 
 def _offer_audio(audio_queue: Any, chunk: AudioChunk, on_drop=None) -> bool:
@@ -227,6 +300,30 @@ def _offer_audio(audio_queue: Any, chunk: AudioChunk, on_drop=None) -> bool:
     return accepted
 
 
+def _unblocking_stopper(source: Any, stop: Any, resume: Any) -> Any:
+    if not callable(stop):
+        return stop
+
+    def stopper(wait_for_stop: bool = True) -> None:
+        try:
+            if callable(resume):
+                resume()
+            request_stop = getattr(source, "request_stop_stream", None)
+            if callable(request_stop):
+                request_stop()
+        except Exception:
+            logger.exception("Could not interrupt audio stream before listener stop")
+        wait_closed = getattr(source, "wait_for_stream_close", None)
+        if callable(wait_closed):
+            stop(wait_for_stop=False)
+            if wait_for_stop and not wait_closed(2.0):
+                raise TimeoutError("Audio listener did not close after stream stop")
+        else:
+            stop(wait_for_stop=wait_for_stop)
+
+    return stopper
+
+
 class BaseRecorder:
     def __init__(self, source: Any, energy_threshold: int, dynamic_energy_threshold: bool, record_timeout: int) -> None:
         self.recorder = Recognizer()
@@ -264,6 +361,7 @@ class BaseRecorder:
                 on_heartbeat(captured_at)
 
         self.stop, self.pause, self.resume = self.recorder.listen_in_background(self.source, record_callback, phrase_time_limit=self.record_timeout)
+        self.stop = _unblocking_stopper(self.source, self.stop, self.resume)
 
 
 class SelectedMicRecorder(BaseRecorder):
@@ -311,6 +409,7 @@ class BaseEnergyRecorder:
             energy_queue.put(energy)
 
         self.stop, self.pause, self.resume = self.recorder.listen_energy_in_background(self.source, recordCallback)
+        self.stop = _unblocking_stopper(self.source, self.stop, self.resume)
 
 
 class SelectedMicEnergyRecorder(BaseEnergyRecorder):
@@ -410,6 +509,7 @@ class BaseEnergyAndAudioRecorder:
             phrase_timeout=self.phrase_timeout,
             record_timeout=self.record_timeout,
         )
+        self.stop = _unblocking_stopper(self.source, self.stop, self.resume)
 
 
 class SelectedMicEnergyAndAudioRecorder(BaseEnergyAndAudioRecorder):
@@ -562,7 +662,8 @@ class BingRealtimeAudioRecorder:
     ) -> None:
         if not callable(on_audio):
             raise TypeError("Bing audio callback must be callable")
-        self.stop()
+        if self.stop() is False:
+            raise TimeoutError("Previous Bing audio capture is still active")
         with self._lock:
             self._stop_event = Event()
             self._pause_event = Event()
@@ -579,18 +680,26 @@ class BingRealtimeAudioRecorder:
             self._worker_thread = worker
         worker.start()
 
-    def stop(self) -> None:
+    def stop(self) -> bool:
         with self._lock:
             stop_event = self._stop_event
             worker = self._worker_thread
             stop_event.set()
+        request_stop = getattr(self.source, "request_stop_stream", None)
+        if callable(request_stop):
+            try:
+                request_stop()
+            except Exception:
+                logger.exception("Could not interrupt Bing audio stream")
         if worker is not None and worker is not current_thread():
             worker.join(timeout=2.0)
             if worker.is_alive():
-                worker.join()
+                logger.warning("Bing audio capture did not stop within 2 seconds")
+                return False
         with self._lock:
             if self._worker_thread is worker and worker is not None and not worker.is_alive():
                 self._worker_thread = None
+        return True
 
     close = stop
 
