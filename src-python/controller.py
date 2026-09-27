@@ -80,6 +80,7 @@ from models.pipeline.pipeline_types import (
 )
 from models.pipeline.manual_translation_retry import ManualTranslationRetryCoordinator
 from models.pipeline.latest_queue import LatestQueue, QueueClosed
+from models.pipeline.benchmark_metrics import record_pipeline_benchmark_metric
 from resource_usage import collect_resource_usage
 
 _RUNTIME_ACTIVATION_ARGUMENTS = (
@@ -879,6 +880,7 @@ class Controller:
         }
 
     def _emitPipelineStatus(self, event: PipelineStatusEvent) -> None:
+        record_pipeline_benchmark_metric(event)
         self.run(
             200,
             self.run_mapping.get("pipeline_status", "/run/pipeline_status"),
