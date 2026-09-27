@@ -450,7 +450,9 @@ class BaseEnergyAndAudioRecorder:
         self.recorder.dynamic_energy_threshold = dynamic_energy_threshold
         self.phrase_time_limit = phrase_time_limit
         self.phrase_timeout = phrase_timeout
-        self.record_timeout = record_timeout
+        # The pinned fork now enforces this limit. Zero is the existing
+        # unlimited-recording setting, so do not pass it as an immediate limit.
+        self.record_timeout = float("inf") if record_timeout <= 0 else record_timeout
         self.stop = None
 
         if source is None:
