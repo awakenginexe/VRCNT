@@ -4,6 +4,7 @@ import threading
 import time
 import unittest
 from collections import deque
+from dataclasses import replace
 from unittest.mock import patch
 
 
@@ -278,6 +279,22 @@ class ControlledStartThread(threading.Thread):
 
 
 class TranslationSchedulerTests(unittest.TestCase):
+    def test_final_output_reports_latency_from_last_captured_audio_chunk(self):
+        recorder = Recorder()
+        pipeline = self.make_pipeline(ScriptedTranslator(), recorder)
+        trace = replace(
+            make_trace("timed", providers=("CTranslate2",)),
+            speech_ended_at_monotonic=time.monotonic() - 0.5,
+        )
+        self.assertTrue(pipeline.submit_trace(trace))
+        self.assertTrue(recorder.wait_for(lambda: any(
+            event.trace_id == "timed" and event.stage == "output" and event.outcome == "success"
+            for event in recorder.metrics
+        )))
+        event = next(event for event in recorder.metrics if event.trace_id == "timed" and event.stage == "output" and event.outcome == "success")
+        self.assertGreaterEqual(event.speech_to_output_ms, 500)
+        self.assertEqual(event.to_payload()["speech_to_output_ms"], event.speech_to_output_ms)
+
     def make_pipeline(
         self,
         translator,

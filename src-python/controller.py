@@ -764,6 +764,7 @@ class Controller:
             context_history=tuple(deepcopy(model.getTranslationHistory())),
             started_at_monotonic=result.get("started_at_monotonic", monotonic()),
             output_config=output_config,
+            speech_ended_at_monotonic=result.get("speech_ended_at_monotonic"),
         )
         return bool(pipeline.submit_trace(trace))
 

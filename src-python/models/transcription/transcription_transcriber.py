@@ -886,6 +886,7 @@ class AudioTranscriber:
         result["started_at_monotonic"] = self.audio_sources[
             "phrase_started_at_monotonic"
         ]
+        result["speech_ended_at_monotonic"] = final_chunk.captured_at_monotonic
         if not self._isGenerationCurrent():
             return True
         emit_terminal_metric("success")

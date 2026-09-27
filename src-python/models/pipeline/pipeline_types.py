@@ -46,6 +46,7 @@ class PipelineStatusEvent:
     observed_at_ms: int
     error_code: Optional[str]
     audio_trimmed_ms: Optional[int] = None
+    speech_to_output_ms: Optional[int] = None
 
     def to_payload(self) -> dict[str, object]:
         payload = {
@@ -65,6 +66,8 @@ class PipelineStatusEvent:
         }
         if self.audio_trimmed_ms is not None:
             payload["audio_trimmed_ms"] = self.audio_trimmed_ms
+        if self.speech_to_output_ms is not None:
+            payload["speech_to_output_ms"] = self.speech_to_output_ms
         return payload
 
 
@@ -132,6 +135,7 @@ class TranscriptionTrace:
     context_history: tuple[dict[str, object], ...]
     started_at_monotonic: float
     output_config: OutputConfigSnapshot
+    speech_ended_at_monotonic: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -223,3 +227,4 @@ class FinalOutputTask:
     translations: tuple[TranslationUpdate, ...]
     output_config: OutputConfigSnapshot
     started_at_monotonic: float
+    speech_ended_at_monotonic: Optional[float] = None

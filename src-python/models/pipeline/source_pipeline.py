@@ -1106,6 +1106,7 @@ class SourcePipeline:
                         ),
                         output_config=record.trace.output_config,
                         started_at_monotonic=record.trace.started_at_monotonic,
+                        speech_ended_at_monotonic=record.trace.speech_ended_at_monotonic,
                     )
             if stale:
                 self._remove_record(record.trace.trace_id, record)
@@ -1166,6 +1167,10 @@ class SourcePipeline:
                 error_code = "output_error"
             finally:
                 duration_ms = max(0, round((monotonic() - task.started_at_monotonic) * 1000))
+                speech_to_output_ms = (
+                    max(0, round((monotonic() - task.speech_ended_at_monotonic) * 1000))
+                    if task.speech_ended_at_monotonic is not None else None
+                )
                 try:
                     if self._task_is_current(task):
                         self._safe_emit_metric(
@@ -1179,6 +1184,7 @@ class SourcePipeline:
                                 duration_ms=duration_ms,
                                 queue_depth=self._output_queue.qsize(),
                                 error_code=error_code,
+                                speech_to_output_ms=speech_to_output_ms,
                             )
                         )
                 finally:
@@ -1252,6 +1258,7 @@ class SourcePipeline:
         duration_ms: Optional[int],
         queue_depth: int,
         error_code: Optional[str],
+        speech_to_output_ms: Optional[int] = None,
     ) -> PipelineStatusEvent:
         with self._lifecycle_condition:
             dropped_count = self._dropped_count
@@ -1269,6 +1276,7 @@ class SourcePipeline:
             dropped_count=dropped_count,
             observed_at_ms=round(time() * 1000),
             error_code=error_code,
+            speech_to_output_ms=speech_to_output_ms,
         )
 
     def _get_record(self, trace_id: str) -> Optional[_TraceRecord]:
@@ -1300,6 +1308,7 @@ class SourcePipeline:
             ctranslate2_weight_type=trace.ctranslate2_weight_type,
             context_history=tuple(deepcopy(trace.context_history)),
             started_at_monotonic=trace.started_at_monotonic,
+            speech_ended_at_monotonic=trace.speech_ended_at_monotonic,
             output_config=deepcopy(trace.output_config),
         )
 
