@@ -11,6 +11,7 @@ The functions are defensive: failures are caught and reported by the caller.
 
 from os import path as os_path, makedirs as os_makedirs, remove as os_remove, replace as os_replace
 import importlib
+import requests
 from requests import get as requests_get
 from threading import Event
 from typing import Callable, Optional
@@ -57,6 +58,24 @@ _FILENAMES = [
 ]
 
 _REQUIRED_WHISPER_FILES = ("config.json", "model.bin", "tokenizer.json")
+_DOWNLOAD_MAX_ATTEMPTS = 3
+_DOWNLOAD_RETRY_BACKOFF_SECONDS = 0.5
+
+
+class IncompleteDownloadError(IOError):
+    pass
+
+
+def _is_retryable_download_error(error: Exception) -> bool:
+    if isinstance(error, requests.exceptions.HTTPError):
+        status = getattr(getattr(error, "response", None), "status_code", None)
+        return status in (408, 429) or isinstance(status, int) and status >= 500
+    return isinstance(error, (
+        requests.exceptions.ConnectionError,
+        requests.exceptions.Timeout,
+        requests.exceptions.ChunkedEncodingError,
+        IncompleteDownloadError,
+    ))
 
 
 def getWhisperBeamSize(profile) -> int:
@@ -168,49 +187,45 @@ def downloadFile(
         func: optional callback(progress: float) called with a 0.0-1.0 progress
     """
     temp_path = f"{path}.part"
-    target_existed_before_attempt = os_path.exists(path)
-    partial_touched_by_attempt = False
-    target_created_by_attempt = False
-    try:
-        raise_if_download_cancelled(cancel_event)
-        os_makedirs(os_path.dirname(path), exist_ok=True)
-        with requests_get(url, stream=True, timeout=(10, 120)) as res:
-            res.raise_for_status()
-            file_size = int(res.headers.get('content-length', 0))
-            total_chunk = 0
-            with open(temp_path, 'wb') as file:
-                partial_touched_by_attempt = True
-                for chunk in res.iter_content(chunk_size=1024 * 2000):
-                    raise_if_download_cancelled(cancel_event)
-                    if not chunk:
-                        continue
-                    file.write(chunk)
-                    total_chunk += len(chunk)
-                    if callable(func) and file_size:
-                        func(total_chunk / file_size)
-                    raise_if_download_cancelled(cancel_event)
-            if total_chunk <= 0:
-                raise IOError(f"Empty download for {path}")
-            if file_size and total_chunk < file_size:
-                raise IOError(f"Incomplete download for {path}: {total_chunk}/{file_size}")
-        raise_if_download_cancelled(cancel_event)
-        os_replace(temp_path, path)
-        target_created_by_attempt = not target_existed_before_attempt
-        return True
-    except DownloadCancelled:
-        if partial_touched_by_attempt:
+    for attempt in range(_DOWNLOAD_MAX_ATTEMPTS):
+        try:
+            raise_if_download_cancelled(cancel_event)
+            os_makedirs(os_path.dirname(path), exist_ok=True)
+            with requests_get(url, stream=True, timeout=(10, 120)) as res:
+                res.raise_for_status()
+                file_size = int(res.headers.get('content-length', 0))
+                total_chunk = 0
+                with open(temp_path, 'wb') as file:
+                    for chunk in res.iter_content(chunk_size=1024 * 2000):
+                        raise_if_download_cancelled(cancel_event)
+                        if not chunk:
+                            continue
+                        file.write(chunk)
+                        total_chunk += len(chunk)
+                        if callable(func) and file_size:
+                            func(total_chunk / file_size)
+                        raise_if_download_cancelled(cancel_event)
+                if total_chunk <= 0 or file_size and total_chunk < file_size:
+                    raise IncompleteDownloadError(f"Incomplete download for {path}: {total_chunk}/{file_size}")
+            raise_if_download_cancelled(cancel_event)
+            os_replace(temp_path, path)
+            return True
+        except DownloadCancelled:
             remove_incomplete_download(temp_path, False)
-        if target_created_by_attempt:
-            remove_incomplete_download(path, False)
-        return False
-    except Exception:
-        errorLogging()
-        for broken_path in (temp_path, path):
-            try:
-                remove_incomplete_download(broken_path, False)
-            except Exception:
-                pass
-        return False
+            return False
+        except Exception as error:
+            errorLogging()
+            remove_incomplete_download(temp_path, False)
+            if not _is_retryable_download_error(error) or attempt + 1 == _DOWNLOAD_MAX_ATTEMPTS:
+                return False
+            delay = _DOWNLOAD_RETRY_BACKOFF_SECONDS * (attempt + 1)
+            if cancel_event is not None:
+                if cancel_event.wait(delay):
+                    return False
+            else:
+                from time import sleep
+                sleep(delay)
+    return False
 
 def checkWhisperWeight(root: str, weight_type: str) -> bool:
     """Return True if all expected Whisper files for `weight_type` exist locally.
@@ -263,11 +278,6 @@ def downloadWhisperWeight(
                 file_path = os_path.join(path, filename)
                 if _isValidWhisperFile(file_path, filename):
                     continue
-                try:
-                    if os_path.exists(file_path):
-                        os_remove(file_path)
-                except Exception:
-                    pass
                 url = huggingface_hub.hf_hub_url(_MODELS[weight_type], filename)
                 download_result = downloadFile(
                     url,
@@ -280,7 +290,6 @@ def downloadWhisperWeight(
         raise_if_download_cancelled(cancel_event)
         return checkWhisperWeight(root, weight_type)
     except DownloadCancelled:
-        remove_incomplete_download(path, checkWhisperWeight(root, weight_type))
         return False
     finally:
         if callable(end_callback):
