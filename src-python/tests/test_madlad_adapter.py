@@ -84,7 +84,7 @@ class TestMADLADAdapter(unittest.TestCase):
 
         self.assertEqual(result, "translated")
         self.assertEqual(tokenizer.encoded_text, "<2ja> hello")
-        self.assertEqual(native_translator.calls[0][1], {})
+        self.assertEqual(native_translator.calls[0][1], {"beam_size": 2})
         self.assertEqual(native_translator.calls[0][0], [["token-1", "token-2"]])
 
 if __name__ == "__main__":

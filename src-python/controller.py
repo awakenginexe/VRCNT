@@ -5478,6 +5478,25 @@ class Controller:
     def getCtranslate2WeightType(*args, **kwargs) -> dict:
         return {"status":200, "result":config.CTRANSLATE2_WEIGHT_TYPE}
 
+    @staticmethod
+    def getCtranslate2DecodingOptions(*args, **kwargs) -> dict:
+        return {"status": 200, "result": {
+            "profile": config.CTRANSLATE2_DECODING_PROFILE,
+            "custom_beam_size": config.CTRANSLATE2_CUSTOM_BEAM_SIZE,
+        }}
+
+    def setCtranslate2DecodingOptions(self, data, *args, **kwargs) -> dict:
+        if not isinstance(data, dict):
+            return {"status": 400, "result": "expected decoding options object"}
+        profile = data.get("profile", config.CTRANSLATE2_DECODING_PROFILE)
+        custom_beam = data.get("custom_beam_size", config.CTRANSLATE2_CUSTOM_BEAM_SIZE)
+        if profile not in ("economy", "balanced") or type(custom_beam) is not int or not 0 <= custom_beam <= 16:
+            return {"status": 400, "result": "invalid local translation decoding options"}
+        model.translator.setLocalDecodingOptions(profile, custom_beam)
+        config.CTRANSLATE2_DECODING_PROFILE = profile
+        config.CTRANSLATE2_CUSTOM_BEAM_SIZE = custom_beam
+        return self.getCtranslate2DecodingOptions()
+
     def setCtranslate2WeightType(self, data, *args, **kwargs) -> dict:
         with self._quick_wake_up_lock, self._translation_activation_lock:
             requested_value = str(data)

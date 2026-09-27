@@ -710,6 +710,14 @@ def _whisper_decoding_profile_validator(val, inst):
         return profile
     return "balanced"
 
+
+def _local_translation_profile_validator(val, inst):
+    return str(val).lower() if str(val).lower() in {"economy", "balanced"} else None
+
+
+def _local_translation_beam_validator(val, inst):
+    return val if type(val) is int and 0 <= val <= 16 else None
+
 def _overlay_small_validator(val, inst):
     if not isinstance(val, dict):
         return None
@@ -1196,6 +1204,8 @@ class Config:
     SELECTED_TRANSCRIPTION_ENGINE_RECEIVE = ManagedProperty('SELECTED_TRANSCRIPTION_ENGINE_RECEIVE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_TRANSCRIPTION_ENGINE_LIST)
     USE_EXCLUDE_WORDS = ManagedProperty('USE_EXCLUDE_WORDS', type_=bool)
     CTRANSLATE2_WEIGHT_TYPE = ManagedProperty('CTRANSLATE2_WEIGHT_TYPE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_LIST)
+    CTRANSLATE2_DECODING_PROFILE = ValidatedProperty('CTRANSLATE2_DECODING_PROFILE', _local_translation_profile_validator)
+    CTRANSLATE2_CUSTOM_BEAM_SIZE = ValidatedProperty('CTRANSLATE2_CUSTOM_BEAM_SIZE', _local_translation_beam_validator)
     WHISPER_WEIGHT_TYPE = ManagedProperty('WHISPER_WEIGHT_TYPE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_WHISPER_WEIGHT_TYPE_LIST)
     WHISPER_THAI_WEIGHT_TYPE = ManagedProperty('WHISPER_THAI_WEIGHT_TYPE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_WHISPER_THAI_WEIGHT_TYPE_LIST)
     VOSK_WEIGHT_TYPE = ManagedProperty('VOSK_WEIGHT_TYPE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_VOSK_WEIGHT_TYPE_LIST)
@@ -1488,6 +1498,8 @@ class Config:
         self._SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_SEND = copy.deepcopy(self._SELECTED_TRANSCRIPTION_COMPUTE_DEVICE)
         self._SELECTED_TRANSCRIPTION_COMPUTE_DEVICE_RECEIVE = copy.deepcopy(self._SELECTED_TRANSCRIPTION_COMPUTE_DEVICE)
         self._CTRANSLATE2_WEIGHT_TYPE = "m2m100_418M-ct2-int8"
+        self._CTRANSLATE2_DECODING_PROFILE = "balanced"
+        self._CTRANSLATE2_CUSTOM_BEAM_SIZE = 0
         self._SELECTED_PLAMO_MODEL = None
         self._SELECTED_GEMINI_MODEL = None
         self._SELECTED_OPENAI_MODEL = None

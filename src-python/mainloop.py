@@ -271,6 +271,8 @@ mapping = {
 
     "/get/data/selected_ctranslate2_weight_type": {"status": True, "variable":controller.getCtranslate2WeightType},
     "/set/data/selected_ctranslate2_weight_type": {"status": True, "variable":controller.setCtranslate2WeightType},
+    "/get/data/ctranslate2_decoding_options": {"status": True, "variable":controller.getCtranslate2DecodingOptions},
+    "/set/data/ctranslate2_decoding_options": {"status": True, "variable":controller.setCtranslate2DecodingOptions},
 
     "/get/data/selected_translation_compute_type": {"status": True, "variable":controller.getSelectedTranslationComputeType},
     "/set/data/selected_translation_compute_type": {"status": True, "variable":controller.setSelectedTranslationComputeType},

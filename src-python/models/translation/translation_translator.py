@@ -74,6 +74,13 @@ def _getWebTranslator():
         return None
 
 
+def local_translation_beam_size(profile: str, custom_beam_size: int) -> int:
+    """Keep CTranslate2 4.8.1's previous beam=2 unless explicitly changed."""
+    if isinstance(custom_beam_size, int) and not isinstance(custom_beam_size, bool) and 1 <= custom_beam_size <= 16:
+        return custom_beam_size
+    return 1 if profile == "economy" else 2
+
+
 def _getRelativeClientModule(module_name: str):
     try:
         return importlib.import_module(f".{module_name}", __package__)
@@ -114,6 +121,8 @@ class Translator:
         self._ctranslate2_active_calls = 0
         self._ctranslate2_transitioning = False
         self._ctranslate2_tokenizer_lock = Lock()
+        self._local_decoding_profile = "balanced"
+        self._local_custom_beam_size = 0
         self._web_translator = None
         self.is_enable_translators: bool = True
         self._provider_cooldown_lock = Lock()
@@ -772,6 +781,15 @@ class Translator:
     def setChangedTranslatorParameters(self, is_changed: bool) -> None:
         self.is_changed_translator_parameters = is_changed
 
+    def setLocalDecodingOptions(self, profile: str, custom_beam_size: int = 0) -> None:
+        if profile not in ("economy", "balanced"):
+            raise ValueError("unknown local translation decoding profile")
+        if not isinstance(custom_beam_size, int) or isinstance(custom_beam_size, bool) or not 0 <= custom_beam_size <= 16:
+            raise ValueError("custom local translation beam must be 0 or 1..16")
+        with self._ctranslate2_tokenizer_lock:
+            self._local_decoding_profile = profile
+            self._local_custom_beam_size = custom_beam_size
+
     @staticmethod
     def get_ctranslate2_model_family(weight_type: str) -> str | None:
         """Get the model family for a CTranslate2 weight type.
@@ -807,6 +825,9 @@ class Translator:
         result: Any = False
         try:
             with self._ctranslate2_tokenizer_lock:
+                beam_size = local_translation_beam_size(
+                    self._local_decoding_profile, self._local_custom_beam_size
+                )
                 # Get model family to determine encoding strategy
                 family = self.get_ctranslate2_model_family(weight_type)
 
@@ -819,6 +840,7 @@ class Translator:
                     results = native_translator.translate_batch(
                         [source_tokens],
                         target_prefix=[target_prefix],
+                        beam_size=beam_size,
                     )
                     # M2M100 output starts with target token; remove it
                     decoded_hypothesis = results[0].hypotheses[0][1:]
@@ -838,6 +860,7 @@ class Translator:
                     results = native_translator.translate_batch(
                         [source_tokens],
                         target_prefix=[target_prefix],
+                        beam_size=beam_size,
                     )
                     # NLLB output includes target token at start; remove it
                     decoded_hypothesis = [
@@ -857,7 +880,7 @@ class Translator:
                     )
 
                     # No target prefix for MADLAD - it's embedded in source instruction
-                    results = native_translator.translate_batch([source_tokens])
+                    results = native_translator.translate_batch([source_tokens], beam_size=beam_size)
 
                     # MADLAD outputs full translated sequence (no [1:] slicing)
                     target = results[0].hypotheses[0]

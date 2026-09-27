@@ -290,6 +290,10 @@ class Model:
         self.previous_send_message = ""
         self.previous_receive_message = ""
         self.translator = Translator()
+        self.translator.setLocalDecodingOptions(
+            getattr(config, "CTRANSLATE2_DECODING_PROFILE", "balanced"),
+            getattr(config, "CTRANSLATE2_CUSTOM_BEAM_SIZE", 0),
+        )
         self._translation_round_robin_indexes: dict[tuple[str, ...], int] = {}
         self._translation_round_robin_lock = RLock()
         self.keyword_processor = KeywordProcessor()
