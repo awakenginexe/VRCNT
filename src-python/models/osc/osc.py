@@ -8,11 +8,14 @@ available.
 """
 
 import time
+import logging
 from typing import Any, Callable, Dict, Optional
 from time import sleep
-from threading import Thread
+from threading import Event, Lock, Thread
 from pythonosc import udp_client, dispatcher, osc_server
 from models.osc.chatbox_dispatcher import ChatboxDispatcher
+
+logger = logging.getLogger(__name__)
 try:
     from tinyoscquery.queryservice import OSCQueryService
     from tinyoscquery.query import OSCQueryBrowser, OSCQueryClient
@@ -65,6 +68,9 @@ class OSCHandler:
         self.osc_server_port: Optional[int] = None
         self.dict_filter_and_target: Dict[str, Callable] = {}
         self.browser = None
+        self.osc_query_failure: Optional[str] = None
+        self._state_lock = Lock()
+        self._retry_cancel = Event()
         self._chatbox_dispatcher = ChatboxDispatcher(
             self._sendMessageNow,
             send_with_metadata=self._sendMessageWithMetadata,
@@ -79,15 +85,20 @@ class OSCHandler:
         self.is_osc_query_enabled = ip_address in ["127.0.0.1", "localhost"]
 
         self.oscServerStop()
+        previous_client = self.udp_client
         self.osc_ip_address = ip_address
+        self.osc_server_ip_address = ip_address
         self.udp_client = udp_client.SimpleUDPClient(self.osc_ip_address, self.osc_port)
+        previous_client._sock.close()
         self.receiveOscParameters()
 
     def setOscPort(self, port: int) -> None:
         """Change the OSC UDP port used for sending and reinitialize services."""
         self.oscServerStop()
+        previous_client = self.udp_client
         self.osc_port = port
         self.udp_client = udp_client.SimpleUDPClient(self.osc_ip_address, self.osc_port)
+        previous_client._sock.close()
         self.receiveOscParameters()
 
     # send OSC message typing
@@ -192,48 +203,94 @@ class OSCHandler:
             # OSCQuery が無効またはライブラリが無い場合は何もしない
             return
 
-        self.osc_server_port = get_open_udp_port()
-        self.http_port = get_open_tcp_port()
+        self.oscServerStop()
+        retry_cancel = Event()
+        osc_server_port = get_open_udp_port()
+        http_port = get_open_tcp_port()
         osc_dispatcher = dispatcher.Dispatcher()
         for filter, target in self.dict_filter_and_target.items():
             osc_dispatcher.map(filter, target)
-        self.osc_server = osc_server.ThreadingOSCUDPServer((self.osc_server_ip_address, self.osc_server_port), osc_dispatcher)
-        Thread(target=self.oscServerServe, daemon=True).start()
+        with self._state_lock:
+            self._retry_cancel = retry_cancel
+            self.osc_server_port = osc_server_port
+            self.http_port = http_port
+            self.osc_query_failure = None
+            server = osc_server.ThreadingOSCUDPServer((self.osc_server_ip_address, osc_server_port), osc_dispatcher)
+            self.osc_server = server
+            Thread(target=self.oscServerServe, args=(server,), daemon=True).start()
 
-        while True:
+        for attempt in range(5):
+            if retry_cancel.is_set():
+                return
+            service = OSCQueryService.__new__(OSCQueryService)
             try:
                 # osc_server_name + UTC timestamp でユニークなサービス名を生成
                 service_name = f"{self.osc_query_service_name}:{int(time.time())}"
-                self.osc_query_service = OSCQueryService(service_name, self.http_port, self.osc_server_port)
+                OSCQueryService.__init__(service, service_name, http_port, osc_server_port)
                 for filter, target in self.dict_filter_and_target.items():
                     # OSCAccess may be None when tinyoscquery is not present; guard
                     if OSCAccess is not None:
-                        self.osc_query_service.advertise_endpoint(filter, access=OSCAccess.READWRITE_VALUE)
-                break
-            except Exception:
+                        service.advertise_endpoint(filter, access=OSCAccess.READWRITE_VALUE)
+                with self._state_lock:
+                    if not retry_cancel.is_set() and self._retry_cancel is retry_cancel:
+                        self.osc_query_service = service
+                        return
+                self._close_query_service(service)
+                return
+            except Exception as exc:
                 errorLogging()
-                sleep(1)
+                self._close_query_service(service)
+                if retry_cancel.is_set():
+                    return
+                if attempt == 4:
+                    with self._state_lock:
+                        if self._retry_cancel is retry_cancel:
+                            self.osc_query_failure = f"OSCQuery unavailable after 5 attempts: {exc}"
+                    logger.warning("%s; ordinary OSC remains available", self.osc_query_failure)
+                    return
+                retry_cancel.wait(1)
 
-    def oscServerServe(self) -> None:
+    def oscServerServe(self, server=None) -> None:
         """Run the OSC server loop with a longer poll interval to reduce CPU."""
-        # ポーリング間隔を長くして（2秒から10秒に）CPUの使用率を削減
-        if self.osc_server is not None:
-            self.osc_server.serve_forever(10)
+        server = server if server is not None else self.osc_server
+        if server is not None:
+            server.serve_forever(0.5)
+
+    @staticmethod
+    def _close_query_service(service) -> None:
+        if service is None:
+            return
+        http_server = getattr(service, "http_server", None)
+        if http_server is not None:
+            try:
+                http_thread = getattr(service, "http_thread", None)
+                if http_thread is not None and http_thread.is_alive():
+                    http_server.shutdown()
+                http_server.server_close()
+            except Exception:
+                logger.exception("Could not close OSCQuery HTTP server")
+        zeroconf = getattr(service, "_zeroconf", None)
+        if zeroconf is not None:
+            try:
+                zeroconf.close()
+            except Exception:
+                logger.exception("Could not close OSCQuery discovery")
 
     def oscServerStop(self) -> None:
         """Stop and clean up any running OSC server and OSCQuery service."""
-        if isinstance(self.osc_server, osc_server.ThreadingOSCUDPServer):
-            try:
-                self.osc_server.shutdown()
-            except Exception:
-                pass
+        with self._state_lock:
+            self._retry_cancel.set()
+            server = self.osc_server
             self.osc_server = None
-        if OSCQueryService is not None and isinstance(self.osc_query_service, OSCQueryService):
-            try:
-                self.osc_query_service.http_server.shutdown()
-            except Exception:
-                pass
+            service = self.osc_query_service
             self.osc_query_service = None
+        if server is not None:
+            try:
+                server.shutdown()
+                server.server_close()
+            except Exception:
+                logger.exception("Could not close OSC server")
+        self._close_query_service(service)
         # browser がある場合はクリーンアップ
         if self.browser is not None:
             try:
