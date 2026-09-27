@@ -17,6 +17,7 @@ from time import monotonic, time
 from typing import Callable, Optional
 
 from .latest_queue import LatestQueue, QueueClosed
+from .local_translation_queue import shared_local_translation_queue
 from .pipeline_types import (
     FinalOutputTask,
     PipelineSource,
@@ -103,6 +104,7 @@ class SourcePipeline:
         self._rotate_providers = rotate_providers or (lambda providers: providers)
         self._local_fallback_enabled = local_fallback_enabled or (lambda: False)
         self._prepare_local_fallback = prepare_local_fallback or (lambda: None)
+        self._local_translation_queue = None
 
         self._translation_queue: LatestQueue[TranslationJob] = LatestQueue(
             MAX_TRANSLATION_JOBS_PER_SOURCE
@@ -257,6 +259,24 @@ class SourcePipeline:
             if translation_thread is not current_thread():
                 translation_thread.join()
 
+        local_queue = self._local_translation_queue
+        if local_queue is not None:
+            cancelled = local_queue.cancel_owner(self)
+            for job in cancelled:
+                self._safe_emit_metric(self._metric(
+                    trace_id=job.trace_id,
+                    stage="translation",
+                    engine="CTranslate2",
+                    target_slot=job.target.target_slot,
+                    outcome="cancelled",
+                    queue_age_ms=max(0, round((monotonic() - job.enqueued_at_monotonic) * 1000)),
+                    duration_ms=0,
+                    queue_depth=local_queue.pending_count(self.source),
+                    error_code="translation_generation_cancelled",
+                ))
+            if local_queue.worker_thread is not current_thread():
+                local_queue.wait_owner_idle(self)
+
         # No translation producer remains after this point, so draining and
         # adding the wake sentinel cannot race with a stale final-task put.
         if discard_pending:
@@ -287,9 +307,11 @@ class SourcePipeline:
             self._finish_stop_if_workers_exited_locked()
 
     def _is_worker_thread(self, thread: Thread) -> bool:
+        local_queue = self._local_translation_queue
         return (
             thread is self._output_thread
             or thread in self._translation_threads
+            or (local_queue is not None and thread is local_queue.worker_thread)
         )
 
     def _finish_stop_if_workers_exited_locked(self) -> None:
@@ -549,7 +571,7 @@ class SourcePipeline:
             )
         )
 
-    def _drop_waiting_job(self, job: TranslationJob, queue_depth: int) -> bool:
+    def _drop_waiting_job(self, job: TranslationJob, queue_depth: int, error_code: str = "translation_queue_overload") -> bool:
         with self._lifecycle_condition:
             self._dropped_count += 1
         record = self._get_record(job.trace_id)
@@ -567,7 +589,7 @@ class SourcePipeline:
             transliteration=(),
             duration_ms=0,
             queue_position=0,
-            error_code="translation_queue_overload",
+            error_code=error_code,
         )
         return self._publish_terminal(record, job, update, queue_depth=queue_depth)
 
@@ -729,10 +751,17 @@ class SourcePipeline:
             retry_after_seconds=retry_after_seconds,
         )
 
-    def _run_translation_job(self, record: _TraceRecord, job: TranslationJob) -> None:
-        providers = list(job.providers[:1])
+    def _run_translation_job(
+        self,
+        record: _TraceRecord,
+        job: TranslationJob,
+        *,
+        providers_override: Optional[tuple[str, ...]] = None,
+        local_owned: bool = False,
+    ) -> None:
+        providers = list(providers_override if providers_override is not None else job.providers[:1])
         try:
-            use_local_fallback = self._local_fallback_enabled()
+            use_local_fallback = providers_override is None and self._local_fallback_enabled()
         except Exception:
             use_local_fallback = False
         if (
@@ -780,6 +809,28 @@ class SourcePipeline:
                 continue
             if not self._job_is_current(record, job):
                 self._remove_record(job.trace_id, record)
+                return
+
+            if provider == "CTranslate2" and not local_owned:
+                local_queue = shared_local_translation_queue()
+                self._local_translation_queue = local_queue
+                remaining_providers = tuple(providers[provider_index:])
+                offered = local_queue.offer(
+                    self.source,
+                    self,
+                    job,
+                    lambda: self._run_translation_job(
+                        record, job,
+                        providers_override=remaining_providers,
+                        local_owned=True,
+                    ),
+                )
+                if not offered:
+                    self._drop_waiting_job(
+                        job,
+                        local_queue.pending_count(self.source),
+                        "local_translation_queue_overload",
+                    )
                 return
 
             sending = TranslationUpdate(
