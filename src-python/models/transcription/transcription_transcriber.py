@@ -373,6 +373,7 @@ class AudioTranscriber:
         duration_ms: Optional[int],
         queue_depth: int,
         error_code: Optional[str] = None,
+        audio_trimmed_ms: Optional[int] = None,
     ) -> None:
         context = self.pipeline_context
         if context is None:
@@ -382,7 +383,7 @@ class AudioTranscriber:
             trace_id=None,
             source=context.source,
             stage=stage,
-            engine=(self.transcription_engine if stage == "transcription" else None),
+            engine=(self.transcription_engine if stage in ("transcription", "audio_input", "audio_buffer") else None),
             target_slot=None,
             outcome=outcome,
             queue_age_ms=queue_age_ms,
@@ -391,6 +392,7 @@ class AudioTranscriber:
             dropped_count=0,
             observed_at_ms=int(time.time() * 1000),
             error_code=error_code,
+            audio_trimmed_ms=audio_trimmed_ms,
         )
         try:
             context.emit_metric(event)
@@ -651,7 +653,17 @@ class AudioTranscriber:
                             return False
                         max_samples = 16000 * MAX_WHISPER_LIVE_AUDIO_SECONDS
                         if audio_data.size > max_samples:
+                            trimmed_ms = round((audio_data.size - max_samples) * 1000 / 16000)
                             audio_data = audio_data[-max_samples:]
+                            self._emitPipelineMetric(
+                                stage="audio_input",
+                                outcome="input_trimmed",
+                                queue_age_ms=queue_age_ms,
+                                duration_ms=None,
+                                queue_depth=queue_depth,
+                                error_code="whisper_live_audio_limit",
+                                audio_trimmed_ms=trimmed_ms,
+                            )
 
                         language_codes = (
                             ("th",)
@@ -943,7 +955,18 @@ class AudioTranscriber:
             max_frames = int(source_info["sample_rate"]) * MAX_AUDIO_BUFFER_SECONDS
             max_bytes = max(frame_width, max_frames * frame_width)
             if len(source_info["last_sample"]) > max_bytes:
+                trimmed_bytes = len(source_info["last_sample"]) - max_bytes
                 source_info["last_sample"] = source_info["last_sample"][-max_bytes:]
+                if self.transcription_engine in ("Whisper", "Whisper Thai"):
+                    self._emitPipelineMetric(
+                        stage="audio_buffer",
+                        outcome="buffer_trimmed",
+                        queue_age_ms=None,
+                        duration_ms=None,
+                        queue_depth=0,
+                        error_code="audio_buffer_limit",
+                        audio_trimmed_ms=round(trimmed_bytes * 1000 / (frame_width * int(source_info["sample_rate"]))),
+                    )
         except Exception:
             errorLogging()
 

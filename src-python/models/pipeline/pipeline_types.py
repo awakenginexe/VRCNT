@@ -45,9 +45,10 @@ class PipelineStatusEvent:
     dropped_count: int
     observed_at_ms: int
     error_code: Optional[str]
+    audio_trimmed_ms: Optional[int] = None
 
     def to_payload(self) -> dict[str, object]:
-        return {
+        payload = {
             "schema_version": self.schema_version,
             "trace_id": self.trace_id,
             "source": self.source.value,
@@ -62,6 +63,9 @@ class PipelineStatusEvent:
             "observed_at_ms": self.observed_at_ms,
             "error_code": self.error_code,
         }
+        if self.audio_trimmed_ms is not None:
+            payload["audio_trimmed_ms"] = self.audio_trimmed_ms
+        return payload
 
 
 @dataclass(frozen=True)

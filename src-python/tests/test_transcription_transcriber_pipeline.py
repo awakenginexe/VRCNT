@@ -461,6 +461,40 @@ def patched_model_startup(
 
 
 class TranscriberPipelineTests(unittest.TestCase):
+    def test_whisper_reports_exact_input_trim_without_exposing_audio(self):
+        lease = FakeLease()
+        events = []
+        transcriber = make_transcriber(lease, make_pipeline_context(lease, events=events))
+        self.assertTrue(transcriber.transcribeAudioQueue(
+            queue_with(AudioChunk(
+                pcm(1200, samples=7 * 16000),
+                datetime.now(timezone.utc),
+                time.perf_counter(),
+            )),
+            ["English"],
+            ["United States"],
+        ))
+        self.assertEqual(len(lease.calls[0][0]), 6 * 16000)
+        trimmed = [event for event in events if event.outcome == "input_trimmed"]
+        self.assertEqual(len(trimmed), 1)
+        self.assertEqual(trimmed[0].audio_trimmed_ms, 1000)
+        self.assertNotIn("audio_data", trimmed[0].to_payload())
+
+    def test_audio_buffer_reports_trimmed_duration(self):
+        lease = FakeLease()
+        events = []
+        transcriber = make_transcriber(lease, make_pipeline_context(lease, events=events))
+        source = transcriber.audio_sources
+        source["sample_rate"] = 16000
+        source["sample_width"] = 2
+        source["channels"] = 1
+        source["last_sample"] = pcm(1200, samples=31 * 16000)
+        transcriber.trimLastSampleToMaxDuration()
+        self.assertEqual(len(source["last_sample"]), 30 * 16000 * 2)
+        trimmed = [event for event in events if event.outcome == "buffer_trimmed"]
+        self.assertEqual(len(trimmed), 1)
+        self.assertEqual(trimmed[0].audio_trimmed_ms, 1000)
+
     def test_pipeline_context_has_exact_frozen_contract(self):
         context_type = getattr(
             transcriber_module,
