@@ -13,6 +13,7 @@ from pathlib import Path
 
 import ctranslate2
 import faster_whisper
+import psutil
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src-python"))
@@ -46,6 +47,7 @@ def benchmark(args):
     sampler = ResourceSampler(args.gpu_index, args.sample_interval)
     baseline_gpu = gpu_used_mb(args.gpu_index)
     baseline_ram = sampler.process.memory_info().rss / 1024**2
+    baseline_system_ram = psutil.virtual_memory().used / 1024**2
     vrchat_at_start = vrchat_running()
     sampler.start()
     translator = Translator()
@@ -72,7 +74,7 @@ def benchmark(args):
         else:
             whisper_load_ms = None
         load_ms = (time.perf_counter() - load_started) * 1000
-        after_load_ram, after_load_gpu = sampler.sample()
+        after_load_ram, after_load_system_ram, after_load_gpu = sampler.sample()
         transcription_times = []
         translation_times = []
         end_to_end_times = []
@@ -106,7 +108,7 @@ def benchmark(args):
             if iteration == 0:
                 warmup_ms = elapsed_ms
                 warmup_outcome = outcome
-                after_warmup_ram, after_warmup_gpu = sampler.sample()
+                after_warmup_ram, after_warmup_system_ram, after_warmup_gpu = sampler.sample()
             else:
                 if outcome == "no_speech":
                     no_speech += 1
@@ -141,6 +143,10 @@ def benchmark(args):
             "after_load_process_ram_mb": round(after_load_ram, 2),
             "after_warmup_process_ram_mb": round(after_warmup_ram, 2),
             "peak_sampled_process_ram_mb": round(max(sampler.ram), 2),
+            "baseline_system_ram_used_mb": round(baseline_system_ram, 2),
+            "after_load_system_ram_used_mb": round(after_load_system_ram, 2),
+            "after_warmup_system_ram_used_mb": round(after_warmup_system_ram, 2),
+            "peak_sampled_system_ram_used_mb": round(max(sampler.system_ram), 2),
             "baseline_gpu_total_used_mb": baseline_gpu,
             "vrchat_process_running_at_start": vrchat_at_start,
             "vrchat_process_running_at_end": vrchat_running(),
@@ -160,10 +166,11 @@ def benchmark(args):
                     del whisper
             finally:
                 gc.collect()
-                after_release_ram, after_release_gpu = sampler.sample()
+                after_release_ram, after_release_system_ram, after_release_gpu = sampler.sample()
                 sampler.close()
                 if report is not None:
                     report["after_release_process_ram_mb"] = round(after_release_ram, 2)
+                    report["after_release_system_ram_used_mb"] = round(after_release_system_ram, 2)
                     report["after_release_gpu_total_used_mb"] = after_release_gpu
     return report
 

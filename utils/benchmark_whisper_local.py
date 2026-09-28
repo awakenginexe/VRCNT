@@ -56,18 +56,21 @@ class ResourceSampler:
         self.process = psutil.Process()
         self.stop = threading.Event()
         self.ram = []
+        self.system_ram = []
         self.gpu = []
         self.lock = threading.Lock()
         self.thread = threading.Thread(target=self._run, daemon=True)
 
     def sample(self):
         ram = self.process.memory_info().rss / 1024**2
+        system_ram = psutil.virtual_memory().used / 1024**2
         gpu = gpu_used_mb(self.gpu_index)
         with self.lock:
             self.ram.append(ram)
+            self.system_ram.append(system_ram)
             if gpu is not None:
                 self.gpu.append(gpu)
-        return ram, gpu
+        return ram, system_ram, gpu
 
     def _run(self):
         while not self.stop.is_set():
@@ -124,6 +127,7 @@ def benchmark(args):
     sampler = ResourceSampler(args.gpu_index, args.sample_interval)
     baseline_gpu = gpu_used_mb(args.gpu_index)
     baseline_ram = sampler.process.memory_info().rss / 1024**2
+    baseline_system_ram = psutil.virtual_memory().used / 1024**2
     vrchat_at_start = vrchat_running()
     sampler.start()
     load_started = time.perf_counter()
@@ -135,7 +139,7 @@ def benchmark(args):
             local_files_only=True,
         )
         load_ms = (time.perf_counter() - load_started) * 1000
-        after_load_ram, after_load_gpu = sampler.sample()
+        after_load_ram, after_load_system_ram, after_load_gpu = sampler.sample()
         languages = tuple(code.strip() for code in args.languages.split(",") if code.strip())
         if not languages:
             raise ValueError("at least one language code is required")
@@ -164,7 +168,7 @@ def benchmark(args):
             decoded = " ".join(segment.text.strip() for segment in segments).strip()
             inference_ms = (time.perf_counter() - inference_started) * 1000
             if iteration == 0:
-                after_warmup_ram, after_warmup_gpu = sampler.sample()
+                after_warmup_ram, after_warmup_system_ram, after_warmup_gpu = sampler.sample()
             else:
                 detection_times.append(detection_ms)
                 inference_times.append(inference_ms)
@@ -186,6 +190,10 @@ def benchmark(args):
             "after_load_process_ram_mb": round(after_load_ram, 2),
             "after_warmup_process_ram_mb": round(after_warmup_ram, 2),
             "peak_sampled_process_ram_mb": round(max(sampler.ram), 2),
+            "baseline_system_ram_used_mb": round(baseline_system_ram, 2),
+            "after_load_system_ram_used_mb": round(after_load_system_ram, 2),
+            "after_warmup_system_ram_used_mb": round(after_warmup_system_ram, 2),
+            "peak_sampled_system_ram_used_mb": round(max(sampler.system_ram), 2),
             "baseline_gpu_total_used_mb": baseline_gpu,
             "vrchat_process_running_at_start": vrchat_at_start,
             "vrchat_process_running_at_end": vrchat_running(),
