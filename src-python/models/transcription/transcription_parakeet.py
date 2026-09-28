@@ -12,6 +12,7 @@ from typing import Callable, Optional, Dict, Any, List, Tuple
 import logging
 
 import numpy as np
+from cuda12_runtime import prepare_cuda12_runtime
 
 from .download_control import (
     DownloadCancelled,
@@ -186,6 +187,7 @@ class ParakeetRecognizer:
         self.device_index = device_index
         providers: List = []
         if device == "cuda":
+            prepare_cuda12_runtime()
             providers.append(("CUDAExecutionProvider", {"device_id": device_index}))
         providers.append("CPUExecutionProvider")
         self.model = onnx_asr.load_model("nemo-parakeet-tdt-0.6b-v3", path=model_dir, providers=providers)

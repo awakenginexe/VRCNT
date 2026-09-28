@@ -17,7 +17,10 @@ BUILD_RECIPE = "fixture-pyinstaller-v1"
 CUDA_MARKERS = (
     "_internal/torch/lib/torch_cuda.dll",
     "_internal/torch/lib/cudnn64_9.dll",
-    "_internal/torch/lib/cublas64_12.dll",
+    "_internal/torch/lib/cublas64_13.dll",
+    "_internal/nvidia/cublas/bin/cublas64_12.dll",
+    "_internal/nvidia/cuda_runtime/bin/cudart64_12.dll",
+    "_internal/nvidia/cufft/bin/cufft64_11.dll",
     "_internal/onnxruntime/capi/onnxruntime_providers_cuda.dll",
     "_internal/sherpa_onnx/lib/sherpa-onnx-cuda.dll",
 )
@@ -118,6 +121,7 @@ class RuntimePayloadBoundaryTests(unittest.TestCase):
                     "-PayloadPath", self.cpu_payload,
                 )
                 self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("CPU payload contains", result.stdout + result.stderr)
                 (self.cpu_payload / marker).unlink()
 
     def test_cuda_validation_requires_each_dependency_boundary(self):
@@ -132,6 +136,7 @@ class RuntimePayloadBoundaryTests(unittest.TestCase):
                     "-PayloadPath", payload,
                 )
                 self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("CUDA payload is missing", result.stdout + result.stderr)
 
     def test_physical_payload_mutation_invalidates_the_identity(self):
         self._stage("cpu", self.cpu_backend, self.cpu_payload)

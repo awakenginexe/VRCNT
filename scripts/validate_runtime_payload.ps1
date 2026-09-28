@@ -66,6 +66,8 @@ $cudaBoundaries = @(
   @{ Name = 'Torch CUDA'; Pattern = "(^|/)(torch_cuda|c10_cuda)[^/]*$nativeLibrary" },
   @{ Name = 'cuDNN'; Pattern = "(^|/)cudnn[^/]*$nativeLibrary" },
   @{ Name = 'cuBLAS'; Pattern = "(^|/)cublas[^/]*$nativeLibrary" },
+  @{ Name = 'CUDA runtime'; Pattern = "(^|/)cudart[^/]*$nativeLibrary" },
+  @{ Name = 'cuFFT'; Pattern = "(^|/)cufft[^/]*$nativeLibrary" },
   @{ Name = 'CUDA ONNX Runtime'; Pattern = "(^|/)onnxruntime.*/onnxruntime_providers_cuda$nativeLibrary" },
   @{ Name = 'CUDA sherpa-onnx'; Pattern = "(^|/)(sherpa-onnx-cuda|sherpa_onnx/.+cuda)[^/]*$nativeLibrary" }
 )
@@ -74,7 +76,14 @@ if ($Variant -eq 'cpu') {
     if ($files | Where-Object { $_ -match $boundary.Pattern }) { throw "CPU payload contains $($boundary.Name) libraries." }
   }
 } else {
-  foreach ($boundary in $cudaBoundaries) {
+  $requiredCudaLibraries = @(
+    $cudaBoundaries
+    @{ Name = 'Torch cuBLAS 13'; Pattern = '^_internal/torch/lib/cublas64_13\.dll$' }
+    @{ Name = 'CTranslate2 cuBLAS 12'; Pattern = '^_internal/nvidia/cublas/bin/cublas64_12\.dll$' }
+    @{ Name = 'CTranslate2 CUDA 12 runtime'; Pattern = '^_internal/nvidia/cuda_runtime/bin/cudart64_12\.dll$' }
+    @{ Name = 'ONNX CUDA 12 cuFFT'; Pattern = '^_internal/nvidia/cufft/bin/cufft64_11\.dll$' }
+  )
+  foreach ($boundary in $requiredCudaLibraries) {
     if (-not ($files | Where-Object { $_ -match $boundary.Pattern })) { throw "CUDA payload is missing $($boundary.Name) libraries." }
   }
 }

@@ -18,6 +18,7 @@ from typing import Callable, Optional
 import huggingface_hub
 import logging
 import json
+from cuda12_runtime import prepare_cuda12_runtime
 from utils import errorLogging, getBestComputeType
 from .download_control import (
     DownloadCancelled,
@@ -30,6 +31,7 @@ logger.setLevel(logging.CRITICAL)
 
 
 def _getWhisperModelClass():
+    prepare_cuda12_runtime()
     return importlib.import_module("faster_whisper").WhisperModel
 
 DEFAULT_WHISPER_WEIGHT_TYPE = "tiny"

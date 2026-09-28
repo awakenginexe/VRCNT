@@ -46,6 +46,12 @@ ENVIRONMENT_DATA_PACKAGES = (
     ("onnxruntime", "onnxruntime/"),
 )
 
+CUDA_ENVIRONMENT_DATA_PACKAGES = (
+    ("nvidia/cublas", "nvidia/cublas/"),
+    ("nvidia/cuda_runtime", "nvidia/cuda_runtime/"),
+    ("nvidia/cufft", "nvidia/cufft/"),
+)
+
 
 def backend_analysis_configuration(variant, repo_root, environment_root):
     if variant not in VARIANT_HIDDEN_IMPORTS:
@@ -55,7 +61,10 @@ def backend_analysis_configuration(variant, repo_root, environment_root):
     site_packages = environment_root / "Lib" / "site-packages"
     environment_datas = [
         (str(site_packages / package), destination)
-        for package, destination in ENVIRONMENT_DATA_PACKAGES
+        for package, destination in (
+            ENVIRONMENT_DATA_PACKAGES
+            + (CUDA_ENVIRONMENT_DATA_PACKAGES if variant == "cuda" else ())
+        )
     ]
     return {
         "variant": variant,

@@ -29,6 +29,17 @@ def adapter(providers, recognize=lambda *_args, **_kwargs: "hello"):
 
 
 class ParakeetRuntimeDiagnosticsTests(unittest.TestCase):
+    def test_cuda_libraries_are_prepared_for_cuda_provider_only(self):
+        runtime = adapter(["CUDAExecutionProvider", "CPUExecutionProvider"])
+        with patch.object(parakeet, "prepare_cuda12_runtime", create=True) as prepare, patch.object(
+            parakeet.onnx_asr, "load_model", return_value=runtime
+        ):
+            parakeet.ParakeetRecognizer("model", device="cuda")
+            prepare.assert_called_once_with()
+            prepare.reset_mock()
+            parakeet.ParakeetRecognizer("model", device="cpu")
+            prepare.assert_not_called()
+
     def test_cuda_and_cpu_providers_mean_cuda_is_attached(self):
         runtime = adapter(["CUDAExecutionProvider", "CPUExecutionProvider"])
         with patch.object(parakeet.onnx_asr, "load_model", return_value=runtime):

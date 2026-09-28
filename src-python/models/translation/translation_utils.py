@@ -12,6 +12,7 @@ import importlib
 import importlib.util
 import importlib.metadata
 import sys
+from cuda12_runtime import prepare_cuda12_runtime
 from requests import get as requests_get
 from typing import Callable
 from huggingface_hub import hf_hub_url, list_repo_files
@@ -222,6 +223,8 @@ def _prepareCtrTranslate2Runtime() -> None:
     global _CTRANSLATE2_RUNTIME_PREPARED
     if _CTRANSLATE2_RUNTIME_PREPARED is True:
         return
+
+    prepare_cuda12_runtime()
 
     candidates = []
     frozen_root = getattr(sys, "_MEIPASS", None)

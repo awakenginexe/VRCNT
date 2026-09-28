@@ -7,6 +7,7 @@ ko and is available in FP32 (~938 MB) and INT8 (~228 MB) ONNX formats.
 import importlib.util
 import os
 import sys
+from cuda12_runtime import prepare_cuda12_runtime
 import time
 from threading import Event
 from os import path as os_path, makedirs as os_makedirs
@@ -60,6 +61,7 @@ def _addDllDirectory(directory: str) -> None:
 
 def _addCudaDllDirectories() -> None:
     """Expose CUDA DLLs bundled with PyTorch/CTranslate2 to sherpa-onnx."""
+    prepare_cuda12_runtime()
     candidates = []
     frozen_root = getattr(sys, "_MEIPASS", None)
     if frozen_root:
