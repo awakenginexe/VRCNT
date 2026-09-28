@@ -146,8 +146,15 @@ class ReleaseVersionTests(unittest.TestCase):
             ).read_text(encoding="utf-8").splitlines()
             self.assertIn("faster-whisper==1.2.1", requirements)
             self.assertIn("ctranslate2==4.8.1", requirements)
-            self.assertIn("transformers==5.5.0", requirements)
+            self.assertIn("transformers==5.10.1", requirements)
             self.assertIn("tokenizers==0.22.2", requirements)
+
+    def test_python_builds_pin_patched_setuptools(self):
+        for filename in ("requirements.txt", "requirements_cuda.txt"):
+            requirements = (
+                ROOT / filename
+            ).read_text(encoding="utf-8").splitlines()
+            self.assertIn("setuptools==83.0.0", requirements)
 
     def test_cuda_runtime_matches_ctranslate2(self):
         requirements = (
