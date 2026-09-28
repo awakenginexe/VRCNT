@@ -231,13 +231,15 @@ class _MetricAudioQueue(LatestQueue):
         return cancelled
 
     def close(self) -> None:
+        with self._condition:
+            was_closed = self._closed
         super().close()
         cancelled = len(self.drain())
         with self._condition:
             inflight = self._inflight_count
             self._inflight_count = 0
             self._completed_count = 0
-        if cancelled or (self.preserve_pending_audio and inflight):
+        if cancelled or (self.preserve_pending_audio and not was_closed):
             self._dropped_count += cancelled
             self._emit_metric(
                 self._source,
@@ -245,7 +247,11 @@ class _MetricAudioQueue(LatestQueue):
                 outcome="skipped",
                 queue_depth=0,
                 dropped_count=self._dropped_count,
-                error_code="audio_queue_cancelled",
+                error_code=(
+                    "audio_queue_cancelled"
+                    if cancelled or inflight
+                    else "audio_queue_stopped"
+                ),
                 audio_queue_position=0 if self.preserve_pending_audio else None,
                 audio_queue_total=0 if self.preserve_pending_audio else None,
             )

@@ -64,8 +64,27 @@ test("audio backlog progress keeps microphone and speaker counts separate", () =
         audio_queue_position: 0, audio_queue_total: 0,
     }));
     assert.deepEqual(selectAudioBacklogProgress(state), [
+        { source: "mic", position: 0, total: 0 },
         { source: "speaker", position: 2, total: 7 },
     ]);
+});
+
+test("local audio queue exposes zero while active and disappears after stop", () => {
+    let state = createEmptyPipelineStatusState();
+    state = mergePipelineStatusEvent(state, makeEvent({
+        trace_id: null, target_slot: null, stage: "queue", outcome: "success",
+        source: "speaker", observed_at_ms: 1_001,
+        audio_queue_position: 0, audio_queue_total: 0,
+    }));
+    assert.deepEqual(selectAudioBacklogProgress(state), [
+        { source: "speaker", position: 0, total: 0 },
+    ]);
+    state = mergePipelineStatusEvent(state, makeEvent({
+        trace_id: null, target_slot: null, stage: "queue", outcome: "skipped",
+        source: "speaker", observed_at_ms: 1_002,
+        audio_queue_position: 0, audio_queue_total: 0,
+    }));
+    assert.deepEqual(selectAudioBacklogProgress(state), []);
 });
 
 test("audio backlog rejects malformed counts and leaves legacy events compatible", () => {

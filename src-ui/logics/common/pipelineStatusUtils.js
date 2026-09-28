@@ -228,7 +228,7 @@ export const mergePipelineStatusEvent = (
 export const selectAudioBacklogProgress = (state) => (
     ["mic", "speaker"].flatMap((source) => {
         const event = state?.latest_by_source?.[source]?.["queue:_"];
-        if (!event || !Number.isInteger(event.audio_queue_total) || event.audio_queue_total < 2) {
+        if (!event || event.outcome === "skipped" || !Number.isInteger(event.audio_queue_total)) {
             return [];
         }
         if (!Number.isInteger(event.audio_queue_position)) return [];

@@ -59,6 +59,7 @@ export const LiveWeaveNavigation = () => {
         () => selectAudioBacklogProgress(currentPipelineStatus.data),
         [currentPipelineStatus.data],
     );
+    const hasQueuedAudio = audioBacklog.some(({ total }) => total > 1);
     const [runtime, setRuntime] = useState(getCachedRuntimeState);
 
     useEffect(() => {
@@ -155,11 +156,15 @@ export const LiveWeaveNavigation = () => {
             <div className={styles.utility_area}>
                 <span
                     className={styles.session_health}
-                    data-health={summary.health === "error" ? "error" : (audioBacklog.length ? "backlog" : summary.health)}
+                    data-health={summary.health === "error" ? "error" : (hasQueuedAudio ? "backlog" : summary.health)}
                 >
                     {audioBacklog.length > 0 ? (
                         <span className={styles.backlog_status}>
-                            {summary.health === "error" ? `${t("main_page.pipeline_status.error")} · ` : ""}
+                            {(summary.health === "error" || !hasQueuedAudio)
+                                ? `${summary.health === "healthy"
+                                    ? t("main_page.live_weave.session_live")
+                                    : t(`main_page.pipeline_status.${summary.health}`)} · `
+                                : ""}
                             {t("main_page.pipeline_status.queue")}
                             {audioBacklog.map(({ source, position, total }) => {
                                 const label = t(`main_page.pipeline_status.${source === "mic" ? "speaking" : "listening"}`);

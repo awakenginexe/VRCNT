@@ -367,6 +367,19 @@ class PipelineMetricsTests(unittest.TestCase):
         self.assertEqual(cancelled[0].dropped_count, 8)
         self.assertNotIn("data", cancelled[0].to_payload())
 
+    def test_idle_local_audio_queue_close_clears_visible_queue_status(self):
+        instance = object.__new__(Model)
+        instance.transcription_pipeline_metrics = []
+        queue = _MetricAudioQueue(
+            PipelineSource.SPEAKER,
+            instance._emitTranscriptionLifecycleMetric,
+            preserve_pending_audio=True,
+        )
+        queue.close()
+        event = instance.transcription_pipeline_metrics[-1]
+        self.assertEqual(event.outcome, "skipped")
+        self.assertEqual((event.audio_queue_position, event.audio_queue_total), (0, 0))
+
     def test_local_audio_queues_are_independent_and_report_capacity_loss(self):
         instance = object.__new__(Model)
         instance.transcription_pipeline_metrics = []
