@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Existing release tag to publish (for example, v6.0.0)'
+        description: 'Existing release tag to publish (for example, v6.0.0-rc.1)'
         required: true
         type: string
 
@@ -24,6 +24,7 @@ jobs:
     outputs:
       release_tag: ${{ steps.configuration.outputs.release_tag }}
       version: ${{ steps.configuration.outputs.version }}
+      prerelease: ${{ steps.configuration.outputs.prerelease }}
       repository: ${{ steps.configuration.outputs.repository }}
       installer_name: ${{ steps.configuration.outputs.installer_name }}
       manifest_name: ${{ steps.configuration.outputs.manifest_name }}
@@ -47,8 +48,9 @@ jobs:
         run: |
           $tag = $env:INPUT_RELEASE_TAG
           if ([string]::IsNullOrWhiteSpace($tag)) { $tag = $env:GITHUB_REF -replace '^refs/tags/', '' }
-          if ($tag -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') { throw "Release tag '$tag' must use the vMAJOR.MINOR.PATCH format." }
-          $version = $tag -replace '^v', ''
+          if ($tag -notmatch '^v(?<version>[0-9]+\.[0-9]+\.[0-9]+)(?:-rc\.(?<rc>[1-9][0-9]*))?$') { throw "Release tag '$tag' must use vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-rc.N." }
+          $version = $Matches.version
+          $prerelease = if ($Matches.rc) { 'true' } else { 'false' }
           $config = Get-Content -Raw ./release.config.json | ConvertFrom-Json
           foreach ($property in @('githubOwner', 'githubRepo', 'packageNamePattern', 'packageManifestAssetName', 'hashesAssetName', 'latestJsonAssetName', 'installerNamePattern')) {
             if ([string]::IsNullOrWhiteSpace($config.$property)) { throw "release.config.json is missing $property." }
@@ -61,7 +63,7 @@ jobs:
           if ($packageVersion -ne $version) { throw "Tag $tag does not match package.json version $packageVersion." }
           $installerName = $config.installerNamePattern.Replace('${version}', $version)
           @{
-            release_tag = $tag; version = $version; repository = $repository; installer_name = $installerName
+            release_tag = $tag; version = $version; prerelease = $prerelease; repository = $repository; installer_name = $installerName
             manifest_name = $config.packageManifestAssetName; hashes_name = $config.hashesAssetName
             latest_name = $config.latestJsonAssetName; max_asset_size = $config.maxAssetSizeBytes
           }.GetEnumerator() | ForEach-Object { "{0}={1}" -f $_.Key, $_.Value | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append }
@@ -249,6 +251,7 @@ jobs:
     env:
       RELEASE_TAG: ${{ needs.validate.outputs.release_tag }}
       VERSION: ${{ needs.validate.outputs.version }}
+      PRERELEASE: ${{ needs.validate.outputs.prerelease }}
       RELEASE_REPOSITORY: ${{ needs.validate.outputs.repository }}
       INSTALLER_NAME: ${{ needs.validate.outputs.installer_name }}
       PACKAGE_MANIFEST_NAME: ${{ needs.validate.outputs.manifest_name }}
@@ -384,7 +387,7 @@ jobs:
           $setup = Join-Path $assetDir $env:INSTALLER_NAME
           if ((Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant() -ne $manifest.bootstrapper.sha256) { throw 'Combined manifest bootstrapper SHA-256 does not match the exact published WPF setup.' }
           $pubDate = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
-          python ./utils/release.py latest --version $env:VERSION --updater-name $env:INSTALLER_NAME --signature "$setup.sig" --output (Join-Path $assetDir $env:LATEST_JSON_NAME) --pub-date $pubDate
+          python ./utils/release.py latest --version $env:VERSION --updater-name $env:INSTALLER_NAME --signature "$setup.sig" --output (Join-Path $assetDir $env:LATEST_JSON_NAME) --pub-date $pubDate --release-tag $env:RELEASE_TAG
           if ($LASTEXITCODE -ne 0) { throw 'latest.json generation failed.' }
           $latestDocument = Get-Content -Raw (Join-Path $assetDir $env:LATEST_JSON_NAME) | ConvertFrom-Json
           $expectedUrl = "https://github.com/$env:RELEASE_REPOSITORY/releases/download/$env:RELEASE_TAG/$env:INSTALLER_NAME"
@@ -422,11 +425,13 @@ jobs:
 
           VirusTotal results for VRCNT.Setup.exe, VRCNT.exe and VRCNT-backend.exe are included in VirusTotal-report.json.
           "@
+          $releaseTitle = if ($env:PRERELEASE -eq 'true') { "VRCNT $env:VERSION RC $($env:RELEASE_TAG -replace '^.*-rc\.', '')" } else { "VRCNT $env:VERSION" }
           gh release view $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release edit $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --title "VRCNT $env:VERSION" --draft=false --prerelease=false --notes $notes
+            gh release edit $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --title $releaseTitle --draft=false "--prerelease=$env:PRERELEASE" --notes $notes
           } else {
-            gh release create $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --title "VRCNT $env:VERSION" --notes $notes --verify-tag
+            $releaseFlags = if ($env:PRERELEASE -eq 'true') { @('--prerelease', '--latest=false') } else { @() }
+            gh release create $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --title $releaseTitle --notes $notes --verify-tag @releaseFlags
           }
           if ($LASTEXITCODE -ne 0) { throw 'Could not create or update the GitHub Release.' }
           $releaseAssets = @(Get-ChildItem ./release-assets -File -Recurse -Exclude package-metadata.json | Sort-Object Name | ForEach-Object FullName)
