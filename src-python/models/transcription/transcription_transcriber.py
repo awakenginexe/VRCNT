@@ -374,6 +374,8 @@ class AudioTranscriber:
         queue_depth: int,
         error_code: Optional[str] = None,
         audio_trimmed_ms: Optional[int] = None,
+        audio_queue_position: Optional[int] = None,
+        audio_queue_total: Optional[int] = None,
     ) -> None:
         context = self.pipeline_context
         if context is None:
@@ -393,6 +395,8 @@ class AudioTranscriber:
             observed_at_ms=int(time.time() * 1000),
             error_code=error_code,
             audio_trimmed_ms=audio_trimmed_ms,
+            audio_queue_position=audio_queue_position,
+            audio_queue_total=audio_queue_total,
         )
         try:
             context.emit_metric(event)
@@ -538,6 +542,13 @@ class AudioTranscriber:
             int((dequeued_at - final_chunk.captured_at_monotonic) * 1000),
         )
         queue_depth = self._queueDepth(audio_queue)
+        queue_progress_reader = getattr(audio_queue, "progress", None)
+        queue_progress = (
+            queue_progress_reader()
+            if getattr(audio_queue, "preserve_pending_audio", False)
+            and callable(queue_progress_reader)
+            else (None, None)
+        )
         if self.transcription_engine == "Whisper Cloud":
             return self._transcribeWhisperCloudPhrase(
                 languages,
@@ -551,6 +562,8 @@ class AudioTranscriber:
             queue_age_ms=queue_age_ms,
             duration_ms=None,
             queue_depth=queue_depth,
+            audio_queue_position=queue_progress[0],
+            audio_queue_total=queue_progress[1],
         )
         self._emitPipelineMetric(
             stage="transcription",

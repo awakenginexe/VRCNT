@@ -47,6 +47,8 @@ class PipelineStatusEvent:
     error_code: Optional[str]
     audio_trimmed_ms: Optional[int] = None
     speech_to_output_ms: Optional[int] = None
+    audio_queue_position: Optional[int] = None
+    audio_queue_total: Optional[int] = None
 
     def to_payload(self) -> dict[str, object]:
         payload = {
@@ -68,6 +70,10 @@ class PipelineStatusEvent:
             payload["audio_trimmed_ms"] = self.audio_trimmed_ms
         if self.speech_to_output_ms is not None:
             payload["speech_to_output_ms"] = self.speech_to_output_ms
+        if self.audio_queue_position is not None:
+            payload["audio_queue_position"] = self.audio_queue_position
+        if self.audio_queue_total is not None:
+            payload["audio_queue_total"] = self.audio_queue_total
         return payload
 
 

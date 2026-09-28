@@ -546,9 +546,14 @@ class TranscriberPipelineTests(unittest.TestCase):
         for remaining in range(7, -1, -1):
             self.assertTrue(
                 transcriber.transcribeAudioQueue(
-                    audio_queue, ["English"], ["United States"]
+                    audio_queue, ["English"], ["United States"],
+                    on_audio_consumed=audio_queue.start_processing,
                 )
             )
+            queue_events = [event for event in events if event.stage == "queue"]
+            self.assertEqual(queue_events[-1].audio_queue_position, 8 - remaining)
+            self.assertEqual(queue_events[-1].audio_queue_total, 8)
+            audio_queue.finish_processing()
             self.assertEqual(audio_queue.qsize(), remaining)
             self.assertEqual(transcriber.getTranscript()["text"], " hello world")
 

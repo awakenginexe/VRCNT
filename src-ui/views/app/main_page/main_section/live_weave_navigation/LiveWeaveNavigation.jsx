@@ -10,7 +10,7 @@ import {
     useStore_SelectedConfigTabId,
 } from "@store";
 import { useIsOpenedConfigPage, usePipelineStatus, useSoftwareVersion } from "@logics_common";
-import { selectPipelineStatusSummary } from "@logics_common/pipelineStatusUtils.js";
+import { selectAudioBacklogProgress, selectPipelineStatusSummary } from "@logics_common/pipelineStatusUtils.js";
 import {
     canNavigateDuringOnboarding,
     getOnboardingTourSnapshot,
@@ -18,6 +18,8 @@ import {
 } from "@logics_common/onboardingTourState.js";
 import { DesktopOverlayButton } from "../../sidebar_section/desktop_overlay_button/DesktopOverlayButton";
 import logoBadge from "@images/vrcnt_logo_badge.png";
+import MicSvg from "@images/mic.svg?react";
+import HeadphonesSvg from "@images/headphones.svg?react";
 import styles from "./LiveWeaveNavigation.module.scss";
 
 const NAVIGATION_ITEMS = [
@@ -51,6 +53,10 @@ export const LiveWeaveNavigation = () => {
     const hasUpdateAvailable = currentLatestSoftwareVersionInfo.data.is_update_available === true;
     const summary = useMemo(
         () => selectPipelineStatusSummary(currentPipelineStatus.data, Date.now()),
+        [currentPipelineStatus.data],
+    );
+    const audioBacklog = useMemo(
+        () => selectAudioBacklogProgress(currentPipelineStatus.data),
         [currentPipelineStatus.data],
     );
     const [runtime, setRuntime] = useState(getCachedRuntimeState);
@@ -147,10 +153,29 @@ export const LiveWeaveNavigation = () => {
                 })}
             </nav>
             <div className={styles.utility_area}>
-                <span className={styles.session_health} data-health={summary.health}>
-                    {summary.health === "healthy"
-                        ? t("main_page.live_weave.session_live")
-                        : t(`main_page.pipeline_status.${summary.health}`)}
+                <span
+                    className={styles.session_health}
+                    data-health={summary.health === "error" ? "error" : (audioBacklog.length ? "backlog" : summary.health)}
+                >
+                    {audioBacklog.length > 0 ? (
+                        <span className={styles.backlog_status}>
+                            {summary.health === "error" ? `${t("main_page.pipeline_status.error")} · ` : ""}
+                            {t("main_page.pipeline_status.queue")}
+                            {audioBacklog.map(({ source, position, total }) => {
+                                const label = t(`main_page.pipeline_status.${source === "mic" ? "speaking" : "listening"}`);
+                                return (
+                                    <span key={source} className={styles.backlog_source} data-source={source} title={label} aria-label={`${label}: ${position}/${total}`}>
+                                        {source === "mic" ? <MicSvg aria-hidden="true" /> : <HeadphonesSvg aria-hidden="true" />}
+                                        {position}/{total}
+                                    </span>
+                                );
+                            })}
+                        </span>
+                    ) : (
+                        summary.health === "healthy"
+                            ? t("main_page.live_weave.session_live")
+                            : t(`main_page.pipeline_status.${summary.health}`)
+                    )}
                 </span>
                 <button
                     type="button"

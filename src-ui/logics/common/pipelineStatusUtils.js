@@ -52,6 +52,9 @@ const isNullableNonNegativeNumber = (value) => (
     value === null || (Number.isFinite(value) && value >= 0)
 );
 const isNonNegativeInteger = (value) => Number.isInteger(value) && value >= 0;
+const isOptionalNonNegativeInteger = (value) => (
+    value === undefined || isNonNegativeInteger(value)
+);
 
 const isPipelineStatusEvent = (event) => (
     event !== null
@@ -69,6 +72,13 @@ const isPipelineStatusEvent = (event) => (
     && isNullableNonNegativeNumber(event.duration_ms)
     && isNonNegativeInteger(event.queue_depth)
     && isNonNegativeInteger(event.dropped_count)
+    && isOptionalNonNegativeInteger(event.audio_queue_position)
+    && isOptionalNonNegativeInteger(event.audio_queue_total)
+    && (
+        event.audio_queue_position === undefined
+        || event.audio_queue_total === undefined
+        || event.audio_queue_position <= event.audio_queue_total
+    )
     && Number.isFinite(event.observed_at_ms)
     && event.observed_at_ms >= 0
     && isNullableString(event.error_code)
@@ -214,6 +224,21 @@ export const mergePipelineStatusEvent = (
             : currentAnnouncement,
     };
 };
+
+export const selectAudioBacklogProgress = (state) => (
+    ["mic", "speaker"].flatMap((source) => {
+        const event = state?.latest_by_source?.[source]?.["queue:_"];
+        if (!event || !Number.isInteger(event.audio_queue_total) || event.audio_queue_total < 2) {
+            return [];
+        }
+        if (!Number.isInteger(event.audio_queue_position)) return [];
+        return [{
+            source,
+            position: event.audio_queue_position,
+            total: event.audio_queue_total,
+        }];
+    })
+);
 
 export const isLatencyActive = (event) => (
     event?.stage !== "capture"

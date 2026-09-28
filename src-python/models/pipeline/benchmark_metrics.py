@@ -11,6 +11,7 @@ _write_lock = Lock()
 _NUMERIC_FIELDS = (
     "queue_age_ms", "duration_ms", "queue_depth", "dropped_count",
     "observed_at_ms", "audio_trimmed_ms", "speech_to_output_ms",
+    "audio_queue_position", "audio_queue_total",
 )
 _CATEGORY_FIELDS = ("source", "stage", "engine", "outcome", "error_code")
 

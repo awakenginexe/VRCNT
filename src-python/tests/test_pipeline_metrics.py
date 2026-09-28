@@ -396,6 +396,61 @@ class PipelineMetricsTests(unittest.TestCase):
             [(PipelineSource.MIC, 1)],
         )
 
+    def test_local_audio_queue_progress_tracks_growing_backlog_and_resets(self):
+        instance = object.__new__(Model)
+        instance.transcription_pipeline_metrics = []
+        queue = _MetricAudioQueue(
+            PipelineSource.MIC,
+            instance._emitTranscriptionLifecycleMetric,
+            preserve_pending_audio=True,
+        )
+        spoken_at = datetime(2026, 7, 13, tzinfo=timezone.utc)
+
+        queue.offer(AudioChunk(b"one", spoken_at, 1.0))
+        queue.get_nowait()
+        queue.start_processing()
+        for index in range(2, 6):
+            queue.offer(AudioChunk(bytes([index]), spoken_at, float(index)))
+        self.assertEqual(queue.progress(), (1, 5))
+
+        queue.finish_processing()
+        queue.get_nowait()
+        queue.start_processing()
+        queue.offer(AudioChunk(b"six", spoken_at, 6.0))
+        queue.offer(AudioChunk(b"seven", spoken_at, 7.0))
+        self.assertEqual(queue.progress(), (2, 7))
+        self.assertEqual(
+            instance.transcription_pipeline_metrics[-1].to_payload()["audio_queue_position"],
+            2,
+        )
+        self.assertEqual(
+            instance.transcription_pipeline_metrics[-1].to_payload()["audio_queue_total"],
+            7,
+        )
+
+        queue.close()
+        self.assertEqual(queue.progress(), (0, 0))
+
+    def test_draining_pending_local_audio_clears_reported_backlog(self):
+        instance = object.__new__(Model)
+        instance.transcription_pipeline_metrics = []
+        queue = _MetricAudioQueue(
+            PipelineSource.MIC,
+            instance._emitTranscriptionLifecycleMetric,
+            preserve_pending_audio=True,
+        )
+        spoken_at = datetime(2026, 7, 13, tzinfo=timezone.utc)
+        for index in range(3):
+            queue.offer(AudioChunk(bytes([index]), spoken_at, float(index)))
+        queue.get_nowait()
+        queue.start_processing()
+
+        self.assertEqual(len(queue.drain()), 2)
+        self.assertEqual(queue.progress(), (1, 1))
+        event = instance.transcription_pipeline_metrics[-1]
+        self.assertEqual((event.audio_queue_position, event.audio_queue_total), (1, 1))
+        self.assertEqual(event.dropped_count, 2)
+
     def test_pipeline_enums_have_exact_members_and_values(self):
         self.assertEqual(
             {

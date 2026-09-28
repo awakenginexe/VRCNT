@@ -32,6 +32,8 @@ class PipelineBenchmarkMetricsTests(unittest.TestCase):
             observed_at_ms=1234,
             error_code=None,
             speech_to_output_ms=105,
+            audio_queue_position=2,
+            audio_queue_total=7,
         )
         with tempfile.TemporaryDirectory() as directory:
             path = os.path.join(directory, "metrics.jsonl")
@@ -40,6 +42,8 @@ class PipelineBenchmarkMetricsTests(unittest.TestCase):
             with open(path, encoding="utf-8") as file:
                 stored = json.loads(file.read())
             self.assertEqual(stored["speech_to_output_ms"], 105)
+            self.assertEqual(stored["audio_queue_position"], 2)
+            self.assertEqual(stored["audio_queue_total"], 7)
             self.assertEqual(stored["source"], "mic")
             self.assertNotIn("trace_id", stored)
             self.assertNotIn("target_slot", stored)

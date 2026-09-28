@@ -226,10 +226,37 @@
         color: var(--warning_color);
     }
 
+    &[data-health="backlog"] {
+        border-color: color-mix(in srgb, var(--warning_color) 46%, transparent);
+        background: color-mix(in srgb, var(--warning_color) 12%, var(--surface_2_color));
+        color: var(--dark_100_color);
+    }
+
     &[data-health="error"] {
         border-color: color-mix(in srgb, var(--error_color) 48%, transparent);
         background: color-mix(in srgb, var(--error_color) 14%, var(--surface_2_color));
         color: var(--error_color);
+    }
+}
+
+.backlog_status,
+.backlog_source {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.backlog_status {
+    gap: 0.5rem;
+}
+
+.backlog_source {
+    &[data-source="mic"] { color: #38bdf8; }
+    &[data-source="speaker"] { color: #a78bfa; }
+
+    svg {
+        width: 1rem;
+        height: 1rem;
     }
 }
 

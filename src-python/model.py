@@ -122,21 +122,78 @@ class _MetricAudioQueue(LatestQueue):
         self._emit_metric = emit_metric
         self._dropped_count = 0
         self.preserve_pending_audio = preserve_pending_audio
+        self._completed_count = 0
+        self._inflight_count = 0
+
+    def progress(self) -> tuple[int, int]:
+        if not self.preserve_pending_audio:
+            return 0, 0
+        with self._condition:
+            if self._closed:
+                return 0, 0
+            position = self._completed_count + (1 if self._inflight_count else 0)
+            total = self._completed_count + self._inflight_count + len(self._items)
+            return position, total
+
+    def start_processing(self) -> None:
+        if not self.preserve_pending_audio:
+            return
+        with self._condition:
+            if self._closed:
+                return
+            self._inflight_count += 1
+            depth = len(self._items)
+        position, total = self.progress()
+        self._emit_metric(
+            self._source,
+            stage="queue",
+            outcome="running",
+            queue_depth=depth,
+            dropped_count=self._dropped_count,
+            audio_queue_position=position,
+            audio_queue_total=total,
+        )
+
+    def finish_processing(self) -> None:
+        if not self.preserve_pending_audio:
+            return
+        with self._condition:
+            if self._closed or not self._inflight_count:
+                return
+            self._inflight_count -= 1
+            self._completed_count += 1
+            depth = len(self._items)
+            if not depth and not self._inflight_count:
+                self._completed_count = 0
+        position, total = self.progress()
+        self._emit_metric(
+            self._source,
+            stage="queue",
+            outcome="success",
+            queue_depth=depth,
+            dropped_count=self._dropped_count,
+            audio_queue_position=position,
+            audio_queue_total=total,
+        )
 
     def offer(self, item):
         result = super().offer(item)
         if result.accepted:
+            position, total = self.progress()
             self._emit_metric(
                 self._source,
                 stage="queue",
                 outcome="waiting",
                 queue_depth=result.depth,
                 dropped_count=self._dropped_count,
+                audio_queue_position=position if self.preserve_pending_audio else None,
+                audio_queue_total=total if self.preserve_pending_audio else None,
             )
         return result
 
     def record_drop(self) -> None:
         self._dropped_count += 1
+        position, total = self.progress()
         self._emit_metric(
             self._source,
             stage="queue",
@@ -144,12 +201,43 @@ class _MetricAudioQueue(LatestQueue):
             queue_depth=self.qsize(),
             dropped_count=self._dropped_count,
             error_code="audio_queue_overload",
+            audio_queue_position=position if self.preserve_pending_audio else None,
+            audio_queue_total=total if self.preserve_pending_audio else None,
         )
+
+    def drain(self):
+        with self._condition:
+            cancelled = list(self._items)
+            self._items.clear()
+            report_cancellation = (
+                self.preserve_pending_audio and not self._closed and bool(cancelled)
+            )
+            if report_cancellation:
+                self._dropped_count += len(cancelled)
+                self._completed_count = 0
+                position = int(bool(self._inflight_count))
+                total = self._inflight_count
+        if report_cancellation:
+            self._emit_metric(
+                self._source,
+                stage="queue",
+                outcome="skipped",
+                queue_depth=0,
+                dropped_count=self._dropped_count,
+                error_code="audio_queue_cancelled",
+                audio_queue_position=position,
+                audio_queue_total=total,
+            )
+        return cancelled
 
     def close(self) -> None:
         super().close()
         cancelled = len(self.drain())
-        if cancelled:
+        with self._condition:
+            inflight = self._inflight_count
+            self._inflight_count = 0
+            self._completed_count = 0
+        if cancelled or (self.preserve_pending_audio and inflight):
             self._dropped_count += cancelled
             self._emit_metric(
                 self._source,
@@ -158,6 +246,8 @@ class _MetricAudioQueue(LatestQueue):
                 queue_depth=0,
                 dropped_count=self._dropped_count,
                 error_code="audio_queue_cancelled",
+                audio_queue_position=0 if self.preserve_pending_audio else None,
+                audio_queue_total=0 if self.preserve_pending_audio else None,
             )
 
 
@@ -618,6 +708,8 @@ class Model:
         duration_ms: Optional[int] = None,
         error_code: Optional[str] = None,
         engine: Optional[str] = None,
+        audio_queue_position: Optional[int] = None,
+        audio_queue_total: Optional[int] = None,
     ) -> None:
         self._recordTranscriptionPipelineMetric(
             PipelineStatusEvent(
@@ -634,6 +726,8 @@ class Model:
                 dropped_count=max(0, dropped_count),
                 observed_at_ms=int(time() * 1000),
                 error_code=error_code,
+                audio_queue_position=audio_queue_position,
+                audio_queue_total=audio_queue_total,
             )
         )
 
@@ -2482,6 +2576,8 @@ class Model:
                 def on_audio_consumed():
                     nonlocal consumed_count
                     consumed_count += 1
+                    if audio_queue is not None:
+                        audio_queue.start_processing()
 
                 try:
                     if isinstance(transcriber, BingStreamingSession):
@@ -2519,6 +2615,9 @@ class Model:
                 except Exception:
                     errorLogging()
                 finally:
+                    if audio_queue is not None:
+                        for _ in range(consumed_count):
+                            audio_queue.finish_processing()
                     retained_count = 1 if trace_submitted and consumed_count > 0 else 0
                     for _ in range(max(0, consumed_count - retained_count)):
                         self.endMicTypingProcessing()
@@ -3074,6 +3173,14 @@ class Model:
             def sendSpeakerTranscript():
                 if stop_event.is_set():
                     return
+                consumed_count = 0
+
+                def on_audio_consumed():
+                    nonlocal consumed_count
+                    consumed_count += 1
+                    if speaker_audio_queue is not None:
+                        speaker_audio_queue.start_processing()
+
                 try:
                     if isinstance(transcriber, BingStreamingSession):
                         bing_locale_sync()
@@ -3095,6 +3202,7 @@ class Model:
                             config.SPEAKER_NO_REPEAT_NGRAM_SIZE,
                             config.SPEAKER_VAD_FILTER,
                             config.SPEAKER_VAD_PARAMETERS,
+                            on_audio_consumed=on_audio_consumed,
                         )
                         if (
                             res
@@ -3109,6 +3217,10 @@ class Model:
                                 fnc(result)
                 except Exception:
                     errorLogging()
+                finally:
+                    if speaker_audio_queue is not None:
+                        for _ in range(consumed_count):
+                            speaker_audio_queue.finish_processing()
 
             def endSpeakerTranscript():
                 stop_event.set()

@@ -7,6 +7,7 @@ import {
     getPipelineStageKey,
     isLatencyActive,
     mergePipelineStatusEvent,
+    selectAudioBacklogProgress,
     selectPipelineStatusSummary,
 } from "../pipelineStatusUtils.js";
 
@@ -37,6 +38,45 @@ test("empty state and stage keys follow the schema-v1 contract", () => {
     });
     assert.equal(getPipelineStageKey(makeEvent()), "translation:1");
     assert.equal(getPipelineStageKey(makeEvent({ target_slot: null })), "translation:_");
+});
+
+test("audio backlog progress keeps microphone and speaker counts separate", () => {
+    let state = createEmptyPipelineStatusState();
+    state = mergePipelineStatusEvent(state, makeEvent({
+        trace_id: null, target_slot: null, stage: "queue", outcome: "waiting",
+        source: "mic", observed_at_ms: 1_001,
+        audio_queue_position: 1, audio_queue_total: 5,
+    }));
+    state = mergePipelineStatusEvent(state, makeEvent({
+        trace_id: null, target_slot: null, stage: "queue", outcome: "waiting",
+        source: "speaker", observed_at_ms: 1_002,
+        audio_queue_position: 2, audio_queue_total: 7,
+    }));
+
+    assert.deepEqual(selectAudioBacklogProgress(state), [
+        { source: "mic", position: 1, total: 5 },
+        { source: "speaker", position: 2, total: 7 },
+    ]);
+
+    state = mergePipelineStatusEvent(state, makeEvent({
+        trace_id: null, target_slot: null, stage: "queue", outcome: "success",
+        source: "mic", observed_at_ms: 1_003,
+        audio_queue_position: 0, audio_queue_total: 0,
+    }));
+    assert.deepEqual(selectAudioBacklogProgress(state), [
+        { source: "speaker", position: 2, total: 7 },
+    ]);
+});
+
+test("audio backlog rejects malformed counts and leaves legacy events compatible", () => {
+    const initial = createEmptyPipelineStatusState();
+    assert.strictEqual(mergePipelineStatusEvent(initial, makeEvent({
+        trace_id: null, target_slot: null, stage: "queue",
+        audio_queue_position: 4, audio_queue_total: 2,
+    })), initial);
+    assert.deepEqual(selectAudioBacklogProgress(mergePipelineStatusEvent(initial, makeEvent({
+        trace_id: null, target_slot: null, stage: "queue",
+    }))), []);
 });
 
 test("unknown schemas and source spellings leave state untouched", () => {
