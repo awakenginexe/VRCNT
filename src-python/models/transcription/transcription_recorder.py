@@ -497,6 +497,14 @@ class BaseEnergyAndAudioRecorder:
             if on_heartbeat is not None:
                 on_heartbeat(captured_at)
 
+        capture_read_timeout = self.record_timeout
+        if getattr(audio_queue, "preserve_pending_audio", False) and self.phrase_time_limit > 0:
+            # The pinned listener checks wall time before the audio-duration
+            # phrase limit. A finite wall-time limit can discard a complete
+            # phrase when reads lag under load. The phrase limit still bounds
+            # each local Whisper chunk; stream stop handles native read stalls.
+            capture_read_timeout = float("inf")
+
         self.stop, self.pause, self.resume = self.recorder.listen_energy_and_audio_in_background(
             source=self.source,
             callback=audioRecordCallback,
@@ -509,7 +517,7 @@ class BaseEnergyAndAudioRecorder:
                 else None
             ),
             phrase_timeout=self.phrase_timeout,
-            record_timeout=self.record_timeout,
+            record_timeout=capture_read_timeout,
         )
         self.stop = _unblocking_stopper(self.source, self.stop, self.resume)
 

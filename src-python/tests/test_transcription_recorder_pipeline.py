@@ -6,6 +6,7 @@ from queue import Empty, Full, Queue
 from threading import Event, Thread
 from types import SimpleNamespace
 from unittest.mock import patch
+from speech_recognition import AudioSource
 
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -69,6 +70,8 @@ class FakeRecognizer:
     ):
         self.audio_callback = callback
         self.energy_callback = callback_energy
+        self.record_timeout_received = record_timeout
+        self.phrase_time_limit_received = phrase_time_limit
         return "stop", "pause", "resume"
 
 
@@ -306,6 +309,74 @@ class TranscriptionRecorderConstructorTests(unittest.TestCase):
 
 
 class TranscriptionRecorderCallbackTests(unittest.TestCase):
+    def test_capture_read_allowance_only_applies_to_local_pending_audio(self):
+        for preserve_pending, configured_timeout, expected_timeout in (
+            (True, 3, float("inf")),
+            (False, 3, 3),
+            (True, 0, float("inf")),
+        ):
+            with self.subTest(preserve_pending=preserve_pending,
+                              configured_timeout=configured_timeout):
+                recorder = BaseEnergyAndAudioRecorder(
+                    object(), 100, False, 3, 1, configured_timeout
+                )
+                recognizer = FakeRecognizer()
+                recorder.recorder = recognizer
+                queue = LatestQueue(maxsize=4)
+                queue.preserve_pending_audio = preserve_pending
+                recorder.recordIntoQueue(queue)
+                self.assertEqual(recognizer.record_timeout_received, expected_timeout)
+                self.assertEqual(recognizer.phrase_time_limit_received, 3)
+
+    def test_local_whisper_capture_keeps_a_full_phrase_when_wall_clock_runs_slow(self):
+        clock = [0.0]
+
+        class SlowSource(AudioSource):
+            SAMPLE_RATE = 16000
+            SAMPLE_WIDTH = 2
+            CHUNK = 1600
+
+            def __init__(self):
+                self.stream = None
+                self.pyaudio_stream = self
+
+            def __enter__(self):
+                self.stream = self
+                return self
+
+            def __exit__(self, *_args):
+                self.stream = None
+
+            def get_read_available(self):
+                return 1
+
+            def read(self, _size):
+                clock[0] += 0.12
+                return b"\xff\x0f" * self.CHUNK
+
+        source = SlowSource()
+        recorder = BaseEnergyAndAudioRecorder(source, 100, False, 1, 3, 1)
+        recorder.recorder.phrase_threshold = 0.1
+        queue = LatestQueue(maxsize=4)
+        queue.preserve_pending_audio = True
+
+        def listen_once(source, callback, phrase_time_limit, callback_energy,
+                        phrase_timeout, record_timeout):
+            with source:
+                audio = recorder.recorder.listen_energy_and_audio(
+                    source, phrase_timeout, phrase_time_limit,
+                    callback_energy=callback_energy, record_timeout=record_timeout,
+                )
+            callback(recorder.recorder, audio)
+            return lambda *_args: None, lambda: None, lambda: None
+
+        recorder.recorder.listen_energy_and_audio_in_background = listen_once
+        with patch("speech_recognition.time.time", side_effect=lambda: clock[0]):
+            recorder.recordIntoQueue(queue)
+
+        self.assertEqual(queue.qsize(), 1)
+        self.assertGreater(len(queue.get_nowait().data), 0)
+
     def invoke_promptly(self, callback, *args):
         errors = []
         completed = Event()
