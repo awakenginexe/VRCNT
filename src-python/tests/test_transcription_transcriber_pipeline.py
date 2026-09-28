@@ -495,6 +495,30 @@ class TranscriberPipelineTests(unittest.TestCase):
         self.assertEqual(len(trimmed), 1)
         self.assertEqual(trimmed[0].audio_trimmed_ms, 1000)
 
+    def test_continuous_backlog_reports_buffer_and_live_input_loss(self):
+        lease = FakeLease()
+        events = []
+        transcriber = make_transcriber(lease, make_pipeline_context(lease, events=events))
+        spoken_at = datetime.now(timezone.utc)
+        captured_at = time.perf_counter()
+        chunks = queue_with(*(
+            AudioChunk(pcm(1200, samples=15 * 16000), spoken_at, captured_at)
+            for _ in range(3)
+        ))
+
+        self.assertTrue(transcriber.transcribeAudioQueue(
+            chunks, ["English"], ["United States"]
+        ))
+        self.assertEqual(len(lease.calls[0][0]), 6 * 16000)
+        self.assertEqual(sum(
+            event.audio_trimmed_ms for event in events
+            if event.stage == "audio_buffer" and event.outcome == "buffer_trimmed"
+        ), 15000)
+        self.assertEqual(sum(
+            event.audio_trimmed_ms for event in events
+            if event.stage == "audio_input" and event.outcome == "input_trimmed"
+        ), 24000)
+
     def test_pipeline_context_has_exact_frozen_contract(self):
         context_type = getattr(
             transcriber_module,

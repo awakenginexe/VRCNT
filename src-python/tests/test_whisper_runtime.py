@@ -272,6 +272,22 @@ class WhisperRuntimeTests(unittest.TestCase):
         self.assertEqual("th", model.transcribe_calls[0][1]["language"])
         lease.close()
 
+    def test_restricted_detection_rechecks_selected_languages_for_each_phrase(self):
+        factory = RecordingFactory()
+        manager = WhisperRuntimeManager(factory=factory, unload=lambda model: None)
+        lease = manager.acquire("app-root", self.key_a)
+        model = factory.models[0]
+        model.language_probabilities = [("fr", 0.95), ("en", 0.8), ("ja", 0.2)]
+
+        first = lease.transcribe_restricted_languages("english-audio", ("en", "ja"))
+        model.language_probabilities = [("fr", 0.96), ("en", 0.1), ("ja", 0.7)]
+        second = lease.transcribe_restricted_languages("japanese-audio", ("en", "ja"))
+
+        self.assertEqual((first.detected_language, second.detected_language), ("en", "ja"))
+        self.assertEqual([call[1]["language"] for call in model.transcribe_calls], ["en", "ja"])
+        self.assertEqual(len(model.detect_language_calls), 2)
+        lease.close()
+
     def test_final_close_waits_for_restricted_detection_and_decode_transaction(self):
         detect_entered = threading.Event()
         release_detection = threading.Event()
