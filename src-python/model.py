@@ -87,6 +87,7 @@ TRANSCRIPT_STALL_CHECK_SECONDS = 5.0
 TRANSCRIPTION_SOURCE_READY_TIMEOUT_SECONDS = 10.0
 DEFAULT_TRANSLATION_ENGINE = "CTranslate2"
 TRANSCRIPTION_AUDIO_QUEUE_SIZE = 4
+LOCAL_WHISPER_AUDIO_QUEUE_SIZE = 24
 TRANSCRIPTION_PIPELINE_METRIC_HISTORY_SIZE = 256
 
 
@@ -103,13 +104,24 @@ def _runtimeTranscriptionLanguageLists(
 
 
 class _MetricAudioQueue(LatestQueue):
-    """Latest-only capture queue with non-blocking admission metrics."""
+    """Bounded capture queue with non-blocking admission metrics."""
 
-    def __init__(self, source: PipelineSource, emit_metric: Callable) -> None:
-        super().__init__(TRANSCRIPTION_AUDIO_QUEUE_SIZE)
+    def __init__(
+        self,
+        source: PipelineSource,
+        emit_metric: Callable,
+        *,
+        preserve_pending_audio: bool = False,
+    ) -> None:
+        super().__init__(
+            LOCAL_WHISPER_AUDIO_QUEUE_SIZE
+            if preserve_pending_audio
+            else TRANSCRIPTION_AUDIO_QUEUE_SIZE
+        )
         self._source = source
         self._emit_metric = emit_metric
         self._dropped_count = 0
+        self.preserve_pending_audio = preserve_pending_audio
 
     def offer(self, item):
         result = super().offer(item)
@@ -133,6 +145,20 @@ class _MetricAudioQueue(LatestQueue):
             dropped_count=self._dropped_count,
             error_code="audio_queue_overload",
         )
+
+    def close(self) -> None:
+        super().close()
+        cancelled = len(self.drain())
+        if cancelled:
+            self._dropped_count += cancelled
+            self._emit_metric(
+                self._source,
+                stage="queue",
+                outcome="skipped",
+                queue_depth=0,
+                dropped_count=self._dropped_count,
+                error_code="audio_queue_cancelled",
+            )
 
 
 def normalizeTranslationEngineSelection(selection, fallback: str = DEFAULT_TRANSLATION_ENGINE) -> list[str]:
@@ -2293,6 +2319,9 @@ class Model:
                 self.mic_audio_queue = _MetricAudioQueue(
                     PipelineSource.MIC,
                     self._emitTranscriptionLifecycleMetric,
+                    preserve_pending_audio=transcription_engine in (
+                        "Whisper", "Whisper Thai"
+                    ),
                 )
             # self.mic_energy_queue = Queue()
 
@@ -2713,6 +2742,9 @@ class Model:
         stop_event = self.mic_transcript_stop_event
         if hasattr(stop_event, "set"):
             stop_event.set()
+        audio_queue = self.mic_audio_queue
+        if hasattr(audio_queue, "close"):
+            audio_queue.close()
         close_transcriber = getattr(self.mic_transcriber, "close", None)
         if callable(close_transcriber):
             close_transcriber()
@@ -2720,10 +2752,6 @@ class Model:
             recorder = self.mic_audio_recorder
             self.mic_audio_recorder = None
             self._requestRecorderStop(recorder, resume_first=True)
-
-            audio_queue = self.mic_audio_queue
-            if hasattr(audio_queue, "close"):
-                audio_queue.close()
 
             thread = self.mic_print_transcript
             self._requestTranscriptThreadStop(thread)
@@ -2892,6 +2920,9 @@ class Model:
                 speaker_audio_queue = _MetricAudioQueue(
                     PipelineSource.SPEAKER,
                     self._emitTranscriptionLifecycleMetric,
+                    preserve_pending_audio=transcription_engine in (
+                        "Whisper", "Whisper Thai"
+                    ),
                 )
             self.speaker_audio_queue = speaker_audio_queue
             record_timeout = config.SPEAKER_RECORD_TIMEOUT
@@ -3154,6 +3185,9 @@ class Model:
         stop_event = self.speaker_transcript_stop_event
         if hasattr(stop_event, "set"):
             stop_event.set()
+        audio_queue = self.speaker_audio_queue
+        if hasattr(audio_queue, "close"):
+            audio_queue.close()
         close_transcriber = getattr(self.speaker_transcriber, "close", None)
         if callable(close_transcriber):
             close_transcriber()
@@ -3161,10 +3195,6 @@ class Model:
             recorder = self.speaker_audio_recorder
             self.speaker_audio_recorder = None
             self._requestRecorderStop(recorder, resume_first=True)
-
-            audio_queue = self.speaker_audio_queue
-            if hasattr(audio_queue, "close"):
-                audio_queue.close()
 
             thread = self.speaker_print_transcript
             self._requestTranscriptThreadStop(thread)

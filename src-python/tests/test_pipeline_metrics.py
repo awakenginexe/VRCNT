@@ -340,6 +340,62 @@ class PipelineMetricsTests(unittest.TestCase):
                 )
             )
 
+    def test_local_audio_queue_discards_pending_chunks_on_close(self):
+        instance = object.__new__(Model)
+        instance.transcription_pipeline_metrics = []
+        queue = _MetricAudioQueue(
+            PipelineSource.SPEAKER,
+            instance._emitTranscriptionLifecycleMetric,
+            preserve_pending_audio=True,
+        )
+        spoken_at = datetime(2026, 7, 13, tzinfo=timezone.utc)
+        for index in range(8):
+            self.assertTrue(
+                queue.offer(AudioChunk(bytes([index]), spoken_at, float(index))).accepted
+            )
+        queue.close()
+
+        self.assertEqual(queue.qsize(), 0)
+        self.assertFalse(queue.offer(AudioChunk(b"late", spoken_at, 9.0)).accepted)
+        cancelled = [
+            event for event in instance.transcription_pipeline_metrics
+            if event.error_code == "audio_queue_cancelled"
+        ]
+        self.assertEqual(len(cancelled), 1)
+        self.assertEqual(cancelled[0].source, PipelineSource.SPEAKER)
+        self.assertEqual(cancelled[0].outcome, "skipped")
+        self.assertEqual(cancelled[0].dropped_count, 8)
+        self.assertNotIn("data", cancelled[0].to_payload())
+
+    def test_local_audio_queues_are_independent_and_report_capacity_loss(self):
+        instance = object.__new__(Model)
+        instance.transcription_pipeline_metrics = []
+        mic = _MetricAudioQueue(
+            PipelineSource.MIC,
+            instance._emitTranscriptionLifecycleMetric,
+            preserve_pending_audio=True,
+        )
+        speaker = _MetricAudioQueue(
+            PipelineSource.SPEAKER,
+            instance._emitTranscriptionLifecycleMetric,
+            preserve_pending_audio=True,
+        )
+        spoken_at = datetime(2026, 7, 13, tzinfo=timezone.utc)
+        self.assertTrue(speaker.offer(AudioChunk(b"speaker", spoken_at, 0.0)).accepted)
+        for index in range(model_module.LOCAL_WHISPER_AUDIO_QUEUE_SIZE + 1):
+            result = mic.offer(AudioChunk(bytes([index]), spoken_at, float(index)))
+            if result.dropped is not None:
+                mic.record_drop()
+
+        self.assertEqual(mic.qsize(), model_module.LOCAL_WHISPER_AUDIO_QUEUE_SIZE)
+        self.assertEqual(mic.get_nowait().data, bytes([1]))
+        self.assertEqual(speaker.get_nowait().data, b"speaker")
+        self.assertEqual(
+            [(event.source, event.dropped_count) for event in instance.transcription_pipeline_metrics
+             if event.outcome == "skipped_overload"],
+            [(PipelineSource.MIC, 1)],
+        )
+
     def test_pipeline_enums_have_exact_members_and_values(self):
         self.assertEqual(
             {

@@ -52,7 +52,13 @@ def summarize(events, scenario, resources=(), frame_times=()):
     output = [item for item in events if item.get("stage") == "output" and item.get("outcome") == "success"]
     failures = [item for item in events if item.get("outcome") in ("error", "timeout")]
     overloads = [item for item in events if item.get("outcome") == "skipped_overload"]
-    cancellations = [item for item in events if item.get("outcome") == "cancelled"]
+    cancellations = [
+        item for item in events
+        if item.get("outcome") == "cancelled"
+        or item.get("error_code") in (
+            "audio_queue_cancelled", "transcription_generation_retired"
+        )
+    ]
     dropped_by_source = {}
     for item in events:
         source = item.get("source")

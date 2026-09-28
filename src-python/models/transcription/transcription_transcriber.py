@@ -523,10 +523,15 @@ class AudioTranscriber:
             chunk.spoken_at,
             chunk.captured_at_monotonic,
         )
-        final_chunk = self.drainAudioQueue(
-            audio_queue,
-            on_audio_consumed=on_audio_consumed,
-        ) or chunk
+        final_chunk = chunk
+        if not (
+            self.transcription_engine in ("Whisper", "Whisper Thai")
+            and getattr(audio_queue, "preserve_pending_audio", False)
+        ):
+            final_chunk = self.drainAudioQueue(
+                audio_queue,
+                on_audio_consumed=on_audio_consumed,
+            ) or chunk
         dequeued_at = time.perf_counter()
         queue_age_ms = max(
             0,
@@ -599,6 +604,9 @@ class AudioTranscriber:
                 errorLogging()
 
         try:
+            if not self._isGenerationCurrent():
+                emit_terminal_metric("skipped", "transcription_generation_retired")
+                return False
             if (
                 (not languages or not countries)
                 and self.transcription_engine != "Whisper Thai"

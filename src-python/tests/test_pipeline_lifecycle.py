@@ -745,7 +745,7 @@ class PipelineLifecycleTests(unittest.TestCase):
             },
         )
 
-    def test_shutdown_order_is_recorder_queue_worker_pipeline_lease_then_manager(self):
+    def test_shutdown_closes_audio_queue_before_stopping_recorder(self):
         instance = object.__new__(Model)
         instance._inited = True
         instance._source_session_lock = threading.RLock()
@@ -794,8 +794,8 @@ class PipelineLifecycleTests(unittest.TestCase):
         self.assertEqual(
             order,
             [
-                "recorder",
                 "audio-queue",
+                "recorder",
                 "transcription-worker",
                 ("source-pipeline", 6, True),
                 "lease",

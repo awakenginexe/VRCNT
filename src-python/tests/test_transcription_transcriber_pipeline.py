@@ -519,6 +519,96 @@ class TranscriberPipelineTests(unittest.TestCase):
             if event.stage == "audio_input" and event.outcome == "input_trimmed"
         ), 24000)
 
+    def test_local_whisper_backlog_processes_each_waiting_chunk_in_order(self):
+        lease = FakeLease()
+        events = []
+        transcriber = make_transcriber(
+            lease, make_pipeline_context(lease, events=events)
+        )
+        audio_queue = model_module._MetricAudioQueue(
+            PipelineSource.MIC,
+            lambda *_args, **_kwargs: None,
+            preserve_pending_audio=True,
+        )
+        spoken_at = datetime.now(timezone.utc)
+        captured_at = time.perf_counter()
+        for index in range(8):
+            offered = audio_queue.offer(
+                AudioChunk(
+                    pcm(100 + index, samples=16000),
+                    spoken_at + timedelta(seconds=index),
+                    captured_at + index,
+                )
+            )
+            self.assertTrue(offered.accepted)
+            self.assertIsNone(offered.dropped)
+
+        for remaining in range(7, -1, -1):
+            self.assertTrue(
+                transcriber.transcribeAudioQueue(
+                    audio_queue, ["English"], ["United States"]
+                )
+            )
+            self.assertEqual(audio_queue.qsize(), remaining)
+            self.assertEqual(transcriber.getTranscript()["text"], " hello world")
+
+        self.assertEqual(len(lease.calls), 8)
+        self.assertEqual(
+            [int(round(call[0][0] * 32768)) for call in lease.calls],
+            list(range(100, 108)),
+        )
+        self.assertFalse(any(event.outcome == "input_trimmed" for event in events))
+
+    def test_switch_during_inference_discards_waiting_audio_and_stale_result(self):
+        entered = Event()
+        release = Event()
+        current = [True]
+
+        class BlockingLease(FakeLease):
+            def transcribe(self, audio, **options):
+                entered.set()
+                if not release.wait(2):
+                    raise AssertionError("test inference was not released")
+                return super().transcribe(audio, **options)
+
+        lease = BlockingLease()
+        transcriber = make_transcriber(
+            lease,
+            make_pipeline_context(
+                lease, is_current=lambda _generation: current[0]
+            ),
+        )
+        audio_queue = model_module._MetricAudioQueue(
+            PipelineSource.MIC,
+            lambda *_args, **_kwargs: None,
+            preserve_pending_audio=True,
+        )
+        spoken_at = datetime.now(timezone.utc)
+        audio_queue.offer(AudioChunk(pcm(100), spoken_at, time.perf_counter()))
+        results = []
+        worker = Thread(
+            target=lambda: results.append(
+                transcriber.transcribeAudioQueue(
+                    audio_queue, ["English"], ["United States"]
+                )
+            )
+        )
+        worker.start()
+        self.addCleanup(worker.join, 2)
+        self.addCleanup(release.set)
+        self.assertTrue(entered.wait(2))
+        audio_queue.offer(AudioChunk(pcm(200), spoken_at, time.perf_counter()))
+        current[0] = False
+        audio_queue.close()
+        release.set()
+        worker.join(2)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(results, [True])
+        self.assertEqual(len(lease.calls), 1)
+        self.assertEqual(audio_queue.qsize(), 0)
+        self.assertEqual(transcriber.transcript_data, [])
+
     def test_pipeline_context_has_exact_frozen_contract(self):
         context_type = getattr(
             transcriber_module,
@@ -821,7 +911,7 @@ class TranscriberPipelineTests(unittest.TestCase):
         self.assertEqual(audio_queue.qsize(), 0)
         self.assertEqual(lease.calls[0][0].size, 480)
 
-    def test_inactive_generation_drops_result_and_unsupported_terminal_metric(self):
+    def test_inactive_generation_skips_native_inference_and_reports_stale_job(self):
         lease = FakeLease()
         events = []
         context = make_pipeline_context(
@@ -840,7 +930,7 @@ class TranscriberPipelineTests(unittest.TestCase):
             )
         )
 
-        self.assertTrue(
+        self.assertFalse(
             transcriber.transcribeAudioQueue(
                 audio_queue,
                 ["English"],
@@ -849,14 +939,16 @@ class TranscriberPipelineTests(unittest.TestCase):
         )
 
         self.assertEqual(update_calls, [])
-        self.assertNotIn(
-            ("transcription", "success"),
-            [(event.stage, event.outcome) for event in events],
-        )
+        self.assertEqual(lease.calls, [])
         self.assertEqual(
             [(event.stage, event.outcome) for event in events],
-            [("queue", "success"), ("transcription", "running")],
+            [
+                ("queue", "success"),
+                ("transcription", "running"),
+                ("transcription", "skipped"),
+            ],
         )
+        self.assertEqual(events[-1].error_code, "transcription_generation_retired")
 
     def test_outer_whisper_processing_failure_is_terminal_and_returns_false(self):
         lease = FakeLease()

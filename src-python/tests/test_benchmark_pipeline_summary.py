@@ -24,6 +24,17 @@ class BenchmarkPipelineSummaryTests(unittest.TestCase):
         self.assertEqual(result["dropped_count_by_source"], {"mic": 1})
         self.assertIsNone(result["quality"])
 
+    def test_stopped_audio_backlog_counts_as_cancelled_and_dropped(self):
+        events = [
+            {"stage": "queue", "outcome": "skipped", "source": "speaker",
+             "error_code": "audio_queue_cancelled", "dropped_count": 5},
+            {"stage": "transcription", "outcome": "skipped", "source": "speaker",
+             "error_code": "transcription_generation_retired", "dropped_count": 0},
+        ]
+        result = summarize(events, "switch-model")
+        self.assertEqual(result["cancelled_count"], 2)
+        self.assertEqual(result["dropped_count_by_source"], {"speaker": 5})
+
 
 if __name__ == "__main__":
     unittest.main()
