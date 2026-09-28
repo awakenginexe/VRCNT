@@ -84,7 +84,7 @@
         border: none;
         border-top: 0.1rem solid rgba(255, 255, 255, 0.06);
         border-bottom: 0.1rem solid rgba(255, 255, 255, 0.06);
-        border-left: 0.35rem solid rgba(99, 102, 241, 0.6);
+        border-left: 0.35rem solid rgba(52, 211, 153, 0.6);
         box-shadow: none;
         transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 
@@ -100,7 +100,7 @@
 
         &:first-child {
             font-size: 0.88rem;
-            color: var(--primary_200_color);
+            color: #34d399;
         }
     }
 }

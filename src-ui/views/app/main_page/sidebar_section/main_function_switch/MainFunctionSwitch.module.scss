@@ -167,24 +167,44 @@
         box-shadow: inset 0.35rem 0 0 0 #38bdf8;
     }
 
+    .switch_container[data-function="transcription_send"].is_active:not(.is_pending) .switch_svg,
+    .switch_container[data-function="transcription_send"].is_active:not(.is_pending) .state_badge {
+        color: #38bdf8;
+    }
+
+    .switch_container[data-function="transcription_send"].is_active:not(.is_pending) .state_mark {
+        border-color: #38bdf8;
+        background: #38bdf8;
+    }
+
     .switch_container[data-function="transcription_receive"].is_active {
+        background: linear-gradient(90deg, rgba(167, 139, 250, 0.22), rgba(99, 102, 241, 0.08));
+        box-shadow: inset 0.35rem 0 0 0 #a78bfa;
+    }
+
+    .switch_container[data-function="transcription_receive"].is_active:not(.is_pending) .switch_svg,
+    .switch_container[data-function="transcription_receive"].is_active:not(.is_pending) .state_badge {
+        color: #a78bfa;
+    }
+
+    .switch_container[data-function="transcription_receive"].is_active:not(.is_pending) .state_mark {
+        border-color: #a78bfa;
+        background: #a78bfa;
+    }
+
+    .switch_container[data-function="translation"].is_active {
         background: linear-gradient(90deg, rgba(52, 211, 153, 0.22), rgba(56, 189, 248, 0.08));
         box-shadow: inset 0.35rem 0 0 0 #34d399;
     }
 
-    .switch_container[data-function="transcription_receive"].is_active .switch_svg,
-    .switch_container[data-function="transcription_receive"].is_active .state_badge {
+    .switch_container[data-function="translation"].is_active:not(.is_pending) .switch_svg,
+    .switch_container[data-function="translation"].is_active:not(.is_pending) .state_badge {
         color: #34d399;
     }
 
-    .switch_container[data-function="translation"].is_active {
-        background: linear-gradient(90deg, rgba(99, 102, 241, 0.24), rgba(168, 85, 247, 0.1));
-        box-shadow: inset 0.35rem 0 0 0 #818cf8;
-    }
-
-    .switch_container[data-function="translation"].is_active .switch_svg,
-    .switch_container[data-function="translation"].is_active .state_badge {
-        color: #a78bfa;
+    .switch_container[data-function="translation"].is_active:not(.is_pending) .state_mark {
+        border-color: #34d399;
+        background: #34d399;
     }
 }
 
