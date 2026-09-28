@@ -50,6 +50,21 @@ export const normalizeRuntimeState = (state) => {
     };
 };
 
+export const createVerifiedRuntimeCache = () => {
+    let activeRuntime = null;
+    return {
+        snapshot: () => activeRuntime,
+        remember: (runtime) => {
+            const normalized = normalizeRuntimeState(runtime);
+            activeRuntime = normalized.status === "active" ? normalized : null;
+            return activeRuntime;
+        },
+    };
+};
+
+const verifiedRuntimeCache = createVerifiedRuntimeCache();
+export const getCachedRuntimeState = () => verifiedRuntimeCache.snapshot();
+
 export const getRuntimePresentation = (runtime) => {
     if (runtime?.status !== "active" || !RUNTIME_VARIANTS.has(runtime.variant)) {
         return {
@@ -233,7 +248,11 @@ export const createRuntimeManagerAdapter = ({
 
 const runtimeManagerAdapter = createRuntimeManagerAdapter();
 
-export const getRuntimeState = () => runtimeManagerAdapter.getRuntimeState();
+export const getRuntimeState = async () => {
+    const runtime = await runtimeManagerAdapter.getRuntimeState();
+    verifiedRuntimeCache.remember(runtime);
+    return runtime;
+};
 export const launchRuntimeSwitch = (variant) => runtimeManagerAdapter.launchRuntimeSwitch(variant);
 export const getRuntimeSwitchStatus = () => runtimeManagerAdapter.getRuntimeSwitchStatus();
 export const consumeRuntimeSwitchReceipt = () => runtimeManagerAdapter.consumeRuntimeSwitchReceipt();

@@ -50,6 +50,19 @@ test("runtime badge labels only a verified active edition", () => {
     assert.equal(getRuntimeBadge(normalizeRuntimeState({ ...activeCpu, installPath: "" })), "Runtime unknown");
 });
 
+test("verified runtime survives navigation remounts but recovery clears it", () => {
+    const cache = runtimeManager.createVerifiedRuntimeCache();
+    assert.equal(cache.snapshot(), null);
+
+    cache.remember(activeCpu);
+    assert.equal(cache.snapshot().variant, "cpu");
+    cache.remember({ ...activeCpu, variant: "cuda" });
+    assert.equal(cache.snapshot().variant, "cuda");
+
+    cache.remember({ ...activeCpu, installPath: "" });
+    assert.equal(cache.snapshot(), null);
+});
+
 test("main-page branding shows the unknown fallback until runtime verification completes", () => {
     const source = fs.readFileSync(
         path.join(repoRoot, "src-ui", "views", "app", "main_page", "sidebar_section", "logo", "Logo.jsx"),
@@ -168,6 +181,52 @@ test("top navigation wordmark and window title bar render the active CPU or CUDA
     assert.match(titleBarJsx, /styles\.variant_cuda/);
     assert.match(titleBarScss, /\.runtime_badge/);
     assert.doesNotMatch(titleBarScss, /\.runtime_badge\s*\{[^}]*display:\s*none/i);
+});
+
+test("navigation keeps badge width while runtime is being checked", () => {
+    const navJsx = fs.readFileSync(
+        path.join(repoRoot, "src-ui", "views", "app", "main_page", "main_section", "live_weave_navigation", "LiveWeaveNavigation.jsx"),
+        "utf8",
+    );
+    const navScss = fs.readFileSync(
+        path.join(repoRoot, "src-ui", "views", "app", "main_page", "main_section", "live_weave_navigation", "LiveWeaveNavigation.module.scss"),
+        "utf8",
+    );
+    assert.match(navJsx, /useState\(getCachedRuntimeState\)/);
+    assert.match(navJsx, /data-unverified=\{!displayedBadge\}/);
+    assert.doesNotMatch(navJsx, /\{displayedBadge &&/);
+    assert.match(navScss, /\.runtime_badge\s*\{[^}]*min-width:\s*3\.2rem/);
+    assert.match(navScss, /&\[data-unverified="true"\]\s*\{\s*visibility:\s*hidden;/);
+});
+
+test("window title bar keeps its runtime badge position during revalidation", () => {
+    const titleBarJsx = fs.readFileSync(
+        path.join(repoRoot, "src-ui", "views", "app", "others", "window_title_bar", "WindowTitleBar.jsx"),
+        "utf8",
+    );
+    const titleBarScss = fs.readFileSync(
+        path.join(repoRoot, "src-ui", "views", "app", "others", "window_title_bar", "WindowTitleBar.module.scss"),
+        "utf8",
+    );
+    assert.match(titleBarJsx, /useState\(getCachedRuntimeState\)/);
+    assert.match(titleBarJsx, /data-unverified=\{!displayedBadge\}/);
+    assert.doesNotMatch(titleBarJsx, /\{displayedBadge &&/);
+    assert.match(titleBarScss, /&\[data-unverified="true"\]\s*\{\s*visibility:\s*hidden;/);
+});
+
+test("settings title keeps its runtime badge position when reopened", () => {
+    const titleJsx = fs.readFileSync(
+        path.join(repoRoot, "src-ui", "views", "app", "config_page", "topbar", "title_box", "TitleBox.jsx"),
+        "utf8",
+    );
+    const titleScss = fs.readFileSync(
+        path.join(repoRoot, "src-ui", "views", "app", "config_page", "topbar", "title_box", "TitleBox.module.scss"),
+        "utf8",
+    );
+    assert.match(titleJsx, /useState\(getCachedRuntimeState\)/);
+    assert.match(titleJsx, /data-unverified=\{!displayedBadge\}/);
+    assert.doesNotMatch(titleJsx, /\{displayedBadge &&/);
+    assert.match(titleScss, /&\[data-unverified="true"\]\s*\{\s*visibility:\s*hidden;/);
 });
 
 test("invalid runtime state enters recovery instead of being displayed as active", () => {

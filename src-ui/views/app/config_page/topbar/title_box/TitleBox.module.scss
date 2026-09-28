@@ -30,6 +30,7 @@
 
 .runtime_badge {
     display: inline-flex;
+    min-width: 3.2rem;
     align-items: center;
     justify-content: center;
     padding: 0.12rem 0.5rem;
@@ -44,6 +45,10 @@
     border: 1px solid color-mix(in srgb, var(--dark_400_color) 45%, transparent);
     background: color-mix(in srgb, var(--dark_800_color) 75%, transparent);
     color: var(--dark_350_color, #AEBBD0);
+
+    &[data-unverified="true"] {
+        visibility: hidden;
+    }
 
     &.variant_cpu {
         border-color: rgba(56, 189, 248, 0.45);
