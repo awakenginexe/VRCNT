@@ -189,6 +189,18 @@ class ReleaseVersionTests(unittest.TestCase):
             requirements,
         )
 
+    def test_release_workflow_embeds_exact_tag_in_setup_manager(self):
+        workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(
+            encoding="utf-8"
+        )
+        publish_commands = [
+            line.strip()
+            for line in workflow.splitlines()
+            if line.strip().startswith("dotnet publish ./installer-helper/VRCNT.Setup/")
+        ]
+        self.assertEqual(len(publish_commands), 1)
+        self.assertIn("-p:RuntimeReleaseTag=$env:RELEASE_TAG", publish_commands[0])
+
 
 if __name__ == "__main__":
     unittest.main()

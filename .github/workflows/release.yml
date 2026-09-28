@@ -311,7 +311,7 @@ jobs:
           $commit = (git rev-parse HEAD).Trim()
           ./scripts/stage_runtime.ps1 -Variant cpu -ShellPath $shell -BackendPayloadPath $cpu -OutputPath ./build/release/cpu -Version $env:VERSION -SourceCommit $commit
           ./scripts/stage_runtime.ps1 -Variant cuda -ShellPath $shell -BackendPayloadPath $cuda -OutputPath ./build/release/cuda -Version $env:VERSION -SourceCommit $commit
-          dotnet publish ./installer-helper/VRCNT.Setup/VRCNT.Setup.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -p:SetupToolSourceDirectory=$tools -o ./build/setup
+          dotnet publish ./installer-helper/VRCNT.Setup/VRCNT.Setup.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -p:SetupToolSourceDirectory=$tools -p:RuntimeReleaseTag=$env:RELEASE_TAG -o ./build/setup
           if ($LASTEXITCODE -ne 0) { throw 'WPF setup publish failed.' }
           $setup = Join-Path (Get-Location) 'build/setup/VRCNT.Setup.exe'
           if (-not (Test-Path $setup) -or (Get-Item $setup).Length -eq 0) { throw 'WPF setup publish did not produce VRCNT.Setup.exe.' }
