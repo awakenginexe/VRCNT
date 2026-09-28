@@ -156,6 +156,16 @@ class ReleaseVersionTests(unittest.TestCase):
             ).read_text(encoding="utf-8").splitlines()
             self.assertIn("setuptools==83.0.0", requirements)
 
+    def test_python_builds_pin_patched_openai_chat_stack(self):
+        for filename in ("requirements.txt", "requirements_cuda.txt"):
+            requirements = (
+                ROOT / filename
+            ).read_text(encoding="utf-8").splitlines()
+            self.assertIn("langchain-openai==1.1.14", requirements)
+            self.assertIn("langchain-google-genai==3.0.0", requirements)
+            self.assertIn("langchain-core==1.2.31", requirements)
+            self.assertIn("openai==2.26.0", requirements)
+
     def test_cuda_runtime_matches_ctranslate2(self):
         requirements = (
             ROOT / "requirements_cuda.txt"
