@@ -1,6 +1,8 @@
 import os
+import socket
 import sys
 import unittest
+from dataclasses import replace
 from unittest.mock import Mock, patch
 
 
@@ -126,6 +128,45 @@ def _final_task(trace, message, translation_messages=None):
 
 
 class MicOutputAdmissionTests(unittest.TestCase):
+    def test_speech_only_and_translated_output_reach_udp_after_other_source_stops(self):
+        from pythonosc.osc_message import OscMessage
+
+        receiver = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        receiver.bind(("127.0.0.1", 0))
+        receiver.settimeout(2.0)
+        self.addCleanup(receiver.close)
+        instance = object.__new__(Model)
+        instance._inited = True
+        instance.addTranslationHistory = Mock()
+        instance._ensureTranscriptionLifecycleState()
+        instance.osc_handler = model_module.OSCHandler("127.0.0.1", receiver.getsockname()[1])
+        self.addCleanup(instance.osc_handler.udp_client._sock.close)
+        self.addCleanup(instance.osc_handler.closeChatboxDispatcher)
+        generation = instance.nextSourcePipelineGeneration(PipelineSource.MIC)
+        speaker_generation = instance.nextSourcePipelineGeneration(PipelineSource.SPEAKER)
+        instance.invalidateOscMessageGeneration(speaker_generation)
+        instance.isSourcePipelineGenerationCurrent = Mock(return_value=True)
+        instance.telemetryTrackCoreFeature = Mock()
+        instance.endMicTypingProcessing = Mock()
+        controller = Controller()
+        controller.run = Mock()
+
+        with patch.object(controller_module, "model", instance), patch.multiple(
+            controller_module.config, _VRC_MIC_MUTE_SYNC=False, _NOTIFICATION_VRC_SFX=True,
+        ), patch.object(controller_module, "printLog"):
+            for translation_enabled in (False, True):
+                trace = _trace("udp", _output_snapshot(translation_enabled=translation_enabled))
+                task = _final_task(trace, "spoken", {"1": "translated"})
+                task = replace(task, generation=generation,
+                               translations=task.translations if translation_enabled else ())
+                controller._finalizeMicOutput(task)
+                packet = OscMessage(receiver.recv(65535))
+                self.assertEqual(packet.address, "/chatbox/input")
+                expected = "<m>spoken</m> | <t>translated</t>" if translation_enabled else "<m>spoken</m>"
+                self.assertEqual(packet.params, [expected, True, True])
+            instance.oscSendMessage("manual")
+            self.assertEqual(OscMessage(receiver.recv(65535)).params, ["manual", True, True])
+
     def test_mic_mute_handler_accepts_first_state_even_when_previous_state_unknown(self):
         instance = object.__new__(Model)
         instance._inited = True

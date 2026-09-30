@@ -78,6 +78,24 @@ class _RecoveryModel:
 
 
 class PipelineLifecycleTests(unittest.TestCase):
+    def test_stopping_one_source_does_not_invalidate_other_source_osc(self):
+        from models.osc.chatbox_dispatcher import ChatboxDispatcher
+
+        instance = object.__new__(Model)
+        instance._inited = True
+        instance._ensureTranscriptionLifecycleState()
+        mic_generation = instance.nextSourcePipelineGeneration(PipelineSource.MIC)
+        speaker_generation = instance.nextSourcePipelineGeneration(PipelineSource.SPEAKER)
+        delivered = threading.Event()
+        dispatcher = ChatboxDispatcher(lambda _message: delivered.set())
+        self.addCleanup(dispatcher.close)
+        dispatcher.invalidate_generation(speaker_generation)
+
+        self.assertTrue(dispatcher.enqueue("mic transcription", generation=mic_generation))
+        self.assertTrue(delivered.wait(WAIT_SECONDS))
+        next_mic = instance.nextSourcePipelineGeneration(PipelineSource.MIC)
+        self.assertGreater(next_mic, max(mic_generation, speaker_generation))
+
     def _exercise_healthy_silence_source(self, source):
         generation = 11 if source is PipelineSource.MIC else 12
         instance = object.__new__(Model)

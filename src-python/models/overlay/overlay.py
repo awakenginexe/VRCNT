@@ -1,19 +1,22 @@
 import os
 import ctypes
 import time
-from psutil import process_iter
-from threading import Thread, current_thread
+from psutil import process_iter, AccessDenied, NoSuchProcess
+from threading import Event, Lock, Thread, current_thread
 from typing import Any, Dict, Optional, Sequence
 
 import openvr
 import numpy as np
 from PIL import Image
 try:
-    from utils import errorLogging
+    from utils import errorLogging, printLog
 except ImportError:
     def errorLogging():
         import traceback
         print(traceback.format_exc())
+
+    def printLog(message, data=None):
+        print(message, data)
 
 try:
     from . import overlay_utils as utils
@@ -92,6 +95,11 @@ class Overlay:
         self.initialized: bool = False
         self.loop: bool = False
         self.thread_overlay: Optional[Thread] = None
+        self._image_lock = Lock()
+        self._pending_images: set[str] = set()
+        self._lifecycle_lock = Lock()
+        self._stop_event = Event()
+        self._restart_requested = False
 
         self.settings: Dict[str, Dict[str, Any]] = {}
         self.lastUpdate: Dict[str, float] = {}
@@ -118,7 +126,12 @@ class Overlay:
             self.initialized = True
 
             for size in self.settings.keys():
-                self._setOverlayRaw(self.lastImage[size], size)
+                with self._image_lock:
+                    image = self.lastImage[size]
+                    self._pending_images.discard(size)
+                self._setOverlayRaw(image, size)
+                self.lastUpdate[size] = time.monotonic()
+                self.fadeRatio[size] = 1.0
                 self.updateColor([1, 1, 1], size)
                 self.updateOpacity(self.settings[size]["opacity"], size)
                 self.updateUiScaling(self.settings[size]["ui_scaling"], size)
@@ -135,6 +148,9 @@ class Overlay:
                 self.updateDisplayDuration(self.settings[size]["display_duration"], size)
                 self.updateFadeoutDuration(self.settings[size]["fadeout_duration"], size)
             self.init_process = False
+            printLog("[Overlay] OpenVR initialized", {
+                "position_applied": dict(self.positionApplied),
+            })
 
         except Exception:
             errorLogging()
@@ -177,29 +193,18 @@ class Overlay:
                 self.positionApplied[size] = False
 
     def updateImage(self, img: Image.Image, size: str) -> None:
-        self.lastImage[size] = img.copy()
-        if self.initialized is False:
+        # OpenVR upload and recovery belong to the overlay worker. A missing
+        # runtime must never hold the speech output worker for five seconds.
+        with self._image_lock:
+            self.lastImage[size] = img.copy()
+            self._pending_images.add(size)
+        if self.initialized is False or self._stop_event.is_set():
             self.startOverlay()
-            if self._waitUntilInitialized() is False:
-                return
-        if self.initialized is True:
-            for attempt in range(2):
-                try:
-                    self._setOverlayRaw(self.lastImage[size], size)
-                    self.updateOpacity(self.settings[size]["opacity"], size)
-                    self.lastUpdate[size] = time.monotonic()
-                    return
-                except Exception:
-                    errorLogging()
-                    if attempt == 0:
-                        self.reStartOverlay()
-                        if self._waitUntilInitialized() is False:
-                            return
 
     def clearImage(self, size: str) -> None:
-        self.lastImage[size] = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
-        if self.initialized is True:
-            self.updateImage(self.lastImage[size], size)
+        with self._image_lock:
+            self.lastImage[size] = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
+            self._pending_images.add(size)
 
     def updateColor(self, col, size):
         """
@@ -307,6 +312,17 @@ class Overlay:
             self.overlay.setOverlayAlpha(self.handle[size], self.fadeRatio[size] * self.settings[size]["opacity"])
 
     def update(self, size: str) -> None:
+        with self._image_lock:
+            image = self.lastImage[size] if size in self._pending_images else None
+            self._pending_images.discard(size)
+        if image is not None:
+            self._setOverlayRaw(image, size)
+            self.lastUpdate[size] = time.monotonic()
+            self.fadeRatio[size] = 1.0
+            self.updateOpacity(self.settings[size]["opacity"], size)
+            printLog("[Overlay] Image uploaded", {
+                "size": size, "width": image.width, "height": image.height,
+            })
         if self.positionApplied.get(size) is not True:
             self.positionApplied[size] = self._applyPosition(size)
         if self.settings[size]["fadeout_duration"] != 0:
@@ -314,8 +330,9 @@ class Overlay:
         else:
             self.updateOpacity(self.settings[size]["opacity"], size)
 
-    def mainloop(self) -> None:
-        while self.checkActive() is True and self.loop is True:
+    def mainloop(self, stop_event: Optional[Event] = None) -> None:
+        stop_event = stop_event if stop_event is not None else self._stop_event
+        while not stop_event.is_set() and self.loop is True and self.checkActive() is True:
             startTime = time.monotonic()
             try:
                 for size in self.settings.keys():
@@ -325,46 +342,68 @@ class Overlay:
                 break
             sleepTime = (1 / 16) - (time.monotonic() - startTime)
             if sleepTime > 0:
-                time.sleep(sleepTime)
+                stop_event.wait(sleepTime)
 
-    def main(self) -> None:
-        self.loop = True
+    def main(self, stop_event: Optional[Event] = None) -> None:
+        stop_event = stop_event if stop_event is not None else self._stop_event
+        waiting_for_steamvr = False
         try:
-            while self.loop is True:
-                while self.loop is True and self.checkSteamvrRunning() is False:
-                    time.sleep(5)
-                if self.loop is False:
+            while not stop_event.is_set():
+                while not stop_event.is_set() and self.checkSteamvrRunning() is False:
+                    if not waiting_for_steamvr:
+                        printLog("[Overlay] Waiting for SteamVR")
+                        waiting_for_steamvr = True
+                    stop_event.wait(5)
+                if stop_event.is_set():
                     break
+                waiting_for_steamvr = False
                 self.init()
                 if self.initialized is True:
-                    self.mainloop()
+                    self.mainloop(stop_event)
                 self._releaseOpenvrResources()
-                if self.loop is True:
-                    time.sleep(2)
+                if not stop_event.is_set():
+                    stop_event.wait(2)
         except Exception:
             errorLogging()
         finally:
             self._releaseOpenvrResources()
+            with self._lifecycle_lock:
+                if self.thread_overlay is current_thread():
+                    self.thread_overlay = None
+                    self.init_process = False
+                    self.loop = False
+                    if self._restart_requested:
+                        self._startOverlayLocked()
+
+    def _startOverlayLocked(self) -> None:
+        self._restart_requested = False
+        self._stop_event = Event()
+        self.init_process = True
+        self.loop = True
+        self.thread_overlay = Thread(target=self.main, args=(self._stop_event,), daemon=True)
+        self.thread_overlay.start()
 
     def startOverlay(self) -> None:
-        if isinstance(self.thread_overlay, Thread) and self.thread_overlay.is_alive():
-            return
-        if isinstance(self.thread_overlay, Thread):
-            self.thread_overlay = None
-            self.init_process = False
-        if self.init_process is False:
-            self.init_process = True
-            self.loop = True
-            self.thread_overlay = Thread(target=self.main)
-            self.thread_overlay.daemon = True
-            self.thread_overlay.start()
+        with self._lifecycle_lock:
+            if isinstance(self.thread_overlay, Thread) and self.thread_overlay.is_alive():
+                # A retiring worker still owns its OpenVR handles. Let it
+                # release them before starting the requested replacement.
+                if self._stop_event.is_set():
+                    self._restart_requested = True
+                return
+            self._startOverlayLocked()
 
     def shutdownOverlay(self) -> None:
-        self.loop = False
-        if isinstance(self.thread_overlay, Thread) and self.thread_overlay is not current_thread():
-            self.thread_overlay.join(timeout=3)
-            self.thread_overlay = None
-        self._releaseOpenvrResources()
+        with self._lifecycle_lock:
+            self._restart_requested = False
+            self.loop = False
+            self._stop_event.set()
+            worker = self.thread_overlay
+            if worker is None:
+                self._releaseOpenvrResources()
+        if isinstance(worker, Thread):
+            if worker is not current_thread():
+                worker.join(timeout=3)
 
     def reStartOverlay(self) -> None:
         self.shutdownOverlay()
@@ -374,7 +413,13 @@ class Overlay:
     def checkSteamvrRunning() -> bool:
         _proc_name = "vrmonitor.exe" if os.name == "nt" else "vrmonitor"
         try:
-            return _proc_name in (p.name() for p in process_iter())
+            for process in process_iter():
+                try:
+                    if process.name().lower() == _proc_name:
+                        return True
+                except (AccessDenied, NoSuchProcess):
+                    continue
+            return False
         except Exception:
             errorLogging()
             return False

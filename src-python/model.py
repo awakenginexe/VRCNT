@@ -811,7 +811,9 @@ class Model:
         self.ensure_initialized()
         self._ensureTranscriptionLifecycleState()
         with self._source_session_lock:
-            current = self._source_pipeline_generation_counters.get(source, 0)
+            # The shared OSC dispatcher invalidates by generation alone, so
+            # identities must be unique across microphone and speaker sessions.
+            current = max(self._source_pipeline_generation_counters.values(), default=0)
             generation = current + 1
             self._source_pipeline_generation_counters[source] = generation
             return generation

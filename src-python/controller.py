@@ -624,7 +624,12 @@ class Controller:
         if generation is not None and not type(model).__module__.startswith(
             "unittest.mock"
         ):
-            send(message, generation=generation)
+            accepted = send(message, generation=generation)
+            printLog("[OSC] Speech message queued", {
+                "generation": generation,
+                "accepted": accepted,
+                "characters": len(message),
+            })
         else:
             send(message)
 
