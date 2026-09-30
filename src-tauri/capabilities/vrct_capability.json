@@ -29,6 +29,13 @@
 
         "updater:default",
         "process:default",
+        {
+            "identifier": "opener:allow-open-url",
+            "allow": [
+                { "url": "https://github.com/awakenginexe/VRCNT" },
+                { "url": "https://github.com/awakenginexe/VRCNT/**" }
+            ]
+        },
 
         "fs:default",
         "fs:allow-write-file",

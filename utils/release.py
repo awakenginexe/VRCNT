@@ -200,12 +200,36 @@ def package(version: str, variant: str, source_dir: Path, seven_zip: Path, outpu
     return metadata
 
 
-def latest(version: str, updater_name: str, signature_path: Path, output_path: Path, pub_date: str, release_tag: str | None = None) -> None:
+def latest(
+    version: str,
+    updater_name: str,
+    signature_path: Path,
+    output_path: Path,
+    pub_date: str,
+    release_tag: str | None = None,
+    notes_file: Path | None = None,
+) -> None:
     config = load_release_config()
     signature = signature_path.read_text(encoding="utf-8-sig").strip()
     if not signature:
         raise ValueError("Tauri updater signature is empty.")
-    document = {"version": version, "notes": f"VRCNT {version}: GitHub Releases installer and updater migration.", "pub_date": pub_date, "platforms": {"windows-x86_64": {"signature": signature, "url": config.release_download_url(version, updater_name, release_tag)}}}
+    notes = f"VRCNT {version}: GitHub Releases installer and updater migration."
+    if notes_file is not None:
+        with notes_file.open("r", encoding="utf-8", newline="") as stream:
+            notes = stream.read()
+    document = {
+        "version": release_tag.removeprefix("v") if release_tag else version,
+        "notes": notes,
+        "pub_date": pub_date,
+        "platforms": {
+            "windows-x86_64": {
+                "signature": signature,
+                "url": config.release_download_url(version, updater_name, release_tag),
+            }
+        },
+    }
+    if release_tag:
+        document["release_tag"] = release_tag
     output_path.write_text(json.dumps(document, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
 
 
@@ -238,6 +262,7 @@ def parse_args() -> argparse.Namespace:
     latest_parser.add_argument("--output", type=Path, required=True)
     latest_parser.add_argument("--pub-date", required=True)
     latest_parser.add_argument("--release-tag")
+    latest_parser.add_argument("--notes-file", type=Path)
     hashes_parser = subparsers.add_parser("hashes")
     hashes_parser.add_argument("--output", type=Path, required=True)
     hashes_parser.add_argument("paths", type=Path, nargs="+")
@@ -252,7 +277,7 @@ def main() -> int:
     elif args.command == "manifest":
         write_combined_manifest(args.version, args.cpu_dir, args.cuda_dir, args.setup, args.output)
     elif args.command == "latest":
-        latest(args.version, args.updater_name, args.signature, args.output, args.pub_date, args.release_tag)
+        latest(args.version, args.updater_name, args.signature, args.output, args.pub_date, args.release_tag, args.notes_file)
     elif args.command == "hashes":
         hashes(args.paths, args.output)
     return 0

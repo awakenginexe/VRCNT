@@ -700,6 +700,25 @@ update_modal:
     is_latest_version_already: "已在使用最新版本"
     is_current_compute_device: "当前使用的版本"
 
+    eyebrow: "VRCNT 更新"
+    title: "查看此更新"
+    version_transition: "已安装版本 {{installed}}；最新版本 {{latest}}"
+    unknown_version: "未知版本"
+    available: "有可用更新"
+    preview_notice: "预览样例内容，仅用于查看界面。"
+    release_notes_intro: "VRCNT {{version}} 以及当前安装版本之后发布的版本说明。"
+    release_notes: "版本说明"
+    later: "稍后"
+    update_to_version: "更新到 {{version}}"
+    loading_notes: "正在加载版本说明…"
+    notes_unavailable: "暂时无法获取版本说明。"
+    no_release_notes: "没有可显示的版本说明。"
+    notes_incomplete: "部分版本说明未能加载。重试以检查其余版本。"
+    release_date_unknown: "日期不可用"
+    view_release: "查看版本"
+    install_error: "无法安装更新。请重试或打开发布页面。"
+    retry: "重试"
+
 config_page:
     common:
         version: "版本 {{version}}"

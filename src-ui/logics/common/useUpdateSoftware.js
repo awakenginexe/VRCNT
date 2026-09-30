@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
-import { check } from "@tauri-apps/plugin-updater";
+import { check, Update } from "@tauri-apps/plugin-updater";
+import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { useI18n } from "@useI18n";
 import { useSoftwareVersion } from "./useSoftwareVersion";
@@ -22,11 +24,18 @@ export const useUpdateSoftware = () => {
         is_indeterminate: false,
     });
 
-    const openReleaseFallback = () => {
-        const releaseUrl = currentLatestSoftwareVersionInfo.data.release_url;
-        if (!releaseUrl || typeof window === "undefined") return false;
-        window.open(releaseUrl, "_blank", "noopener,noreferrer");
-        return true;
+    const openReleaseFallback = async (url = currentLatestSoftwareVersionInfo.data.release_url) => {
+        if (!url || typeof window === "undefined") return false;
+        try {
+            const releaseUrl = new URL(url);
+            if (!["http:", "https:"].includes(releaseUrl.protocol)) return false;
+            if (isTauriRuntime()) await openUrl(releaseUrl.href);
+            else window.open(releaseUrl.href, "_blank", "noopener,noreferrer");
+            return true;
+        } catch (error) {
+            showNotification_Error(`${t("update_modal.error")} ${String(error)}`);
+            return false;
+        }
     };
 
     const updateSoftware = async () => {
@@ -43,8 +52,7 @@ export const useUpdateSoftware = () => {
                     version: "",
                     is_indeterminate: false,
                 });
-                openReleaseFallback();
-                showNotification_Success(t("update_modal.opened_releases"));
+                if (await openReleaseFallback()) showNotification_Success(t("update_modal.opened_releases"));
                 setUpdateState({
                     status: "idle",
                     progress: 0,
@@ -63,7 +71,14 @@ export const useUpdateSoftware = () => {
                 is_indeterminate: true,
             });
 
-            pendingUpdate = await check();
+            const info = currentLatestSoftwareVersionInfo.data;
+            if ((info.catalog_checked || info.update_checked) && info.is_update_available) {
+                const metadata = await invoke("check_release_update", { releaseTag: `v${info.new_version}` });
+                if (!metadata) throw new Error("The selected release changed. Refresh release notes and try again.");
+                pendingUpdate = new Update(metadata);
+            } else {
+                pendingUpdate = await check();
+            }
             if (!pendingUpdate) {
                 updateLatestSoftwareVersionInfo((previous) => ({
                     ...previous.data,

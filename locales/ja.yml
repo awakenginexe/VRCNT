@@ -700,6 +700,25 @@ update_modal:
     is_latest_version_already: "すでに最新版を使用中"
     is_current_compute_device: "現在使用中のバージョン"
 
+    eyebrow: "VRCNT アップデート"
+    title: "アップデート内容を確認"
+    version_transition: "インストール済み {{installed}}、最新 {{latest}}"
+    unknown_version: "不明なバージョン"
+    available: "更新あり"
+    preview_notice: "プレビュー用のサンプル内容です。"
+    release_notes_intro: "VRCNT {{version}} と現在のインストール以降に公開されたバージョンの変更内容です。"
+    release_notes: "リリースノート"
+    later: "後で"
+    update_to_version: "{{version}} に更新"
+    loading_notes: "リリースノートを読み込み中…"
+    notes_unavailable: "現在リリースノートを取得できません。"
+    no_release_notes: "表示できるリリースノートはありません。"
+    notes_incomplete: "一部のリリースノートを読み込めませんでした。再試行して残りを確認してください。"
+    release_date_unknown: "日付不明"
+    view_release: "リリースを見る"
+    install_error: "アップデートをインストールできませんでした。再試行するかリリースページを開いてください。"
+    retry: "再試行"
+
 config_page:
     common:
         version: "バージョン {{version}}"

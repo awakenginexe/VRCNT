@@ -150,6 +150,8 @@ jobs:
       - name: Install application dependencies
         run: npm ci
       - name: Build shared frontend and Tauri shell
+        env:
+          VRCNT_RUNTIME_RELEASE_TAG: ${{ needs.validate.outputs.release_tag }}
         run: npm run build-runtime-shell
       - name: Stage shared shell artifact
         shell: pwsh
@@ -280,6 +282,46 @@ jobs:
           dotnet-version: '8.0.x'
       - name: Install application dependencies
         run: npm ci
+      - name: Resolve release notes
+        id: resolve-release-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $notesPath = Join-Path $env:RUNNER_TEMP 'vrcnt-release-notes.md'
+          $releaseView = @(gh release view $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --json body 2>&1)
+          $viewExitCode = $LASTEXITCODE
+          $releaseExists = $true
+          if ($viewExitCode -eq 0) {
+            $releaseBody = (($releaseView -join "`n") | ConvertFrom-Json).body
+          } else {
+            $releaseApi = @(gh api --include "repos/$env:RELEASE_REPOSITORY/releases/tags/$([uri]::EscapeDataString($env:RELEASE_TAG))" 2>&1)
+            $apiExitCode = $LASTEXITCODE
+            $httpStatus = $releaseApi | Where-Object { $_ -match '^HTTP/\S+\s+\d{3}(?:\s|$)' } | Select-Object -First 1
+            if ($httpStatus -match '^HTTP/\S+\s+404(?:\s|$)') {
+              $releaseBody = $null
+              $releaseExists = $false
+            } else {
+              throw 'Could not resolve the GitHub Release notes; the release API did not report HTTP 404.'
+            }
+          }
+          if ([string]::IsNullOrWhiteSpace($releaseBody)) {
+            $releaseBody = @"
+          ## [Download VRCNT Setup for Windows](https://github.com/$env:RELEASE_REPOSITORY/releases/download/$env:RELEASE_TAG/$env:INSTALLER_NAME)
+
+          VRCNT $env:VERSION
+
+          Install with $env:INSTALLER_NAME. The setup manager preserves the selected CPU or CUDA runtime on normal updates. Each variant archive has its own variable number of parts and can be used for portable or offline installation.
+
+          Package integrity is authenticated by $env:PACKAGE_MANIFEST_NAME.sig and documented in $env:HASHES_NAME. Tauri updates use the signed WPF setup and latest.json.
+
+          VirusTotal results for VRCNT.Setup.exe, VRCNT.exe and VRCNT-backend.exe are included in VirusTotal-report.json.
+          "@
+          }
+          [IO.File]::WriteAllText($notesPath, $releaseBody, [Text.UTF8Encoding]::new($false))
+          Add-Content -Path $env:GITHUB_ENV -Value "RELEASE_NOTES_FILE=$notesPath"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "release_exists=$($releaseExists.ToString().ToLowerInvariant())"
       - name: Download shared shell
         uses: actions/download-artifact@v7
         with:
@@ -387,7 +429,7 @@ jobs:
           $setup = Join-Path $assetDir $env:INSTALLER_NAME
           if ((Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant() -ne $manifest.bootstrapper.sha256) { throw 'Combined manifest bootstrapper SHA-256 does not match the exact published WPF setup.' }
           $pubDate = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
-          python ./utils/release.py latest --version $env:VERSION --updater-name $env:INSTALLER_NAME --signature "$setup.sig" --output (Join-Path $assetDir $env:LATEST_JSON_NAME) --pub-date $pubDate --release-tag $env:RELEASE_TAG
+          python ./utils/release.py latest --version $env:VERSION --updater-name $env:INSTALLER_NAME --signature "$setup.sig" --output (Join-Path $assetDir $env:LATEST_JSON_NAME) --pub-date $pubDate --release-tag $env:RELEASE_TAG --notes-file $env:RELEASE_NOTES_FILE
           if ($LASTEXITCODE -ne 0) { throw 'latest.json generation failed.' }
           $latestDocument = Get-Content -Raw (Join-Path $assetDir $env:LATEST_JSON_NAME) | ConvertFrom-Json
           $expectedUrl = "https://github.com/$env:RELEASE_REPOSITORY/releases/download/$env:RELEASE_TAG/$env:INSTALLER_NAME"
@@ -414,24 +456,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
-          $notes = @"
-          ## [Download VRCNT Setup for Windows](https://github.com/$env:RELEASE_REPOSITORY/releases/download/$env:RELEASE_TAG/$env:INSTALLER_NAME)
-
-          VRCNT $env:VERSION
-
-          Install with $env:INSTALLER_NAME. The setup manager preserves the selected CPU or CUDA runtime on normal updates. Each variant archive has its own variable number of parts and can be used for portable or offline installation.
-
-          Package integrity is authenticated by $env:PACKAGE_MANIFEST_NAME.sig and documented in $env:HASHES_NAME. Tauri updates use the signed WPF setup and latest.json.
-
-          VirusTotal results for VRCNT.Setup.exe, VRCNT.exe and VRCNT-backend.exe are included in VirusTotal-report.json.
-          "@
           $releaseTitle = if ($env:PRERELEASE -eq 'true') { "VRCNT $env:VERSION RC $($env:RELEASE_TAG -replace '^.*-rc\.', '')" } else { "VRCNT $env:VERSION" }
-          gh release view $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY *> $null
-          if ($LASTEXITCODE -eq 0) {
-            gh release edit $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --title $releaseTitle --draft=false "--prerelease=$env:PRERELEASE" --notes $notes
+          if ('${{ steps.resolve-release-notes.outputs.release_exists }}' -eq 'true') {
+            gh release edit $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --title $releaseTitle --draft=false "--prerelease=$env:PRERELEASE" --notes-file $env:RELEASE_NOTES_FILE
           } else {
             $releaseFlags = if ($env:PRERELEASE -eq 'true') { @('--prerelease', '--latest=false') } else { @() }
-            gh release create $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --title $releaseTitle --notes $notes --verify-tag @releaseFlags
+            gh release create $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --title $releaseTitle --notes-file $env:RELEASE_NOTES_FILE --verify-tag @releaseFlags
           }
           if ($LASTEXITCODE -ne 0) { throw 'Could not create or update the GitHub Release.' }
           $releaseAssets = @(Get-ChildItem ./release-assets -File -Recurse -Exclude package-metadata.json | Sort-Object Name | ForEach-Object FullName)

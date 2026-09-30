@@ -700,6 +700,25 @@ update_modal:
     is_latest_version_already: "กำลังใช้เวอร์ชันล่าสุดอยู่แล้ว"
     is_current_compute_device: "เวอร์ชันที่กำลังใช้งานอยู่"
 
+    eyebrow: "อัปเดต VRCNT"
+    title: "ตรวจสอบการอัปเดตนี้"
+    version_transition: "เวอร์ชันที่ติดตั้ง {{installed}}; เวอร์ชันล่าสุด {{latest}}"
+    unknown_version: "ไม่ทราบเวอร์ชัน"
+    available: "มีอัปเดต"
+    preview_notice: "ตัวอย่างสำหรับการแสดงตัวอย่าง เนื้อหาเป็นข้อมูลสมมติ"
+    release_notes_intro: "บันทึกการเผยแพร่ของ VRCNT {{version}} และเวอร์ชันที่เผยแพร่หลังจากเวอร์ชันที่ติดตั้งอยู่"
+    release_notes: "บันทึกการเผยแพร่"
+    later: "ไว้ภายหลัง"
+    update_to_version: "อัปเดตเป็น {{version}}"
+    loading_notes: "กำลังโหลดบันทึกการเผยแพร่…"
+    notes_unavailable: "ไม่สามารถโหลดบันทึกการเผยแพร่ได้ในขณะนี้"
+    no_release_notes: "ไม่มีบันทึกการเผยแพร่ให้แสดง"
+    notes_incomplete: "โหลดบันทึกการเผยแพร่ได้ไม่ครบ ลองอีกครั้งเพื่อตรวจสอบเวอร์ชันที่เหลือ"
+    release_date_unknown: "ไม่มีวันที่"
+    view_release: "ดูรุ่นเผยแพร่"
+    install_error: "ติดตั้งการอัปเดตไม่สำเร็จ ลองอีกครั้งหรือเปิดหน้ารุ่นเผยแพร่"
+    retry: "ลองอีกครั้ง"
+
 config_page:
     common:
         version: "เวอร์ชัน {{version}}"

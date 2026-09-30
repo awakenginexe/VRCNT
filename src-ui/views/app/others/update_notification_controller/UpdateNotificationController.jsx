@@ -1,43 +1,31 @@
 import { useEffect, useRef } from "react";
-import { useI18n } from "@useI18n";
-import { useStore_OpenedQuickSetting } from "@store";
-import {
-    useIsBackendReady,
-    useNotificationStatus,
-    useSoftwareVersion,
-} from "@logics_common";
+import { useStore_OpenedQuickSetting, useStore_InitStatus } from "@store";
+import { useIsBackendReady } from "@logics_common";
+import { useReleaseUpdates } from "@logics_common/useReleaseUpdates.js";
 
 export const UpdateNotificationController = () => {
     const hasNotifiedRef = useRef(false);
     const { currentIsBackendReady } = useIsBackendReady();
-    const { currentLatestSoftwareVersionInfo } = useSoftwareVersion();
-    const { showNotification_Warning } = useNotificationStatus();
-    const { updateOpenedQuickSetting } = useStore_OpenedQuickSetting();
-    const { t } = useI18n();
+    const { info, status } = useReleaseUpdates({ enabled: currentIsBackendReady.data === true });
+    const { currentInitStatus } = useStore_InitStatus();
+    const { currentOpenedQuickSetting, updateOpenedQuickSetting } = useStore_OpenedQuickSetting();
 
     useEffect(() => {
         if (currentIsBackendReady.data !== true) return;
-        if (currentLatestSoftwareVersionInfo.data.is_update_available !== true) return;
+        if (!["ready", "error"].includes(status)) return;
+        if (currentInitStatus.data.visible || currentOpenedQuickSetting.data) return;
+        if (info.is_update_available !== true) return;
         if (hasNotifiedRef.current === true) return;
 
         hasNotifiedRef.current = true;
-        showNotification_Warning(
-            t("main_page.update_available_detail", {
-                version: currentLatestSoftwareVersionInfo.data.new_version,
-            }),
-            {
-                category_id: "software_update_available",
-                hide_duration: 10000,
-            },
-        );
         updateOpenedQuickSetting("update_software");
     }, [
         currentIsBackendReady.data,
-        currentLatestSoftwareVersionInfo.data.is_update_available,
-        currentLatestSoftwareVersionInfo.data.new_version,
-        showNotification_Warning,
+        info.is_update_available,
+        status,
+        currentInitStatus.data.visible,
+        currentOpenedQuickSetting.data,
         updateOpenedQuickSetting,
-        t,
     ]);
 
     return null;

@@ -700,6 +700,25 @@ update_modal:
     is_latest_version_already: "Already using the latest version"
     is_current_compute_device: "The version currently in use"
 
+    eyebrow: "VRCNT update"
+    title: "Review this update"
+    version_transition: "Installed version {{installed}}; latest version {{latest}}"
+    unknown_version: "Unknown version"
+    available: "Update available"
+    preview_notice: "Preview fixture: release details are sample content."
+    release_notes_intro: "Release notes for VRCNT {{version}} and the versions released since your current install."
+    release_notes: "Release notes"
+    later: "Later"
+    update_to_version: "Update to {{version}}"
+    loading_notes: "Loading release notes…"
+    notes_unavailable: "Release notes are unavailable right now."
+    no_release_notes: "There are no release notes to show."
+    notes_incomplete: "Some release notes could not be loaded. Retry to check for the remaining versions."
+    release_date_unknown: "Date unavailable"
+    view_release: "View release"
+    install_error: "The update could not be installed. Try again or open the release page."
+    retry: "Retry"
+
 config_page:
     common:
         version: "Version {{version}}"

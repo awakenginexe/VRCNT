@@ -15,6 +15,7 @@ use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
 pub mod font_packs;
 pub mod runtime_activation;
 pub mod runtime_manager;
+mod release_updates;
 
 const BACKGROUND_STARTUP_ARGUMENT: &str = "--vrcnt-background";
 const VRCHAT_PROCESS_NAME: &str = "VRChat.exe";
@@ -241,7 +242,9 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_updater::Builder::new()
+            .default_version_comparator(|_, remote| release_updates::is_newer_allowed_release(&remote.version))
+            .build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_fs::init())
@@ -272,6 +275,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            release_updates::get_installed_release_version,
+            release_updates::check_release_update,
             get_font_list,
             enter_background_mode,
             is_background_startup,

@@ -5344,6 +5344,7 @@ dependencies = [
  "hmac",
  "minisign-verify",
  "reqwest 0.12.15",
+ "semver",
  "serde",
  "serde_json",
  "sha2",

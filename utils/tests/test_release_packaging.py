@@ -99,6 +99,20 @@ class ReleaseNamingTests(unittest.TestCase):
 
 
 class ReleasePayloadTests(unittest.TestCase):
+    def test_latest_keeps_default_migration_note_without_notes_file(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            signature = root / "setup.sig"
+            output = root / "latest.json"
+            signature.write_text("signed", encoding="utf-8")
+
+            latest("6.0.0", "VRCNT_6.0.0_Setup.exe", signature, output, "2026-09-30T00:00:00Z")
+
+            document = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual("VRCNT 6.0.0: GitHub Releases installer and updater migration.", document["notes"])
+            self.assertEqual("6.0.0", document["version"])
+            self.assertNotIn("release_tag", document)
+
     def test_latest_metadata_can_target_an_exact_prerelease_tag(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -113,6 +127,58 @@ class ReleasePayloadTests(unittest.TestCase):
                 "https://github.com/awakenginexe/VRCNT/releases/download/v5.15.0-rc.1/VRCNT_5.15.0_Setup.exe",
                 document["platforms"]["windows-x86_64"]["url"],
             )
+
+    def test_latest_metadata_uses_exact_release_tag_and_notes_file_contents(self):
+        notes = "Release notes with `code`, $(literal shell text),\nand two lines.\n"
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            signature = root / "setup.sig"
+            notes_file = root / "release-notes.md"
+            output = root / "latest.json"
+            signature.write_text("signed", encoding="utf-8")
+            notes_file.write_text(notes, encoding="utf-8", newline="")
+
+            latest(
+                "6.0.0",
+                "VRCNT_6.0.0_Setup.exe",
+                signature,
+                output,
+                "2026-09-30T00:00:00Z",
+                release_tag="v6.0.0-rc.4",
+                notes_file=notes_file,
+            )
+
+            document = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual("6.0.0-rc.4", document["version"])
+            self.assertEqual("v6.0.0-rc.4", document["release_tag"])
+            self.assertEqual(notes, document["notes"])
+
+    def test_latest_cli_reads_notes_from_utf8_file(self):
+        notes = "Line 1\nLine 2 with $() and `backticks`.\n"
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            signature = root / "setup.sig"
+            notes_file = root / "release-notes.md"
+            output = root / "latest.json"
+            signature.write_text("signed", encoding="utf-8")
+            notes_file.write_text(notes, encoding="utf-8", newline="")
+
+            result = subprocess.run(
+                [
+                    sys.executable, "utils/release.py", "latest",
+                    "--version", "6.0.0", "--updater-name", "VRCNT_6.0.0_Setup.exe",
+                    "--signature", str(signature), "--output", str(output),
+                    "--pub-date", "2026-09-30T00:00:00Z", "--release-tag", "v6.0.0-rc.4",
+                    "--notes-file", str(notes_file),
+                ],
+                cwd=REPOSITORY_ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(notes, json.loads(output.read_text(encoding="utf-8"))["notes"])
 
     def test_release_module_loads_without_optional_dependencies(self):
         script = f"""

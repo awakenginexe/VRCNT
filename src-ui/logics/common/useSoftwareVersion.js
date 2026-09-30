@@ -14,11 +14,19 @@ export const useSoftwareVersion = () => {
     };
 
     const updateSoftwareVersionInfo = (payload) => {
-        updateLatestSoftwareVersionInfo(prev => ({
-            is_update_available: payload.is_update_available,
-            new_version: payload.new_version || prev.data.new_version,
-            release_url: payload.release_url || prev.data.release_url,
-        }));
+        updateLatestSoftwareVersionInfo(prev => {
+            // The release catalog knows RC identity and the user's release channel.
+            if (prev.data.catalog_checked || prev.data.update_checked) return prev.data;
+            const installed = semver.valid(prev.data.installed_version || currentSoftwareVersion.data);
+            const target = semver.valid(payload.new_version);
+            if (installed && target && !semver.prerelease(installed) && semver.prerelease(target)) return prev.data;
+            return {
+                ...prev.data,
+                is_update_available: payload.is_update_available,
+                new_version: payload.new_version || prev.data.new_version,
+                release_url: payload.release_url || prev.data.release_url,
+            };
+        });
     };
 
     const isPluginCompatible = (main_version, lower_version, upper_version) => {

@@ -54,6 +54,37 @@ test("release workflow builds one shared shell, packages CPU and CUDA independen
     assert.doesNotMatch(workflow, /packagePartCount|exactly three|Create three-part portable package|npm run build-cuda|bundle\/nsis/i);
 });
 
+test("release notes are resolved once before updater metadata and passed through files", () => {
+    const resolveNotes = workflow.indexOf("Resolve release notes");
+    const generateLatest = workflow.indexOf("release.py latest");
+    const publishRelease = workflow.indexOf("Publish GitHub Release assets");
+
+    assert.ok(resolveNotes >= 0, "release notes must be resolved in an explicit workflow step");
+    assert.ok(resolveNotes < generateLatest, "release notes must be available before latest.json is generated");
+    assert.ok(generateLatest < publishRelease, "the shared notes file must feed publication after metadata generation");
+    assert.match(workflow, /gh release view \$env:RELEASE_TAG --repo \$env:RELEASE_REPOSITORY --json body/);
+    assert.match(workflow, /--notes-file/);
+    assert.match(workflow, /--notes-file[^\r\n]*RELEASE_NOTES_FILE|--notes-file[^\r\n]*release-notes/);
+    assert.doesNotMatch(workflow, /--notes \$notes/);
+    assert.match(workflow, /gh api[^\r\n]*releases\/tags/);
+    assert.match(workflow, /404/);
+});
+
+test("release notes resolve failures distinguish a missing release from auth or network errors", () => {
+    const resolveStep = workflow.slice(workflow.indexOf("Resolve release notes"), workflow.indexOf("Validate selected package parts"));
+
+    assert.match(resolveStep, /gh release view[^\r\n]*--json body/);
+    assert.match(resolveStep, /gh api[^\r\n]*--include|gh api[^\r\n]*--include/);
+    assert.match(resolveStep, /404/);
+    assert.match(resolveStep, /throw/);
+});
+
+test("shared shell compiles with the exact validated runtime release tag", () => {
+    const sharedShell = workflow.slice(workflow.indexOf("  shared-shell:"), workflow.indexOf("  backend-cpu:"));
+
+    assert.match(sharedShell, /VRCNT_RUNTIME_RELEASE_TAG:\s*\$\{\{ needs\.validate\.outputs\.release_tag \}\}/);
+});
+
 test("test candidate workflow uploads a complete artifact and publishes only an immutable prerelease", () => {
     assert.match(candidateWorkflow, /branches:\s*[\s\S]*test\/5\.15\.0-runtime-installer/);
     assert.match(candidateWorkflow, /workflow_dispatch:/);
