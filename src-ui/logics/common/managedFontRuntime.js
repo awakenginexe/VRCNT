@@ -43,6 +43,11 @@ export const createManagedFontRuntime = ({
     const activations = new Map();
     const facesByPack = new Map();
     let disposed = false;
+    const notifyFontMetricsChanged = () => {
+        if (!document?.dispatchEvent) return;
+        const FontEvent = document.defaultView?.Event ?? globalThis.Event;
+        document.dispatchEvent(new FontEvent("vrcnt-fonts-changed"));
+    };
 
     const activatePack = async (packId) => {
         if (disposed) return false;
@@ -73,6 +78,7 @@ export const createManagedFontRuntime = ({
                     return false;
                 }
                 facesByPack.set(packId, faces);
+                notifyFontMetricsChanged();
                 return true;
             } catch (error) {
                 faces.forEach((face) => document?.fonts?.delete?.(face));
@@ -98,17 +104,20 @@ export const createManagedFontRuntime = ({
         faces.forEach((face) => document?.fonts?.delete?.(face));
         facesByPack.delete(packId);
         activations.delete(packId);
+        notifyFontMetricsChanged();
         return true;
     };
 
     const dispose = () => {
         if (disposed) return false;
         disposed = true;
+        const hadFaces = facesByPack.size > 0;
         for (const faces of facesByPack.values()) {
             faces.forEach((face) => document?.fonts?.delete?.(face));
         }
         facesByPack.clear();
         activations.clear();
+        if (hadFaces) notifyFontMetricsChanged();
         return true;
     };
 

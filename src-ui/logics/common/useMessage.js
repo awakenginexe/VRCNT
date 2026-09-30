@@ -11,34 +11,14 @@ import {
     mergeTranslationUpdateByTrace,
 } from "./messageLogUtils.js";
 import { updateBingInterimMessageLogs } from "./bingInterimMessage.js";
-
-const COOLDOWN = 2000; // 2 seconds
+import { useMessageActions } from "./useMessageActions";
 
 export const useMessage = () => {
     const { currentMessageLogs, addMessageLogs, updateMessageLogs } = useStore_MessageLogs();
     const { currentMessageInputValue, updateMessageInputValue } = useStore_MessageInputValue();
     const { asyncStdoutToPython } = useStdoutToPython();
     const { showNotification_Error } = useNotificationStatus();
-
-    const sendMessage = (message) => {
-        const uuid = crypto.randomUUID();
-        const send_message_object = {
-            id: uuid,
-            message: message,
-        };
-        asyncStdoutToPython("/run/send_message_box", send_message_object);
-
-        addMessageLogs({
-            id: uuid,
-            category: "sent",
-            status: "pending",
-            created_at: generateTimeData(),
-            messages: {
-                original: { message: message, transliteration: [] },
-                translations: [],
-            },
-        });
-    };
+    const { sendMessage, retryTranslation } = useMessageActions();
 
     const addSystemMessageLog = (message) => {
         const uuid = crypto.randomUUID();
@@ -84,10 +64,6 @@ export const useMessage = () => {
         updateMessageLogs((current) =>
             updateBingInterimMessageLogs(current.data, payload)
         );
-    };
-
-    const retryTranslation = (payload) => {
-        asyncStdoutToPython("/run/retry_translation", payload);
     };
 
     const handleManualTranslationRetryAdmission = (payload) => {

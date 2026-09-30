@@ -15,7 +15,11 @@ export const useMessageLogScroll = () => {
     };
 
     const scrollToBottom = useCallback((smooth = false) => {
-        const element = store.log_box_ref.current;
+        if (store.log_box_scroll_to_bottom) {
+            store.log_box_scroll_to_bottom();
+            return;
+        }
+        const element = store.log_box_ref?.current;
         if (!element) return;
 
         const scrollHeight = element.scrollHeight - element.clientHeight;
@@ -56,7 +60,7 @@ export const useMessageLogScroll = () => {
         const handleScroll = () => {
             if (isSmoothScrollingRef.current) return;
 
-            const element = store.log_box_ref.current;
+            const element = store.log_box_ref?.current;
             if (!element) return;
 
             const atBottom =
@@ -65,7 +69,7 @@ export const useMessageLogScroll = () => {
             setIsScrolling(!atBottom);
         };
 
-        const element = store.log_box_ref.current;
+        const element = store.log_box_ref?.current;
         if (element) {
             element.addEventListener("scroll", handleScroll);
         }

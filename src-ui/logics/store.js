@@ -18,6 +18,7 @@ export const store = {
     backend_subprocess: null,
     setting_box_scroll_container: null,
     log_box_ref: null,
+    log_box_scroll_to_bottom: null,
     text_area_ref: null,
     last_executed_time_startTyping: 0,
 };

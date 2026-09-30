@@ -6,11 +6,11 @@ import {
 } from "@logics_common/messageLogUtils.js";
 import { MessageText } from "../MessageText";
 import styles from "./TranslationEntry.module.scss";
-import { useMessage } from "@logics_common";
+import { useMessageActions } from "@logics_common";
 
 export const TranslationEntry = ({ entry, retryPayload }) => {
     const { t } = useI18n();
-    const { retryTranslation } = useMessage();
+    const { retryTranslation } = useMessageActions();
     const hasStatus = entry?.status != null;
     const isActive = TRANSLATION_ACTIVE_STATUSES.has(entry?.status);
     const [nowMs, setNowMs] = useState(() => Date.now());

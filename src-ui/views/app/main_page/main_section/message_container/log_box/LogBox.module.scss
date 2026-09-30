@@ -7,11 +7,25 @@
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior-y: contain;
+    overflow-anchor: none; // The virtualizer owns scroll anchoring.
     border: 0;
     border-radius: 0;
     padding: 0.4rem 0.7rem 0;
     box-shadow: none;
     font-size: 1rem; // This is the standard font size for message logs, and is controlled by JavaScript. All child elements this are generally expressed in "em" and are affected by the font size setting here.
+}
+
+.virtual_list {
+    position: relative;
+    width: 100%;
+}
+
+.virtual_row {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .empty_state {

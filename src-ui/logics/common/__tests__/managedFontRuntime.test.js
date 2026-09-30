@@ -8,6 +8,24 @@ import {
 } from "../fontScriptRegistry.js";
 import { createManagedFontRuntime } from "../managedFontRuntime.js";
 
+test("loaded managed fonts notify history measurement when registered and removed", async () => {
+    const document = new EventTarget();
+    const faces = new Set();
+    document.fonts = { add: (face) => faces.add(face), delete: (face) => faces.delete(face) };
+    const faceCounts = [];
+    document.addEventListener("vrcnt-fonts-changed", () => faceCounts.push(faces.size));
+    const runtime = createManagedFontRuntime({
+        document,
+        invoke: async () => [{ packId: "thai", family: "VRCNT Noto", path: "thai.ttf" }],
+        convertFileSrc: (value) => value,
+        FontFace: class { async load() { return this; } },
+    });
+    assert.equal(await runtime.activatePack("thai"), true);
+    assert.equal(await runtime.activatePack("thai"), true);
+    assert.equal(runtime.deactivatePack("thai"), true);
+    assert.deepEqual(faceCounts, [1, 0]);
+});
+
 test("VRCNT Noto is the first option and invalid saved preferences use the managed default", () => {
     assert.deepEqual(buildFontFamilyOptions(["Yu Gothic UI", "Arial"]), {
         "VRCNT Noto": "VRCNT Noto (Recommended)",
