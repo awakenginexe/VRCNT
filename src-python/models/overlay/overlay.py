@@ -20,8 +20,10 @@ except ImportError:
 
 try:
     from . import overlay_utils as utils
+    from .openvr_runtime import runtime
 except ImportError:
     import overlay_utils as utils
+    from openvr_runtime import runtime
 
 def mat34Id(array: Sequence[Sequence[float]]) -> Any:
     """Convert a 3x4 nested sequence into an openvr.HmdMatrix34_t instance.
@@ -100,6 +102,7 @@ class Overlay:
         self._lifecycle_lock = Lock()
         self._stop_event = Event()
         self._restart_requested = False
+        self._runtime_acquired = False
 
         self.settings: Dict[str, Dict[str, Any]] = {}
         self.lastUpdate: Dict[str, float] = {}
@@ -115,9 +118,11 @@ class Overlay:
 
     def init(self) -> None:
         try:
-            self.system = openvr.init(openvr.VRApplication_Background)
-            self.overlay = openvr.IVROverlay()
-            self.overlay_system = openvr.IVRSystem()
+            with runtime.lock:
+                self.system = runtime.acquire(self)
+                self._runtime_acquired = True
+                self.overlay = openvr.IVROverlay()
+                self.overlay_system = self.system
             self.handle = {}
             for i, size in enumerate(self.settings.keys()):
                 self.handle[size] = self.overlay.createOverlay(f"VRCT{i}", f"VRCT{i}")
@@ -149,6 +154,7 @@ class Overlay:
                 self.updateFadeoutDuration(self.settings[size]["fadeout_duration"], size)
             self.init_process = False
             printLog("[Overlay] OpenVR initialized", {
+                "application_type": "Overlay",
                 "position_applied": dict(self.positionApplied),
             })
 
@@ -181,11 +187,13 @@ class Overlay:
             self.handle = {}
             self.overlay = None
             self.overlay_system = None
-            if self.system is not None:
+            if self._runtime_acquired:
                 try:
-                    openvr.shutdown()
+                    runtime.release(self)
                 except Exception:
                     errorLogging()
+                finally:
+                    self._runtime_acquired = False
             self.system = None
             self.initialized = False
             self.init_process = False
@@ -411,11 +419,11 @@ class Overlay:
 
     @staticmethod
     def checkSteamvrRunning() -> bool:
-        _proc_name = "vrmonitor.exe" if os.name == "nt" else "vrmonitor"
+        process_names = {"vrmonitor.exe", "vrserver.exe"} if os.name == "nt" else {"vrmonitor", "vrserver"}
         try:
             for process in process_iter():
                 try:
-                    if process.name().lower() == _proc_name:
+                    if process.name().lower() in process_names:
                         return True
                 except (AccessDenied, NoSuchProcess):
                     continue

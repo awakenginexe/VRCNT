@@ -10,6 +10,7 @@ from PIL import Image
 from psutil import AccessDenied
 from models.overlay import overlay as overlay_module
 from models.overlay.overlay import Overlay
+from models.overlay.openvr_runtime import OpenVRRuntime
 
 
 def settings():
@@ -20,6 +21,11 @@ def settings():
 
 
 class OverlayRuntimeTests(unittest.TestCase):
+    def setUp(self):
+        runtime_patch = patch.object(overlay_module, "runtime", OpenVRRuntime())
+        runtime_patch.start()
+        self.addCleanup(runtime_patch.stop)
+
     def test_restart_during_slow_initialization_waits_for_old_worker(self):
         overlay = Overlay(settings())
         entered = threading.Event()
@@ -91,6 +97,12 @@ class OverlayRuntimeTests(unittest.TestCase):
         steamvr = Mock()
         steamvr.name.return_value = "vrmonitor.exe" if os.name == "nt" else "vrmonitor"
         with patch.object(overlay_module, "process_iter", return_value=[protected, steamvr]):
+            self.assertTrue(Overlay.checkSteamvrRunning())
+
+    def test_steamvr_server_without_monitor_allows_overlay_startup(self):
+        server = Mock()
+        server.name.return_value = "VRSERVER.EXE" if os.name == "nt" else "vrserver"
+        with patch.object(overlay_module, "process_iter", return_value=[server]):
             self.assertTrue(Overlay.checkSteamvrRunning())
 
     def test_clear_before_initialization_replaces_cached_image_without_starting_vr(self):

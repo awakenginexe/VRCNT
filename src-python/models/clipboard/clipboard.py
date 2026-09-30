@@ -3,8 +3,9 @@ import time
 import os
 import threading
 from subprocess import Popen, PIPE
-from psutil import process_iter
 import openvr
+from models.overlay.openvr_runtime import runtime
+from models.overlay.overlay import Overlay
 
 try:
     from utils import printLog
@@ -13,8 +14,7 @@ except ImportError:
         print(data, *args, **kwargs)
 
 def checkSteamvrRunning() -> bool:
-    _proc_name = "vrmonitor.exe" if os.name == "nt" else "vrmonitor"
-    return _proc_name in (p.name() for p in process_iter())
+    return Overlay.checkSteamvrRunning()
 
 # Windows-specific imports via ctypes will be used when focusing windows
 if sys.platform == 'win32':
@@ -167,26 +167,17 @@ class Clipboard:
     def _setup_vr_app_name(self):
         """Setup VR application name from OpenVR."""
         try:
-            openvr.init(openvr.VRApplication_Background)
-            apps = openvr.VRApplications()
-
-            app_count = apps.getApplicationCount()
-            running_apps = []
-
-            for i in range(app_count):
-                key = apps.getApplicationKeyByIndex(i)
-                name = apps.getApplicationPropertyString(
-                    key,
-                    openvr.VRApplicationProperty_Name_String
-                )
-                running_apps.append((key, name))
-
-            self.app_name = None
-            for key, name in running_apps:
-                if key.startswith("steam.app"):
-                    self.app_name = name
-                    break
-            openvr.shutdown()
+            with runtime.session():
+                apps = openvr.VRApplications()
+                self.app_name = None
+                for i in range(apps.getApplicationCount()):
+                    key = apps.getApplicationKeyByIndex(i)
+                    if key.startswith("steam.app"):
+                        self.app_name = apps.getApplicationPropertyString(
+                            key,
+                            openvr.VRApplicationProperty_Name_String
+                        )
+                        break
         except Exception as e:
             printLog(f"Clipboard: Error setting up VR app name: {e}")
             self.app_name = None
