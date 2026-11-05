@@ -45,19 +45,12 @@ class DeepSeekClientTests(unittest.TestCase):
     def test_pyinstaller_specs_bundle_the_dynamically_loaded_client(self):
         repository_root = Path(__file__).resolve().parents[2]
 
+        common = (repository_root / "spec" / "backend_common.py").read_text(encoding="utf-8")
+        self.assertIn('"models.translation.translation_deepseek"', common)
+        self.assertIn('module_collection_mode={"transformers.models": "py"}', common)
         for spec_name in ("backend.spec", "backend_cuda.spec"):
-            with self.subTest(spec_name=spec_name):
-                spec_source = (repository_root / "spec" / spec_name).read_text(
-                    encoding="utf-8"
-                )
-                self.assertIn(
-                    "'models.translation.translation_deepseek'",
-                    spec_source,
-                )
-                self.assertIn(
-                    "'transformers.models': 'py'",
-                    spec_source,
-                )
+            spec_source = (repository_root / "spec" / spec_name).read_text(encoding="utf-8")
+            self.assertIn("create_backend_analysis", spec_source)
 
     def test_redaction_removes_bearer_tokens_and_api_key_values(self):
         marker = "not-a-real-secret"

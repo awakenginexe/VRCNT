@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { authenticatedWebsocketUrl } from "@logics_common/websocketUrl.js";
 import { useI18n } from "@useI18n";
 import styles from "./AdvancedSettings.module.scss";
 
@@ -103,7 +105,29 @@ const WebsocketContainer = () => {
             <EnableWebsocketContainer />
             <WebsocketHostContainer />
             <WebsocketPortContainer />
+            <WebsocketUrlContainer />
         </div>
+    );
+};
+
+const WebsocketUrlContainer = () => {
+    const { t } = useI18n();
+    const { currentWebsocketHost, currentWebsocketPort, currentWebsocketToken } = useAdvancedSettings();
+    const [copyStatus, setCopyStatus] = useState("label");
+    const url = authenticatedWebsocketUrl(currentWebsocketHost.data, currentWebsocketPort.data, currentWebsocketToken.data);
+    useEffect(() => setCopyStatus("label"), [url]);
+    const copyUrl = async () => {
+        try {
+            await navigator.clipboard.writeText(url);
+            setCopyStatus("copied");
+        } catch {
+            setCopyStatus("error");
+        }
+    };
+    return (
+        <button className={styles.websocket_url} type="button" onClick={copyUrl} disabled={!currentWebsocketToken.data}>
+            {t(`config_page.advanced_settings.websocket_url.${copyStatus}`)}
+        </button>
     );
 };
 

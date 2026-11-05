@@ -1295,6 +1295,10 @@ config_page:
             label: "VRCT CPU/GPUバージョンの切り替え"
         enable_websocket:
             label: "WebSocketサーバーを有効にする"
+        websocket_url:
+            label: "認証付きWebSocket URLをコピー"
+            copied: "WebSocket URLをコピーしました"
+            error: "コピーできませんでした。もう一度お試しください。"
         websocket_host:
             label: "WebSocket Host"
         websocket_port:

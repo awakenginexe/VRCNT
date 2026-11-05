@@ -170,10 +170,16 @@ class MicOutputAdmissionTests(unittest.TestCase):
     def test_mic_mute_handler_accepts_first_state_even_when_previous_state_unknown(self):
         instance = object.__new__(Model)
         instance._inited = True
+        import threading
+        instance._osc_receive_generation = 0
+        instance._osc_mute_revision = 0
+        instance._osc_mute_state_lock = threading.Lock()
+        instance._osc_mute_refresh_lock = threading.Lock()
+        applied = threading.Event()
         instance.osc_handler = Mock()
         instance.osc_handler.osc_parameter_muteself = "/avatar/parameters/MuteSelf"
         instance.mic_mute_status = None
-        instance.changeMicTranscriptStatus = Mock()
+        instance.changeMicTranscriptStatus = Mock(side_effect=applied.set)
 
         with patch.multiple(
             model_module.config,
@@ -184,7 +190,11 @@ class MicOutputAdmissionTests(unittest.TestCase):
             handler = instance.osc_handler.setDictFilterAndTarget.call_args.args[0][
                 "/avatar/parameters/MuteSelf"
             ]
-            handler("/avatar/parameters/MuteSelf", True)
+            try:
+                handler("/avatar/parameters/MuteSelf", True)
+                self.assertTrue(applied.wait(1))
+            finally:
+                instance.stopReceiveOSC()
 
         self.assertTrue(instance.mic_mute_status)
         instance.changeMicTranscriptStatus.assert_called_once_with()

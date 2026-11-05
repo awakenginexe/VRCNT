@@ -1295,6 +1295,10 @@ config_page:
             label: "Switch VRCT To CPU/GPU Version"
         enable_websocket:
             label: "Enable WebSocket Server"
+        websocket_url:
+            label: "Copy authenticated WebSocket URL"
+            copied: "WebSocket URL copied"
+            error: "Could not copy WebSocket URL. Try again."
         websocket_host:
             label: "WebSocket Host"
         websocket_port:

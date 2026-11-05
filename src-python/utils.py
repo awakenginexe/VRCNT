@@ -354,3 +354,9 @@ def errorLogging() -> None:
 
 if __name__ == "__main__":
     print(getComputeDeviceList())
+
+
+def redact_endpoint_payload(endpoint, payload):
+    if isinstance(endpoint, str) and endpoint.endswith(("_auth_key", "/websocket_token")):
+        return "[redacted]"
+    return payload

@@ -993,10 +993,14 @@ class AudioTranscriber:
             errorLogging()
 
     def processMicData(self) -> AudioData:
-        audio_data = AudioData(
-            self.audio_sources["last_sample"], self.audio_sources["sample_rate"], self.audio_sources["sample_width"]
-        )
-        return audio_data
+        data = self.audio_sources["last_sample"]
+        channels = self.audio_sources["channels"]
+        if channels > 1:
+            # Average native input channels rather than summing and clipping.
+            samples = np.frombuffer(data, dtype="<i2")
+            frames = samples[:samples.size - samples.size % channels].reshape(-1, channels)
+            data = np.rint(frames.mean(axis=1)).astype("<i2").tobytes()
+        return AudioData(data, self.audio_sources["sample_rate"], self.audio_sources["sample_width"])
 
     def processSpeakerData(self) -> AudioData:
         temp_file = BytesIO()

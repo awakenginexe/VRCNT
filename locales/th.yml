@@ -1296,6 +1296,10 @@ config_page:
             label: "สลับ VRCT เป็นเวอร์ชัน CPU/GPU"
         enable_websocket:
             label: "เปิด WebSocket Server"
+        websocket_url:
+            label: "คัดลอก WebSocket URL พร้อมโทเค็น"
+            copied: "คัดลอก WebSocket URL แล้ว"
+            error: "คัดลอกไม่สำเร็จ โปรดลองอีกครั้ง"
         websocket_host:
             label: "WebSocket Host"
         websocket_port:

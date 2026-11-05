@@ -11,7 +11,7 @@ if "--cuda-capability-probe" in sys.argv:
     raise SystemExit(run_cuda_capability_probe(offline="--offline" in sys.argv))
 
 from controller import Controller, parseRuntimeActivationLaunchArgs  # noqa: E402
-from utils import printLog, printResponse, errorLogging, encodeBase64 # noqa: E402
+from utils import printLog, printResponse, errorLogging, encodeBase64, redact_endpoint_payload # noqa: E402
 
 logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 
@@ -534,6 +534,7 @@ mapping = {
     "/set/disable/send_received_message_to_vrc": {"status": True, "variable":controller.setDisableSendReceivedMessageToVrc},
 
     # WebSocket Settings
+    "/get/data/websocket_token": {"status": True, "variable":controller.getWebSocketToken},
     "/get/data/websocket_host": {"status": True, "variable":controller.getWebSocketHost},
     "/set/data/websocket_host": {"status": True, "variable":controller.setWebSocketHost},
     "/get/data/websocket_port": {"status": True, "variable":controller.getWebSocketPort},
@@ -620,10 +621,7 @@ class Main:
                     endpoint = received_data.get("endpoint")
                     data = received_data.get("data")
                     data = encodeBase64(data) if data is not None else None
-                    if endpoint == "/set/data/deepseek_auth_key":
-                        printLog(endpoint, {"receive_data": "[redacted]"})
-                    else:
-                        printLog(endpoint, {"receive_data": data})
+                    printLog(endpoint, {"receive_data": redact_endpoint_payload(endpoint, data)})
                     self.queue.put((endpoint, data))
             except json.JSONDecodeError:
                 # malformed input; log and continue
@@ -709,7 +707,7 @@ class Main:
                 time.sleep(0.1)
                 self.queue.put((endpoint, data))
             else:
-                printLog(endpoint, {"status": status, "send_data": result})
+                printLog(endpoint, {"status": status, "send_data": redact_endpoint_payload(endpoint, result)})
                 printResponse(status, endpoint, result)
 
     def startHandler(self) -> None:

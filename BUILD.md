@@ -1,4 +1,4 @@
-# Build VRCNT 5.15.0 (Windows x64)
+# Build VRCNT 6.1.0 (Windows x64)
 
 This repository builds one VRCNT application with two replaceable runtime
 distributions. The frontend and Tauri shell are shared; only the backend and
@@ -8,7 +8,7 @@ its runtime dependencies differ between the CPU and NVIDIA CUDA payloads.
 
 - `cpu` contains the CPU-only backend and excludes CUDA-only dependencies.
 - `cuda` contains the NVIDIA CUDA backend and its GPU dependencies.
-- `VRCNT_5.15.0_Setup.exe` is the small public WPF bootstrapper.
+- `VRCNT_6.1.0_Setup.exe` is the small public WPF bootstrapper.
 - `package-manifest.json` and its `.sig` authenticate both variants. Each
   variant has its own manifest-selected number of `.7z.001`, `.002`, ... parts.
 - `%LOCALAPPDATA%\VRCNTInstaller\VRCNT.Setup.exe` is the stable setup manager

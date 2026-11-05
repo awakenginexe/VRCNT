@@ -12,6 +12,7 @@ import logging
 from typing import Any, Callable, Dict, Optional
 from time import sleep
 from threading import Event, Lock, Thread
+from requests import get as requests_get
 from pythonosc import udp_client, dispatcher, osc_server
 from models.osc.chatbox_dispatcher import ChatboxDispatcher
 
@@ -156,21 +157,26 @@ class OSCHandler:
                 self.browser = OSCQueryBrowser()
                 sleep(1)  # 初回のみスリープ
 
-            service = self.browser.find_service_by_name(self.osc_server_name)
-            if service is not None:
-                osc_query_client = OSCQueryClient(service)
-                mute_self_node = osc_query_client.query_node(address)
-                # mute_self_node may be None when the node is not present on the
-                # remote OSCQuery service. Also mute_self_node.value may be None
-                # or an empty list. Guard against those cases to avoid
-                # AttributeError: 'NoneType' object has no attribute 'value'
-                if mute_self_node is None:
+            for service in self.browser.get_discovered_oscquery():
+                if self._retry_cancel.is_set():
                     return None
-                # prefer explicit checks rather than relying on exceptions
-                node_value = getattr(mute_self_node, 'value', None)
-                if not node_value:
+                host = service.parsed_addresses()[0]
+                if ":" in host:
+                    host = f"[{host}]"
+                root = f"http://{host}:{service.port}"
+                try:
+                    response = requests_get(root + "/HOST_INFO", timeout=(2, 3))
+                    response.raise_for_status()
+                    if response.json().get("NAME") != self.osc_server_name:
+                        continue
+                except Exception:
+                    continue
+                response = requests_get(root + address, timeout=(2, 3))
+                if response.status_code == 404:
                     return None
-                value = node_value[0]
+                response.raise_for_status()
+                values = response.json().get("VALUE", [])
+                return values[0] if isinstance(values, list) and values else None
         except Exception:
             errorLogging()
             # エラー発生時にbrowserをリセットして次回再初期化
@@ -215,7 +221,7 @@ class OSCHandler:
             self.osc_server_port = osc_server_port
             self.http_port = http_port
             self.osc_query_failure = None
-            server = osc_server.ThreadingOSCUDPServer((self.osc_server_ip_address, osc_server_port), osc_dispatcher)
+            server = osc_server.BlockingOSCUDPServer((self.osc_server_ip_address, osc_server_port), osc_dispatcher)
             self.osc_server = server
             Thread(target=self.oscServerServe, args=(server,), daemon=True).start()
 

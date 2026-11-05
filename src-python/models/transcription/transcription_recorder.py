@@ -368,8 +368,10 @@ class SelectedMicRecorder(BaseRecorder):
     def __init__(self, device: dict, energy_threshold: int, dynamic_energy_threshold: bool, record_timeout: int) -> None:
         source = _create_microphone(
             {},
+            speaker=True,
             device_index=int(device.get('index', -1)),
             sample_rate=int(device.get("defaultSampleRate", 16000)),
+            channels=int(device.get("maxInputChannels", 1)),
         )
         super().__init__(source=source, energy_threshold=energy_threshold, dynamic_energy_threshold=dynamic_energy_threshold, record_timeout=record_timeout)
         # self.adjustForNoise()
@@ -416,8 +418,10 @@ class SelectedMicEnergyRecorder(BaseEnergyRecorder):
     def __init__(self, device: dict) -> None:
         source = _create_microphone(
             {},
+            speaker=True,
             device_index=int(device.get('index', -1)),
             sample_rate=int(device.get("defaultSampleRate", 16000)),
+            channels=int(device.get("maxInputChannels", 1)),
         )
         super().__init__(source=source)
         # self.adjustForNoise()
@@ -534,8 +538,10 @@ class SelectedMicEnergyAndAudioRecorder(BaseEnergyAndAudioRecorder):
     ) -> None:
         source = _create_microphone(
             {},
+            speaker=True,
             device_index=int(device.get('index', -1)),
             sample_rate=int(device.get("defaultSampleRate", 16000)),
+            channels=int(device.get("maxInputChannels", 1)),
         )
         super().__init__(
             source=source,
@@ -775,8 +781,10 @@ class SelectedMicBingRealtimeRecorder(BingRealtimeAudioRecorder):
     ) -> None:
         source = _create_microphone(
             {},
+            speaker=True,
             device_index=int(device.get("index", -1)),
             sample_rate=int(device.get("defaultSampleRate", 16_000)),
+            channels=int(device.get("maxInputChannels", 1)),
         )
         super().__init__(
             source,

@@ -129,7 +129,7 @@ test("DeepSeek source never logs an incoming key or puts one in frontend status 
     const hook = readSource("src-ui", "logics", "common", "useDeepSeekConfiguration.js");
 
     assert.doesNotMatch(controller, /printLog\("Set DeepSeek Auth Key",\s*data\)/);
-    assert.match(mainloop, /endpoint == "\/set\/data\/deepseek_auth_key"/);
-    assert.match(mainloop, /"receive_data": "\[redacted\]"/);
+    assert.match(mainloop, /redact_endpoint_payload\(endpoint, data\)/);
+    assert.match(mainloop, /redact_endpoint_payload\(endpoint, result\)/);
     assert.doesNotMatch(hook, /result\.key|savedKey|auth_key_value/);
 });

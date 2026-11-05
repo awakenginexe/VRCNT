@@ -1,3 +1,5 @@
+import ipaddress
+import secrets
 import sys
 import copy
 import importlib
@@ -718,6 +720,15 @@ def _local_translation_profile_validator(val, inst):
 def _local_translation_beam_validator(val, inst):
     return val if type(val) is int and 0 <= val <= 16 else None
 
+def _websocket_host_validator(value, inst):
+    if not isinstance(value, str):
+        return None
+    try:
+        return "127.0.0.1" if ipaddress.ip_address(value).is_unspecified else value
+    except (ValueError, TypeError):
+        return None
+
+
 def _overlay_small_validator(val, inst):
     if not isinstance(val, dict):
         return None
@@ -1191,7 +1202,8 @@ class Config:
     )
     VRC_MIC_MUTE_SYNC = ManagedProperty('VRC_MIC_MUTE_SYNC', type_=bool)
     NOTIFICATION_VRC_SFX = ManagedProperty('NOTIFICATION_VRC_SFX', type_=bool)
-    WEBSOCKET_HOST = ManagedProperty('WEBSOCKET_HOST', type_=str)
+    WEBSOCKET_TOKEN = ManagedProperty('WEBSOCKET_TOKEN', type_=str)
+    WEBSOCKET_HOST = ValidatedProperty('WEBSOCKET_HOST', _websocket_host_validator)
     WEBSOCKET_PORT = ManagedProperty('WEBSOCKET_PORT', type_=int)
 
     # --- Telemetry Settings ---
@@ -1245,7 +1257,7 @@ class Config:
 
     def init_config(self):
         # Read Only
-        self._VERSION = "6.0.0"
+        self._VERSION = "6.1.0"
         if getattr(sys, 'frozen', False):
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
@@ -1616,6 +1628,7 @@ class Config:
             },
             "translation_first": False,
         }
+        self._WEBSOCKET_TOKEN = secrets.token_urlsafe(32)
         self._WEBSOCKET_SERVER = False
         self._WEBSOCKET_HOST = "127.0.0.1"
         self._WEBSOCKET_PORT = 2231

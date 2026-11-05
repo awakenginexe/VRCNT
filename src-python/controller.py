@@ -1,3 +1,4 @@
+import ipaddress
 from typing import Callable, Any, List, Optional
 from copy import deepcopy
 from contextlib import nullcontext
@@ -7130,12 +7131,16 @@ class Controller:
         return {"status":200, "result":True}
 
     @staticmethod
+    def getWebSocketToken(*args, **kwargs) -> dict:
+        return {"status": 200, "result": config.WEBSOCKET_TOKEN}
+
+    @staticmethod
     def getWebSocketHost(*args, **kwargs) -> dict:
         return {"status":200, "result":config.WEBSOCKET_HOST}
 
     @staticmethod
     def setWebSocketHost(data, *args, **kwargs) -> dict:
-        if isValidIpAddress(data) is False:
+        if isValidIpAddress(data) is False or ipaddress.ip_address(data).is_unspecified:
             response = VRCTError.create_error_response(
                 ErrorCode.VALIDATION_INVALID_IP,
                 data=config.WEBSOCKET_HOST

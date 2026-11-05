@@ -1,7 +1,12 @@
 import asyncio
 import threading
+import hmac
+import ipaddress
+import secrets
+from http import HTTPStatus
+from urllib.parse import parse_qs, urlsplit, urlencode
 import websockets
-from websockets.legacy.server import WebSocketServerProtocol
+from websockets.asyncio.server import ServerConnection as WebSocketServerProtocol
 from typing import Callable, Set, Optional
 
 class WebSocketServer:
@@ -14,10 +19,15 @@ class WebSocketServer:
     - メッセージのブロードキャスト機能
     - GUIスレッド等からメッセージ送信するためのキュー
     """
-    def __init__(self, host: str='127.0.0.1', port: int=8765):
+    def __init__(self, host: str='127.0.0.1', port: int=8765, token: Optional[str] = None):
         """
         サーバーのホスト名とポートを指定して初期化します。
         """
+        if host != "localhost" and ipaddress.ip_address(host).is_unspecified:
+            raise ValueError("WebSocket wildcard binds are not allowed")
+        if token is not None and (not isinstance(token, str) or not token):
+            raise ValueError("WebSocket token must be non-empty")
+        self.token = token if token is not None else secrets.token_urlsafe(32)
         self.host = host
         self.port = port
         self.clients: Set[WebSocketServerProtocol] = set()  # 接続クライアント集合
@@ -27,6 +37,17 @@ class WebSocketServer:
         self._thread: Optional[threading.Thread] = None
         self._send_queue: Optional[asyncio.Queue] = None  # 外部スレッド向け非同期キュー
         self.is_running: bool = False  # サーバーの起動状態を示すフラグ
+
+    @property
+    def url(self) -> str:
+        host = f"[{self.host}]" if ":" in self.host else self.host
+        return f"ws://{host}:{self.port}/?{urlencode({'token': self.token})}"
+
+    async def _process_request(self, connection, request):
+        supplied = parse_qs(urlsplit(request.path).query).get("token", [])
+        if len(supplied) != 1 or not hmac.compare_digest(supplied[0].encode(), self.token.encode()):
+            return connection.respond(HTTPStatus.FORBIDDEN, "Forbidden: invalid or missing token\n")
+        return None
 
     def set_message_handler(self, handler: Callable[['WebSocketServer', WebSocketServerProtocol, str], None]):
         """
@@ -53,7 +74,7 @@ class WebSocketServer:
             pass
         finally:
             # 切断時に集合から削除
-            self.clients.remove(websocket)
+            self.clients.discard(websocket)
 
     async def _broadcast_async(self, message: str):
         """
@@ -121,7 +142,7 @@ class WebSocketServer:
 
         async def setup_server():
             # サーバーを起動し、listenを開始
-            self._server = await websockets.serve(self._handler, self.host, self.port)
+            self._server = await websockets.serve(self._handler, self.host, self.port, process_request=self._process_request)
             # 送信キューを初期化
             self._send_queue = asyncio.Queue()
             # 送信ループタスクを開始

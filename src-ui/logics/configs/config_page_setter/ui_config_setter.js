@@ -1040,6 +1040,14 @@ export const SETTINGS_ARRAY = [
     },
     {
         Category: "AdvancedSettings",
+        Base_Name: "WebsocketToken",
+        default_value: "",
+        ui_template_id: "input",
+        logics_template_id: "get_list",
+        base_endpoint_name: "websocket_token",
+    },
+    {
+        Category: "AdvancedSettings",
         Base_Name: "WebsocketHost",
         default_value: "127.0.0.1",
         ui_template_id: "input",

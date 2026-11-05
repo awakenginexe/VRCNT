@@ -355,6 +355,7 @@ class threadFnc(Thread):
 
 class Model:
     _instance = None
+    _init_lock = RLock()
     _transcription_metric_state_init_lock = RLock()
 
     def __new__(cls):
@@ -373,6 +374,10 @@ class Model:
         and is intentionally not called at import time. Call explicitly
         or let `ensure_initialized()` call it lazily.
         """
+        with self._init_lock:
+            self._initResources()
+
+    def _initResources(self):
         if getattr(self, '_inited', False):
             return
 
@@ -435,6 +440,10 @@ class Model:
         self.transliterator = None
         self.watchdog = Watchdog(config.WATCHDOG_TIMEOUT, config.WATCHDOG_INTERVAL)
         self.osc_handler = OSCHandler(config.OSC_IP_ADDRESS, config.OSC_PORT)
+        self._osc_mute_state_lock = Lock()
+        self._osc_mute_refresh_lock = Lock()
+        self._osc_mute_revision = 0
+        self._osc_receive_generation = 0
         self._typing_coordinator = TypingCoordinator(
             on_start=self._startMicTypingIndicator,
             on_stop=self._stopMicTypingIndicator,
@@ -1720,25 +1729,83 @@ class Model:
         self.ensure_initialized()
         self.mic_mute_status = self.osc_handler.getOSCParameterMuteSelf()
 
+    def _refreshOscMuteState(self, generation):
+        with self._osc_mute_refresh_lock:
+            try:
+                with self._osc_mute_state_lock:
+                    if generation != self._osc_receive_generation or not config.VRC_MIC_MUTE_SYNC:
+                        return
+                    revision = self._osc_mute_revision
+                value = self.osc_handler.getOSCParameterMuteSelf()
+                with self._osc_mute_state_lock:
+                    if (generation != self._osc_receive_generation
+                            or revision != self._osc_mute_revision
+                            or not config.VRC_MIC_MUTE_SYNC or not isinstance(value, bool)):
+                        return
+                    self.mic_mute_status = value
+                if config.ENABLE_TRANSCRIPTION_SEND:
+                    self.changeMicTranscriptStatus()
+            except Exception:
+                errorLogging()
+
     def startReceiveOSC(self):
         self.ensure_initialized()
-        def changeHandlerMute(address, osc_arguments):
-            if isinstance(osc_arguments, bool) and self.mic_mute_status != osc_arguments:
-                self.mic_mute_status = osc_arguments
-                if (
-                    config.ENABLE_TRANSCRIPTION_SEND is True
-                    and config.VRC_MIC_MUTE_SYNC is True
-                ):
+        self._osc_receive_generation += 1
+        generation = self._osc_receive_generation
+        previous_stop = getattr(self, "_osc_mute_refresh_stop", None)
+        if previous_stop is not None:
+            previous_stop.set()
+            self._osc_mute_refresh_event.set()
+        refresh, query, stop = Event(), Event(), Event()
+        self._osc_mute_refresh_event = refresh
+        self._osc_mute_refresh_stop = stop
+
+        def refreshWorker():
+            while True:
+                refresh.wait()
+                refresh.clear()
+                if stop.is_set():
+                    return
+                if query.is_set():
+                    query.clear()
+                    self._refreshOscMuteState(generation)
+                elif (generation == self._osc_receive_generation
+                      and config.ENABLE_TRANSCRIPTION_SEND and config.VRC_MIC_MUTE_SYNC):
                     self.changeMicTranscriptStatus()
 
-        dict_filter_and_target = {
+        def changeHandlerMute(address, osc_arguments):
+            if not isinstance(osc_arguments, bool):
+                return
+            with self._osc_mute_state_lock:
+                changed = self.mic_mute_status != osc_arguments
+                self._osc_mute_revision += 1
+                self.mic_mute_status = osc_arguments
+            if changed:
+                query.clear()
+                refresh.set()
+
+        def avatarChanged(address, *_args):
+            if config.VRC_MIC_MUTE_SYNC:
+                with self._osc_mute_state_lock:
+                    self._osc_mute_revision += 1
+                query.set()
+                refresh.set()
+
+        # Coalesce events so discovery and capture transitions cannot block OSC reception.
+        Thread(target=refreshWorker, name="osc_mute_refresh", daemon=True).start()
+        self.osc_handler.setDictFilterAndTarget({
             self.osc_handler.osc_parameter_muteself: changeHandlerMute,
-        }
-        self.osc_handler.setDictFilterAndTarget(dict_filter_and_target)
+            "/avatar/change": avatarChanged,
+        })
         self.osc_handler.receiveOscParameters()
 
     def stopReceiveOSC(self):
         self.ensure_initialized()
+        self._osc_receive_generation += 1
+        stop = getattr(self, "_osc_mute_refresh_stop", None)
+        if stop is not None:
+            stop.set()
+            self._osc_mute_refresh_event.set()
         self.osc_handler.oscServerStop()
 
     def getIsOscQueryEnabled(self):
@@ -3706,6 +3773,7 @@ class Model:
                 self.websocket_server = WebSocketServer(
                     host=host,
                     port=port,
+                    token=config.WEBSOCKET_TOKEN,
                 )
                 self.websocket_server.set_message_handler(self.message_handler)
                 self.websocket_server.start()

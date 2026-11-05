@@ -74,7 +74,7 @@ class ReleaseNamingTests(unittest.TestCase):
             REPOSITORY_ROOT / ".github" / "workflows" / "test-candidate.yml"
         ).read_text(encoding="utf-8")
 
-        self.assertIn("RELEASE_TAG: v5.15.0-rc.1", workflow)
+        self.assertIn("RELEASE_TAG: v5.15.0-rc.8", workflow)
         self.assertIn("--release-tag $env:RELEASE_TAG", workflow)
         self.assertIn("--draft --prerelease", workflow)
         self.assertIn("--draft=false --prerelease", workflow)
@@ -231,7 +231,7 @@ print(release.REQUIRED_PAYLOAD_FILES[0])
 
 class VersionConsistencyTests(unittest.TestCase):
     def test_all_active_release_surfaces_report_target_version(self):
-        target_version = "5.15.0"
+        target_version = json.loads((REPOSITORY_ROOT / "package.json").read_text(encoding="utf-8"))["version"]
         package = json.loads((REPOSITORY_ROOT / "package.json").read_text(encoding="utf-8"))
         package_lock = json.loads(
             (REPOSITORY_ROOT / "package-lock.json").read_text(encoding="utf-8")

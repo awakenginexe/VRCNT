@@ -4,6 +4,7 @@ import os
 import sys
 import threading
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -55,7 +56,7 @@ class OSCQueryLifecycleTests(unittest.TestCase):
             if self.sleep_calls >= 5:
                 raise AssertionError("OSCQuery retried beyond five attempts")
         self.patches = [
-            patch.object(osc.osc_server, "ThreadingOSCUDPServer", FakeServer),
+            patch.object(osc.osc_server, "BlockingOSCUDPServer", FakeServer),
             patch.object(osc, "OSCQueryService", FailingService),
             patch.object(osc, "get_open_udp_port", return_value=9061),
             patch.object(osc, "get_open_tcp_port", return_value=9062),
@@ -68,6 +69,17 @@ class OSCQueryLifecycleTests(unittest.TestCase):
         self.handler = osc.OSCHandler()
         self.addCleanup(self.handler.closeChatboxDispatcher)
         self.addCleanup(self.handler.oscServerStop)
+
+    def test_discovery_and_parameter_requests_both_have_timeouts(self):
+        service = SimpleNamespace(parsed_addresses=lambda: ["127.0.0.1"], port=4567)
+        self.handler.browser = SimpleNamespace(get_discovered_oscquery=lambda: [service])
+        reply = SimpleNamespace(status_code=200, raise_for_status=lambda: None,
+                                json=lambda: {"NAME": "VRChat-Client", "VALUE": [True]})
+        with patch.object(osc, "requests_get", return_value=reply) as get:
+            self.assertIs(self.handler.getOSCParameterMuteSelf(), True)
+            self.assertEqual(len(get.call_args_list), 2)
+            for call in get.call_args_list:
+                self.assertEqual(call.kwargs["timeout"], (2, 3))
 
     def test_query_failure_is_bounded_and_leaves_osc_available(self):
         self.handler.receiveOscParameters()

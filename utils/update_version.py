@@ -114,6 +114,24 @@ def update_versions():
         ],
     )
 
+    for project in ("VRCNT.RuntimeCore", "VRCNT.Setup"):
+        replace_in_file(
+            os.path.join(root, "installer-helper", project, f"{project}.csproj"),
+            [
+                (r"(<Version>)[^<]+(</Version>)", rf"\g<1>{version}\g<2>", 1),
+                (r"(<AssemblyVersion>)[^<]+(</AssemblyVersion>)", rf"\g<1>{version}.0\g<2>", 1),
+                (r"(<FileVersion>)[^<]+(</FileVersion>)", rf"\g<1>{version}.0\g<2>", 1),
+            ],
+        )
+
+    replace_in_file(
+        os.path.join(root, "BUILD.md"),
+        [
+            (r"(# Build VRCNT )[0-9]+\.[0-9]+\.[0-9]+", rf"\g<1>{version}", 1),
+            (r"(VRCNT_)[0-9]+\.[0-9]+\.[0-9]+(_Setup\.exe)", rf"\g<1>{version}\g<2>", 1),
+        ],
+    )
+
     update_readme_versions(root, version)
 
     replace_in_file(
@@ -141,7 +159,7 @@ def update_versions():
 
     replace_in_file(
         os.path.join(root, ".github", "workflows", "release.yml"),
-        [(r'(e\.g\. v|for example, v)[0-9]+\.[0-9]+\.[0-9]+(\))', rf'\g<1>{version}\g<2>', 0)]
+        [(r'(e\.g\. v|for example, v)[0-9]+\.[0-9]+\.[0-9]+', rf'\g<1>{version}', 0)]
     )
 
     telemetry_paths = [

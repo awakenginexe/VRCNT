@@ -1295,6 +1295,10 @@ config_page:
             label: "切换 VRCT CPU/GPU 版本"
         enable_websocket:
             label: "启用 WebSocket 服务器"
+        websocket_url:
+            label: "复制含身份验证的 WebSocket URL"
+            copied: "已复制 WebSocket URL"
+            error: "无法复制，请重试。"
         websocket_host:
             label: "WebSocket 主机"
         websocket_port:

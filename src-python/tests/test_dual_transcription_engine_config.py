@@ -204,10 +204,8 @@ class DualTranscriptionEngineContractTests(unittest.TestCase):
         ):
             self.assertIn(method, controller_source)
 
-        self.assertRegex(
-            mainloop_source,
-            r'endpoint == "/set/data/deepseek_auth_key"[\s\S]{0,160}"\[redacted\]"',
-        )
+        self.assertIn("redact_endpoint_payload(endpoint, data)", mainloop_source)
+        self.assertIn("redact_endpoint_payload(endpoint, result)", mainloop_source)
 
 
 if __name__ == "__main__":

@@ -1295,6 +1295,10 @@ config_page:
             label: "切換 VRCT CPU/GPU 版本"
         enable_websocket:
             label: "啟用 WebSocket 伺服器"
+        websocket_url:
+            label: "複製含驗證的 WebSocket URL"
+            copied: "已複製 WebSocket URL"
+            error: "無法複製，請重試。"
         websocket_host:
             label: "WebSocket 主機"
         websocket_port:

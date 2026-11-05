@@ -1295,6 +1295,10 @@ config_page:
             label: "VRCT CPU/GPU 버전 전환"
         enable_websocket:
             label: "WebSocket 서버 활성화"
+        websocket_url:
+            label: "인증된 WebSocket URL 복사"
+            copied: "WebSocket URL 복사됨"
+            error: "복사하지 못했습니다. 다시 시도하세요."
         websocket_host:
             label: "WebSocket 호스트"
         websocket_port:

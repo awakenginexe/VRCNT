@@ -55,6 +55,14 @@ class ReleaseVersionTests(unittest.TestCase):
             ui_store,
         )
 
+    def test_dotnet_installers_report_release_version(self):
+        import xml.etree.ElementTree as ET
+        for name in ("VRCNT.RuntimeCore", "VRCNT.Setup"):
+            project = ET.parse(ROOT / "installer-helper" / name / f"{name}.csproj")
+            self.assertEqual(project.findtext(".//Version"), APP_VERSION)
+            self.assertEqual(project.findtext(".//AssemblyVersion"), f"{APP_VERSION}.0")
+            self.assertEqual(project.findtext(".//FileVersion"), f"{APP_VERSION}.0")
+
     def test_rust_application_package_reports_release_version(self):
         cargo_manifest = tomllib.loads(
             (ROOT / "src-tauri" / "Cargo.toml").read_text(encoding="utf-8")
@@ -154,7 +162,7 @@ class ReleaseVersionTests(unittest.TestCase):
             requirements = (
                 ROOT / filename
             ).read_text(encoding="utf-8").splitlines()
-            self.assertIn("setuptools==83.0.0", requirements)
+            self.assertIn("setuptools==84.1.0", requirements)
 
     def test_python_builds_pin_patched_openai_chat_stack(self):
         for filename in ("requirements.txt", "requirements_cuda.txt"):
@@ -163,7 +171,7 @@ class ReleaseVersionTests(unittest.TestCase):
             ).read_text(encoding="utf-8").splitlines()
             self.assertIn("langchain-openai==1.1.14", requirements)
             self.assertIn("langchain-google-genai==3.0.0", requirements)
-            self.assertIn("langchain-core==1.2.31", requirements)
+            self.assertIn("langchain-core==1.3.3", requirements)
             self.assertIn("openai==2.26.0", requirements)
 
     def test_cuda_runtime_matches_ctranslate2(self):
