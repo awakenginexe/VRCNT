@@ -25,3 +25,9 @@ LGPL with the 7-Zip unRAR restriction, and
 [minisign](https://github.com/jedisct1/minisign), distributed under the ISC
 license. These tools are used only for authenticated package verification and
 extraction.
+
+The vendored `src-tauri/vendor/glib-0.18.5` is the official GLib Rust crate
+under its preserved MIT license and copyright notices. It includes the
+[upstream RUSTSEC-2024-0429 fix](https://github.com/gtk-rs/gtk-rs-core/commit/b5a4071e439bef2b5eea76c3aa25e5ae84839e34)
+backported without changing the 0.18 API or claiming a newer upstream version.
+The original archive SHA-256 is recorded in the vendored Cargo manifest.

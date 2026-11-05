@@ -44,3 +44,7 @@ tauri-plugin-updater = "2"
 
 [dev-dependencies]
 tempfile = "=3.27.0"
+
+# Backport RUSTSEC-2024-0429 while preserving GTK's GLib 0.18 API.
+[patch.crates-io]
+glib = { path = "vendor/glib-0.18.5" }

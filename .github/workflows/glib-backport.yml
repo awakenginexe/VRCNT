@@ -1,0 +1,34 @@
+name: Check GLib security backport
+
+on:
+  push:
+    paths:
+      - 'src-tauri/vendor/glib-0.18.5/**'
+      - 'src-tauri/Cargo.toml'
+      - 'src-tauri/Cargo.lock'
+      - '.github/workflows/glib-backport.yml'
+  pull_request:
+    paths:
+      - 'src-tauri/vendor/glib-0.18.5/**'
+      - 'src-tauri/Cargo.toml'
+      - 'src-tauri/Cargo.lock'
+      - '.github/workflows/glib-backport.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-glib-regression:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install native GLib development files
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libglib2.0-dev pkg-config
+      - name: Exercise string iterators with release optimizations
+        run: cargo test --manifest-path src-tauri/vendor/glib-0.18.5/Cargo.toml --release --lib variant_iter::tests::test_variant_str_iter
