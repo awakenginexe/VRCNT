@@ -184,7 +184,7 @@ test("translator popout matches the quick model selector visual treatment", () =
 
     assert.match(translatorSelector, /const LIVE_PANEL_WIDTH = 400/);
     assert.match(translatorStyles, /width:\s*min\(25rem,\s*calc\(100vw - 2rem\)\)/);
-    assert.match(translatorStyles, /@include liquid_glass\(panel\)/);
+    assert.match(translatorStyles, /@include liquid_glass\(popover\)/);
     assert.match(translatorStyles, /\.box\s*\{[\s\S]*background:\s*rgba\(255,\s*255,\s*255,\s*0\.04\)/);
     assert.match(translatorStyles, /\.box\s*\{[\s\S]*border:\s*0\.1rem\s+solid\s+rgba\(255,\s*255,\s*255,\s*0\.08\)/);
     assert.match(

@@ -36,7 +36,7 @@ test("the app and desktop overlay use one editable semantic visual system", () =
     assert.match(variables, /--surface_overlay_color:/);
     assert.doesNotMatch(mainSection, /91,\s*226,\s*181/);
     assert.match(configPage, /var\(--canvas_color\)/);
-    assert.match(languageSelector, /@include liquid_glass\(panel\)/);
+    assert.match(languageSelector, /@include liquid_glass\(popover\)/);
     assert.match(messageContainer, /@include liquid_glass\(card/);
     assert.doesNotMatch(messageLog, /color:\s*var\(--success_bc_color\)/);
     assert.doesNotMatch(messageLog, /color-mix\(in srgb,\s*var\(--success_bc_color\)/);
