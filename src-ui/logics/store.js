@@ -232,7 +232,7 @@ export const { atomInstance: Atom_InitStatus, useHook: useStore_InitStatus } = c
     message: "Starting VRCNT",
     message_key: "blocking_operation.startup_operation",
     detail: "Preparing startup.",
-    phase: "starting",
+    phase: IS_TAURI_RUNTIME ? "starting" : "done",
 }, "InitStatus");
 export const { atomInstance: Atom_IsBreakPoint, useHook: useStore_IsBreakPoint } = createAtomWithHook(false, "IsBreakPoint");
 export const { atomInstance: Atom_IsSoftwareUpdating, useHook: useStore_IsSoftwareUpdating } = createAtomWithHook(false, "IsSoftwareUpdating");

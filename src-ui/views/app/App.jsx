@@ -129,10 +129,17 @@ const QuickWakeUpRestoreController = () => {
         && currentInitStatus.data.visible === false;
 
     useEffect(() => {
+        // useMainFunction callbacks change every render, so this effect reruns often; skip no-op resets to avoid a render loop.
+        const resetRestoreState = () => {
+            const { phase, generation } = currentQuickWakeUpRestoreState.data;
+            if (phase === "idle" && generation === 0) return;
+            updateQuickWakeUpRestoreState(resetQuickWakeUpRestore());
+        };
+
         if (currentIsBackendReady.data !== true) {
             restoreStateRef.current = "unconfirmed";
             restoreCycleStartedRef.current = false;
-            updateQuickWakeUpRestoreState(resetQuickWakeUpRestore());
+            resetRestoreState();
             return;
         }
 
@@ -141,7 +148,7 @@ const QuickWakeUpRestoreController = () => {
             || currentEnableQuickWakeUp.data !== true
         ) {
             restoreCycleStartedRef.current = false;
-            updateQuickWakeUpRestoreState(resetQuickWakeUpRestore());
+            resetRestoreState();
             return;
         }
 
@@ -204,6 +211,7 @@ const QuickWakeUpRestoreController = () => {
         currentEnableQuickWakeUp.data,
         currentEnableQuickWakeUp.state,
         currentIsBackendReady.data,
+        currentQuickWakeUpRestoreState.data,
         currentInitStatus.data.phase,
         currentInitStatus.data.visible,
         isInitializationComplete,

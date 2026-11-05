@@ -1,4 +1,5 @@
 import { createAtomWithHook } from "@store";
+import { isTauriRuntime } from "../../common/tauriRuntime.js";
 
 import {
     ctranslate2_weight_type_status,
@@ -892,7 +893,8 @@ export const SETTINGS_ARRAY = [
     {
         Category: "Onboarding",
         Base_Name: "SetupCompleted",
-        default_value: false,
+        // Browser preview has no backend to report setup state; unlock navigation there.
+        default_value: !isTauriRuntime(),
         ui_template_id: "toggle",
         logics_template_id: "get_set",
         base_endpoint_name: "setup_completed",
