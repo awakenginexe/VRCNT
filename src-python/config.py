@@ -597,8 +597,8 @@ APP_COLOR_PALETTE_DEFAULTS = {
     "surfaceControl": "#080D18",
     "textStrong": "#F8FAFC",
     "text": "#E2E8F0",
-    "textMuted": "#94A3B8",
-    "textSubtle": "#64748B",
+    "textMuted": "#B8C4D6",
+    "textSubtle": "#93A1B8",
     "border": "#1E293B",
     "focus": "#38BDF8",
     "success": "#5BE2B5",
@@ -649,6 +649,20 @@ def _normalize_color_palette(value, defaults):
         or _normalize_color_hex(fallback)
         or "#000000"
         for role, fallback in defaults.items()
+    }
+
+
+LEGACY_TEXT_COLOR_DEFAULTS = {"textMuted": "#94A3B8", "textSubtle": "#64748B"}
+
+
+def _upgrade_legacy_text_colors(palette):
+    # shortcut: a user who deliberately picks an old default gets upgraded on next load; track an explicit flag if that is ever reported.
+    return {
+        role: APP_COLOR_PALETTE_DEFAULTS[role]
+        if role in LEGACY_TEXT_COLOR_DEFAULTS
+        and str(color).upper() == LEGACY_TEXT_COLOR_DEFAULTS[role]
+        else color
+        for role, color in palette.items()
     }
 
 
@@ -1691,6 +1705,8 @@ class Config:
                                 continue
                         except Exception:
                             errorLogging()
+
+        self._APP_COLOR_PALETTE = _upgrade_legacy_text_colors(self._APP_COLOR_PALETTE)
 
         self._COLOR_RESET_5_9_0 = _resolve_color_reset_migration_flag(
             config_file_exists,

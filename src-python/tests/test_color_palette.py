@@ -1,5 +1,7 @@
+import json
 import os
 import sys
+import tempfile
 import unittest
 from unittest.mock import Mock
 
@@ -49,6 +51,36 @@ class ColorPaletteTests(unittest.TestCase):
         )
         self.assertEqual(instance.OVERLAY_COLOR_PALETTE["sent"], "#FEDCBA")
         self.assertGreaterEqual(instance.saveConfig.call_count, 2)
+
+    def test_new_text_defaults_match_frontend(self):
+        defaults = config_module.APP_COLOR_PALETTE_DEFAULTS
+        self.assertEqual(defaults["textMuted"], "#B8C4D6")
+        self.assertEqual(defaults["textSubtle"], "#93A1B8")
+
+    def test_upgrades_untouched_legacy_text_colors(self):
+        out = config_module._upgrade_legacy_text_colors(
+            {"textMuted": "#94a3b8", "textSubtle": "#64748B"}
+        )
+        self.assertEqual(out["textMuted"], "#B8C4D6")
+        self.assertEqual(out["textSubtle"], "#93A1B8")
+
+    def test_keeps_custom_text_colors(self):
+        src = {"textMuted": "#FF0000", "textSubtle": "#123456", "primary": "#64748B"}
+        self.assertEqual(config_module._upgrade_legacy_text_colors(src), src)
+
+    def test_load_config_upgrades_saved_legacy_palette(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = os.path.join(temp_dir, "config.json")
+            legacy = dict(config_module.APP_COLOR_PALETTE_DEFAULTS)
+            legacy.update(textMuted="#94A3B8", textSubtle="#64748B")
+            with open(path, "w", encoding="utf-8") as fp:
+                json.dump({"APP_COLOR_PALETTE": legacy}, fp)
+            instance = object.__new__(config_module.Config)
+            instance.init_config()
+            instance._PATH_CONFIG = path
+            instance.load_config()
+            self.assertEqual(instance._APP_COLOR_PALETTE["textMuted"], "#B8C4D6")
+            self.assertEqual(instance._APP_COLOR_PALETTE["textSubtle"], "#93A1B8")
 
     def test_overlay_renderer_accepts_custom_palette(self):
         colors = OverlayImage.resolveOverlayColors(

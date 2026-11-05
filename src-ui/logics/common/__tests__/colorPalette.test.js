@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 
 import {
     APP_COLOR_PALETTE_DEFAULTS,
@@ -49,4 +50,29 @@ test("contrast ratio remains useful for editor warnings", () => {
         DEFAULT_OVERLAY_COLOR_PALETTE.text,
         DEFAULT_OVERLAY_COLOR_PALETTE.background,
     ) > 4.5, true);
+});
+
+test("default muted and subtle text meet 4.5:1 on every default surface", () => {
+    for (const role of ["textMuted", "textSubtle"]) {
+        for (const surface of ["surface1", "surface2", "surface3"]) {
+            const ratio = getContrastRatio(
+                APP_COLOR_PALETTE_DEFAULTS[role],
+                APP_COLOR_PALETTE_DEFAULTS[surface],
+            );
+            assert.ok(ratio >= 4.5, `${role} on ${surface}: ${ratio}`);
+        }
+    }
+});
+
+test("variables.css defaults match the JS palette defaults", () => {
+    const css = readFileSync(
+        new URL("../../../views/app/_index_css/variables.css", import.meta.url),
+        "utf8",
+    );
+    for (const [role, value] of Object.entries(APP_COLOR_PALETTE_DEFAULTS)) {
+        const snake = role.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
+            .replace(/(\D)(\d)/g, "$1_$2");
+        const re = new RegExp(`--palette_${snake}_color:\\s*${value}\\b`, "i");
+        assert.match(css, re, role);
+    }
 });
