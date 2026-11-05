@@ -1,9 +1,11 @@
+@import "@scss_mixins";
+
 .container {
     height: var(--main_page_topbar_height);
     margin: 0;
     padding: 0;
-    background: rgba(10, 14, 25, 0.52);
-    backdrop-filter: var(--panel_blur);
-    -webkit-backdrop-filter: var(--panel_blur);
+    @include liquid_glass(card);
+    border: 0;
+    border-radius: 0;
     border-bottom: 0.1rem solid rgba(255, 255, 255, 0.08);
 }

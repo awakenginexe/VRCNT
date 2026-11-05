@@ -1,3 +1,5 @@
+@import "@scss_mixins";
+
 .backdrop {
     position: absolute;
     inset: 0;
@@ -19,18 +21,8 @@
     display: grid;
     grid-template-rows: auto auto auto minmax(0, 1fr);
     overflow: hidden;
-    border: 0.1rem solid rgba(255, 255, 255, 0.18);
-    border-radius: 1.6rem;
-    backdrop-filter: blur(44px) saturate(210%);
-    -webkit-backdrop-filter: blur(44px) saturate(210%);
-    background:
-        linear-gradient(135deg, rgba(255, 255, 255, 0.09), transparent 45%),
-        linear-gradient(180deg, rgba(56, 189, 248, 0.08), rgba(99, 102, 241, 0.04) 45%, rgba(8, 12, 24, 0.72) 100%),
-        color-mix(in srgb, var(--surface_overlay_color) 15%, rgba(8, 12, 24, 0.78));
+    @include liquid_glass(panel);
     color: var(--dark_basic_text_color);
-    box-shadow:
-        inset 0 0.1rem 0.1rem 0 rgba(255, 255, 255, 0.3),
-        0 2.4rem 6.4rem rgba(0, 0, 0, 0.65);
     transition:
         width var(--transition_ui),
         height var(--transition_ui);
@@ -61,13 +53,9 @@
     align-items: center;
     gap: 0.85rem;
     padding: 0 1.25rem;
-    border: 0.1rem solid rgba(255, 255, 255, 0.14);
+    @include liquid_glass(control);
     border-radius: 1.1rem;
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    background: rgba(255, 255, 255, 0.05);
     color: var(--dark_200_color);
-    box-shadow: inset 0 0.1rem 0 0 rgba(255, 255, 255, 0.08);
     transition: border-color var(--transition_ui), box-shadow var(--transition_ui);
 
     &:focus-within {
@@ -112,16 +100,12 @@
     flex: 0 0 auto;
     min-height: 3.4rem;
     padding: 0.5rem 0.95rem;
+    @include liquid_glass(control);
     border-radius: 0.8rem;
-    border: 0.1rem solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.05);
     color: #38bdf8;
     font-size: 1.05rem;
     font-weight: 750;
     text-decoration: none;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    box-shadow: inset 0 0.1rem 0 0 rgba(255, 255, 255, 0.06);
     transition: all 0.2s ease;
 
     &:hover {
@@ -176,12 +160,7 @@
     margin: 0 0 1rem;
     padding: 0.8rem;
     break-inside: avoid;
-    border: 0.1rem solid rgba(255, 255, 255, 0.09);
-    border-radius: 1.25rem;
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    background: rgba(255, 255, 255, 0.03);
-    box-shadow: inset 0 0.1rem 0 0 rgba(255, 255, 255, 0.06);
+    @include liquid_glass(card);
 }
 
 .language_letter_header {
@@ -211,15 +190,10 @@
     align-items: center;
     gap: 0.8rem;
     padding: 0.75rem 0.95rem;
-    border: 0.1rem solid rgba(255, 255, 255, 0.08);
-    border-radius: 1rem;
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    background: rgba(255, 255, 255, 0.045);
+    @include liquid_glass(card);
     color: inherit;
     cursor: pointer;
     text-align: left;
-    box-shadow: inset 0 0.1rem 0 0 rgba(255, 255, 255, 0.08);
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 
     &:hover:not(:disabled) {

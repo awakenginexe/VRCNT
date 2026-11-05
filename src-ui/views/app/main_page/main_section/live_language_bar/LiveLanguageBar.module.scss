@@ -1,3 +1,5 @@
+@import "@scss_mixins";
+
 .container {
     position: relative;
     z-index: 20;
@@ -7,9 +9,10 @@
     justify-content: space-between;
     gap: 1.8rem;
     padding: 1.1rem 2.4rem;
+    @include liquid_glass(card);
+    border: 0;
+    border-radius: 0;
     border-bottom: 0.1rem solid rgba(var(--accent_color_rgb), 0.12);
-    background: var(--surface_1_color);
-    backdrop-filter: var(--panel_blur);
     animation: language_route_in var(--motion_enter);
 }
 

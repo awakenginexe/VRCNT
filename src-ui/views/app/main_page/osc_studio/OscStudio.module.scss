@@ -1,3 +1,5 @@
+@import "@scss_mixins";
+
 .page {
     display: grid;
     grid-template-rows: var(--main_page_topbar_height) minmax(0, 1fr);
@@ -172,12 +174,7 @@
 .card {
     min-width: 0;
     padding: clamp(1rem, 1.8vw, 1.45rem);
-    border: 0.1rem solid rgba(255, 255, 255, 0.13);
-    border-radius: 1.25rem;
-    background: rgba(12, 17, 32, 0.34);
-    box-shadow: inset 0 0.1rem 0.12rem rgba(255, 255, 255, 0.1), 0 1rem 3.2rem rgba(0, 0, 0, 0.2);
-    backdrop-filter: blur(24px) saturate(170%);
-    -webkit-backdrop-filter: blur(24px) saturate(170%);
+    @include liquid_glass(panel);
 }
 
 .card_header {
@@ -223,14 +220,7 @@
     width: 100%;
     min-width: 0;
     padding: 0.95rem 1.15rem;
-    border: 0.1rem solid rgba(255, 255, 255, 0.14);
-    border-radius: 1rem;
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(10, 16, 32, 0.42) 100%);
-    box-shadow:
-        inset 0 0.1rem 0.12rem 0 rgba(255, 255, 255, 0.1),
-        0 0.4rem 1.6rem rgba(0, 0, 0, 0.2);
+    @include liquid_glass(card);
     cursor: pointer;
     text-align: left;
     transition: var(--transition_ui);
@@ -361,14 +351,7 @@
     min-width: 0;
     margin-top: 0.85rem;
     padding: 1rem 1.15rem;
-    border: 0.1rem solid rgba(255, 255, 255, 0.12);
-    border-radius: 1.1rem;
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(10, 15, 30, 0.35) 100%);
-    box-shadow:
-        inset 0 0.1rem 0.12rem 0 rgba(255, 255, 255, 0.08),
-        0 0.4rem 1.6rem rgba(0, 0, 0, 0.2);
+    @include liquid_glass(card);
 }
 
 .order_panel {
@@ -405,13 +388,8 @@
     gap: 0.3rem;
     min-width: 0;
     padding: 0.8rem;
-    border: 0.1rem solid rgba(255, 255, 255, 0.14);
-    border-radius: 0.8rem;
+    @include liquid_glass(card);
     color: var(--dark_300_color);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    background: rgba(14, 20, 36, 0.45);
-    box-shadow: inset 0 0.1rem 0.1rem rgba(255, 255, 255, 0.08);
     cursor: pointer;
     text-align: left;
     transition: var(--transition_ui);
@@ -481,12 +459,7 @@
         min-height: 5rem;
         margin-bottom: 0;
         padding: 0.8rem;
-        border: 0.1rem solid rgba(255, 255, 255, 0.12);
-        border-radius: 0.85rem;
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        background: rgba(12, 17, 32, 0.35);
-        box-shadow: inset 0 0.1rem 0.1rem rgba(255, 255, 255, 0.08);
+        @include liquid_glass(card);
     }
 
     :global(.label_component) {

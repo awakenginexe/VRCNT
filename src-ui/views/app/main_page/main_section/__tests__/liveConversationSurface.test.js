@@ -9,6 +9,6 @@ test("the chat panel keeps its glass shadow inside the workspace column", () => 
     const chatPanel = styles.match(/\.chat_panel\s*\{([\s\S]*?)\n\}/)?.[1];
 
     assert.ok(chatPanel, "chat panel styles should be present");
-    assert.match(chatPanel, /box-shadow:\s*inset\s+0\s+0\.1rem\s+0\.1rem\s+0\s+rgba\(255,\s*255,\s*255,\s*0\.16\)/);
+    assert.match(chatPanel, /@include liquid_glass\(panel,\s*\$outer_shadow:\s*false\)/);
     assert.doesNotMatch(chatPanel, /0\s+1\.4rem\s+4rem\s+rgba\(0,\s*0,\s*0,\s*0\.35\)/);
 });

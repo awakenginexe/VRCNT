@@ -1,3 +1,5 @@
+@import "@scss_mixins";
+
 .container {
     width: 100%;
     height: 100%;
@@ -21,14 +23,7 @@
 .hero,
 .preset_card,
 .advanced_models {
-    border: 0.1rem solid rgba(255, 255, 255, 0.14);
-    border-radius: 1.15rem;
-    backdrop-filter: blur(28px) saturate(190%);
-    -webkit-backdrop-filter: blur(28px) saturate(190%);
-    background: rgba(12, 17, 32, 0.32);
-    box-shadow:
-        inset 0 0.1rem 0.12rem 0 rgba(255, 255, 255, 0.14),
-        0 1rem 3.6rem rgba(0, 0, 0, 0.28);
+    @include liquid_glass(panel);
 }
 
 .filter_bar {

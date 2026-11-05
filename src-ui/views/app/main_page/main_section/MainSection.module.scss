@@ -1,3 +1,5 @@
+@import "@scss_mixins";
+
 .container {
     position: relative;
     width: 100%;
@@ -32,12 +34,7 @@
     gap: 1rem;
     padding: 1.25rem;
     overflow: hidden;
-    border: 0.1rem solid rgba(255, 255, 255, 0.14);
-    border-radius: 1.35rem;
-    backdrop-filter: blur(28px) saturate(190%);
-    -webkit-backdrop-filter: blur(28px) saturate(190%);
-    background: rgba(12, 17, 32, 0.32);
-    box-shadow: inset 0 0.1rem 0.1rem 0 rgba(255, 255, 255, 0.16);
+    @include liquid_glass(panel, $outer_shadow: false);
 }
 
 .workspace_header {

@@ -1,3 +1,5 @@
+@import "@scss_mixins";
+
 .role_card {
     display: flex;
     flex-direction: column;
@@ -320,14 +322,13 @@
     box-sizing: border-box;
     gap: 0.55rem;
     padding: 0.85rem 1.1rem;
+    @include liquid_glass(card);
     border-radius: 0;
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
     background: rgba(255, 255, 255, 0.025);
+    box-shadow: none;
     border: none;
     border-top: 0.1rem solid rgba(255, 255, 255, 0.06);
     border-bottom: 0.1rem solid rgba(255, 255, 255, 0.06);
-    box-shadow: none;
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 
     &[data-group="speaking"] {
