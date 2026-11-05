@@ -56,7 +56,7 @@
     top: 4.4rem;
     width: min(46rem, calc(100vw - 2rem));
     padding: 1.4rem;
-    @include liquid_glass(panel);
+    @include liquid_glass(popover);
     color: var(--dark_100_color);
     pointer-events: auto;
     animation: popover_in 0.25s cubic-bezier(0.16, 1, 0.3, 1);

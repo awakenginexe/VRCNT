@@ -105,11 +105,14 @@ $toggle_control_ease: ease-out;
         }
     }
 }
-// Liquid Glass surface. $level: panel | card | control
+// Liquid Glass surface. $level: panel | card | control | popover
 @mixin liquid_glass($level: panel, $outer_shadow: true) {
     $tint: var(--lg_tint);
     $radius: var(--lg_radius_panel);
     @if $level == card {
+        $radius: var(--lg_radius_card);
+    } @else if $level == popover {
+        $tint: var(--lg_tint_popover);
         $radius: var(--lg_radius_card);
     } @else if $level == control {
         $tint: var(--lg_tint_dense);

@@ -38,7 +38,7 @@
     flex: 0 0 auto;
     display: grid;
     place-items: center;
-    @include liquid_glass(control);
+    @include liquid_glass(control, $outer_shadow: false);
     border-radius: 1rem;
     color: var(--dark_300_color);
     cursor: pointer;

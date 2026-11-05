@@ -104,8 +104,8 @@
     flex-direction: column;
     gap: 0.35rem;
     padding: 0.55rem;
-    border: var(--panel_border);
-    @include liquid_glass(card);
+    @include liquid_glass(popover);
+    box-shadow: var(--lg_highlight), var(--lg_edge_shadow), var(--shadow_accent);
     transform-origin: top left;
     animation: resource_menu_in var(--motion_enter);
 }

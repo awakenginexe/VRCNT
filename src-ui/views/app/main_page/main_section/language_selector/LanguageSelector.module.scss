@@ -21,7 +21,7 @@
     display: grid;
     grid-template-rows: auto auto auto minmax(0, 1fr);
     overflow: hidden;
-    @include liquid_glass(panel);
+    @include liquid_glass(popover);
     color: var(--dark_basic_text_color);
     transition:
         width var(--transition_ui),
@@ -53,7 +53,7 @@
     align-items: center;
     gap: 0.85rem;
     padding: 0 1.25rem;
-    @include liquid_glass(control);
+    @include liquid_glass(control, $outer_shadow: false);
     border-radius: 1.1rem;
     color: var(--dark_200_color);
     transition: border-color var(--transition_ui), box-shadow var(--transition_ui);
@@ -100,7 +100,7 @@
     flex: 0 0 auto;
     min-height: 3.4rem;
     padding: 0.5rem 0.95rem;
-    @include liquid_glass(control);
+    @include liquid_glass(control, $outer_shadow: false);
     border-radius: 0.8rem;
     color: #38bdf8;
     font-size: 1.05rem;
@@ -160,7 +160,7 @@
     margin: 0 0 1rem;
     padding: 0.8rem;
     break-inside: avoid;
-    @include liquid_glass(card);
+    @include liquid_glass(card, $outer_shadow: false);
 }
 
 .language_letter_header {
@@ -190,7 +190,7 @@
     align-items: center;
     gap: 0.8rem;
     padding: 0.75rem 0.95rem;
-    @include liquid_glass(card);
+    @include liquid_glass(card, $outer_shadow: false);
     color: inherit;
     cursor: pointer;
     text-align: left;

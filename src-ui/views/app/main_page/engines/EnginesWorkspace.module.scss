@@ -97,13 +97,11 @@
 }
 
 .source_card[data-source="speaking"] {
-    border-left-color: #38bdf8;
-    background: linear-gradient(135deg, rgba(56, 189, 248, 0.08), rgba(14, 19, 32, 0.65) 45%);
+    border-left-color: var(--palette_sent_color);
 }
 
 .source_card[data-source="target"] {
-    border-left-color: #a78bfa;
-    background: linear-gradient(135deg, rgba(167, 139, 250, 0.08), rgba(14, 19, 32, 0.65) 45%);
+    border-left-color: var(--palette_received_color);
 }
 
 .source_card[data-accent="violet"] {
@@ -348,8 +346,6 @@
     grid-template-columns: minmax(0, 1fr) minmax(23rem, 0.95fr) auto;
     align-items: center;
     gap: 1.35rem;
-    background:
-        linear-gradient(130deg, rgba(var(--accent_color_rgb), 0.11), rgba(12, 10, 21, 0.82) 57%);
 }
 
 .hardware_metrics {

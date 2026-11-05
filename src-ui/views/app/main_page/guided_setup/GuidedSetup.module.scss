@@ -947,8 +947,8 @@
     width: min(48rem, 100%);
     display: grid;
     gap: 0.8rem;
+    @include liquid_glass(popover);
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.48);
-    @include liquid_glass(panel);
     padding: clamp(1.2rem, 2.5vw, 1.8rem);
     animation: guided_skip_dialog_in 220ms cubic-bezier(0.22, 0.8, 0.28, 1) both;
 }
