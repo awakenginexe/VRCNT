@@ -1,3 +1,5 @@
+@import "@scss_mixins";
+
 .container {
     display: flex;
     flex-direction: column;
@@ -21,14 +23,7 @@
     width: 100%;
     min-width: 0;
     padding: 0.95rem 1.1rem;
-    border: 0.1rem solid rgba(255, 255, 255, 0.14);
-    border-radius: 1.1rem;
-    backdrop-filter: blur(24px) saturate(180%);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(10, 16, 32, 0.45) 100%);
-    box-shadow:
-        inset 0 0.1rem 0.12rem 0 rgba(255, 255, 255, 0.12),
-        0 0.6rem 2.2rem rgba(0, 0, 0, 0.24);
+    @include liquid_glass(card);
 }
 
 .section_header {
@@ -92,14 +87,8 @@
     width: 100%;
     min-width: 0;
     padding: 0.75rem 0.95rem;
+    @include liquid_glass(card);
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.35);
-    border-radius: 0.85rem;
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    background: linear-gradient(135deg, rgba(var(--accent_color_rgb), 0.14) 0%, rgba(8, 14, 28, 0.75) 100%);
-    box-shadow:
-        inset 0 0.1rem 0.12rem 0 rgba(255, 255, 255, 0.16),
-        0 0.4rem 1.6rem rgba(0, 0, 0, 0.32);
 }
 
 .example_text {
@@ -177,25 +166,16 @@
     align-items: center;
     gap: 0.45rem;
     padding: 0.38rem 0.75rem;
+    @include liquid_glass(control);
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.38);
-    border-radius: 0.65rem;
     color: var(--dark_150_color);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    background: linear-gradient(135deg, rgba(var(--accent_color_rgb), 0.16) 0%, rgba(12, 18, 36, 0.4) 100%);
-    box-shadow:
-        inset 0 0.1rem 0.1rem rgba(255, 255, 255, 0.12),
-        0 0.2rem 0.8rem rgba(0, 0, 0, 0.2);
     cursor: pointer;
     transition: var(--transition_ui);
 
     &:hover {
         border-color: rgba(var(--accent_color_rgb), 0.7);
         color: var(--dark_100_color);
-        background: linear-gradient(135deg, rgba(var(--accent_color_rgb), 0.26) 0%, rgba(12, 18, 36, 0.6) 100%);
-        box-shadow:
-            inset 0 0.1rem 0.14rem rgba(255, 255, 255, 0.2),
-            0 0 1.2rem rgba(var(--accent_color_rgb), 0.25);
+        box-shadow: var(--lg_highlight), 0 0 1.2rem rgba(var(--accent_color_rgb), 0.25);
     }
 }
 
@@ -218,14 +198,7 @@
     width: 100%;
     min-width: 0;
     padding: 0.95rem 1.1rem;
-    border: 0.1rem solid rgba(255, 255, 255, 0.14);
-    border-radius: 1.1rem;
-    backdrop-filter: blur(24px) saturate(180%);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(10, 16, 32, 0.45) 100%);
-    box-shadow:
-        inset 0 0.1rem 0.12rem 0 rgba(255, 255, 255, 0.12),
-        0 0.6rem 2.2rem rgba(0, 0, 0, 0.24);
+    @include liquid_glass(card);
 }
 
 .input_wrapper {
@@ -263,12 +236,7 @@
     justify-content: center;
     min-width: 5.4rem;
     padding: 0.42rem 0.65rem;
-    border: 0.1rem solid rgba(255, 255, 255, 0.18);
-    border-radius: 0.6rem;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 100%);
-    box-shadow: inset 0 0.1rem 0.1rem rgba(255, 255, 255, 0.14);
+    @include liquid_glass(control);
     color: var(--dark_100_color);
     font-size: 0.73rem;
     font-weight: 800;
@@ -284,14 +252,9 @@
     justify-content: center;
     min-width: 5.4rem;
     padding: 0.42rem 0.65rem;
+    @include liquid_glass(control);
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.45);
-    border-radius: 0.6rem;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    background: linear-gradient(135deg, rgba(var(--accent_color_rgb), 0.24) 0%, rgba(var(--accent_color_rgb), 0.08) 100%);
-    box-shadow:
-        inset 0 0.1rem 0.12rem rgba(255, 255, 255, 0.18),
-        0 0 1.2rem rgba(var(--accent_color_rgb), 0.18);
+    box-shadow: var(--lg_highlight), 0 0 1.2rem rgba(var(--accent_color_rgb), 0.18);
     color: var(--primary_150_color);
     font-size: 0.73rem;
     font-weight: 800;
@@ -377,12 +340,8 @@
     justify-content: center;
     min-width: 5.4rem;
     padding: 0.38rem 0.6rem;
+    @include liquid_glass(control);
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.3);
-    border-radius: 0.55rem;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    background: linear-gradient(135deg, rgba(var(--accent_color_rgb), 0.14) 0%, rgba(var(--accent_color_rgb), 0.05) 100%);
-    box-shadow: inset 0 0.08rem 0.08rem rgba(255, 255, 255, 0.1);
     color: rgba(var(--accent_color_rgb), 0.95);
     font-size: 0.7rem;
     font-weight: 750;

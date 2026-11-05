@@ -1,3 +1,5 @@
+@import "@scss_mixins";
+
 .workspace {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 0.1rem minmax(0, 1fr);
@@ -22,9 +24,10 @@
     gap: 0.9rem;
     margin-bottom: 0.8rem;
     padding: 1rem 0.4rem;
+    @include liquid_glass(popover, $outer_shadow: false);
+    border: 0;
     border-bottom: 0.1rem solid rgba(var(--accent_color_rgb), 0.24);
-    background: var(--surface_1_color);
-    backdrop-filter: var(--panel_blur);
+    border-radius: 0;
 }
 
 .column_header h2 {

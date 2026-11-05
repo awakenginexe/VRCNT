@@ -32,6 +32,15 @@ sidebar_section/language_settings/translator_selector_open_button/TranslatorSele
 sidebar_section/language_settings/translator_selector_open_button/translator_selector/TranslatorSelector
 `.trim().split("\n").map((name) => `${base}${name}.module.scss`);
 
+const settingsBase = "../../../views/";
+files.push(...`
+app/config_page/ConfigPage
+app/config_page/setting_section/setting_box/_components/message_format/MessageFormat
+app/config_page/setting_section/setting_box/model_and_provider/ModelAndProvider
+app/config_page/setting_section/setting_box/translation_models/TranslationModels
+common_components/custom_select/CustomModernSelect
+`.trim().split("\n").map((name) => `${settingsBase}${name}.module.scss`));
+
 // Scrims keep their own blur; these class names are scrims without "backdrop"/"scrim" in the name.
 const scrimSelector = /backdrop|scrim|dimming|is_selected_same_language_wrapper/;
 
