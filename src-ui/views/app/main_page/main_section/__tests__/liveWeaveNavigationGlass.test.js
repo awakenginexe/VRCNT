@@ -55,11 +55,15 @@ test("the capsule shrinks to its content", () => {
 
 test("responsive overrides never shrink text below the readable floor", () => {
     const floors = { ".navigation_item": 0.9, ".update_button": 0.9, ".session_health": 0.9, ".runtime_badge": 0.85 };
+    const seen = {};
     for (const media of styles.split("@media").slice(1)) {
         for (const [selector, floor] of Object.entries(floors)) {
-            const block = media.match(new RegExp("\n\s*\\" + selector + "\s*\{([^}]*)\}"))?.[1];
-            const size = block && remValue(block, "font-size");
-            if (size !== undefined && !Number.isNaN(size)) assert.ok(size >= floor, selector + " " + size);
+            const re = new RegExp(String.raw`\s` + selector.replace(".", String.raw`\.`) + String.raw`\s*\{([^}]*)\}`);
+            const size = remValue(media.match(re)?.[1] ?? "", "font-size");
+            if (Number.isNaN(size)) continue;
+            seen[selector] = (seen[selector] ?? 0) + 1;
+            assert.ok(size >= floor, selector + " " + size);
         }
     }
+    assert.ok(seen[".navigation_item"] >= 3, "expected @media font-size rules for .navigation_item, saw " + JSON.stringify(seen));
 });
