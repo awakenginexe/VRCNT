@@ -75,7 +75,7 @@ test("localized navigation items keep their width inside the scroll rail", () =>
     assert.match(styles, /@media\s*\(max-width:\s*100rem\)[\s\S]*?\.navigation\s*\{[^}]*?gap:\s*0\.1rem/);
     assert.match(
         styles,
-        /@media\s*\(max-width:\s*100rem\)[\s\S]*?\.navigation_item\s*\{[^}]*?padding-inline:\s*0\.36rem;[^}]*?font-size:\s*0\.84rem/,
+        /@media\s*\(max-width:\s*100rem\)[\s\S]*?\.navigation_item\s*\{[^}]*?padding-inline:\s*0\.36rem;[^}]*?font-size:\s*0\.9rem/,
     );
     assert.match(
         styles,

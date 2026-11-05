@@ -64,6 +64,6 @@ test("narrow navigation retains a flexing horizontal overflow strip", () => {
 
     assert.match(
         styles,
-        /\.navigation \{[\s\S]*?flex: 1 1 auto;[\s\S]*?overflow-x: auto;/,
+        /\.navigation \{[\s\S]*?flex: 0 1 auto;[\s\S]*?overflow-x: auto;/,
     );
 });

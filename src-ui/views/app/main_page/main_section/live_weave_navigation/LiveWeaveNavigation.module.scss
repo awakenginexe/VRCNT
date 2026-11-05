@@ -98,7 +98,7 @@
 
 .navigation {
     min-width: 0;
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     display: flex;
     align-items: center;
     gap: 0.2rem;
@@ -274,7 +274,7 @@
     .navigation_item {
         gap: 0.35rem;
         padding-inline: 0.58rem;
-        font-size: 0.88rem;
+        font-size: 0.95rem;
     }
 
     .session_health {
@@ -296,7 +296,7 @@
     .navigation_item {
         gap: 0.3rem;
         padding-inline: 0.36rem;
-        font-size: 0.84rem;
+        font-size: 0.9rem;
     }
 }
 
@@ -319,7 +319,7 @@
     .navigation_item {
         min-height: 2.55rem;
         padding-inline: 0.42rem;
-        font-size: 0.8rem;
+        font-size: 0.9rem;
     }
 
     .utility_area {
@@ -329,12 +329,12 @@
     .session_health {
         min-width: 5.5rem;
         padding-inline: 0.55rem;
-        font-size: 0.78rem;
+        font-size: 0.9rem;
     }
 
     .update_button {
         min-width: 5.4rem;
         padding-inline: 0.56rem;
-        font-size: 0.78rem;
+        font-size: 0.9rem;
     }
 }

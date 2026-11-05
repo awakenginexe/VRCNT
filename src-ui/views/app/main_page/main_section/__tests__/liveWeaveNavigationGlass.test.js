@@ -47,3 +47,19 @@ test("update and health pills are readable capsules", () => {
 test("App renders the lg-refract filter once", () => {
     assert.equal(app.match(/id="lg-refract"/g)?.length, 1);
 });
+
+test("the capsule shrinks to its content", () => {
+    assert.match(rule(".navigation"), /flex:\s*0\s+1\s+auto/);
+    assert.doesNotMatch(styles, /\.navigation\s*\{[^}]*flex:\s*1\s+1/);
+});
+
+test("responsive overrides never shrink text below the readable floor", () => {
+    const floors = { ".navigation_item": 0.9, ".update_button": 0.9, ".session_health": 0.9, ".runtime_badge": 0.85 };
+    for (const media of styles.split("@media").slice(1)) {
+        for (const [selector, floor] of Object.entries(floors)) {
+            const block = media.match(new RegExp("\n\s*\\" + selector + "\s*\{([^}]*)\}"))?.[1];
+            const size = block && remValue(block, "font-size");
+            if (size !== undefined && !Number.isNaN(size)) assert.ok(size >= floor, selector + " " + size);
+        }
+    }
+});
