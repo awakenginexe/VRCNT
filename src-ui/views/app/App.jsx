@@ -68,6 +68,12 @@ export const App = () => {
 
     return (
         <div className={styles.container}>
+            <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true" focusable="false">
+                <filter id="lg-refract" x="0" y="0" width="100%" height="100%">
+                    <feTurbulence type="fractalNoise" baseFrequency="0.008 0.02" numOctaves="1" seed="7" result="noise" />
+                    <feDisplacementMap in="SourceGraphic" in2="noise" scale="18" xChannelSelector="R" yChannelSelector="G" />
+                </filter>
+            </svg>
             <div
                 className={styles.background_layer}
                 style={{

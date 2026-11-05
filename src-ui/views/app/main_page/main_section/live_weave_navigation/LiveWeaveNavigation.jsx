@@ -23,13 +23,13 @@ import HeadphonesSvg from "@images/headphones.svg?react";
 import styles from "./LiveWeaveNavigation.module.scss";
 
 const NAVIGATION_ITEMS = [
-    { id: "live", icon: "⚡", labelKey: "main_page.live_weave.navigation.live" },
-    { id: "models", icon: "🧠", labelKey: "main_page.live_weave.navigation.models", configTab: "model_and_provider" },
-    { id: "translation_models", icon: "🌐", labelKey: "main_page.live_weave.navigation.translation_models" },
-    { id: "overlay", icon: "🖼", labelKey: "main_page.live_weave.navigation.overlay", configTab: "vr" },
-    { id: "osc", icon: "◈", labelKey: "main_page.live_weave.navigation.osc" },
-    { id: "customize", icon: "🎨", labelKey: "main_page.live_weave.navigation.customize" },
-    { id: "settings", icon: "⚙", labelKey: "main_page.live_weave.navigation.settings", configTab: "appearance" },
+    { id: "live", labelKey: "main_page.live_weave.navigation.live" },
+    { id: "models", labelKey: "main_page.live_weave.navigation.models", configTab: "model_and_provider" },
+    { id: "translation_models", labelKey: "main_page.live_weave.navigation.translation_models" },
+    { id: "overlay", labelKey: "main_page.live_weave.navigation.overlay", configTab: "vr" },
+    { id: "osc", labelKey: "main_page.live_weave.navigation.osc" },
+    { id: "customize", labelKey: "main_page.live_weave.navigation.customize" },
+    { id: "settings", labelKey: "main_page.live_weave.navigation.settings", configTab: "appearance" },
 ];
 
 export const LiveWeaveNavigation = () => {
@@ -147,7 +147,6 @@ export const LiveWeaveNavigation = () => {
                             aria-disabled={!canManualNavigate}
                             onClick={() => openItem(item)}
                         >
-                            <span className={styles.navigation_icon} aria-hidden="true">{item.icon}</span>
                             {t(item.labelKey)}
                         </button>
                     );
