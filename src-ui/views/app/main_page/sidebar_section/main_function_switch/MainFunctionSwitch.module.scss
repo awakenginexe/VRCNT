@@ -84,7 +84,7 @@
         justify-content: center;
         margin-top: 0.3rem;
         color: var(--dark_300_color);
-        font-size: 0.8rem;
+        font-size: 0.9rem;
         white-space: nowrap;
 
         &.is_disabled {
@@ -149,7 +149,7 @@
 
     .state_badge {
         margin-top: 0.15rem;
-        font-size: 0.82rem;
+        font-size: 0.9rem;
         font-weight: 650;
     }
 
@@ -379,7 +379,7 @@ $pending_label_color: var(--dark_500_color);
     align-items: center;
     gap: 0.45rem;
     margin: 0.35rem 0 0;
-    color: var(--dark_450_color);
+    color: var(--dark_400_color);
     font-size: 0.95rem;
     font-weight: 700;
     line-height: 1.1;
