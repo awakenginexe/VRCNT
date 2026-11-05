@@ -8,9 +8,8 @@
     align-items: center;
     gap: 1.75rem;
     padding: 0 2.2rem;
-    backdrop-filter: var(--panel_blur);
-    -webkit-backdrop-filter: var(--panel_blur);
-    background: rgba(10, 14, 25, 0.52);
+    // No blur of its own: a backdrop root here would stop the capsule's lens from refracting the wallpaper.
+    background: var(--lg_tint);
     border-bottom: 0.1rem solid rgba(255, 255, 255, 0.08);
     box-shadow: 0 0.4rem 2rem rgba(0, 0, 0, 0.2);
 }
@@ -51,7 +50,7 @@
     justify-content: center;
     padding: 0.15rem 0.55rem;
     border-radius: 999px;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     line-height: 1.1;
     font-weight: 800;
     letter-spacing: 0.04rem;
@@ -107,9 +106,10 @@
     overflow-x: auto;
     overflow-y: hidden;
     @include liquid_glass(control);
-    // Plain blur first; browsers that reject url() in backdrop-filter keep it.
-    backdrop-filter: var(--lg_blur);
-    backdrop-filter: var(--lg_blur) url(#lg-refract);
+    // The mixin's plain blur stays for browsers that reject url() in backdrop-filter.
+    @supports (backdrop-filter: url(#a)) {
+        backdrop-filter: var(--lg_blur) url(#lg-refract);
+    }
     scrollbar-width: none;
     -ms-overflow-style: none;
 

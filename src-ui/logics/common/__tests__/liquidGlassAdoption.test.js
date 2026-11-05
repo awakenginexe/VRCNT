@@ -15,6 +15,7 @@ main_section/MainSection
 main_section/language_selector/LanguageSelector
 main_section/language_selector/language_selector_top_bar/LanguageSelectorTopBar
 main_section/live_control_rail/LiveControlRail
+main_section/live_weave_navigation/LiveWeaveNavigation
 main_section/live_language_bar/LiveLanguageBar
 main_section/message_container/MessageContainer
 main_section/message_container/log_box/LogBox
@@ -64,6 +65,8 @@ test("main page surfaces use the shared Liquid Glass mixin", () => {
         const lines = source.split("\n");
         lines.forEach((line, index) => {
             if (!/^\s*(-webkit-)?backdrop-filter:/.test(line)) return;
+            // Lens refraction layered on the mixin's blur (nav capsule) is not hand-tuned glass.
+            if (line.includes("url(#lg-refract)")) return;
             assert.match(selectorOf(lines, index), scrimSelector, `${file}:${index + 1} has a hand-written backdrop-filter outside a scrim`);
         });
     }

@@ -19,10 +19,17 @@ test("nav is a pill capsule that scrolls instead of clipping", () => {
 });
 
 test("refraction degrades to plain blur", () => {
-    const decls = [...rule(".navigation").matchAll(/(?<!-webkit-)backdrop-filter:\s*([^;]+);/g)].map((m) => m[1]);
-    const plain = decls.findIndex((v) => !v.includes("url("));
-    const refract = decls.findIndex((v) => v.includes("url(#lg-refract)"));
-    assert.ok(plain !== -1 && refract !== -1 && plain < refract);
+    const block = rule(".navigation");
+    // The mixin supplies the plain blur; url() refraction is gated so browsers that reject it keep that blur.
+    assert.match(block, /@include liquid_glass\(control[\s\S]*@supports \(backdrop-filter: url\(#a\)\)\s*\{\s*backdrop-filter:[^;]*url\(#lg-refract\)/);
+    assert.equal(styles.match(/url\(#lg-refract\)/g)?.length, 1, "refraction must only appear inside @supports");
+});
+
+test("nav strip is a palette tint, not its own backdrop root", () => {
+    const block = rule(".container");
+    assert.doesNotMatch(block, /backdrop-filter/, "a backdrop root stops the capsule refracting the wallpaper");
+    assert.doesNotMatch(block, /rgba\(10,\s*14,\s*25/);
+    assert.match(block, /background:\s*var\(--lg_tint\)/);
 });
 
 test("tabs are text-only and readable", () => {
@@ -41,7 +48,7 @@ test("update and health pills are readable capsules", () => {
         assert.match(block, /border-radius:\s*999px/);
         assert.ok(remValue(block, "font-size") >= 1);
     }
-    assert.ok(remValue(rule(".runtime_badge"), "font-size") >= 0.85);
+    assert.ok(remValue(rule(".runtime_badge"), "font-size") >= 0.9);
 });
 
 test("App renders the lg-refract filter once", () => {
@@ -54,7 +61,7 @@ test("the capsule shrinks to its content", () => {
 });
 
 test("responsive overrides never shrink text below the readable floor", () => {
-    const floors = { ".navigation_item": 0.9, ".update_button": 0.9, ".session_health": 0.9, ".runtime_badge": 0.85 };
+    const floors = { ".navigation_item": 0.9, ".update_button": 0.9, ".session_health": 0.9, ".runtime_badge": 0.9 };
     const seen = {};
     for (const media of styles.split("@media").slice(1)) {
         for (const [selector, floor] of Object.entries(floors)) {
