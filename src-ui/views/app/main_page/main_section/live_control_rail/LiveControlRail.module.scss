@@ -34,10 +34,10 @@
 .section_label {
     margin: 0;
     padding: 0 1.1rem;
-    color: var(--dark_450_color);
-    font-size: 0.82rem;
+    color: var(--dark_400_color);
+    font-size: 0.95rem;
     font-weight: 900;
-    letter-spacing: 0.1rem;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
 }
 
@@ -59,7 +59,7 @@
     border-radius: 0.45rem;
     background: rgba(255, 255, 255, 0.04);
     color: var(--dark_400_color);
-    font-size: 0.82rem;
+    font-size: 0.9rem;
     font-weight: 800;
     line-height: 1;
     white-space: nowrap;
@@ -141,7 +141,7 @@
     gap: 0.6rem;
     min-height: 2.8rem;
     color: var(--dark_250_color);
-    font-size: 0.82rem;
+    font-size: 0.9rem;
     font-weight: 850;
     cursor: pointer;
 }

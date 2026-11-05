@@ -216,7 +216,7 @@
 
 .helper_text {
     padding-top: 0.1rem;
-    color: var(--dark_450_color);
+    color: var(--dark_400_color);
 }
 
 .role_card.variant_live_route {
@@ -253,7 +253,7 @@
 
     .language_count {
         padding: 0.15rem 0.5rem;
-        font-size: 0.78rem;
+        font-size: 0.9rem;
     }
 
     .role_description {
@@ -312,7 +312,7 @@
     .helper_text {
         min-height: 1rem;
         padding: 0;
-        font-size: 0.76rem;
+        font-size: 0.9rem;
         line-height: 1.25;
     }
 }
@@ -415,7 +415,7 @@
 
     .language_count {
         padding: 0.2rem 0.55rem;
-        font-size: 0.82rem;
+        font-size: 0.9rem;
     }
 
     .role_description {
@@ -486,8 +486,8 @@
         max-height: 3.2em;
         overflow: hidden;
         padding: 0;
-        color: var(--dark_500_color);
-        font-size: 0.8rem;
+        color: var(--dark_400_color);
+        font-size: 0.9rem;
         line-height: 1.3;
     }
 }
