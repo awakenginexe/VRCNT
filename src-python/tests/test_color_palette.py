@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -100,6 +101,16 @@ class ColorPaletteTests(unittest.TestCase):
     def test_legacy_accent_still_resolves_when_palette_is_missing(self):
         colors = OverlayImage.resolveOverlayColors("theme-emerald-green", size="large")
         self.assertEqual(colors["text_color_send"][:3], (16, 185, 129))
+
+    def test_app_palette_defaults_match_the_ui(self):
+        js_path = os.path.join(os.path.dirname(__file__), "..", "..", "src-ui", "logics", "common", "colorPalette.js")
+        with open(js_path, encoding="utf-8") as f:
+            source = f.read()
+        body = re.search(r"APP_COLOR_PALETTE_DEFAULTS\s*=\s*Object\.freeze\(\{(.*?)\}\)", source, re.S).group(1)
+        js_defaults = dict(re.findall(r"(\w+):\s*\"(#[0-9A-Fa-f]{3,8})\"", body))
+
+        self.assertGreater(len(js_defaults), 0, "parsed 0 roles from colorPalette.js")
+        self.assertEqual(config_module.APP_COLOR_PALETTE_DEFAULTS, js_defaults)
 
 
 if __name__ == "__main__":
