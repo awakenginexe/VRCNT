@@ -40,7 +40,7 @@
 .section_kicker {
     margin: 0;
     color: var(--accent_color);
-    font-size: 0.72rem;
+    font-size: 0.9rem;
     font-weight: 850;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -78,7 +78,7 @@
     background: rgba(var(--accent_color_rgb), 0.1);
     color: var(--primary_150_color);
     font: inherit;
-    font-size: 0.88rem;
+    font-size: 0.9rem;
     font-weight: 850;
     cursor: pointer;
     transition: var(--transition_ui);
@@ -175,14 +175,14 @@
     align-items: center;
     margin-top: 1rem;
     color: var(--dark_300_color);
-    font-size: 0.8rem;
+    font-size: 0.9rem;
     font-weight: 850;
     letter-spacing: 0.045em;
     text-transform: uppercase;
 
     strong {
         color: var(--primary_150_color);
-        font-size: 0.85rem;
+        font-size: 0.9rem;
         letter-spacing: 0;
         text-transform: none;
     }
@@ -262,7 +262,7 @@
     gap: 0.75rem;
     margin-top: 1rem;
     color: var(--dark_250_color);
-    font-size: 0.88rem;
+    font-size: 0.9rem;
     font-weight: 750;
     cursor: pointer;
 
@@ -325,7 +325,7 @@
     grid-template-columns: auto 2.55rem;
     flex: 0 0 auto;
     margin: 0;
-    font-size: 0.8rem;
+    font-size: 0.9rem;
 }
 
 .mode_tabs {
@@ -348,7 +348,7 @@
     background: transparent;
     color: var(--dark_400_color);
     font: inherit;
-    font-size: 0.78rem;
+    font-size: 0.9rem;
     font-weight: 850;
     cursor: pointer;
     transition: var(--transition_ui);
@@ -408,7 +408,7 @@
     span,
     small {
         color: var(--vr-accent);
-        font-size: 0.75rem;
+        font-size: 0.9rem;
         font-weight: 850;
         letter-spacing: 0.08em;
         text-transform: uppercase;
@@ -422,7 +422,7 @@
     }
 
     small {
-        color: var(--dark_450_color);
+        color: var(--dark_400_color);
         letter-spacing: 0;
         text-transform: none;
     }
@@ -483,7 +483,7 @@
     background: transparent;
     color: var(--dark_400_color);
     font: inherit;
-    font-size: 0.76rem;
+    font-size: 0.9rem;
     font-weight: 850;
     cursor: pointer;
     transition: var(--transition_ui);
@@ -538,7 +538,7 @@
     background: rgba(var(--warning_color_rgb), 0.18);
     color: var(--dark_100_color);
     font: inherit;
-    font-size: 0.76rem;
+    font-size: 0.9rem;
     font-weight: 850;
     line-height: 1.2;
     white-space: pre-line;
@@ -573,7 +573,7 @@
 .sample_text_description,
 .sample_text_warning {
     margin: 0.65rem 0 0;
-    font-size: 0.78rem;
+    font-size: 0.9rem;
     font-weight: 650;
     line-height: 1.4;
 }
@@ -603,7 +603,7 @@
     gap: 0.4rem;
     margin-top: 0.75rem;
     color: var(--dark_350_color);
-    font-size: 0.76rem;
+    font-size: 0.9rem;
     font-weight: 850;
     letter-spacing: 0.05em;
     text-transform: uppercase;
@@ -616,7 +616,7 @@
         background: rgba(255, 255, 255, 0.035);
         color: var(--dark_150_color);
         font: inherit;
-        font-size: 0.86rem;
+        font-size: 0.9rem;
         font-weight: 750;
         letter-spacing: 0;
         text-transform: none;
@@ -626,8 +626,8 @@
 .sync_note,
 .feedback {
     margin: 0.75rem 0 0;
-    color: var(--dark_450_color);
-    font-size: 0.83rem;
+    color: var(--dark_400_color);
+    font-size: 0.9rem;
     font-weight: 600;
     line-height: 1.4;
 }

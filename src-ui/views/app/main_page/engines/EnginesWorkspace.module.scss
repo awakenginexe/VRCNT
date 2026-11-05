@@ -39,7 +39,7 @@
 .section_kicker {
     margin: 0;
     color: var(--accent_color);
-    font-size: 0.72rem;
+    font-size: 0.9rem;
     font-weight: 850;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -79,7 +79,7 @@
     color: var(--dark_100_color);
     background: rgba(var(--accent_color_rgb), 0.1);
     font: inherit;
-    font-size: 0.87rem;
+    font-size: 0.9rem;
     font-weight: 800;
 }
 
@@ -129,8 +129,8 @@
 
 .card_detail {
     margin: 0.3rem 0 0;
-    color: var(--dark_500_color);
-    font-size: 0.82rem;
+    color: var(--dark_400_color);
+    font-size: 0.9rem;
     font-weight: 600;
     line-height: 1.4;
 }
@@ -141,7 +141,7 @@
     padding: 0.35rem 0.55rem;
     color: var(--dark_200_color);
     background: rgba(255, 255, 255, 0.08);
-    font-size: 0.65rem;
+    font-size: 0.9rem;
     font-weight: 800;
     white-space: nowrap;
 }
@@ -164,7 +164,7 @@
     flex-direction: column;
     gap: 0.4rem;
     color: var(--dark_200_color);
-    font-size: 0.78rem;
+    font-size: 0.9rem;
     font-weight: 770;
 }
 
@@ -199,7 +199,7 @@
     min-width: 0;
 
     :global(.field_label) {
-        font-size: 0.68rem;
+        font-size: 0.9rem;
     }
 
     :global(.trigger) {
@@ -209,19 +209,19 @@
     }
 
     :global(.trigger_title) {
-        font-size: 0.78rem;
+        font-size: 0.9rem;
     }
 
     :global(.arrow) {
         margin-left: 0.35rem;
-        font-size: 0.72rem;
+        font-size: 0.9rem;
     }
 }
 
 .runtime_note {
     margin: 0.55rem 0 0;
-    color: var(--dark_500_color);
-    font-size: 0.7rem;
+    color: var(--dark_400_color);
+    font-size: 0.9rem;
     font-weight: 650;
     line-height: 1.35;
 }
@@ -234,7 +234,7 @@
     gap: 0.75rem;
     margin-top: 0.75rem;
     color: var(--dark_400_color);
-    font-size: 0.75rem;
+    font-size: 0.9rem;
     font-weight: 700;
 }
 
@@ -266,7 +266,7 @@
     padding: 0.75rem;
     color: var(--dark_350_color);
     background: rgba(255, 255, 255, 0.04);
-    font-size: 0.78rem;
+    font-size: 0.9rem;
     font-weight: 650;
     line-height: 1.45;
 }
@@ -300,7 +300,7 @@
     align-items: center;
     gap: 0.65rem;
     color: var(--dark_200_color);
-    font-size: 0.78rem;
+    font-size: 0.9rem;
     font-weight: 750;
     cursor: pointer;
 }
@@ -364,8 +364,8 @@
 }
 
 .hardware_metrics dt {
-    color: var(--dark_500_color);
-    font-size: 0.65rem;
+    color: var(--dark_400_color);
+    font-size: 0.9rem;
     font-weight: 800;
     letter-spacing: 0.07em;
     text-transform: uppercase;
@@ -375,7 +375,7 @@
     overflow: hidden;
     margin: 0.25rem 0 0;
     color: var(--dark_150_color);
-    font-size: 0.82rem;
+    font-size: 0.9rem;
     font-weight: 780;
     text-overflow: ellipsis;
     white-space: nowrap;

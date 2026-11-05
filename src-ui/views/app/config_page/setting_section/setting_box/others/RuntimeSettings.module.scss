@@ -17,7 +17,7 @@
     }
 
     p {
-        color: var(--dark_450_color);
+        color: var(--dark_400_color);
         font-size: 1.25rem;
         line-height: 1.5;
     }
@@ -58,7 +58,7 @@
     box-shadow: 0 1.2rem 4rem rgba(0, 0, 0, 0.35);
 
     h4 { color: var(--dark_basic_text_color); font-size: 1.8rem; }
-    p { color: var(--dark_450_color); font-size: 1.35rem; line-height: 1.55; }
+    p { color: var(--dark_400_color); font-size: 1.35rem; line-height: 1.55; }
 }
 
 :global(html:not(.performance_mode)) .confirmation {

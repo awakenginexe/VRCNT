@@ -16,7 +16,7 @@
 }
 
 .field_label {
-    font-size: 14px;
+    font-size: 0.96rem;
     font-weight: 700;
     color: #cbd5e1;
     letter-spacing: 0.02em;
@@ -63,7 +63,7 @@
 
     .placeholder {
         color: rgba(255, 255, 255, 0.45);
-        font-size: 14.5px;
+        font-size: 1rem;
     }
 }
 
@@ -100,7 +100,7 @@
 }
 
 .trigger_title {
-    font-size: 15px;
+    font-size: 1.03rem;
     font-weight: 750;
     color: #ffffff;
     white-space: nowrap;
@@ -109,9 +109,9 @@
 }
 
 .trigger_subtitle {
-    font-size: 12.5px;
+    font-size: 0.9rem;
     font-weight: 500;
-    color: #94a3b8;
+    color: var(--dark_400_color);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -120,7 +120,7 @@
 .trigger_badge {
     margin-left: 8px;
     padding: 3px 9px;
-    font-size: 11px;
+    font-size: 0.9rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -150,7 +150,7 @@
 
 .arrow {
     margin-left: 12px;
-    font-size: 15px;
+    font-size: 1.03rem;
     color: rgba(255, 255, 255, 0.6);
     transition: transform 0.2s ease;
 
@@ -250,14 +250,14 @@
 }
 
 .option_title {
-    font-size: 15px;
+    font-size: 1.03rem;
     font-weight: 700;
     color: #f1f5f9;
 }
 
 .recommended_badge {
     padding: 2px 6px;
-    font-size: 9px;
+    font-size: 0.9rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -269,7 +269,7 @@
 
 .meta_badge {
     padding: 2px 6px;
-    font-size: 9px;
+    font-size: 0.9rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -292,13 +292,13 @@
 }
 
 .option_subtitle {
-    font-size: 11px;
-    color: #94a3b8;
+    font-size: 0.9rem;
+    color: var(--dark_400_color);
 }
 
 .option_description {
     margin: 2px 0 0 0;
-    font-size: 11px;
+    font-size: 0.9rem;
     color: rgba(255, 255, 255, 0.5);
     line-height: 1.35;
 }
@@ -312,12 +312,12 @@
 }
 
 .spec_chip {
-    font-size: 10px;
+    font-size: 0.9rem;
     font-weight: 500;
     padding: 2px 6px;
     border-radius: 4px;
     background: rgba(255, 255, 255, 0.04);
-    color: #94a3b8;
+    color: var(--dark_400_color);
     border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
@@ -330,19 +330,19 @@
 }
 
 .status_installed {
-    font-size: 10px;
+    font-size: 0.9rem;
     font-weight: 700;
     color: #5be2b5;
 }
 
 .status_download_needed {
-    font-size: 10px;
+    font-size: 0.9rem;
     font-weight: 600;
     color: #f2b84b;
 }
 
 .check_icon {
-    font-size: 14px;
+    font-size: 0.96rem;
     font-weight: 800;
     color: #9b6dff;
 }

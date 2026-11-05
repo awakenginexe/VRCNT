@@ -25,7 +25,7 @@
 
 .kicker {
     color: var(--accent_color);
-    font-size: 0.7rem;
+    font-size: 0.9rem;
     font-weight: 850;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -34,8 +34,8 @@
 .description {
     max-width: 38rem;
     margin-top: 0.4rem !important;
-    color: var(--dark_450_color);
-    font-size: 0.8rem;
+    color: var(--dark_400_color);
+    font-size: 0.9rem;
     line-height: 1.4;
 }
 
@@ -46,7 +46,7 @@
     background: transparent;
     color: var(--dark_350_color);
     font: inherit;
-    font-size: 0.72rem;
+    font-size: 0.9rem;
     font-weight: 800;
     cursor: pointer;
 
@@ -85,15 +85,15 @@
 
     h3 {
         color: var(--dark_200_color);
-        font-size: 0.8rem;
+        font-size: 0.9rem;
         letter-spacing: 0.04em;
         text-transform: uppercase;
     }
 
     p {
         margin-top: 0.25rem;
-        color: var(--dark_500_color);
-        font-size: 0.7rem;
+        color: var(--dark_400_color);
+        font-size: 0.9rem;
     }
 }
 
@@ -119,15 +119,15 @@
     h4 {
         overflow: hidden;
         color: var(--dark_300_color);
-        font-size: 0.78rem;
+        font-size: 0.9rem;
         text-overflow: ellipsis;
         white-space: nowrap;
     }
 
     p {
         margin-top: 0.2rem;
-        color: var(--dark_500_color);
-        font-size: 0.67rem;
+        color: var(--dark_400_color);
+        font-size: 0.9rem;
         line-height: 1.35;
     }
 }
@@ -142,7 +142,7 @@
 .reset_role {
     min-height: 2.1rem;
     padding: 0 0.55rem;
-    color: var(--dark_500_color);
+    color: var(--dark_400_color);
 }
 
 @media (max-width: 42rem) {

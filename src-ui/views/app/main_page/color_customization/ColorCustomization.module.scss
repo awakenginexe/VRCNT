@@ -50,7 +50,7 @@
 .eyebrow,
 .section_kicker {
     color: var(--accent_color);
-    font-size: 0.68rem;
+    font-size: 0.9rem;
     font-weight: 850;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -59,7 +59,7 @@
 .feedback {
     min-height: 1.4rem;
     color: var(--success_bc_color);
-    font-size: 0.75rem;
+    font-size: 0.9rem;
     font-weight: 800;
 }
 
@@ -115,8 +115,8 @@
     p:last-child {
         max-width: 38rem;
         margin-top: 0.4rem;
-        color: var(--dark_450_color);
-        font-size: 0.75rem;
+        color: var(--dark_400_color);
+        font-size: 0.9rem;
         line-height: 1.4;
     }
 }
@@ -205,29 +205,29 @@
 
 .scale_label {
     color: var(--dark_200_color);
-    font-size: 0.82rem;
+    font-size: 0.9rem;
     font-weight: 800;
 }
 
 .scale_value {
     color: var(--accent_color);
-    font-size: 0.78rem;
+    font-size: 0.9rem;
     font-variant-numeric: tabular-nums;
     font-weight: 850;
 }
 
 .scale_description {
     margin: 0;
-    color: var(--dark_450_color);
-    font-size: 0.7rem;
+    color: var(--dark_400_color);
+    font-size: 0.9rem;
     line-height: 1.35;
 }
 
 .scale_marks {
     display: flex;
     justify-content: space-between;
-    color: var(--dark_500_color);
-    font-size: 0.62rem;
+    color: var(--dark_400_color);
+    font-size: 0.9rem;
     font-variant-numeric: tabular-nums;
 }
 
@@ -278,7 +278,7 @@
     padding: 0.45rem 0.85rem;
     border-radius: 0.55rem;
     font-family: inherit;
-    font-size: 0.76rem;
+    font-size: 0.9rem;
     font-weight: 800;
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);

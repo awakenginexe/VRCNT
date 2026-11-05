@@ -42,7 +42,7 @@
 
     &:first-child {
         flex-shrink: 0;
-        color: var(--dark_450_color);
+        color: var(--dark_400_color);
         font-size: 1rem;
         font-weight: 900;
         letter-spacing: 0.05rem;
@@ -100,7 +100,7 @@
         font-size: 1.12rem;
 
         &:first-child {
-            font-size: 0.88rem;
+            font-size: 0.9rem;
             color: #34d399;
         }
     }

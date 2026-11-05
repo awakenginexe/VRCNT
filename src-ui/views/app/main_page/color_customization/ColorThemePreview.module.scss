@@ -16,8 +16,8 @@
     padding: 0 1rem;
     border-bottom: 0.1rem solid var(--border_subtle_color);
     background: color-mix(in srgb, var(--canvas_color) 82%, var(--surface_1_color));
-    color: var(--dark_500_color);
-    font-size: 0.68rem;
+    color: var(--dark_400_color);
+    font-size: 0.9rem;
     font-weight: 800;
     white-space: nowrap;
 }
@@ -25,7 +25,7 @@
 .preview_mark {
     margin-right: 0.3rem;
     color: var(--dark_100_color);
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     font-weight: 900;
 }
 
@@ -49,17 +49,17 @@
     padding: 1rem 0.75rem;
     border-right: 0.1rem solid var(--border_subtle_color);
     background: var(--surface_1_color);
-    font-size: 0.72rem;
+    font-size: 0.9rem;
 }
 
 .preview_rail strong {
     color: var(--dark_200_color);
-    font-size: 0.86rem;
+    font-size: 0.9rem;
 }
 
 .preview_kicker {
     color: var(--accent_color);
-    font-size: 0.62rem;
+    font-size: 0.9rem;
     font-weight: 850;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -86,7 +86,7 @@
 .preview_status b {
     grid-column: 2;
     color: var(--success_bc_color);
-    font-size: 0.61rem;
+    font-size: 0.9rem;
 }
 
 .preview_main {
@@ -115,7 +115,7 @@
     border: 0.1rem solid color-mix(in srgb, var(--success_bc_color) 45%, transparent);
     border-radius: 99rem;
     color: var(--success_bc_color);
-    font-size: 0.62rem;
+    font-size: 0.9rem;
     font-weight: 850;
     white-space: nowrap;
 }
@@ -129,7 +129,7 @@
     border-radius: 0.75rem;
     background: var(--surface_2_color);
     color: var(--dark_400_color);
-    font-size: 0.76rem;
+    font-size: 0.9rem;
     line-height: 1.45;
     text-align: center;
 }
@@ -145,7 +145,7 @@
     max-width: 86%;
     padding: 0.55rem 0.7rem;
     border-radius: 0.55rem;
-    font-size: 0.72rem;
+    font-size: 0.9rem;
     font-weight: 750;
 }
 
@@ -172,8 +172,8 @@
     border: 0.1rem solid var(--border_subtle_color);
     border-radius: 0.65rem;
     background: var(--surface_control_color);
-    color: var(--dark_500_color);
-    font-size: 0.72rem;
+    color: var(--dark_400_color);
+    font-size: 0.9rem;
 }
 
 .preview_composer button {
@@ -183,7 +183,7 @@
     background: var(--accent_color);
     color: var(--dark_100_color);
     font: inherit;
-    font-size: 0.65rem;
+    font-size: 0.9rem;
     font-weight: 850;
 }
 

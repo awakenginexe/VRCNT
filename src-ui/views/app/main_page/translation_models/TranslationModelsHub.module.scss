@@ -36,7 +36,7 @@
 .eyebrow {
     margin: 0;
     color: var(--accent_color);
-    font-size: 0.72rem;
+    font-size: 0.9rem;
     font-weight: 850;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -68,7 +68,7 @@
     background: rgba(var(--accent_color_rgb), 0.1);
     color: var(--dark_100_color);
     font: inherit;
-    font-size: 0.87rem;
+    font-size: 0.9rem;
     font-weight: 800;
     cursor: pointer;
     transition: transform var(--transition_ui), background-color var(--transition_ui);

@@ -95,7 +95,7 @@
     place-items: center;
     border: 0.1rem solid rgba(255, 255, 255, 0.1);
     background: rgba(255, 255, 255, 0.05);
-    color: #94a3b8;
+    color: var(--dark_400_color);
     font-size: 1.1rem;
     cursor: pointer;
     transition: all 0.2s ease;

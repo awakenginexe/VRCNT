@@ -33,7 +33,7 @@
 .role_icon {
     width: 1.6rem;
     flex-shrink: 0;
-    color: var(--dark_450_color);
+    color: var(--dark_400_color);
 
     &.is_active {
         color: var(--primary_250_color);
@@ -131,16 +131,16 @@
     }
 
     span {
-        color: var(--dark_450_color);
-        font-size: 0.88rem;
+        color: var(--dark_400_color);
+        font-size: 0.9rem;
     }
 }
 
 .state_label {
     max-width: 8rem;
     padding: 0.35rem 0.5rem;
-    color: var(--dark_450_color);
-    font-size: 0.78rem;
+    color: var(--dark_400_color);
+    font-size: 0.9rem;
     line-height: 1.15;
     text-align: right;
 }
@@ -164,7 +164,7 @@
     border: 0;
     border-left: 0.1rem solid rgba(var(--accent_color_rgb), 0.1);
     background: transparent;
-    color: var(--dark_450_color);
+    color: var(--dark_400_color);
     cursor: pointer;
 
     svg {
@@ -291,7 +291,7 @@
 
     .state_label {
         max-width: 6.8rem;
-        font-size: 0.72rem;
+        font-size: 0.9rem;
     }
 
     .remove_button {
@@ -306,7 +306,7 @@
         min-height: 3rem;
         padding: 0.4rem 0.7rem;
         border-radius: 0.8rem;
-        font-size: 0.85rem;
+        font-size: 0.9rem;
     }
 
     .helper_text {
@@ -458,8 +458,8 @@
 
     .language_copy span {
         display: block;
-        font-size: 0.85rem;
-        color: var(--dark_450_color);
+        font-size: 0.9rem;
+        color: var(--dark_400_color);
     }
 
     .state_label {

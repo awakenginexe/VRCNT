@@ -34,7 +34,7 @@
 
 .narrow_arrow_down_svg {
     width: 1.6rem;
-    color: var(--dark_500_color);
+    color: var(--dark_400_color);
     &.reverse {
         transform: rotate(180deg);
     }
@@ -42,7 +42,7 @@
 
 .label {
     font-size: 1.05rem;
-    color: var(--dark_450_color);
+    color: var(--dark_400_color);
     font-weight: 850;
     text-align: center;
 }

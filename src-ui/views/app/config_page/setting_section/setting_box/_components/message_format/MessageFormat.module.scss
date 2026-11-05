@@ -36,7 +36,7 @@
 .section_title {
     margin: 0;
     color: var(--dark_300_color);
-    font-size: 0.7rem;
+    font-size: 0.9rem;
     font-weight: 850;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -48,7 +48,7 @@
     border-radius: 999rem;
     color: var(--dark_400_color);
     background: rgba(255, 255, 255, 0.06);
-    font-size: 0.64rem;
+    font-size: 0.9rem;
     font-weight: 800;
     letter-spacing: 0.04em;
     box-shadow: inset 0 0.08rem 0.08rem rgba(255, 255, 255, 0.08);
@@ -79,7 +79,7 @@
 .example_label {
     margin: 0;
     color: var(--dark_400_color);
-    font-size: 0.72rem;
+    font-size: 0.9rem;
     font-weight: 750;
 }
 
@@ -94,7 +94,7 @@
 .example_text {
     margin: 0;
     color: var(--dark_100_color);
-    font-size: 0.86rem;
+    font-size: 0.9rem;
     line-height: 1.45;
     white-space: pre-wrap;
     word-break: break-word;
@@ -111,7 +111,7 @@
     border-radius: 0.65rem;
     color: var(--dark_350_color);
     background: rgba(255, 255, 255, 0.02);
-    font-size: 0.72rem;
+    font-size: 0.9rem;
     font-weight: 750;
     cursor: pointer;
     transition: var(--transition_ui);
@@ -181,7 +181,7 @@
 
 .swap_text {
     margin: 0;
-    font-size: 0.72rem;
+    font-size: 0.9rem;
     font-weight: 800;
 }
 
@@ -238,7 +238,7 @@
     padding: 0.42rem 0.65rem;
     @include liquid_glass(control);
     color: var(--dark_100_color);
-    font-size: 0.73rem;
+    font-size: 0.9rem;
     font-weight: 800;
     letter-spacing: 0.02em;
     white-space: nowrap;
@@ -256,7 +256,7 @@
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.45);
     box-shadow: var(--lg_highlight), 0 0 1.2rem rgba(var(--accent_color_rgb), 0.18);
     color: var(--primary_150_color);
-    font-size: 0.73rem;
+    font-size: 0.9rem;
     font-weight: 800;
     letter-spacing: 0.02em;
     white-space: nowrap;
@@ -313,7 +313,7 @@
 
 .multi_translation_title {
     color: var(--dark_400_color);
-    font-size: 0.68rem;
+    font-size: 0.9rem;
     font-weight: 850;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -343,7 +343,7 @@
     @include liquid_glass(control);
     border: 0.1rem solid rgba(var(--accent_color_rgb), 0.3);
     color: rgba(var(--accent_color_rgb), 0.95);
-    font-size: 0.7rem;
+    font-size: 0.9rem;
     font-weight: 750;
     white-space: nowrap;
     flex-shrink: 0;

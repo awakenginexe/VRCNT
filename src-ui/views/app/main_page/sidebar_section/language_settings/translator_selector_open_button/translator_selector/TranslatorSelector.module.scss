@@ -75,12 +75,12 @@
     }
 
     .second_selector_label {
-        font-size: 0.78rem;
+        font-size: 0.9rem;
     }
 
     .second_selector {
         height: 2.25rem;
-        font-size: 0.85rem;
+        font-size: 0.9rem;
         padding: 0 2rem 0 0.65rem;
     }
 
@@ -90,13 +90,13 @@
     }
 
     .local_fallback_heading {
-        font-size: 0.85rem;
+        font-size: 0.9rem;
         gap: 0.45rem;
     }
 
     .local_fallback_description {
         padding-left: 0;
-        font-size: 0.75rem;
+        font-size: 0.9rem;
     }
 
     .wrapper {
@@ -120,7 +120,7 @@
 
     .badge,
     .label_default {
-        font-size: 0.7rem;
+        font-size: 0.9rem;
     }
 }
 
@@ -260,12 +260,12 @@
 .local_fallback_description {
     padding-left: 3.15rem;
     color: var(--dark_400_color);
-    font-size: 0.78rem;
+    font-size: 0.9rem;
     line-height: 1.35;
 }
 
 .second_selector_label {
-    font-size: 0.78rem;
+    font-size: 0.9rem;
     color: var(--dark_350_color);
     font-weight: 650;
     white-space: nowrap;
@@ -286,7 +286,7 @@
     border-radius: 0.65rem;
     background: rgba(255, 255, 255, 0.04);
     color: var(--dark_100_color);
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     padding: 0 2rem 0 0.65rem;
     cursor: pointer;
     appearance: none;
@@ -310,7 +310,7 @@
     top: 50%;
     transform: translateY(-50%);
     pointer-events: none;
-    color: var(--dark_450_color);
+    color: var(--dark_400_color);
     display: flex;
     align-items: center;
     transition: color var(--transition_ui);
@@ -433,7 +433,7 @@
     background: rgba(14, 18, 32, 0.96);
     outline: 0.1rem solid rgba(255, 255, 255, 0.16);
     color: var(--dark_200_color);
-    font-size: 0.75rem;
+    font-size: 0.9rem;
     pointer-events: none;
 
     &.is_primary {
@@ -451,7 +451,7 @@
     left: -0.55rem;
     padding: 0.15rem 0.45rem;
     border-radius: 0.35rem;
-    font-size: 0.7rem;
+    font-size: 0.9rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;

@@ -98,7 +98,7 @@
 
 .selected_country {
     font-size: 1rem;
-    color: var(--dark_450_color);
+    color: var(--dark_400_color);
 }
 
 .arrow_left_svg {
@@ -129,7 +129,7 @@
     .title {
         overflow: hidden;
         color: var(--dark_400_color);
-        font-size: 0.8rem;
+        font-size: 0.9rem;
         letter-spacing: 0.08rem;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -254,7 +254,7 @@
     .selected_country {
         display: block;
         font-size: 0.9rem;
-        color: var(--dark_450_color);
+        color: var(--dark_400_color);
     }
 
     .arrow_left_svg {

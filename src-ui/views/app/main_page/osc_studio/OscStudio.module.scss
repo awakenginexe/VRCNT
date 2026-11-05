@@ -54,7 +54,7 @@
 .eyebrow,
 .section_kicker {
     color: var(--accent_color);
-    font-size: 0.68rem;
+    font-size: 0.9rem;
     font-weight: 850;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -70,7 +70,7 @@
     border-radius: 999rem;
     color: var(--dark_200_color);
     background: rgba(var(--accent_color_rgb), 0.1);
-    font-size: 0.75rem;
+    font-size: 0.9rem;
     font-weight: 800;
     white-space: nowrap;
 }
@@ -125,8 +125,8 @@
 
     h2 + p {
         margin-top: 0.28rem;
-        color: var(--dark_450_color);
-        font-size: 0.73rem;
+        color: var(--dark_400_color);
+        font-size: 0.9rem;
     }
 }
 
@@ -149,8 +149,8 @@
     text-align: right;
 
     span {
-        color: var(--dark_500_color);
-        font-size: 0.62rem;
+        color: var(--dark_400_color);
+        font-size: 0.9rem;
         font-weight: 800;
         letter-spacing: 0.08em;
         text-transform: uppercase;
@@ -158,7 +158,7 @@
 
     strong {
         color: var(--dark_200_color);
-        font-size: 0.78rem;
+        font-size: 0.9rem;
     }
 }
 
@@ -198,15 +198,15 @@
     h2 + p {
         max-width: 34rem;
         margin-top: 0.45rem;
-        color: var(--dark_450_color);
-        font-size: 0.74rem;
+        color: var(--dark_400_color);
+        font-size: 0.9rem;
         line-height: 1.45;
     }
 }
 
 .card_number {
     color: rgba(var(--accent_color_rgb), 0.75);
-    font-size: 0.75rem;
+    font-size: 0.9rem;
     font-variant-numeric: tabular-nums;
     font-weight: 900;
     letter-spacing: 0.1em;
@@ -277,7 +277,7 @@
     border: 0.1rem solid rgba(255, 255, 255, 0.12);
     background: rgba(255, 255, 255, 0.06);
     color: var(--dark_400_color);
-    font-size: 0.62rem;
+    font-size: 0.9rem;
     font-weight: 800;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -294,7 +294,7 @@
 .toggle_desc {
     margin: 0;
     color: var(--dark_400_color);
-    font-size: 0.74rem;
+    font-size: 0.9rem;
     font-weight: 600;
     line-height: 1.4;
 }
@@ -371,8 +371,8 @@
 
     h3 + p {
         margin-top: 0.35rem;
-        color: var(--dark_450_color);
-        font-size: 0.7rem;
+        color: var(--dark_400_color);
+        font-size: 0.9rem;
         line-height: 1.4;
     }
 }
@@ -395,13 +395,13 @@
     transition: var(--transition_ui);
 
     span {
-        font-size: 0.76rem;
+        font-size: 0.9rem;
         font-weight: 850;
     }
 
     small {
-        color: var(--dark_500_color);
-        font-size: 0.64rem;
+        color: var(--dark_400_color);
+        font-size: 0.9rem;
         line-height: 1.35;
     }
 
@@ -474,14 +474,14 @@
     }
 
     :global(.label) {
-        font-size: 0.8rem;
+        font-size: 0.9rem;
     }
 }
 
 .sync_note {
     margin: 0.85rem 0 0;
-    color: var(--dark_500_color);
-    font-size: 0.7rem;
+    color: var(--dark_400_color);
+    font-size: 0.9rem;
     line-height: 1.4;
 }
 

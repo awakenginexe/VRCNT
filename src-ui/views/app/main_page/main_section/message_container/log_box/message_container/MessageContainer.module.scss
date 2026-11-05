@@ -90,7 +90,7 @@
 
 .time {
     font-size: 0.82em;
-    color: var(--dark_450_color);
+    color: var(--dark_400_color);
     font-weight: 700;
 }
 
@@ -191,13 +191,13 @@
 
     .message_main_system {
         font-size: 1.2rem;
-        color: var(--dark_500_color);
+        color: var(--dark_400_color);
     }
 }
 
 // For ruby
 .with_hepburn {
     &:hover {
-        color: var(--dark_500_color);
+        color: var(--dark_400_color);
     }
 }

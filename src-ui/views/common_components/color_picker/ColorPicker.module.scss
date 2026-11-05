@@ -14,7 +14,7 @@
     background: var(--surface_control_color);
     color: var(--dark_200_color);
     font: inherit;
-    font-size: 0.76rem;
+    font-size: 0.9rem;
     font-weight: 800;
     cursor: pointer;
 
@@ -44,8 +44,8 @@
 
 .description {
     margin: 0.35rem 0 0;
-    color: var(--dark_450_color);
-    font-size: 0.72rem;
+    color: var(--dark_400_color);
+    font-size: 0.9rem;
     line-height: 1.35;
 }
 
@@ -125,7 +125,7 @@
         align-items: center;
         gap: 0.55rem;
         color: var(--dark_350_color);
-        font-size: 0.72rem;
+        font-size: 0.9rem;
         font-weight: 750;
     }
 
@@ -142,7 +142,7 @@
     gap: 0.55rem;
     margin-top: 0.8rem;
     color: var(--dark_300_color);
-    font-size: 0.72rem;
+    font-size: 0.9rem;
     font-weight: 800;
 
     input {
@@ -170,7 +170,7 @@
 .error,
 .warning {
     margin: 0.5rem 0 0;
-    font-size: 0.7rem;
+    font-size: 0.9rem;
     line-height: 1.35;
 }
 
