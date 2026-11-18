@@ -319,6 +319,21 @@ def backwardCompatibleRenameWeightsDir(root: str):
         if os_path.isdir(old_path):
             os_rename(old_path, path)
 
+_VERIFIED_STAMP_NAME = ".vrcnt-verified.json"
+
+
+def _weightStamp(path: str, runtime) -> dict:
+    """What a passed weight check depends on: the CTranslate2 version and the files."""
+    # shortcut: only top-level files are stamped. CTranslate2 models are flat, and
+    # the tokenizer subfolder has its own check; stamp subfolders if a model needs them.
+    files = {}
+    for entry in os.scandir(path):
+        if entry.is_file() and entry.name != _VERIFIED_STAMP_NAME:
+            stat = entry.stat()
+            files[entry.name] = [stat.st_size, stat.st_mtime_ns]
+    return {"ctranslate2": str(getattr(runtime, "__version__", "")), "files": files}
+
+
 def checkCTranslate2Weight(root: str, weight_type: str = "m2m100_418M-ct2-int8"):
     weight_directory_name = ctranslate2_weights[weight_type]["directory_name"]
     path = os_path.join(root, "weights", "ctranslate2", weight_directory_name)
@@ -328,17 +343,34 @@ def checkCTranslate2Weight(root: str, weight_type: str = "m2m100_418M-ct2-int8")
     for filename in _REQUIRED_CTRANSLATE2_RUNTIME_FILES:
         if not os_path.isfile(os_path.join(path, filename)):
             return False
-    if verifyCTranslate2Manifest(path) is False:
-        return False
 
+    stamp_path = os_path.join(path, _VERIFIED_STAMP_NAME)
     try:
+        runtime = _getCtrTranslate2()
+        stamp = _weightStamp(path, runtime)
+        # Hashing and loading the whole model only to throw it away cost 0.7 s and
+        # 490 MB for the smallest model on every start, so skip it while unchanged.
+        try:
+            with open(stamp_path, "r", encoding="utf-8") as stamp_file:
+                if json.load(stamp_file) == stamp:
+                    return True
+        except (OSError, ValueError):
+            pass
+        if verifyCTranslate2Manifest(path) is False:
+            return False
         # モデルロード可能かどうかで判定
         compute_type = getBestComputeType("cpu", 0)
-        _getCtrTranslate2().Translator(path, compute_type=compute_type)
-        return True
+        runtime.Translator(path, compute_type=compute_type)
     except Exception:
         errorLogging()
         return False
+
+    try:
+        with open(stamp_path, "w", encoding="utf-8") as stamp_file:
+            json.dump(stamp, stamp_file)
+    except OSError:
+        pass  # Without the stamp the next start simply checks again.
+    return True
 
 def _tokenizerCachePath(root: str, weight_type: str) -> str:
     directory_name = ctranslate2_weights[weight_type]["directory_name"]

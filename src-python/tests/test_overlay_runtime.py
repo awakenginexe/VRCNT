@@ -96,14 +96,29 @@ class OverlayRuntimeTests(unittest.TestCase):
         protected.name.side_effect = AccessDenied(42)
         steamvr = Mock()
         steamvr.name.return_value = "vrmonitor.exe" if os.name == "nt" else "vrmonitor"
-        with patch.object(overlay_module, "process_iter", return_value=[protected, steamvr]):
+        with patch.object(overlay_module, "_windowsProcessNames", return_value=None), patch.object(
+            overlay_module, "process_iter", return_value=[protected, steamvr]
+        ):
             self.assertTrue(Overlay.checkSteamvrRunning())
 
     def test_steamvr_server_without_monitor_allows_overlay_startup(self):
         server = Mock()
         server.name.return_value = "VRSERVER.EXE" if os.name == "nt" else "vrserver"
-        with patch.object(overlay_module, "process_iter", return_value=[server]):
+        with patch.object(overlay_module, "_windowsProcessNames", return_value=None), patch.object(
+            overlay_module, "process_iter", return_value=[server]
+        ):
             self.assertTrue(Overlay.checkSteamvrRunning())
+
+    @unittest.skipUnless(os.name == "nt", "Toolhelp snapshot is Windows-only")
+    def test_windows_snapshot_finds_steamvr_without_opening_each_process(self):
+        self.assertIn(os.path.basename(sys.executable).lower(), overlay_module._windowsProcessNames())
+        with patch.object(overlay_module, "_windowsProcessNames", return_value={"vrserver.exe"}), patch.object(
+            overlay_module, "process_iter"
+        ) as slow_scan:
+            self.assertTrue(Overlay.checkSteamvrRunning())
+        slow_scan.assert_not_called()
+        with patch.object(overlay_module, "_windowsProcessNames", return_value={"explorer.exe"}):
+            self.assertFalse(Overlay.checkSteamvrRunning())
 
     def test_clear_before_initialization_replaces_cached_image_without_starting_vr(self):
         overlay = Overlay(settings())

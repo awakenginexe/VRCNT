@@ -25,6 +25,52 @@ except ImportError:
     import overlay_utils as utils
     from openvr_runtime import runtime
 
+if os.name == "nt":
+    from ctypes import wintypes
+
+    class _ProcessEntry32W(ctypes.Structure):
+        _fields_ = [
+            ("dwSize", wintypes.DWORD),
+            ("cntUsage", wintypes.DWORD),
+            ("th32ProcessID", wintypes.DWORD),
+            ("th32DefaultHeapID", ctypes.c_size_t),
+            ("th32ModuleID", wintypes.DWORD),
+            ("cntThreads", wintypes.DWORD),
+            ("th32ParentProcessID", wintypes.DWORD),
+            ("pcPriClassBase", wintypes.LONG),
+            ("dwFlags", wintypes.DWORD),
+            ("szExeFile", wintypes.WCHAR * 260),
+        ]
+
+
+def _windowsProcessNames() -> Optional[set]:
+    """Lower-case executable names from one Toolhelp snapshot, or None on failure.
+
+    psutil opens every process to read its name, which took 2.7 s for about
+    500 processes and ran every few seconds while waiting for SteamVR.
+    """
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    entry_pointer = ctypes.POINTER(_ProcessEntry32W)
+    kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    kernel32.CreateToolhelp32Snapshot.argtypes = (wintypes.DWORD, wintypes.DWORD)
+    kernel32.Process32FirstW.argtypes = (wintypes.HANDLE, entry_pointer)
+    kernel32.Process32NextW.argtypes = (wintypes.HANDLE, entry_pointer)
+    kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+    snapshot = kernel32.CreateToolhelp32Snapshot(0x2, 0)  # TH32CS_SNAPPROCESS
+    if snapshot in (None, wintypes.HANDLE(-1).value):
+        return None
+    try:
+        entry = _ProcessEntry32W(dwSize=ctypes.sizeof(_ProcessEntry32W))
+        names = set()
+        found = kernel32.Process32FirstW(snapshot, ctypes.byref(entry))
+        while found:
+            names.add(entry.szExeFile.lower())
+            found = kernel32.Process32NextW(snapshot, ctypes.byref(entry))
+        return names or None
+    finally:
+        kernel32.CloseHandle(snapshot)
+
+
 def mat34Id(array: Sequence[Sequence[float]]) -> Any:
     """Convert a 3x4 nested sequence into an openvr.HmdMatrix34_t instance.
 
@@ -421,6 +467,10 @@ class Overlay:
     def checkSteamvrRunning() -> bool:
         process_names = {"vrmonitor.exe", "vrserver.exe"} if os.name == "nt" else {"vrmonitor", "vrserver"}
         try:
+            if os.name == "nt":
+                running = _windowsProcessNames()
+                if running is not None:
+                    return not process_names.isdisjoint(running)
             for process in process_iter():
                 try:
                     if process.name().lower() in process_names:

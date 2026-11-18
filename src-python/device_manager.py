@@ -292,18 +292,23 @@ class DeviceManager:
                             # if COM monitoring fails, log and fall through to polling
                             errorLogging()
 
-                    # polling and update cycle
-                    self.runProcessBeforeUpdateMicDevices()
-                    self.runProcessBeforeUpdateSpeakerDevices()
-                    sleep(2)
+                    if self.monitoring_flag is not True:
+                        return
+                    # Windows also reports devices this app never lists, so find a
+                    # real change before pausing capture. Pausing first held
+                    # transcription off for about 22 s whenever nothing had changed.
                     for _ in range(10):
+                        sleep(2)
+                        if self.monitoring_flag is not True:
+                            return
                         self.update()
                         if self.checkUpdate():
+                            self.runProcessBeforeUpdateMicDevices()
+                            self.runProcessBeforeUpdateSpeakerDevices()
+                            self.noticeUpdateDevices()
+                            self.runProcessAfterUpdateMicDevices()
+                            self.runProcessAfterUpdateSpeakerDevices()
                             break
-                        sleep(2)
-                    self.noticeUpdateDevices()
-                    self.runProcessAfterUpdateMicDevices()
-                    self.runProcessAfterUpdateSpeakerDevices()
                 except Exception:
                     errorLogging()
         except Exception:
