@@ -86,7 +86,7 @@
     height: 100%;
     border-radius: 99rem;
     background: var(--accent_gradient);
-    box-shadow: 0 0 1.4rem rgba(var(--accent_color_rgb), 0.28);
+    box-shadow: 0 0 1rem rgba(var(--accent_color_rgb), 0.14);
     transition: width var(--transition_ui);
 
     &[data-unavailable="true"] {

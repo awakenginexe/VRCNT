@@ -324,7 +324,7 @@
     &[data-active="true"] {
         border-color: rgba(var(--accent_color_rgb), 0.6);
         background: var(--accent_color);
-        box-shadow: 0 0 1.2rem rgba(var(--accent_color_rgb), 0.4);
+        box-shadow: 0 0 1rem rgba(var(--accent_color_rgb), 0.2);
 
         .switch_thumb {
             transform: translateX(1.4rem);

@@ -175,7 +175,7 @@
     &:hover {
         border-color: rgba(var(--accent_color_rgb), 0.7);
         color: var(--dark_100_color);
-        box-shadow: var(--lg_highlight), 0 0 1.2rem rgba(var(--accent_color_rgb), 0.25);
+        box-shadow: var(--lg_highlight), 0 0 1rem rgba(var(--accent_color_rgb), 0.14);
     }
 }
 
@@ -261,7 +261,7 @@
     letter-spacing: 0.02em;
     white-space: nowrap;
     flex-shrink: 0;
-    text-shadow: 0 0 0.8rem rgba(var(--accent_color_rgb), 0.4);
+    text-shadow: 0 0 0.6rem rgba(var(--accent_color_rgb), 0.2);
 }
 
 .separator_row {

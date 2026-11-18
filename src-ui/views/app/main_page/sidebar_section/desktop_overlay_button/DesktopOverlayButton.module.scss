@@ -83,7 +83,7 @@
     height: 2.1rem;
     flex-shrink: 0;
     color: var(--primary_150_color);
-    filter: drop-shadow(0 0 0.6rem rgba(var(--accent_color_rgb), 0.32));
+    filter: drop-shadow(0 0 0.5rem rgba(var(--accent_color_rgb), 0.16));
 }
 
 .label {
@@ -105,6 +105,6 @@
     height: 0.6rem;
     border-radius: 99rem;
     background: var(--accent_color);
-    box-shadow: 0 0 1rem rgba(var(--accent_color_rgb), 0.56);
+    box-shadow: 0 0 0.8rem rgba(var(--accent_color_rgb), 0.28);
     transform: translateY(-50%);
 }

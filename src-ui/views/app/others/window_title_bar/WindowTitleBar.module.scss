@@ -35,7 +35,7 @@
     height: 1.55rem;
     aspect-ratio: 1;
     object-fit: contain;
-    filter: drop-shadow(0 0 0.6rem rgba(56, 189, 248, 0.5));
+    filter: drop-shadow(0 0 0.5rem rgba(56, 189, 248, 0.25));
 }
 
 .title_text {
@@ -160,7 +160,7 @@
     &.is_active {
         .performance_svg {
             color: #38bdf8;
-            filter: drop-shadow(0 0 0.6rem rgba(56, 189, 248, 0.7));
+            filter: drop-shadow(0 0 0.5rem rgba(56, 189, 248, 0.35));
         }
     }
 }

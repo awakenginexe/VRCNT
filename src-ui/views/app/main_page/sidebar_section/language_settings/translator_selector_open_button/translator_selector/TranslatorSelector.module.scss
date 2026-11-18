@@ -180,7 +180,7 @@
 
     &:checked + .checkbox_slider {
         background: linear-gradient(135deg, #6366f1, #38bdf8);
-        box-shadow: 0 0 0.8rem rgba(99, 102, 241, 0.35);
+        box-shadow: 0 0 0.7rem rgba(99, 102, 241, 0.18);
 
         &::before {
             transform: translateX(1.175rem);

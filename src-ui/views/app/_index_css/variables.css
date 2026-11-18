@@ -123,24 +123,24 @@
     --panel_bg_opacity: 0.68;
     --panel_border: 0.1rem solid color-mix(in srgb, var(--palette_border_color) 55%, var(--accent_color));
     --panel_border_subtle: 0.1rem solid rgba(var(--accent_color_rgb), 0.12);
-    --glass_specular_border: 0.1rem solid rgba(255, 255, 255, 0.12);
-    --glass_inner_glow: inset 0 0.1rem 0 0 rgba(255, 255, 255, 0.14), 0 1rem 3rem rgba(0, 0, 0, 0.35);
+    --glass_specular_border: 0.1rem solid rgba(255, 255, 255, 0.09);
+    --glass_inner_glow: inset 0 0.1rem 0 0 rgba(255, 255, 255, 0.09), 0 1rem 3rem rgba(0, 0, 0, 0.35);
     --lg_tint: color-mix(in srgb, var(--palette_surface_2_color) 60%, transparent);
     --lg_tint_dense: color-mix(in srgb, var(--palette_surface_2_color) 74%, transparent);
     --lg_tint_popover: color-mix(in srgb, var(--palette_surface_2_color) 92%, transparent);
-    --lg_sheen: linear-gradient(160deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.05) 34%, rgba(255, 255, 255, 0.015) 62%, rgba(255, 255, 255, 0.07) 100%);
-    --lg_highlight: inset 0 1px 0 rgba(255, 255, 255, 0.42), inset 0 -1px 0 rgba(255, 255, 255, 0.08), inset 1px 0 0 rgba(255, 255, 255, 0.12), inset -1px 0 0 rgba(255, 255, 255, 0.05);
+    --lg_sheen: linear-gradient(160deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0.03) 34%, rgba(255, 255, 255, 0.01) 62%, rgba(255, 255, 255, 0.04) 100%);
+    --lg_highlight: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(255, 255, 255, 0.05), inset 1px 0 0 rgba(255, 255, 255, 0.06), inset -1px 0 0 rgba(255, 255, 255, 0.03);
     --lg_edge_shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
-    --lg_border: 1px solid rgba(255, 255, 255, 0.17);
-    --lg_blur: blur(28px) saturate(190%) brightness(1.08);
+    --lg_border: 1px solid rgba(255, 255, 255, 0.11);
+    --lg_blur: blur(28px) saturate(150%);
     --lg_radius_panel: 2.2rem;
     --lg_radius_card: 1.4rem;
     --lg_radius_pill: 999px;
-    --glow_shadow: 0 0 3rem rgba(var(--accent_color_rgb), 0.08);
-    --glow_shadow_hover: 0 0 2.4rem rgba(var(--accent_color_rgb), 0.26);
-    --glow_shadow_purple: 0 0 2.2rem rgba(var(--accent_color_rgb), 0.18);
+    --glow_shadow: 0 0 3rem rgba(var(--accent_color_rgb), 0.05);
+    --glow_shadow_hover: 0 0 2rem rgba(var(--accent_color_rgb), 0.12);
+    --glow_shadow_purple: 0 0 2rem rgba(var(--accent_color_rgb), 0.09);
     --transition_ui: var(--motion_standard) var(--ease_out_quart);
-    --bg_radial_gradient: radial-gradient(circle at 85% 10%, rgba(var(--accent_color_rgb), 0.12) 0%, transparent 40%), radial-gradient(circle at 15% 90%, rgba(56, 189, 248, 0.08) 0%, transparent 45%), radial-gradient(circle at 50% 50%, rgba(129, 140, 248, 0.04) 0%, transparent 60%);
+    --bg_radial_gradient: radial-gradient(circle at 85% 10%, rgba(var(--accent_color_rgb), 0.08) 0%, transparent 40%), radial-gradient(circle at 15% 90%, rgba(56, 189, 248, 0.05) 0%, transparent 45%), radial-gradient(circle at 50% 50%, rgba(129, 140, 248, 0.04) 0%, transparent 60%);
 
     --surface_1_color: color-mix(in srgb, color-mix(in srgb, var(--palette_surface_1_color) 88%, var(--accent_color) 12%) 40%, transparent);
     --surface_2_color: color-mix(in srgb, color-mix(in srgb, var(--palette_surface_2_color) 88%, var(--accent_color) 12%) 45%, transparent);
@@ -151,10 +151,10 @@
     --shadow_lateral: 1rem 0 3.4rem rgba(0, 0, 0, 0.26);
     --shadow_card: 0 1.8rem 4.2rem rgba(0, 0, 0, 0.22), inset 0 0.1rem 0 rgba(255, 255, 255, 0.09);
     --shadow_control: 0 0.8rem 2.4rem rgba(0, 0, 0, 0.2);
-    --shadow_control_hover: 0 0 2rem rgba(var(--accent_color_rgb), 0.22);
-    --shadow_accent: 0 0 2.2rem rgba(var(--accent_color_rgb), 0.34);
-    --filter_accent_glow: drop-shadow(0 0 1.2rem rgba(var(--accent_color_rgb), 0.36));
-    --filter_accent_glow_strong: drop-shadow(0 0 2rem rgba(var(--accent_color_rgb), 0.45));
+    --shadow_control_hover: 0 0 1.6rem rgba(var(--accent_color_rgb), 0.1);
+    --shadow_accent: 0 0 1.6rem rgba(var(--accent_color_rgb), 0.16);
+    --filter_accent_glow: drop-shadow(0 0 0.8rem rgba(var(--accent_color_rgb), 0.18));
+    --filter_accent_glow_strong: drop-shadow(0 0 1.2rem rgba(var(--accent_color_rgb), 0.24));
 
     /*sent_400_color + #000 10% = */
     --supporters_color_fuwa: #5788a2;

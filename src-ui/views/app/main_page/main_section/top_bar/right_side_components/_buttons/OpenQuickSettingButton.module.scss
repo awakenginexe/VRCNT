@@ -74,7 +74,7 @@
         &::after {
             transform: translate(1.18rem, -50%);
             background: var(--accent_gradient);
-            box-shadow: 0 0 1rem var(--accent_color);
+            box-shadow: 0 0 0.8rem rgba(var(--accent_color_rgb), 0.4);
         }
     }
 }
