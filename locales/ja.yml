@@ -229,6 +229,13 @@ main_page:
         engine_label: "音声認識エンジン"
         device_label: "演算デバイス"
         compute_type_label: "演算タイプ"
+        compute_type_auto_detail: "このデバイスに最適な設定を VRCNT が選びます。"
+        compute_type_lowest_detail: "メモリ使用量が最も少ない設定です。"
+        compute_type_medium_detail: "int8 よりメモリを多く使います。"
+        compute_type_high_detail: "int8 よりメモリをかなり多く使います。"
+        compute_type_highest_detail: "メモリ使用量が最も多い設定です。"
+        compute_type_unsupported: "このデバイスでは使用できません。"
+        model_gpu_memory: "auto で約 {{size}} GB の VRAM"
         model_label: "モデル"
         decoding_label: "Whisper デコード"
         decoding_fast: "高速"
@@ -746,8 +753,6 @@ config_page:
             label_device: "処理デバイス"
             label_type: "処理タイプ"
             type_template_auto: "自動"
-            type_template_low: "{{type_name}} （精度が悪く、処理は早い）"
-            type_template_high: "{{type_name}} （精度が良く、処理は遅い）"
         warning_labels:
             unable_to_use_osc_query: "OSC IP Address の設定によりOSCデータの受信ができないため、現在この機能は使用できません。"
 

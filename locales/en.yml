@@ -229,6 +229,13 @@ main_page:
         engine_label: "Speech recognition engine"
         device_label: "Compute device"
         compute_type_label: "Compute type"
+        compute_type_auto_detail: "VRCNT picks the best setting for this device."
+        compute_type_lowest_detail: "Lowest memory use."
+        compute_type_medium_detail: "More memory than int8."
+        compute_type_high_detail: "Much more memory than int8."
+        compute_type_highest_detail: "Highest memory use."
+        compute_type_unsupported: "Not available on this device."
+        model_gpu_memory: "About {{size}} GB of VRAM on auto"
         model_label: "Model"
         decoding_label: "Whisper decoding"
         decoding_fast: "Fast"
@@ -746,8 +753,6 @@ config_page:
             label_device: "Processing Device"
             label_type: "Processing Type"
             type_template_auto: "Automatic"
-            type_template_low: "{{type_name}} (Lower accuracy, faster processing)"
-            type_template_high: "{{type_name}} (Higher accuracy, slower processing)"
         warning_labels:
             unable_to_use_osc_query: "Due to the OSC IP Address settings, OSC data cannot be received, so this feature is currently unavailable."
 

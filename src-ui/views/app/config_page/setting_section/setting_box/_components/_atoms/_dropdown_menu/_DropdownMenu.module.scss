@@ -82,6 +82,11 @@
     &:active {
         background-color: rgba(var(--accent_color_rgb), 0.16);
     }
+    &.is_disabled_value {
+        opacity: 0.4;
+        cursor: not-allowed;
+        background-color: transparent;
+    }
 }
 
 .value_text {

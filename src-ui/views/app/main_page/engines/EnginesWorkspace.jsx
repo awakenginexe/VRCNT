@@ -18,13 +18,14 @@ import { TopBar } from "../main_section/top_bar/TopBar";
 import {
     filterDeviceMapByEngine,
     getAllowedTranscriptionComputeTypes,
+    getTranscriptionComputeTypeChoices,
 } from "../sidebar_section/language_settings/transcriptionRuntimeUtils.js";
 import {
     getActiveModel,
     getActiveModelAvailability,
     getProfileControlVisibility,
 } from "./transcriptionProfileUi.js";
-import { WHISPER_CLOUD_MODELS } from "./engineModelUtils.js";
+import { WHISPER_CLOUD_MODELS, WHISPER_GPU_MEMORY_GB } from "./engineModelUtils.js";
 import { getTranscriptionEngineMetadata } from "@logics_common/transcriptionEngineMetadata.js";
 import { getTranscriptionEngineIconSource } from "@logics_common/transcriptionEngineIconSources.js";
 import { getTranslationProviderIcon } from "@logics_common/translationProviderMetadata.js";
@@ -77,6 +78,7 @@ export const SourceRuntimeCard = ({
     runtimeSettings,
     runtimeNote,
 }) => {
+    const { t } = useI18n();
     const engine = profile?.engine ?? "";
     const visibility = getProfileControlVisibility(engine);
     const filteredDevices = filterDeviceMapByEngine(devices ?? {}, engine);
@@ -92,7 +94,15 @@ export const SourceRuntimeCard = ({
     const activeStatuses = modelStatuses?.[engine] ?? [];
     const modelOptions = activeStatuses
         .filter((item) => item?.is_downloaded === true || item?.id === activeModel)
-        .map((item) => ({ id: item.id, title: item.label ?? item.id }));
+        .map((item) => ({
+            id: item.id,
+            title: item.label ?? item.id,
+            ...(selectedDevice?.device === "cuda" && WHISPER_GPU_MEMORY_GB[item.id] && {
+                subtitle: t("main_page.engines_workspace.model_gpu_memory", {
+                    size: WHISPER_GPU_MEMORY_GB[item.id],
+                }),
+            }),
+        }));
     const availability = profile?.engine === "Whisper Cloud" && !cloudConfigured
         ? "auth_required"
         : getActiveModelAvailability(profile, modelStatuses);
@@ -118,8 +128,19 @@ export const SourceRuntimeCard = ({
 
     const parsedComputeTypeOptions = useMemo(() => {
         if (computeTypes.length === 0) return [{ id: "", title: emptyLabel }];
-        return computeTypes.map((item) => ({ id: item, title: item }));
-    }, [computeTypes, emptyLabel]);
+        return getTranscriptionComputeTypeChoices(computeTypes).map(({ id, memory, supported }) => ({
+            id,
+            title: id,
+            disabled: !supported,
+            description: t(supported
+                ? `main_page.engines_workspace.compute_type_${memory}_detail`
+                : "main_page.engines_workspace.compute_type_unsupported"),
+            ...(id === "auto" && {
+                badge: t("main_page.models_hub.recommended"),
+                badgeType: "teal",
+            }),
+        }));
+    }, [computeTypes, emptyLabel, t]);
 
     return (
         <article className={styles.source_card} data-accent={accent}>

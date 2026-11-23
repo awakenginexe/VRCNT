@@ -229,6 +229,13 @@ main_page:
         engine_label: "음성 인식 엔진"
         device_label: "연산 장치"
         compute_type_label: "연산 형식"
+        compute_type_auto_detail: "이 장치에 가장 알맞은 설정을 VRCNT가 선택합니다."
+        compute_type_lowest_detail: "메모리를 가장 적게 사용합니다."
+        compute_type_medium_detail: "int8보다 메모리를 더 사용합니다."
+        compute_type_high_detail: "int8보다 메모리를 훨씬 더 사용합니다."
+        compute_type_highest_detail: "메모리를 가장 많이 사용합니다."
+        compute_type_unsupported: "이 장치에서는 사용할 수 없습니다."
+        model_gpu_memory: "auto 기준 VRAM 약 {{size}} GB"
         model_label: "모델"
         decoding_label: "Whisper 디코딩"
         decoding_fast: "빠름"
@@ -746,8 +753,6 @@ config_page:
             label_device:
             label_type:
             type_template_auto:
-            type_template_low:
-            type_template_high:
         warning_labels:
             unable_to_use_osc_query:
 

@@ -229,6 +229,13 @@ main_page:
         engine_label: "語音辨識引擎"
         device_label: "運算裝置"
         compute_type_label: "運算類型"
+        compute_type_auto_detail: "由 VRCNT 為此裝置選擇最合適的設定。"
+        compute_type_lowest_detail: "記憶體用量最低。"
+        compute_type_medium_detail: "比 int8 使用更多記憶體。"
+        compute_type_high_detail: "比 int8 使用多上許多的記憶體。"
+        compute_type_highest_detail: "記憶體用量最高。"
+        compute_type_unsupported: "此裝置不支援。"
+        model_gpu_memory: "auto 模式下約使用 {{size}} GB VRAM"
         model_label: "模型"
         decoding_label: "Whisper 解碼"
         decoding_fast: "快速"
@@ -746,8 +753,6 @@ config_page:
             label_device: "處理裝置"
             label_type: "處理類型"
             type_template_auto: "自動"
-            type_template_low: "{{type_name}}（精度較低，處理較快）"
-            type_template_high: "{{type_name}}（精度較高，處理較慢）"
         warning_labels:
             unable_to_use_osc_query: "由於 OSC IP Address 的設定無法接收 OSC 資料，目前無法使用此功能。"
 

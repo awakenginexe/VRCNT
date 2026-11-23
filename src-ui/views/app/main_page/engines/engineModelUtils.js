@@ -14,6 +14,24 @@ export const WHISPER_CLOUD_MODELS = [
     "whisper-large-v3-turbo",
 ];
 
+// Approximate VRAM in GB with the "auto" compute type. tiny, small,
+// thai-thonburian-small, large-v3-turbo-int8 and thai-mort666-large-v3-fp16
+// were measured on an RTX 3070 Ti; the others share an architecture with one
+// of those. Models without a comparable measurement are left out.
+export const WHISPER_GPU_MEMORY_GB = {
+    "tiny": 0.2,
+    "small": 0.4,
+    "large-v1": 2,
+    "large-v2": 2,
+    "large-v3": 2,
+    "large-v3-turbo-int8": 1.1,
+    "large-v3-turbo": 1.1,
+    "thai-thonburian-small": 0.4,
+    "thai-thonburian-large-v2": 2,
+    "thai-thonburian-large-v3-int8": 2,
+    "thai-mort666-large-v3-fp16": 2,
+};
+
 export const WHISPER_PRESETS = [
     {
         id: "fast",

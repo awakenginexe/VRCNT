@@ -3,6 +3,7 @@ import { useI18n } from "@useI18n";
 import {
     MultiDropdownMenuContainer,
 } from "../../_templates/Templates";
+import { getTranscriptionComputeTypeChoices } from "../../../../../main_page/sidebar_section/language_settings/transcriptionRuntimeUtils.js";
 
 // Compute device helpers
 const transformDeviceArray = (devices) => {
@@ -44,65 +45,6 @@ const findKeyByDeviceValue = (devices, target_value) => {
     return null;
 };
 
-const DEFAULT_ORDER = [
-    "auto",
-    "int8",
-    "int8_bfloat16",
-    "int8_float16",
-    "int8_float32",
-    "bfloat16",
-    "float16",
-    "int16",
-    "float32"
-];
-
-const sortComputeTypesArray = (compute_types_array = [], order) => {
-    const src_set = new Set(compute_types_array);
-
-    const from_order = order.filter((id) => src_set.has(id));
-
-    const invalid_ids = compute_types_array.filter((id) => !order.includes(id));
-    if (invalid_ids.length > 0) {
-        console.error("[sortComputeTypesArray] Unsupported compute types ignored:", invalid_ids);
-    }
-
-    return from_order;
-};
-
-const buildSimpleLabels = (ordered_array = [], t) => {
-    const n = ordered_array.length;
-    if (n === 0) return {};
-
-    const labels = {};
-
-    ordered_array.forEach((id, idx) => {
-        if (idx === 0 && id === "auto") {
-            labels[id] = t("config_page.common.compute_device.type_template_auto");
-            return;
-        }
-
-        if (idx === 1) {
-            labels[id] = t(
-                "config_page.common.compute_device.type_template_low",
-                { type_name: id }
-            );
-            return;
-        }
-
-        if (idx === n - 1) {
-            labels[id] = t(
-                "config_page.common.compute_device.type_template_high",
-                { type_name: id }
-            );
-            return;
-        }
-
-        labels[id] = id;
-    });
-
-    return labels;
-};
-
 export const ComputeDevice = ({
     label,
     dropdownIdPrefix,
@@ -123,9 +65,14 @@ export const ComputeDevice = ({
 
     const computeTypesArray = computeTypesOverride ?? currentDeviceList.data?.[target_index]?.compute_types ?? ["auto"];
 
-    const ordered_array = sortComputeTypesArray(computeTypesArray, DEFAULT_ORDER);
+    const compute_type_choices = getTranscriptionComputeTypeChoices(computeTypesArray);
 
-    const new_compute_types_labels = buildSimpleLabels(ordered_array, t);
+    const new_compute_types_labels = Object.fromEntries(compute_type_choices.map(({ id, memory, supported }) => [
+        id,
+        `${id === "auto" ? t("config_page.common.compute_device.type_template_auto") : id} — ${t(supported
+            ? `main_page.engines_workspace.compute_type_${memory}_detail`
+            : "main_page.engines_workspace.compute_type_unsupported")}`,
+    ]));
 
     const selectFunction_ComputeDevice = (selected_data) => {
         const target_obj = currentDeviceList.data[selected_data.selected_id];
@@ -156,6 +103,7 @@ export const ComputeDevice = ({
             secondary_label: t("config_page.common.compute_device.label_type"),
             selected_id: currentSelectedComputeType.data,
             list: new_compute_types_labels,
+            disabled_ids: compute_type_choices.filter((choice) => !choice.supported).map((choice) => choice.id),
             selectFunction: selectFunction_ComputeType,
             state: currentSelectedComputeType.state,
             is_disabled: is_disabled_selector,

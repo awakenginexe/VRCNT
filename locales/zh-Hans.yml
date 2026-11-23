@@ -229,6 +229,13 @@ main_page:
         engine_label: "语音识别引擎"
         device_label: "计算设备"
         compute_type_label: "计算类型"
+        compute_type_auto_detail: "由 VRCNT 为此设备选择最合适的设置。"
+        compute_type_lowest_detail: "内存占用最低。"
+        compute_type_medium_detail: "比 int8 占用更多内存。"
+        compute_type_high_detail: "比 int8 占用多得多的内存。"
+        compute_type_highest_detail: "内存占用最高。"
+        compute_type_unsupported: "此设备不支持。"
+        model_gpu_memory: "auto 模式下约占用 {{size}} GB 显存"
         model_label: "模型"
         decoding_label: "Whisper 解码"
         decoding_fast: "快速"
@@ -746,8 +753,6 @@ config_page:
             label_device: "处理设备"
             label_type: "处理类型"
             type_template_auto: "自动"
-            type_template_low: "{{type_name}} （精度较低，处理较快）"
-            type_template_high: "{{type_name}} （精度较高，处理较慢）"
         warning_labels:
             unable_to_use_osc_query: "由于 OSC IP Address 的设置无法接收 OSC 数据，目前无法使用此功能。"
 

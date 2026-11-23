@@ -12,6 +12,20 @@ const DEFAULT_COMPUTE_TYPE_ORDER = [
     "float32",
 ];
 
+// Relative memory use, measured on GPU: the int8 family is within a few percent
+// of each other, float16 needs roughly 1.5-2x as much.
+const COMPUTE_TYPE_MEMORY = {
+    auto: "auto",
+    int8: "lowest",
+    int8_bfloat16: "lowest",
+    int8_float16: "lowest",
+    int8_float32: "lowest",
+    bfloat16: "high",
+    float16: "high",
+    int16: "medium",
+    float32: "highest",
+};
+
 const ENGINE_DEVICE_RULES = {
     "Google": ["cpu"],
     "Bing": ["cpu"],
@@ -150,6 +164,21 @@ export const getAllowedTranscriptionComputeTypes = ({ engine, device }) => {
     }
 
     return sortTranscriptionComputeTypes(device?.compute_types ?? ["auto"]);
+};
+
+// Every known compute type: the ones this device can run first, the rest
+// still listed so the picker can show them greyed out.
+export const getTranscriptionComputeTypeChoices = (supportedTypes = []) => {
+    const supported = new Set(supportedTypes);
+    const choices = DEFAULT_COMPUTE_TYPE_ORDER.map((id) => ({
+        id,
+        memory: COMPUTE_TYPE_MEMORY[id],
+        supported: supported.has(id),
+    }));
+    return [
+        ...choices.filter((choice) => choice.supported),
+        ...choices.filter((choice) => !choice.supported),
+    ];
 };
 
 export const isAutoOnlyTranscriptionEngine = (engine) => {

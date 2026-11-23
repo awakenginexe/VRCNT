@@ -229,6 +229,13 @@ main_page:
         engine_label: "เอนจินรู้จำเสียง"
         device_label: "อุปกรณ์ประมวลผล"
         compute_type_label: "ชนิดการประมวลผล"
+        compute_type_auto_detail: "VRCNT เลือกค่าที่เหมาะกับอุปกรณ์นี้ให้เอง"
+        compute_type_lowest_detail: "ใช้หน่วยความจำน้อยที่สุด"
+        compute_type_medium_detail: "ใช้หน่วยความจำมากกว่า int8"
+        compute_type_high_detail: "ใช้หน่วยความจำมากกว่า int8 มาก"
+        compute_type_highest_detail: "ใช้หน่วยความจำมากที่สุด"
+        compute_type_unsupported: "ใช้กับอุปกรณ์นี้ไม่ได้"
+        model_gpu_memory: "ใช้ VRAM ประมาณ {{size}} GB เมื่อเลือก auto"
         model_label: "โมเดล"
         decoding_label: "การถอดรหัส Whisper"
         decoding_fast: "เร็ว"
@@ -746,8 +753,6 @@ config_page:
             label_device: "อุปกรณ์ประมวลผล"
             label_type: "ประเภทการประมวลผล"
             type_template_auto: "อัตโนมัติ"
-            type_template_low: "{{type_name}} (ความแม่นยำต่ำกว่า ประมวลผลเร็วกว่า)"
-            type_template_high: "{{type_name}} (ความแม่นยำสูงกว่า ประมวลผลช้ากว่า)"
         warning_labels:
             unable_to_use_osc_query: "เนื่องจากการตั้งค่า OSC IP Address ไม่สามารถรับข้อมูล OSC ได้ ฟีเจอร์นี้จึงไม่พร้อมใช้งานในขณะนี้"
 

@@ -61,8 +61,14 @@ export const _DropdownMenu = (props) => {
                 <div className={styles.dropdown_content}>
                     {(props.state === "ok")
                         ? Object.entries(list).map(([key, value]) => {
+                            const is_disabled_value = props.disabled_ids?.includes(key) === true;
                             return (
-                                <div key={key} className={styles.value_button} onClick={() => selectValue(key)}>
+                                <div
+                                    key={key}
+                                    className={clsx(styles.value_button, { [styles.is_disabled_value]: is_disabled_value })}
+                                    aria-disabled={is_disabled_value}
+                                    onClick={is_disabled_value ? undefined : () => selectValue(key)}
+                                >
                                     <p className={styles.value_text}>{value}</p>
                                 </div>
                             );
