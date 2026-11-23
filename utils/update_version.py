@@ -124,6 +124,16 @@ def update_versions():
             ],
         )
 
+    # The setup manager rejects signed manifests for any other version.
+    replace_in_file(
+        os.path.join(root, "installer-helper", "VRCNT.RuntimeCore", "Manager", "ManagerCapabilities.cs"),
+        [(r'(Current \{ get; \} = new\(")[^"]+(",)', rf"\g<1>{version}\g<2>", 1)],
+    )
+    replace_in_file(
+        os.path.join(root, "installer-helper", "VRCNT.Setup", "Views", "MainWindow.xaml"),
+        [(r'(<TextBlock Text="v)[0-9]+\.[0-9]+\.[0-9]+(")', rf"\g<1>{version}\g<2>", 1)],
+    )
+
     replace_in_file(
         os.path.join(root, "BUILD.md"),
         [
