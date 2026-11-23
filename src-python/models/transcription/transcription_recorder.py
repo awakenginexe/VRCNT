@@ -15,6 +15,7 @@ from typing import Any
 
 from speech_recognition import Microphone as _SpeechRecognitionMicrophone
 from speech_recognition import Recognizer
+from speech_recognition import WaitTimeoutError
 
 from audio_runtime import (
     audio_api_lock,
@@ -28,6 +29,11 @@ from models.pipeline.pipeline_types import AudioChunk
 logger = logging.getLogger(__name__)
 AUDIO_OPEN_TIMEOUT_SECONDS = 8.0
 _audio_open_slot = BoundedSemaphore(1)
+
+
+class _StreamStopping(OSError, WaitTimeoutError):
+    """Read failed because we stopped the stream. The fork's energy listener
+    only survives WaitTimeoutError; any other error leaks to stderr as a crash."""
 
 
 class _LockedPortAudioStream:
@@ -46,18 +52,27 @@ class _LockedPortAudioStream:
     def read(self, *args: Any, **kwargs: Any) -> Any:
         with self._condition:
             if self._stop_requested or self._closed:
-                raise OSError("Audio stream is stopping")
+                raise _StreamStopping("Audio stream is stopping")
             self._active_reads += 1
         try:
             return self._stream.read(*args, **kwargs)
+        except OSError as error:
+            if self._stop_requested:
+                raise _StreamStopping("Audio stream is stopping") from error
+            raise
         finally:
             with self._condition:
                 self._active_reads -= 1
                 self._condition.notify_all()
 
     def get_read_available(self) -> Any:
-        with audio_api_lock:
-            return self._stream.get_read_available()
+        try:
+            with audio_api_lock:
+                return self._stream.get_read_available()
+        except OSError as error:
+            if self._stop_requested or self._closed:
+                raise _StreamStopping("Audio stream is stopping") from error
+            raise
 
     def is_stopped(self) -> Any:
         with audio_api_lock:
@@ -305,6 +320,10 @@ def _unblocking_stopper(source: Any, stop: Any, resume: Any) -> Any:
         return stop
 
     def stopper(wait_for_stop: bool = True) -> None:
+        wait_closed = getattr(source, "wait_for_stream_close", None)
+        if callable(wait_closed):
+            # Clear the run flag first so the forced read error ends the loop.
+            stop(wait_for_stop=False)
         try:
             if callable(resume):
                 resume()
@@ -313,9 +332,7 @@ def _unblocking_stopper(source: Any, stop: Any, resume: Any) -> Any:
                 request_stop()
         except Exception:
             logger.exception("Could not interrupt audio stream before listener stop")
-        wait_closed = getattr(source, "wait_for_stream_close", None)
         if callable(wait_closed):
-            stop(wait_for_stop=False)
             if wait_for_stop and not wait_closed(2.0):
                 raise TimeoutError("Audio listener did not close after stream stop")
         else:

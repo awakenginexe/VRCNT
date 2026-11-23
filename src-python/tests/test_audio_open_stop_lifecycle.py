@@ -201,6 +201,65 @@ class AudioOpenStopLifecycleTests(unittest.TestCase):
                 release.set()
                 worker.join(1)
 
+    def test_energy_meter_stop_does_not_leak_listener_error(self):
+        # Stopping the mic threshold meter used to kill its listener thread with
+        # "OSError: Audio stream is stopping", which the UI shows as a crash toast.
+        from queue import Queue
+        from speech_recognition import AudioSource, Microphone
+
+        class LiveStream(BlockingStream):
+            def read(self, *_args, **_kwargs):
+                self.reading.set()
+                self.release.wait(0.005)
+                if self.stopped:
+                    raise OSError("Stream is stopped")
+                return b"\x00\x01" * 4
+
+            def get_read_available(self):
+                return 4
+
+            def close(self):
+                self.closed = True
+
+        class LiveSource(AudioSource):
+            CHUNK = 4
+            SAMPLE_WIDTH = 2
+
+            def __init__(self):
+                self.raw = LiveStream()
+                self.stream = None
+                self.closed = threading.Event()
+
+            def __enter__(self):
+                self.stream = Microphone.MicrophoneStream(
+                    recorder._LockedPortAudioStream(self.raw)
+                )
+                return self
+
+            def __exit__(self, *_args):
+                self.stream.close()
+                self.closed.set()
+
+            def request_stop_stream(self):
+                self.stream.pyaudio_stream.stop_stream()
+
+            def wait_for_stream_close(self, timeout):
+                return self.closed.wait(timeout)
+
+        source = LiveSource()
+        errors = []
+        before = set(threading.enumerate())
+        with patch.object(threading, "excepthook", lambda args: errors.append(args.exc_value)):
+            meter = recorder.BaseEnergyRecorder(source)
+            meter.recordIntoQueue(Queue())
+            (listener,) = set(threading.enumerate()) - before
+            self.assertTrue(source.raw.reading.wait(1))
+            meter.stop()
+            listener.join(1)
+        self.assertFalse(listener.is_alive())
+        self.assertEqual(errors, [])
+        self.assertTrue(source.raw.closed)
+
 
 if __name__ == "__main__":
     unittest.main()
