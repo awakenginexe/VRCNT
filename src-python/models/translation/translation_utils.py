@@ -261,7 +261,20 @@ def _getCtrTranslate2():
 
 def _getTransformers():
     _removeStaleFrozenTokenizersMetadata()
-    return importlib.import_module("transformers")
+    # Transformers decides once, at import, whether torch exists. The app only
+    # uses its tokenizers, so hide torch for that import: loading it costs
+    # about 490 MB of RAM and 2 seconds.
+    hide_torch = "torch" not in sys.modules and "transformers" not in sys.modules
+    if hide_torch:
+        sys.modules["torch"] = None
+        # Without torch, transformers prints "PyTorch was not found" to stderr,
+        # and the UI shows every stderr line as an error.
+        os.environ.setdefault("TRANSFORMERS_NO_ADVISORY_WARNINGS", "1")
+    try:
+        return importlib.import_module("transformers")
+    finally:
+        if hide_torch:
+            sys.modules.pop("torch", None)
 
 def verifyCTranslate2Manifest(path: str) -> bool:
     """Verify an optional repository manifest without weakening runtime checks.

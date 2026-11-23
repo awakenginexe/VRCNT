@@ -44,13 +44,6 @@ GOOGLE_POST_PAD_MS = 500
 ENGINE_RECOVERY_FAILURE_THRESHOLD = 3
 
 
-def _getTorch():
-    try:
-        return importlib.import_module("torch")
-    except Exception:
-        return None
-
-
 def _getWhisperBeamSize(profile: str) -> int:
     module = importlib.import_module(".transcription_whisper", __package__)
     return module.getWhisperBeamSize(profile)
@@ -662,9 +655,6 @@ class AudioTranscriber:
                         audio_data = np.frombuffer(
                             audio_data.get_raw_data(convert_rate=16000, convert_width=2), np.int16
                         ).flatten().astype(np.float32) / 32768.0
-                        torch = _getTorch()
-                        if torch is not None and isinstance(audio_data, torch.Tensor):
-                            audio_data = audio_data.detach().numpy()
                         if audio_data.size == 0 or not np.any(audio_data):
                             if self._isGenerationCurrent():
                                 emit_terminal_metric(

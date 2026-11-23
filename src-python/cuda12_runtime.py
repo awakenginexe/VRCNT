@@ -12,14 +12,15 @@ _DLL_DIR_HANDLES = []
 _REGISTERED_PATHS = set()
 
 
-def prepare_cuda12_runtime() -> None:
+def prepare_cuda12_runtime() -> bool:
+    """Register the packaged CUDA 12 libraries; False when this runtime has none."""
     frozen_root = getattr(sys, "_MEIPASS", None)
     if frozen_root:
         root = Path(frozen_root)
     else:
         torch_spec = importlib.util.find_spec("torch")
         if torch_spec is None or torch_spec.origin is None:
-            return
+            return False
         root = Path(torch_spec.origin).parent.parent
 
     with _LOCK:
@@ -38,3 +39,4 @@ def prepare_cuda12_runtime() -> None:
             if directory not in path_parts:
                 path_parts.insert(0, directory)
         os.environ["PATH"] = os.pathsep.join(path_parts)
+        return bool(_REGISTERED_PATHS)

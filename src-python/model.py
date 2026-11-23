@@ -10,7 +10,7 @@ from os import path as os_path
 from datetime import datetime
 from time import monotonic, sleep, time
 from queue import Queue
-from threading import Condition, Event, RLock, Thread, current_thread
+from threading import Condition, Event, Lock, RLock, Thread, current_thread
 from requests import get as requests_get
 from typing import Callable, Optional, cast
 from packaging.version import parse
@@ -945,7 +945,7 @@ class Model:
         ):
             return ()
         return tuple(
-            deepcopy(
+            copy.deepcopy(
                 self.convertMessageToTransliteration(
                     message,
                     hiragana=output_config.convert_message_to_hiragana,

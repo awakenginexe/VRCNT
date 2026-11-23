@@ -83,12 +83,6 @@ except Exception:  # pragma: no cover - optional runtime
 from utils import errorLogging, validateDictStructure, getComputeDeviceList
 
 
-def _getTorch():
-    try:
-        return importlib.import_module("torch")
-    except Exception:
-        return None
-
 def _getUserDataPath(app_name: str = "VRCNT") -> str:
     base_path = (
         os_environ.get("LOCALAPPDATA")
@@ -1315,9 +1309,8 @@ class Config:
         # provider, including a local provider whose model still needs download.
         self._SELECTABLE_TRANSCRIPTION_ENGINE_LIST = list(TRANSCRIPTION_ENGINES)
         self._SELECTABLE_UI_LANGUAGE_LIST = ["en", "ja", "ko", "th", "zh-Hant", "zh-Hans"]
-        torch = _getTorch()
-        self._COMPUTE_MODE = "cuda" if (torch is not None and torch.cuda.is_available()) else "cpu"
         self._SELECTABLE_COMPUTE_DEVICE_LIST = getComputeDeviceList()
+        self._COMPUTE_MODE = "cuda" if len(self._SELECTABLE_COMPUTE_DEVICE_LIST) > 1 else "cpu"
         self._SEND_MESSAGE_BUTTON_TYPE_LIST = ["show", "hide", "show_and_disable_enter_key"]
 
         # Read Write
@@ -1706,7 +1699,8 @@ class Config:
                         except Exception:
                             errorLogging()
 
-        self._APP_COLOR_PALETTE = _upgrade_legacy_text_colors(self._APP_COLOR_PALETTE)
+        if hasattr(self, "_APP_COLOR_PALETTE"):
+            self._APP_COLOR_PALETTE = _upgrade_legacy_text_colors(self._APP_COLOR_PALETTE)
 
         self._COLOR_RESET_5_9_0 = _resolve_color_reset_migration_flag(
             config_file_exists,

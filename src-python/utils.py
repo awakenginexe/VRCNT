@@ -42,6 +42,35 @@ def _getTorch():
     return _TORCH_MODULE
 
 
+def _getCudaDeviceNames() -> List[str]:
+    """Names of the usable CUDA devices, by CUDA device index.
+
+    Importing torch only to ask this costs about 490 MB of RAM and 4 seconds of
+    startup, so one GPU is named through CTranslate2 and the driver instead.
+    Several GPUs still go through torch: CUDA and the driver may order them
+    differently, and only torch reports names in CUDA order.
+    """
+    try:
+        from cuda12_runtime import prepare_cuda12_runtime
+        from resource_usage import gpu_device_names
+
+        if not prepare_cuda12_runtime():
+            return []  # CPU runtime: no CUDA libraries are packaged.
+        count = importlib.import_module("ctranslate2").get_cuda_device_count()
+        if count < 1:
+            return []
+        names = gpu_device_names()
+        if count == 1 and len(names) == 1:
+            return names
+    except Exception:
+        pass
+
+    torch = _getTorch()
+    if torch is None or not hasattr(torch, "cuda") or not torch.cuda.is_available():
+        return []
+    return [torch.cuda.get_device_name(index) for index in range(torch.cuda.device_count())]
+
+
 def _getSupportedComputeTypes(device: str, device_index: int) -> List[str]:
     global _CTRANSLATE2_GET_SUPPORTED_COMPUTE_TYPES, _CTRANSLATE2_IMPORT_ATTEMPTED
     if _CTRANSLATE2_IMPORT_ATTEMPTED is False:
@@ -159,27 +188,24 @@ def getComputeDeviceList() -> List[Dict[str, Any]]:
     ]
 
     try:
-        torch = _getTorch()
-        if torch is not None and hasattr(torch, "cuda") and torch.cuda.is_available():
-            for device_index in range(torch.cuda.device_count()):
-                gpu_device_name = torch.cuda.get_device_name(device_index)
-                gpu_compute_types = ["auto"] + sorted(_getSupportedComputeTypes("cuda", device_index))
+        for device_index, gpu_device_name in enumerate(_getCudaDeviceNames()):
+            gpu_compute_types = ["auto"] + sorted(_getSupportedComputeTypes("cuda", device_index))
 
-                # デバイスごとの計算タイプの制限
-                if "GTX" in gpu_device_name:
-                    unsupported_types = {"int8_bfloat16", "bfloat16", "float16", "int8"}
-                    gpu_compute_types = [t for t in gpu_compute_types if t not in unsupported_types]
-                elif not any(keyword in gpu_device_name for keyword in ["RTX", "Tesla", "A100", "Quadro"]):
-                    gpu_compute_types = ["float32"]
+            # デバイスごとの計算タイプの制限
+            if "GTX" in gpu_device_name:
+                unsupported_types = {"int8_bfloat16", "bfloat16", "float16", "int8"}
+                gpu_compute_types = [t for t in gpu_compute_types if t not in unsupported_types]
+            elif not any(keyword in gpu_device_name for keyword in ["RTX", "Tesla", "A100", "Quadro"]):
+                gpu_compute_types = ["float32"]
 
-                compute_types.append(
-                    {
-                        "device": "cuda",
-                        "device_index": device_index,
-                        "device_name": gpu_device_name,
-                        "compute_types": gpu_compute_types,
-                    }
-                )
+            compute_types.append(
+                {
+                    "device": "cuda",
+                    "device_index": device_index,
+                    "device_name": gpu_device_name,
+                    "compute_types": gpu_compute_types,
+                }
+            )
     except Exception:
         # If querying GPU devices fails, return at least the CPU entry
         errorLogging()
@@ -197,8 +223,7 @@ def getBestComputeType(device: str, device_index: int) -> str:
         compute_types = set()
 
     try:
-        torch = _getTorch()
-        device_name = "cpu" if device == "cpu" else (torch.cuda.get_device_name(device_index) if torch is not None else "")
+        device_name = "cpu" if device == "cpu" else _getCudaDeviceNames()[device_index]
     except Exception:
         device_name = ""
 

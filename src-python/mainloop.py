@@ -10,6 +10,19 @@ from cuda_capability_probe import run_cuda_capability_probe  # noqa: E402
 if "--cuda-capability-probe" in sys.argv:
     raise SystemExit(run_cuda_capability_probe(offline="--offline" in sys.argv))
 
+# ctranslate2 imports torch and transformers only for its model converters,
+# which the app never uses. Hiding them for that one import keeps about 490 MB
+# of RAM and 4 seconds of startup out of the backend.
+_hidden_modules = [name for name in ("torch", "transformers") if name not in sys.modules]
+sys.modules.update(dict.fromkeys(_hidden_modules))
+try:
+    import ctranslate2  # noqa: E402,F401
+except Exception:
+    pass  # Each engine imports it again when used and reports its own error.
+finally:
+    for _name in _hidden_modules:
+        sys.modules.pop(_name, None)
+
 from controller import Controller, parseRuntimeActivationLaunchArgs  # noqa: E402
 from utils import printLog, printResponse, errorLogging, encodeBase64, redact_endpoint_payload # noqa: E402
 
