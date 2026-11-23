@@ -63,6 +63,32 @@ class ReleaseVersionTests(unittest.TestCase):
             self.assertEqual(project.findtext(".//AssemblyVersion"), f"{APP_VERSION}.0")
             self.assertEqual(project.findtext(".//FileVersion"), f"{APP_VERSION}.0")
 
+    def test_setup_manager_reports_release_version(self):
+        # The manager rejects any signed manifest whose version differs from this.
+        capabilities = (
+            ROOT / "installer-helper" / "VRCNT.RuntimeCore" / "Manager" / "ManagerCapabilities.cs"
+        ).read_text(encoding="utf-8")
+        self.assertIn(f'Current {{ get; }} = new("{APP_VERSION}",', capabilities)
+        main_window = (
+            ROOT / "installer-helper" / "VRCNT.Setup" / "Views" / "MainWindow.xaml"
+        ).read_text(encoding="utf-8")
+        self.assertIn(f'<TextBlock Text="v{APP_VERSION}"', main_window)
+
+    def test_http_plugin_js_matches_rust_crate(self):
+        # JS 2.4.x waits for body chunks on a channel that Rust 2.5.x never writes.
+        package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
+        cargo_lock = tomllib.loads(
+            (ROOT / "src-tauri" / "Cargo.lock").read_text(encoding="utf-8")
+        )
+        crate = next(
+            package
+            for package in cargo_lock["package"]
+            if package["name"] == "tauri-plugin-http"
+        )
+        self.assertEqual(
+            package["dependencies"]["@tauri-apps/plugin-http"], crate["version"]
+        )
+
     def test_rust_application_package_reports_release_version(self):
         cargo_manifest = tomllib.loads(
             (ROOT / "src-tauri" / "Cargo.toml").read_text(encoding="utf-8")
